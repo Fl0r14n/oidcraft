@@ -5,40 +5,32 @@ This file is working state: tick items off and add notes as work lands.
 
 ## Status
 
-**M3 is most of the way there.** The broker does both legs against a live upstream — discovery,
-PKCE, the code exchange, claim mapping, single-use handoffs, linking policies. What is left is the
-wiring: the authorization endpoint does not yet choose an upstream by itself, so a host calls
-`start` and `complete` around its own interaction. Logout propagation (FR-F8) and the `prompt=login`
-passthrough (FR-F9) are not built.
+**A working OpenID Provider for the authorization code flow, plus identity brokering.** 177 tests.
 
-**M4 is under way.** Revocation, introspection and logout are implemented, so every endpoint the
-default configuration advertises now answers for real — a test asserts that, rather than trusting
-it. Back-channel logout tokens are minted and handed to the host: the core performs no I/O, and a
-fan-out with retries does not belong in a request.
+Done: configuration validated at construction, discovery, JWKS and key rotation, the code grant with
+mandatory PKCE, interaction suspend/resume with remembered consent, token issuance with refresh
+rotation and replay revocation, UserInfo, revocation, introspection, RP-initiated and back-channel
+logout, the `KvStore` derivation, memory and Drizzle/SQLite adapters passing one shared conformance
+suite, the Node bridge, and an identity broker exercised against a live second instance.
 
-**M1 is done.** The code grant works end to end: a browser completes login and consent, exchanges
-the code with PKCE, and receives an ID token that verifies against the published JWKS. Replaying a
-code or a refresh token revokes the grant. 107 tests.
+**Not yet a complete OP.** The big absences are the sender-constraining and request-integrity
+features (DPoP, PAR, JAR), the remaining grants (device, token exchange, CIBA), dynamic
+registration, pairwise subjects, the management API and admin UI, and Postgres. Federation works but
+is not wired into the authorization endpoint, so a host drives `start`/`complete` around its own
+interaction rather than the OP choosing an upstream itself.
 
-Still open before this is a usable OP: revocation and introspection are configured but answer 501,
-logout is not implemented, and `apps/client` has not been driven against it in a browser.
-
-**M0 is done.** `createProvider` validates its configuration at construction, routes, and serves a
-real discovery document and JWKS; `fromKv` derives a complete `Adapter` from four key-value methods,
-and the memory adapter passes the shared conformance suite. 78 tests. `apps/server` runs it.
-
-Nothing of the protocol proper exists yet: the authorization, token, userinfo and logout endpoints
-answer 501 and point here. M1 is the code grant.
+**Nothing has been run against the OpenID Foundation conformance suite.** Until that happens,
+"RFC-compliant" is an intention, not a measurement (NFR-C1).
 
 ## M0 — foundation
 
 - [x] CI: `biome ci`, build + `verify-entries`, typecheck, `bun test` on push and PR
 - [x] `exports.test.ts`: the exports map, the source tree and the build entries agree
 
-- [ ] Root entry: config construction with validation (NFR-D2), route table, error responses
-- [ ] `KeyStore` + JWKS endpoint + discovery document (FR-C6, FR-C10)
-- [ ] `oidcraft/adapters/memory` and the shared adapter-conformance suite (FR-A3, FR-A4)
-- [ ] `fromKv` derivation over `KvStore`
+- [x] Root entry: config construction with validation (NFR-D2), route table, error responses
+- [x] `KeyStore` + JWKS endpoint + discovery document (FR-C6, FR-C10)
+- [x] `oidcraft/adapters/memory` and the shared adapter-conformance suite (FR-A3, FR-A4)
+- [x] `fromKv` derivation over `KvStore`
 
 ## M1 — the code grant
 
@@ -59,8 +51,9 @@ answer 501 and point here. M1 is the code grant.
 - [ ] `oidcraft/adapters/kysely`
 - [ ] OpenID Foundation conformance suite in CI: `basic`, `config` (NFR-C1)
 - [x] `oidcraft/runtimes/node` HTTP bridge, tested against a real node:http server (FR-R3)
-- [ ] Context providers: `oidcraft/runtimes/{bun,deno,workerd}`, one smoke test each (FR-R3, FR-R4)
-- [ ] Capability gating: disable mTLS methods where no certificate can be supplied (FR-R5, `G-8`)
+- [x] Capability gating: mTLS methods are refused at construction where no certificate can be
+      supplied, and absent from discovery (FR-R5, `G-8`)
+- [ ] Smoke tests for `oidcraft/runtimes/{bun,deno,workerd}` — written but only `node` is exercised
 
 ## M3 — federation
 
@@ -82,7 +75,8 @@ answer 501 and point here. M1 is the code grant.
 
 ## M5 — batteries
 
-- [ ] Reference interaction screens (FR-I3), consent memory (FR-I4)
+- [x] Reference login and consent screens (FR-I3), remembered consent (FR-I4)
+- [ ] The remaining screens: account selection, upstream selection, device code, logout
 - [ ] Management API (FR-M1) and admin UI (FR-M2)
 - [x] First manual publish: `oidcraft@0.0.1` claimed the name — the similarity check cleared
 - [ ] `npm trust github` registration, so releases publish from CI (ARCHITECTURE.md §11)

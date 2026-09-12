@@ -11,6 +11,7 @@ export type {
   SessionStore
 } from './adapter'
 export {
+  type AuditEvent,
   type Capabilities,
   DEFAULT_CAPABILITIES,
   DEFAULT_FEATURES,
@@ -29,6 +30,7 @@ export { accessTokenHash, type DpopProof, htu, type VerifyOptions, verifyDpopPro
 export { type AuthorizationRequest, redirectTo } from './endpoints/authorization'
 export { metadata } from './endpoints/discovery'
 export { type LogoutNotification, logoutTokens } from './endpoints/end-session'
+export { clientResponse } from './endpoints/registration'
 export { ConfigurationError, errorResponse, OAuthError, type OAuthErrorCode, type OAuthErrorInit } from './errors'
 export {
   type InteractionCompletion,
@@ -48,6 +50,7 @@ export {
   staticKeyStore
 } from './keys'
 export { type FromKvOptions, fromKv } from './kv'
+export { type Management, type ManagementClientInput, management } from './management'
 export { createProvider, type LogoutDelivery, type Provider } from './provider'
 export { isFresh, type LoginInput, readSession, SESSION_COOKIE, startSession } from './session'
 export type { Account, Artifact, ArtifactKind, Client, ClientAuthMethod, FederatedIdentity, Grant, Seconds, Session } from './types'

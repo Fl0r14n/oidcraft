@@ -6,17 +6,21 @@ import { endSessionEndpoint, type LogoutNotification } from './endpoints/end-ses
 import { introspectionEndpoint } from './endpoints/introspection'
 import { jwksEndpoint } from './endpoints/jwks'
 import { pushedAuthorizationRequestEndpoint, resolvePushedRequest } from './endpoints/par'
+import { registrationEndpoint } from './endpoints/registration'
 import { revocationEndpoint } from './endpoints/revocation'
 import { tokenEndpoint } from './endpoints/token'
 import { userinfoEndpoint } from './endpoints/userinfo'
 import { errorResponse, OAuthError } from './errors'
 import { interactions } from './interactions'
+import { management } from './management'
 import { applyRequestObject } from './request-object'
 import { readSession } from './session'
 
 export type Provider = {
   config: ResolvedConfig
   interactions: ReturnType<typeof interactions>
+  /** Operator-facing, and deliberately not an HTTP route: the host authorizes it (FR-M1). */
+  management: ReturnType<typeof management>
   /** The whole surface: a WHATWG Request in, a Response out, no I/O of its own (FR-R1, FR-A1). */
   handle(request: Request, context?: Partial<RequestContext>): Promise<Response>
 }
@@ -141,7 +145,9 @@ const routeTable = (config: ResolvedConfig) => {
   add(config.routes.endSession, [GET, 'POST'], endSessionHandler)
   if (config.features.revocation) add(config.routes.revocation, ['POST'], async (cfg, req) => revocationEndpoint(cfg, req))
   if (config.features.introspection) add(config.routes.introspection, ['POST'], async (cfg, req) => introspectionEndpoint(cfg, req))
-  if (config.features.dynamicRegistration) add(config.routes.registration, ['POST'], notImplemented('registration'))
+  if (config.features.dynamicRegistration) {
+    add(config.routes.registration, ['POST', GET, 'PUT', 'DELETE'], async (cfg, req) => registrationEndpoint(cfg, req))
+  }
   if (config.features.deviceFlow) add(config.routes.deviceAuthorization, ['POST'], notImplemented('device authorization'))
   if (config.features.pushedAuthorizationRequests) {
     add(config.routes.pushedAuthorizationRequest, ['POST'], async (cfg, req) => pushedAuthorizationRequestEndpoint(cfg, req))
@@ -160,6 +166,7 @@ export const createProvider = (config: ProviderConfig): Provider => {
   return {
     config: resolved,
     interactions: interactions(resolved),
+    management: management(resolved),
     async handle(request, context) {
       try {
         const route = routes.get(new URL(request.url).pathname)

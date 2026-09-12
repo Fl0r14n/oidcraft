@@ -104,6 +104,24 @@ export type ProviderConfig = {
    * The core will not fetch it: that is outbound I/O to a URL the client chose (FR-A1, FR-R4).
    */
   resolveClientJwks?: (client: Client) => Promise<{ keys: unknown[] }>
+  /**
+   * Gates open registration — an initial access token, a software statement, a rate limit. Throwing
+   * an OAuthError refuses the registration. Without it, and with the feature on, anyone may
+   * register a client (FR-C9).
+   */
+  onRegister?: (request: Request) => void | Promise<void>
+  /** Every write through registration or the management API. The host decides where these go (FR-M3). */
+  onAudit?: (event: AuditEvent) => void | Promise<void>
+}
+
+export type AuditEvent = {
+  action: string
+  at: Date
+  clientId?: string
+  accountId?: string
+  sessionId?: string
+  grantId?: string
+  detail?: Record<string, unknown>
 }
 
 export type ResolvedConfig = {
@@ -120,6 +138,8 @@ export type ResolvedConfig = {
   capabilities: Capabilities
   onLogout: ProviderConfig['onLogout']
   resolveClientJwks: ProviderConfig['resolveClientJwks']
+  onRegister: ProviderConfig['onRegister']
+  onAudit: ProviderConfig['onAudit']
 }
 
 const MTLS_METHODS: ClientAuthMethod[] = ['tls_client_auth', 'self_signed_tls_client_auth']
@@ -205,7 +225,9 @@ export const resolveConfig = (config: ProviderConfig): ResolvedConfig => {
     features,
     capabilities,
     onLogout: config.onLogout,
-    resolveClientJwks: config.resolveClientJwks
+    resolveClientJwks: config.resolveClientJwks,
+    onRegister: config.onRegister,
+    onAudit: config.onAudit
   }
 }
 

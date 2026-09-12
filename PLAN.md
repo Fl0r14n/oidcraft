@@ -77,14 +77,17 @@ interaction rather than the OP choosing an upstream itself.
 - [ ] DPoP nonces (`DPoP-Nonce`, `use_dpop_nonce`)
 - [x] PAR (RFC 9126) and JAR by value (RFC 9101) (FR-C12)
 - [ ] JAR by reference — needs a host resolver, since the core will not fetch a client-chosen URL
-- [ ] Device grant (FR-C7); DCR (FR-C9); pairwise subjects (FR-C18)
+- [x] DCR (FR-C9) with RFC 7592 client management, gated by `onRegister`
+- [ ] Device grant (FR-C7); pairwise subjects (FR-C18)
 - [ ] Token exchange (FR-C2); RAR (FR-C15); step-up (FR-C16); CIBA (FR-C17)
 
 ## M5 — batteries
 
 - [x] Reference login and consent screens (FR-I3), remembered consent (FR-I4)
 - [ ] The remaining screens: account selection, upstream selection, device code, logout
-- [ ] Management API (FR-M1) and admin UI (FR-M2)
+- [x] Management API (FR-M1) over clients, grants, sessions, keys and identities, with audit
+      events (FR-M3) — functions, not routes, so the host authorizes it
+- [ ] Admin UI (FR-M2), using `@vuetify/v0` in `apps/server/src/admin`
 - [x] First manual publish: `oidcraft@0.0.1` claimed the name — the similarity check cleared
 - [ ] `npm trust github` registration, so releases publish from CI (ARCHITECTURE.md §11)
 - [ ] Docs site

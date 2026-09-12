@@ -75,7 +75,8 @@ interaction rather than the OP choosing an upstream itself.
 - [x] Revocation, introspection (FR-C8); RP-initiated and back-channel logout (FR-C11)
 - [x] DPoP (FR-C13): bound access and refresh tokens, `ath`/`htm`/`htu` checks, jti replay guard
 - [ ] DPoP nonces (`DPoP-Nonce`, `use_dpop_nonce`)
-- [ ] PAR, JAR (FR-C12)
+- [x] PAR (RFC 9126) and JAR by value (RFC 9101) (FR-C12)
+- [ ] JAR by reference — needs a host resolver, since the core will not fetch a client-chosen URL
 - [ ] Device grant (FR-C7); DCR (FR-C9); pairwise subjects (FR-C18)
 - [ ] Token exchange (FR-C2); RAR (FR-C15); step-up (FR-C16); CIBA (FR-C17)
 

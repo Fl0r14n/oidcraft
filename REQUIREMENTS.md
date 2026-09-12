@@ -87,8 +87,14 @@ of an algorithm signs, the rest only verify, so a rotation never invalidates liv
 Management 1.0's `check_session_iframe` is **not** implemented — third-party cookie blocking has
 made it non-functional in current browsers.
 
-**FR-C12 — Request objects.** JAR (RFC 9101), `request` and `request_uri`. PAR (RFC 9126), with
+**FR-C12 — Request objects.** JAR (RFC 9101) **by value** (`request`) and PAR (RFC 9126), with
 per-client `require_pushed_authorization_requests`.
+
+JAR *by reference* — a `request_uri` pointing at the client's own server — is not implemented, and
+will not be in the core: resolving it means fetching a URL the client chose, which is outbound I/O
+the core does not perform (FR-A1, FR-R4). A host that needs it supplies `resolveClientJwks`-style
+resolution and pushes the result. A `request_uri` issued by PAR is a different thing: it references
+this provider's own storage.
 
 **FR-C13 — Sender-constrained tokens.** DPoP (RFC 9449) with nonce support, and mTLS
 certificate-bound tokens (RFC 8705 §3).

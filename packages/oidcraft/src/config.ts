@@ -1,6 +1,6 @@
 import type { Adapter } from './adapter'
 import { ConfigurationError } from './errors'
-import type { ClientAuthMethod, Seconds } from './types'
+import type { Client, ClientAuthMethod, Seconds } from './types'
 
 export type Routes = {
   discovery: string
@@ -99,6 +99,11 @@ export type ProviderConfig = {
   capabilities?: Partial<Capabilities>
   /** Delivers back-channel logout tokens. The core mints them; it never POSTs them (FR-A1, FR-C11). */
   onLogout?: (notifications: { clientId: string; uri: string; logoutToken: string }[]) => void | Promise<void>
+  /**
+   * Fetches the key set behind a client's `jwks_uri`, for request objects and private_key_jwt.
+   * The core will not fetch it: that is outbound I/O to a URL the client chose (FR-A1, FR-R4).
+   */
+  resolveClientJwks?: (client: Client) => Promise<{ keys: unknown[] }>
 }
 
 export type ResolvedConfig = {
@@ -114,6 +119,7 @@ export type ResolvedConfig = {
   features: Features
   capabilities: Capabilities
   onLogout: ProviderConfig['onLogout']
+  resolveClientJwks: ProviderConfig['resolveClientJwks']
 }
 
 const MTLS_METHODS: ClientAuthMethod[] = ['tls_client_auth', 'self_signed_tls_client_auth']
@@ -198,7 +204,8 @@ export const resolveConfig = (config: ProviderConfig): ResolvedConfig => {
     clientAuthMethods,
     features,
     capabilities,
-    onLogout: config.onLogout
+    onLogout: config.onLogout,
+    resolveClientJwks: config.resolveClientJwks
   }
 }
 

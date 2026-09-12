@@ -48,8 +48,11 @@ export const metadata = (config: ResolvedConfig, algorithms: string[]) => {
     // FR-C14: unconditional.
     authorization_response_iss_parameter_supported: true,
     ...(features.dpop && { dpop_signing_alg_values_supported: algorithms }),
-    request_parameter_supported: false,
+    // JAR by value only: resolving a client-supplied request_uri would be outbound I/O (FR-A1).
+    request_parameter_supported: true,
     request_uri_parameter_supported: false,
+    require_request_uri_registration: false,
+    request_object_signing_alg_values_supported: ['ES256', 'ES384', 'ES512', 'PS256', 'RS256'],
     claims_parameter_supported: false,
     frontchannel_logout_supported: true,
     backchannel_logout_supported: true

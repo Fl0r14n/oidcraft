@@ -5,11 +5,13 @@ import { discoveryEndpoint } from './endpoints/discovery'
 import { endSessionEndpoint, type LogoutNotification } from './endpoints/end-session'
 import { introspectionEndpoint } from './endpoints/introspection'
 import { jwksEndpoint } from './endpoints/jwks'
+import { pushedAuthorizationRequestEndpoint, resolvePushedRequest } from './endpoints/par'
 import { revocationEndpoint } from './endpoints/revocation'
 import { tokenEndpoint } from './endpoints/token'
 import { userinfoEndpoint } from './endpoints/userinfo'
 import { errorResponse, OAuthError } from './errors'
 import { interactions } from './interactions'
+import { applyRequestObject } from './request-object'
 import { readSession } from './session'
 
 export type Provider = {
@@ -39,10 +41,20 @@ const seeOther = (url: string, setCookie?: string) =>
 
 const authorizationHandler: Handler = async (config, request) => {
   const url = new URL(request.url)
-  const params = request.method === 'POST' ? new URLSearchParams(await request.text()) : url.searchParams
+  const raw = request.method === 'POST' ? new URLSearchParams(await request.text()) : url.searchParams
+
+  const params = await resolveParameters(config, raw)
 
   // Before a redirect is safe; after it, a failure goes back to the client (RFC 6749 §4.1.2.1).
   const { client, redirectUri } = await parseAuthorizationRequest(config, params)
+
+  // A client registered for PAR must not be able to fall back to the front channel (RFC 9126 §2).
+  if (client.requirePushedAuthorizationRequests && !raw.has('request_uri')) {
+    throw new OAuthError('invalid_request', {
+      description: `client ${client.clientId} must push its authorization requests`,
+      spec: 'RFC 9126 §2'
+    })
+  }
 
   let validated: ReturnType<typeof validateAuthorizationRequest>
   try {
@@ -89,6 +101,31 @@ const endSessionHandler: Handler = async (config, request) => {
   return response
 }
 
+/**
+ * A pushed reference or a signed request object stands in for the parameters. JAR by reference
+ * (`request_uri` pointing at the client's own server) is deliberately absent: resolving it means
+ * the core fetching a URL the client chose, which it does not do (FR-A1).
+ */
+const resolveParameters = async (config: ResolvedConfig, raw: URLSearchParams) => {
+  const requestUri = raw.get('request_uri')
+  if (requestUri) {
+    if (!config.features.pushedAuthorizationRequests) {
+      throw new OAuthError('invalid_request', { description: 'request_uri is not supported here' })
+    }
+    return resolvePushedRequest(config, requestUri, raw.get('client_id'))
+  }
+
+  if (raw.has('request')) {
+    const clientId = raw.get('client_id')
+    const client = clientId ? await config.adapter.clients.find(clientId) : undefined
+    if (!client)
+      throw new OAuthError('invalid_request', { description: 'a request object needs a client_id alongside it', spec: 'RFC 9101 §5' })
+    return applyRequestObject(config, client, raw)
+  }
+
+  return raw
+}
+
 const GET = 'GET'
 
 const routeTable = (config: ResolvedConfig) => {
@@ -107,7 +144,7 @@ const routeTable = (config: ResolvedConfig) => {
   if (config.features.dynamicRegistration) add(config.routes.registration, ['POST'], notImplemented('registration'))
   if (config.features.deviceFlow) add(config.routes.deviceAuthorization, ['POST'], notImplemented('device authorization'))
   if (config.features.pushedAuthorizationRequests) {
-    add(config.routes.pushedAuthorizationRequest, ['POST'], notImplemented('pushed authorization request'))
+    add(config.routes.pushedAuthorizationRequest, ['POST'], async (cfg, req) => pushedAuthorizationRequestEndpoint(cfg, req))
   }
   return table
 }

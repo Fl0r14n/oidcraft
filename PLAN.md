@@ -49,7 +49,11 @@ interaction rather than the OP choosing an upstream itself.
       their indexes (FR-A5)
 - [ ] The same adapter against Postgres
 - [ ] `oidcraft/adapters/kysely`
-- [ ] OpenID Foundation conformance suite in CI: `basic`, `config` (NFR-C1)
+- [x] `metadata.test.ts`: the discovery document against OIDC Discovery 1.0 §3 and RFC 8414 §2,
+      cross-checked against behaviour. **Not certification** — see `conformance/README.md`
+- [x] `conformance/` harness: plan configuration and a runner, for a suite built from source
+- [ ] Actually run the OpenID Foundation suite: `basic`, `config`, `dynamic` (NFR-C1). It publishes
+      no image, so this needs a Maven build and an OP the suite can reach
 - [x] `oidcraft/runtimes/node` HTTP bridge, tested against a real node:http server (FR-R3)
 - [x] Capability gating: mTLS methods are refused at construction where no certificate can be
       supplied, and absent from discovery (FR-R5, `G-8`)

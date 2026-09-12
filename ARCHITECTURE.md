@@ -362,9 +362,17 @@ clone.
 
 - **Unit** — `bun test` per package. Every `FR-C*` gets a test that exercises the wire format, not
   just the function behind it (NFR-C3).
-- **Protocol conformance** — the OpenID Foundation suite (a Docker image) runs in CI against
-  `apps/server` for the `basic`, `config` and `dynamic` OP profiles. Red suite, failed build
-  (NFR-C1).
+- **Protocol conformance** — the OpenID Foundation suite for the `basic`, `config` and `dynamic` OP
+  profiles. **It has not been run.** The suite publishes no image: it is built from source with
+  Maven and a JDK, and some plans drive the authorization leg through a browser. `conformance/`
+  holds the plan configuration and a runner for someone who has built it; the runner exits non-zero
+  when the suite is absent, so it can never be mistaken for a passing gate (NFR-C1).
+
+- **Metadata conformance** — what runs today instead: `metadata.test.ts` checks the discovery
+  document against OIDC Discovery 1.0 §3 and RFC 8414 §2 and cross-checks it against behaviour —
+  every advertised endpoint answers, every advertised algorithm has a key, a disabled feature is
+  neither advertised nor routed. It catches metadata drifting from behaviour, which is the failure
+  the real suite finds most. It is not certification and must not be described as such.
 - **Federation** — a second oidcraft instance is the upstream in tests. Brokering to ourselves
   exercises both legs without depending on Google being up.
 

@@ -1,0 +1,40 @@
+{
+  "alias": "oidcraft",
+  "description": "oidcraft OP, basic certification profile",
+  "server": {
+    "discoveryUrl": "http://localhost:3001/.well-known/openid-configuration"
+  },
+  "client": {
+    "client_id": "conformance-client",
+    "client_secret": "a-secret-long-enough-for-the-suite",
+    "scope": "openid profile email offline_access"
+  },
+  "client2": {
+    "client_id": "conformance-client-2",
+    "client_secret": "another-secret-long-enough-for-it",
+    "scope": "openid profile email"
+  },
+  "consent": {},
+  "browser": [
+    {
+      "match": "http://localhost:3001/interaction/*",
+      "tasks": [
+        {
+          "task": "Sign in",
+          "match": "http://localhost:3001/interaction/*",
+          "commands": [
+            ["text", "name", "username", "conformance-user"],
+            ["text", "name", "password", "x"],
+            ["click", "css", "button[type=submit]"]
+          ]
+        },
+        {
+          "task": "Authorize",
+          "match": "http://localhost:3001/interaction/*",
+          "optional": true,
+          "commands": [["click", "css", "button[value=allow]"]]
+        }
+      ]
+    }
+  ]
+}

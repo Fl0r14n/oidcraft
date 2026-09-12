@@ -107,6 +107,13 @@ the first publish is the test. The fallback is a scoped single package, which sk
 The root entry exposes one function of `(Request, RequestContext) => Promise<Response>`. It is the
 whole surface.
 
+> **workerd** is Cloudflare's open-source JS/Wasm runtime — the engine behind Cloudflare Workers.
+> It is named throughout because it is the strictest non-Node target: no filesystem, no `node:net`,
+> no process outliving a request, no timers between requests. FR-R1, FR-R2, FR-A1 and NFR-P3 are
+> effectively its constraints, and it is where a violation of them fails loudly instead of working
+> until the second process starts. "workerd-shaped" covers the same family — Deno Deploy, Vercel
+> Edge, Netlify Edge, Fastly Compute — which share roughly the WinterTC Minimum Common API.
+
 **Only Node needs an HTTP bridge.** `node:http` speaks `IncomingMessage`/`ServerResponse`; Bun, Deno
 and workerd hand over a `Request` and take a `Response`, so the handler mounts into their servers
 directly.

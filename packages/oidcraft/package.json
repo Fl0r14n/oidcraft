@@ -1,6 +1,6 @@
 {
   "name": "oidcraft",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "An OpenID Provider library: RFC-compliant core, runtime-portable, pluggable storage, identity brokering built in",
   "license": "MIT",
   "author": "Fl0r14n <florian.chis@gmail.com>",
@@ -76,9 +76,10 @@
   },
   "scripts": {
     "build": "tsdown && bun run verify:entries",
-    "verify:entries": "bun run verify-entries.ts",
+    "prepublishOnly": "bun run build",
     "test": "bun test",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "verify:entries": "bun run verify-entries.ts"
   },
   "dependencies": {
     "jose": "^6.2.12"

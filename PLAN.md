@@ -60,7 +60,9 @@ written against. `bun run --filter=oidcraft build` produces all seven entries an
 
 - [ ] Reference interaction screens (FR-I3), consent memory (FR-I4)
 - [ ] Management API (FR-M1) and admin UI (FR-M2)
-- [ ] Docs site; first manual publish, then `npm trust github` (ARCHITECTURE.md §11)
+- [x] First manual publish: `oidcraft@0.0.1` claimed the name — the similarity check cleared
+- [ ] `npm trust github` registration, so releases publish from CI (ARCHITECTURE.md §11)
+- [ ] Docs site
 
 ## Decisions waiting on an answer
 

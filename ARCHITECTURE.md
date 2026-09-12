@@ -98,10 +98,11 @@ core type; and — once an entry has runtime code — that it imports the root b
 than inlining a second copy of the core. Entries that are still types-only compile to `export {};`,
 so their runtime checks are reported as pending rather than passing quietly.
 
-**Publishing unscoped carries one risk.** npm rejects new unscoped names too similar to an existing
-one, server-side on the `PUT`, where neither `npm view` nor `npm publish --dry-run` sees it coming —
-and `oidc` is taken. `oidcraft` is four characters longer and a real blend, so it should clear, but
-the first publish is the test. The fallback is a scoped single package, which skips the check.
+**The unscoped name is claimed.** `oidcraft@0.0.1` published on 2026-09-12, which is the only thing
+that actually exercises npm's similarity rule — it runs server-side on the `PUT`, where neither
+`npm view` nor `npm publish --dry-run` sees it coming. It cleared, despite `oidc` being taken and
+`oidc-react` sitting two edits away. Publishing the placeholder early was deliberate: a rejection
+would have cost a rename, and that only gets more expensive.
 
 ## 3. The core
 

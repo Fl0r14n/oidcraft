@@ -24,9 +24,9 @@ input{background:#111;border-color:#444;color:#eee}button.secondary{background:#
 export const loginScreen = (view: InteractionView) =>
   layout(
     'Sign in',
-    `<h1>Sign in</h1><p class="sub">to continue to <strong>${escape(view.clientId)}</strong></p>
+    `<h1>Sign in</h1><p class="sub">to continue to <strong>${escapeHtml(view.clientId)}</strong></p>
 <form method="post" action="/interaction/${view.id}/login">
-<label for="u">Username</label><input id="u" name="username" autocomplete="username" required value="${escape(view.loginHint ?? '')}">
+<label for="u">Username</label><input id="u" name="username" autocomplete="username" required value="${escapeHtml(view.loginHint ?? '')}">
 <label for="p">Password</label><input id="p" name="password" type="password" autocomplete="current-password" required>
 <button type="submit">Sign in</button></form>`
   )
@@ -34,8 +34,8 @@ export const loginScreen = (view: InteractionView) =>
 export const consentScreen = (view: InteractionView) =>
   layout(
     'Authorize',
-    `<h1>Authorize ${escape(view.clientId)}</h1><p class="sub">It is asking to:</p>
-<ul>${view.scopes.map((scope: string) => `<li>${escape(describe(scope))}</li>`).join('')}</ul>
+    `<h1>Authorize ${escapeHtml(view.clientId)}</h1><p class="sub">It is asking to:</p>
+<ul>${view.scopes.map((scope: string) => `<li>${escapeHtml(describe(scope))}</li>`).join('')}</ul>
 <form method="post" action="/interaction/${view.id}/consent" class="row">
 <button type="submit" name="decision" value="allow">Allow</button>
 <button type="submit" name="decision" value="deny" class="secondary">Deny</button></form>`
@@ -50,7 +50,7 @@ const DESCRIPTIONS: Record<string, string> = {
 
 const describe = (scope: string) => DESCRIPTIONS[scope] ?? scope
 
-const escape = (value: string) =>
+const escapeHtml = (value: string) =>
   value.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string)
 
 export const html = (body: string, status = 200) =>

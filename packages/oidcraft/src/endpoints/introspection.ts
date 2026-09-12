@@ -11,12 +11,14 @@ const describe = (artifact: Artifact, kind: ArtifactKind, issuer: string) => ({
   active: true,
   scope: ((artifact.payload.scopes as string[] | undefined) ?? []).join(' '),
   client_id: artifact.clientId,
-  token_type: kind === 'access_token' ? 'Bearer' : undefined,
+  token_type: kind === 'access_token' ? (artifact.payload.cnf ? 'DPoP' : 'Bearer') : undefined,
   exp: seconds(artifact.expiresAt),
   iat: seconds(new Date(artifact.expiresAt.getTime())),
   sub: artifact.accountId,
   aud: artifact.clientId,
-  iss: issuer
+  iss: issuer,
+  // A resource server must be able to see the binding, or it cannot enforce it (RFC 9449 §6).
+  cnf: artifact.payload.cnf as { jkt: string } | undefined
 })
 
 /**

@@ -69,7 +69,9 @@ interaction rather than the OP choosing an upstream itself.
 ## M4 — the rest of the protocol
 
 - [x] Revocation, introspection (FR-C8); RP-initiated and back-channel logout (FR-C11)
-- [ ] PAR, JAR (FR-C12); DPoP (FR-C13)
+- [x] DPoP (FR-C13): bound access and refresh tokens, `ath`/`htm`/`htu` checks, jti replay guard
+- [ ] DPoP nonces (`DPoP-Nonce`, `use_dpop_nonce`)
+- [ ] PAR, JAR (FR-C12)
 - [ ] Device grant (FR-C7); DCR (FR-C9); pairwise subjects (FR-C18)
 - [ ] Token exchange (FR-C2); RAR (FR-C15); step-up (FR-C16); CIBA (FR-C17)
 

@@ -1,5 +1,6 @@
 import { authenticateClient } from '../client-auth'
 import type { ResolvedConfig } from '../config'
+import { verifyDpopProof } from '../dpop'
 import { OAuthError } from '../errors'
 import { verifyChallenge } from '../pkce'
 import { token as randomToken } from '../random'
@@ -23,7 +24,15 @@ const revokeOnReplay = async (config: ResolvedConfig, artifact: Artifact, what: 
 
 const scopesOf = (artifact: Artifact) => (artifact.payload.scopes as string[] | undefined) ?? []
 
-const issueTokens = async (config: ResolvedConfig, client: Client, grant: Grant, session: Session, scopes: string[], nonce?: string) => {
+const issueTokens = async (
+  config: ResolvedConfig,
+  client: Client,
+  grant: Grant,
+  session: Session,
+  scopes: string[],
+  nonce?: string,
+  jkt?: string
+) => {
   const accessToken = randomToken()
   const expiresIn = config.ttl.accessToken
 
@@ -33,7 +42,8 @@ const issueTokens = async (config: ResolvedConfig, client: Client, grant: Grant,
     clientId: client.clientId,
     accountId: session.accountId,
     grantId: grant.id,
-    payload: { scopes, sessionId: session.id },
+    // RFC 9449 §6: the confirmation claim is what makes the token useless without the key.
+    payload: { scopes, sessionId: session.id, ...(jkt && { cnf: { jkt } }) },
     expiresAt: new Date(Date.now() + expiresIn * 1000)
   })
 
@@ -47,7 +57,8 @@ const issueTokens = async (config: ResolvedConfig, client: Client, grant: Grant,
       clientId: client.clientId,
       accountId: session.accountId,
       grantId: grant.id,
-      payload: { scopes, sessionId: session.id },
+      // The binding must survive rotation, or it evaporates on the first refresh (RFC 9449 §5).
+      payload: { scopes, sessionId: session.id, ...(jkt && { cnf: { jkt } }) },
       expiresAt: new Date(Date.now() + config.ttl.refreshToken * 1000)
     })
   }
@@ -62,7 +73,7 @@ const issueTokens = async (config: ResolvedConfig, client: Client, grant: Grant,
 
   return {
     access_token: accessToken,
-    token_type: 'Bearer',
+    token_type: jkt ? 'DPoP' : 'Bearer',
     expires_in: expiresIn,
     scope: scopes.join(' '),
     id_token: idToken,
@@ -80,7 +91,7 @@ const loadGrantAndSession = async (config: ResolvedConfig, artifact: Artifact) =
   return { grant, session }
 }
 
-const authorizationCodeGrant = async (config: ResolvedConfig, client: Client, form: URLSearchParams) => {
+const authorizationCodeGrant = async (config: ResolvedConfig, client: Client, form: URLSearchParams, jkt?: string) => {
   const code = form.get('code')
   if (!code) throw new OAuthError('invalid_request', { description: 'code is required' })
 
@@ -105,10 +116,10 @@ const authorizationCodeGrant = async (config: ResolvedConfig, client: Client, fo
   await config.adapter.artifacts.consume('authorization_code', code)
 
   const { grant, session } = await loadGrantAndSession(config, artifact)
-  return issueTokens(config, client, grant, session, scopesOf(artifact), artifact.payload.nonce as string | undefined)
+  return issueTokens(config, client, grant, session, scopesOf(artifact), artifact.payload.nonce as string | undefined, jkt)
 }
 
-const refreshTokenGrant = async (config: ResolvedConfig, client: Client, form: URLSearchParams) => {
+const refreshTokenGrant = async (config: ResolvedConfig, client: Client, form: URLSearchParams, jkt?: string) => {
   const presented = form.get('refresh_token')
   if (!presented) throw new OAuthError('invalid_request', { description: 'refresh_token is required' })
 
@@ -123,11 +134,31 @@ const refreshTokenGrant = async (config: ResolvedConfig, client: Client, form: U
   const widened = requested?.filter(scope => !granted.includes(scope)) ?? []
   if (widened.length) throw new OAuthError('invalid_scope', { description: `a refresh cannot add scopes: ${widened.join(', ')}` })
 
+  // A bound refresh token may only be presented by the key it was bound to (RFC 9449 §5).
+  const boundTo = (artifact.payload.cnf as { jkt?: string } | undefined)?.jkt
+  if (boundTo && boundTo !== jkt) {
+    throw new OAuthError('invalid_grant', { description: 'this refresh token is bound to a different key', spec: 'RFC 9449 §5' })
+  }
+
   // FR-T3: rotation is unconditional, which is what makes the replay rule above meaningful.
   await config.adapter.artifacts.consume('refresh_token', presented)
 
   const { grant, session } = await loadGrantAndSession(config, artifact)
-  return issueTokens(config, client, grant, session, requested?.length ? requested : granted)
+  return issueTokens(config, client, grant, session, requested?.length ? requested : granted, undefined, boundTo ?? jkt)
+}
+
+/** A client may always offer a proof; one registered for bound tokens must (RFC 9449 §5). */
+const bindingFor = async (config: ResolvedConfig, client: Client, request: Request) => {
+  if (!config.features.dpop) return undefined
+  const offered = request.headers.has('dpop')
+  if (!offered) {
+    if (!client.dpopBoundAccessTokens) return undefined
+    throw new OAuthError('invalid_dpop_proof', {
+      description: `client ${client.clientId} is registered for DPoP-bound tokens and presented no proof`,
+      spec: 'RFC 9449 §5'
+    })
+  }
+  return (await verifyDpopProof(config, request)).jkt
 }
 
 export const tokenEndpoint = async (config: ResolvedConfig, request: Request) => {
@@ -140,12 +171,14 @@ export const tokenEndpoint = async (config: ResolvedConfig, request: Request) =>
     throw new OAuthError('unauthorized_client', { description: `client ${client.clientId} may not use grant_type ${grantType}` })
   }
 
+  const jkt = await bindingFor(config, client, request)
+
   const body = await (async () => {
     switch (grantType) {
       case 'authorization_code':
-        return authorizationCodeGrant(config, client, form)
+        return authorizationCodeGrant(config, client, form, jkt)
       case 'refresh_token':
-        return refreshTokenGrant(config, client, form)
+        return refreshTokenGrant(config, client, form, jkt)
       default:
         throw new OAuthError('unsupported_grant_type', { description: `${grantType} is not supported` })
     }

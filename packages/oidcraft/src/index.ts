@@ -25,6 +25,7 @@ export {
 } from './config'
 export type { ClientAuthenticationInput, ClientCertificate, ContextProvider, RequestContext } from './context'
 export { type CookieOptions, clearCookie, parseCookies, serializeCookie } from './cookies'
+export { accessTokenHash, type DpopProof, htu, type VerifyOptions, verifyDpopProof } from './dpop'
 export { type AuthorizationRequest, redirectTo } from './endpoints/authorization'
 export { metadata } from './endpoints/discovery'
 export { type LogoutNotification, logoutTokens } from './endpoints/end-session'

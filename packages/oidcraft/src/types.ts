@@ -69,6 +69,7 @@ export type Grant = {
 }
 
 export type ArtifactKind =
+  | 'interaction'
   | 'authorization_code'
   | 'access_token'
   | 'refresh_token'

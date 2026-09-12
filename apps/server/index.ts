@@ -1,5 +1,6 @@
 /// <reference types="bun" />
 import { serve } from 'bun'
+import { interactionRoutes } from './src/interaction/routes'
 import { provider } from './src/provider'
 
 const port = Number(Bun.env.SERVER_PORT ?? 3001)
@@ -8,7 +9,14 @@ const port = Number(Bun.env.SERVER_PORT ?? 3001)
 // provider for what Request does not carry (ARCHITECTURE.md §3.1).
 const server = serve({
   port,
-  fetch: request => provider.handle(request)
+  async fetch(request) {
+    const url = new URL(request.url)
+    if (url.pathname.startsWith('/interaction/')) {
+      const response = await interactionRoutes(request, url)
+      if (response) return response
+    }
+    return provider.handle(request)
+  }
 })
 
 console.log(`op on http://localhost:${server.port}`)

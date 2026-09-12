@@ -105,9 +105,13 @@ describe('routing', () => {
   })
 
   test('an unimplemented endpoint answers 501 rather than pretending', async () => {
-    const { status, body } = await json('/token', { method: 'POST' })
+    const { status, body } = await json('/session/end')
     expect(status).toBe(501)
     expect(body.error_uri).toContain('PLAN.md')
+  })
+
+  test('an implemented endpoint no longer answers 501', async () => {
+    expect((await json('/token', { method: 'POST' })).status).toBe(401)
   })
 
   test('an error response is never cached', async () => {

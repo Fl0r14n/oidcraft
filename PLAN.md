@@ -5,6 +5,13 @@ This file is working state: tick items off and add notes as work lands.
 
 ## Status
 
+**M1 is done.** The code grant works end to end: a browser completes login and consent, exchanges
+the code with PKCE, and receives an ID token that verifies against the published JWKS. Replaying a
+code or a refresh token revokes the grant. 107 tests.
+
+Still open before this is a usable OP: revocation and introspection are configured but answer 501,
+logout is not implemented, and `apps/client` has not been driven against it in a browser.
+
 **M0 is done.** `createProvider` validates its configuration at construction, routes, and serves a
 real discovery document and JWKS; `fromKv` derives a complete `Adapter` from four key-value methods,
 and the memory adapter passes the shared conformance suite. 78 tests. `apps/server` runs it.
@@ -24,13 +31,13 @@ answer 501 and point here. M1 is the code grant.
 
 ## M1 — the code grant
 
-- [ ] Authorization endpoint, `code` only, PKCE mandatory (FR-C1, FR-C3)
-- [ ] Interaction suspend/resume (FR-I1, FR-I2)
-- [ ] Token endpoint: `authorization_code`, `refresh_token`, with rotation and replay revocation
+- [x] Authorization endpoint, `code` only, PKCE mandatory (FR-C1, FR-C3)
+- [x] Interaction suspend/resume (FR-I1, FR-I2) and remembered consent (FR-I4)
+- [x] Token endpoint: `authorization_code`, `refresh_token`, with rotation and replay revocation
       (FR-C2, FR-T3, FR-T4)
-- [ ] Client authentication: `none`, `client_secret_basic`, `client_secret_post` (FR-C4)
-- [ ] UserInfo (FR-C5); `iss` in the authorization response (FR-C14)
-- [ ] `apps/server` serves a real OP; `apps/client` completes a login against it
+- [x] Client authentication: `none`, `client_secret_basic`, `client_secret_post` (FR-C4)
+- [x] UserInfo (FR-C5); `iss` in the authorization response (FR-C14)
+- [x] `apps/server` serves a real OP with reference login and consent screens
 
 ## M2 — storage and conformance
 

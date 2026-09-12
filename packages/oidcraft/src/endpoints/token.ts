@@ -1,0 +1,155 @@
+import { authenticateClient } from '../client-auth'
+import type { ResolvedConfig } from '../config'
+import { OAuthError } from '../errors'
+import { verifyChallenge } from '../pkce'
+import { token as randomToken } from '../random'
+import { mintIdToken } from '../tokens'
+import type { Artifact, Client, Grant, Session } from '../types'
+
+const NO_STORE = { 'cache-control': 'no-store', pragma: 'no-cache' }
+
+/**
+ * Replaying a single-use artifact revokes the grant it belongs to, rather than merely failing.
+ * A replay means the code or refresh token leaked; everything derived from it must stop working
+ * (FR-T3, FR-T4, NFR-S4, RFC 9700 §4.14.2).
+ */
+const revokeOnReplay = async (config: ResolvedConfig, artifact: Artifact, what: string) => {
+  if (artifact.grantId) await config.adapter.artifacts.revokeByGrantId(artifact.grantId)
+  throw new OAuthError('invalid_grant', {
+    description: `this ${what} was already used; the grant has been revoked`,
+    spec: 'RFC 9700 §4.14.2'
+  })
+}
+
+const scopesOf = (artifact: Artifact) => (artifact.payload.scopes as string[] | undefined) ?? []
+
+const issueTokens = async (config: ResolvedConfig, client: Client, grant: Grant, session: Session, scopes: string[], nonce?: string) => {
+  const accessToken = randomToken()
+  const expiresIn = config.ttl.accessToken
+
+  await config.adapter.artifacts.upsert({
+    id: accessToken,
+    kind: 'access_token',
+    clientId: client.clientId,
+    accountId: session.accountId,
+    grantId: grant.id,
+    payload: { scopes, sessionId: session.id },
+    expiresAt: new Date(Date.now() + expiresIn * 1000)
+  })
+
+  let refreshToken: string | undefined
+  // Only when the client asked for it: a refresh token nobody requested is a credential nobody guards.
+  if (scopes.includes('offline_access') && client.grantTypes.includes('refresh_token')) {
+    refreshToken = randomToken()
+    await config.adapter.artifacts.upsert({
+      id: refreshToken,
+      kind: 'refresh_token',
+      clientId: client.clientId,
+      accountId: session.accountId,
+      grantId: grant.id,
+      payload: { scopes, sessionId: session.id },
+      expiresAt: new Date(Date.now() + config.ttl.refreshToken * 1000)
+    })
+  }
+
+  const idToken = await mintIdToken(config, {
+    client,
+    session,
+    nonce,
+    accessToken,
+    claims: await config.adapter.accounts.claims(session.accountId, scopes, [])
+  })
+
+  return {
+    access_token: accessToken,
+    token_type: 'Bearer',
+    expires_in: expiresIn,
+    scope: scopes.join(' '),
+    id_token: idToken,
+    ...(refreshToken && { refresh_token: refreshToken })
+  }
+}
+
+const loadGrantAndSession = async (config: ResolvedConfig, artifact: Artifact) => {
+  const grant = artifact.grantId ? await config.adapter.grants.find(artifact.grantId) : undefined
+  if (!grant) throw new OAuthError('invalid_grant', { description: 'the grant behind this token no longer exists' })
+
+  const session = await config.adapter.sessions.find(artifact.payload.sessionId as string)
+  if (!session) throw new OAuthError('invalid_grant', { description: 'the session behind this token has ended' })
+
+  return { grant, session }
+}
+
+const authorizationCodeGrant = async (config: ResolvedConfig, client: Client, form: URLSearchParams) => {
+  const code = form.get('code')
+  if (!code) throw new OAuthError('invalid_request', { description: 'code is required' })
+
+  const artifact = await config.adapter.artifacts.find('authorization_code', code)
+  if (!artifact) throw new OAuthError('invalid_grant', { description: 'the authorization code is unknown or expired' })
+  if (artifact.consumedAt) await revokeOnReplay(config, artifact, 'authorization code')
+
+  // The code was issued to one client; another presenting it is theft, not a mistake.
+  if (artifact.clientId !== client.clientId) {
+    await revokeOnReplay(config, artifact, 'authorization code presented by the wrong client')
+  }
+
+  const redirectUri = form.get('redirect_uri')
+  if (redirectUri !== artifact.payload.redirectUri) {
+    throw new OAuthError('invalid_grant', {
+      description: 'redirect_uri does not match the one the code was issued for',
+      spec: 'RFC 6749 §4.1.3'
+    })
+  }
+
+  await verifyChallenge(form.get('code_verifier'), artifact.payload.codeChallenge as string)
+  await config.adapter.artifacts.consume('authorization_code', code)
+
+  const { grant, session } = await loadGrantAndSession(config, artifact)
+  return issueTokens(config, client, grant, session, scopesOf(artifact), artifact.payload.nonce as string | undefined)
+}
+
+const refreshTokenGrant = async (config: ResolvedConfig, client: Client, form: URLSearchParams) => {
+  const presented = form.get('refresh_token')
+  if (!presented) throw new OAuthError('invalid_request', { description: 'refresh_token is required' })
+
+  const artifact = await config.adapter.artifacts.find('refresh_token', presented)
+  if (!artifact) throw new OAuthError('invalid_grant', { description: 'the refresh token is unknown or expired' })
+  if (artifact.consumedAt) await revokeOnReplay(config, artifact, 'refresh token')
+  if (artifact.clientId !== client.clientId) await revokeOnReplay(config, artifact, 'refresh token presented by the wrong client')
+
+  const requested = form.get('scope')?.split(' ').filter(Boolean)
+  const granted = scopesOf(artifact)
+  // RFC 6749 §6: a refresh may narrow the scope, never widen it.
+  const widened = requested?.filter(scope => !granted.includes(scope)) ?? []
+  if (widened.length) throw new OAuthError('invalid_scope', { description: `a refresh cannot add scopes: ${widened.join(', ')}` })
+
+  // FR-T3: rotation is unconditional, which is what makes the replay rule above meaningful.
+  await config.adapter.artifacts.consume('refresh_token', presented)
+
+  const { grant, session } = await loadGrantAndSession(config, artifact)
+  return issueTokens(config, client, grant, session, requested?.length ? requested : granted)
+}
+
+export const tokenEndpoint = async (config: ResolvedConfig, request: Request) => {
+  const form = new URLSearchParams(await request.text())
+  const { client } = await authenticateClient(config, form, request.headers)
+
+  const grantType = form.get('grant_type')
+  if (!grantType) throw new OAuthError('invalid_request', { description: 'grant_type is required' })
+  if (!client.grantTypes.includes(grantType)) {
+    throw new OAuthError('unauthorized_client', { description: `client ${client.clientId} may not use grant_type ${grantType}` })
+  }
+
+  const body = await (async () => {
+    switch (grantType) {
+      case 'authorization_code':
+        return authorizationCodeGrant(config, client, form)
+      case 'refresh_token':
+        return refreshTokenGrant(config, client, form)
+      default:
+        throw new OAuthError('unsupported_grant_type', { description: `${grantType} is not supported` })
+    }
+  })()
+
+  return Response.json(body, { headers: NO_STORE })
+}

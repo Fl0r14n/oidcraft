@@ -1,0 +1,193 @@
+import type { ResolvedConfig } from '../config'
+import { OAuthError } from '../errors'
+import { assertChallenge } from '../pkce'
+import { token } from '../random'
+import { isFresh } from '../session'
+import type { Artifact, Client, Grant, Session } from '../types'
+
+export type AuthorizationRequest = {
+  clientId: string
+  redirectUri: string
+  responseType: string
+  responseMode: string
+  scopes: string[]
+  state: string | undefined
+  nonce: string | undefined
+  codeChallenge: string
+  prompt: string[]
+  maxAge: number | undefined
+  loginHint: string | undefined
+  acrValues: string[] | undefined
+  uiLocales: string[] | undefined
+}
+
+const SUPPORTED_RESPONSE_TYPES = ['code']
+
+const list = (value: string | null) => (value ? value.split(' ').filter(Boolean) : [])
+
+/**
+ * Everything before a redirect is safe. A bad `client_id` or an unregistered `redirect_uri` must NOT
+ * redirect — that turns the provider into an open redirector for attacker-chosen URLs
+ * (RFC 6749 §4.1.2.1, RFC 9700 §4.1).
+ */
+export const parseAuthorizationRequest = async (config: ResolvedConfig, params: URLSearchParams) => {
+  const clientId = params.get('client_id')
+  if (!clientId) throw new OAuthError('invalid_request', { description: 'client_id is required', spec: 'RFC 6749 §4.1.1' })
+
+  const client = await config.adapter.clients.find(clientId)
+  if (!client) throw new OAuthError('invalid_request', { description: `unknown client ${clientId}`, spec: 'RFC 6749 §4.1.2.1' })
+
+  const redirectUri = params.get('redirect_uri')
+  if (!redirectUri) throw new OAuthError('invalid_request', { description: 'redirect_uri is required', spec: 'RFC 6749 §4.1.1' })
+
+  // NFR-S2: exact string match. No wildcards, no prefix matching, no port exception.
+  if (!client.redirectUris.includes(redirectUri)) {
+    throw new OAuthError('invalid_request', {
+      description: `redirect_uri ${redirectUri} is not registered for ${clientId}`,
+      spec: 'RFC 6749 §3.1.2.3, RFC 9700 §4.1.3'
+    })
+  }
+
+  return { client, redirectUri }
+}
+
+/** Past this point a failure is reported to the client by redirect, as the spec requires. */
+export const validateAuthorizationRequest = (
+  config: ResolvedConfig,
+  client: Client,
+  redirectUri: string,
+  params: URLSearchParams
+): AuthorizationRequest => {
+  const responseType = params.get('response_type') ?? ''
+  if (!SUPPORTED_RESPONSE_TYPES.includes(responseType)) {
+    throw new OAuthError('unsupported_response_type', {
+      description: `response_type ${responseType || 'none'} is not supported; this provider issues authorization codes`,
+      spec: 'OAuth 2.1 §1.3'
+    })
+  }
+  if (!client.responseTypes.includes(responseType)) {
+    throw new OAuthError('unauthorized_client', { description: `client ${client.clientId} may not use response_type ${responseType}` })
+  }
+
+  const scopes = list(params.get('scope'))
+  if (!scopes.includes('openid')) {
+    throw new OAuthError('invalid_scope', { description: 'scope must include openid', spec: 'OIDC Core §3.1.2.1' })
+  }
+  const unknown = scopes.filter(scope => !config.scopes.includes(scope))
+  if (unknown.length) throw new OAuthError('invalid_scope', { description: `unknown scope: ${unknown.join(', ')}` })
+  const unallowed = scopes.filter(scope => !client.scopes.includes(scope))
+  if (unallowed.length) {
+    throw new OAuthError('invalid_scope', { description: `client ${client.clientId} may not request: ${unallowed.join(', ')}` })
+  }
+
+  const maxAgeRaw = params.get('max_age')
+  const maxAge = maxAgeRaw === null ? undefined : Number(maxAgeRaw)
+  if (maxAge !== undefined && (!Number.isInteger(maxAge) || maxAge < 0)) {
+    throw new OAuthError('invalid_request', { description: 'max_age must be a non-negative whole number of seconds' })
+  }
+
+  const responseMode = params.get('response_mode') ?? 'query'
+  if (!['query', 'fragment', 'form_post'].includes(responseMode)) {
+    throw new OAuthError('invalid_request', { description: `unsupported response_mode ${responseMode}` })
+  }
+
+  return {
+    clientId: client.clientId,
+    redirectUri,
+    responseType,
+    responseMode,
+    scopes,
+    state: params.get('state') ?? undefined,
+    nonce: params.get('nonce') ?? undefined,
+    codeChallenge: assertChallenge(params.get('code_challenge'), params.get('code_challenge_method')),
+    prompt: list(params.get('prompt')),
+    maxAge,
+    loginHint: params.get('login_hint') ?? undefined,
+    acrValues: params.get('acr_values') ? list(params.get('acr_values')) : undefined,
+    uiLocales: params.get('ui_locales') ? list(params.get('ui_locales')) : undefined
+  }
+}
+
+export const redirectTo = (request: AuthorizationRequest, values: Record<string, string>) => {
+  const url = new URL(request.redirectUri)
+  const target = request.responseMode === 'fragment' ? new URLSearchParams() : url.searchParams
+  for (const [key, value] of Object.entries(values)) target.set(key, value)
+  if (request.state !== undefined) target.set('state', request.state)
+  if (request.responseMode === 'fragment') url.hash = target.toString()
+  return url.toString()
+}
+
+const missingScopes = (request: AuthorizationRequest, grant: Grant | undefined) =>
+  request.scopes.filter(scope => !grant?.scopes.includes(scope))
+
+export type AuthorizationOutcome = { kind: 'redirect'; url: string } | { kind: 'interaction'; id: string; reason: 'login' | 'consent' }
+
+/**
+ * Decides what it can and suspends when it cannot (FR-I1). `prompt=none` converts every suspension
+ * into the error the client asked for instead (OIDC Core §3.1.2.6).
+ */
+export const authorize = async (
+  config: ResolvedConfig,
+  request: AuthorizationRequest,
+  session: Session | undefined
+): Promise<AuthorizationOutcome> => {
+  const needsLogin = !session || request.prompt.includes('login') || !isFresh(session, request.maxAge)
+
+  if (needsLogin) {
+    if (request.prompt.includes('none')) {
+      throw new OAuthError('login_required', { description: 'no usable session and prompt=none', spec: 'OIDC Core §3.1.2.6' })
+    }
+    return { kind: 'interaction', id: await suspend(config, request, 'login'), reason: 'login' }
+  }
+
+  const grant = await config.adapter.grants.findByAccountAndClient(session.accountId, request.clientId)
+  const outstanding = missingScopes(request, grant)
+
+  if (outstanding.length || request.prompt.includes('consent')) {
+    if (request.prompt.includes('none')) {
+      throw new OAuthError('consent_required', {
+        description: `consent is needed for: ${outstanding.join(', ') || 'a re-confirmation'}`,
+        spec: 'OIDC Core §3.1.2.6'
+      })
+    }
+    return { kind: 'interaction', id: await suspend(config, request, 'consent', session), reason: 'consent' }
+  }
+
+  return { kind: 'redirect', url: redirectTo(request, await issueCode(config, request, session, grant as Grant)) }
+}
+
+const suspend = async (config: ResolvedConfig, request: AuthorizationRequest, kind: 'login' | 'consent', session?: Session) => {
+  const id = token()
+  const artifact: Artifact = {
+    id,
+    kind: 'interaction',
+    clientId: request.clientId,
+    // A consent interaction already knows who is consenting; a login one does not yet.
+    ...(session && { accountId: session.accountId }),
+    payload: { request: request as unknown as Record<string, unknown>, interactionKind: kind },
+    expiresAt: new Date(Date.now() + config.ttl.interaction * 1000)
+  }
+  await config.adapter.artifacts.upsert(artifact)
+  return id
+}
+
+const issueCode = async (config: ResolvedConfig, request: AuthorizationRequest, session: Session, grant: Grant) => {
+  const code = token()
+  await config.adapter.artifacts.upsert({
+    id: code,
+    kind: 'authorization_code',
+    clientId: request.clientId,
+    accountId: session.accountId,
+    grantId: grant.id,
+    payload: {
+      redirectUri: request.redirectUri,
+      codeChallenge: request.codeChallenge,
+      scopes: request.scopes,
+      sessionId: session.id,
+      ...(request.nonce && { nonce: request.nonce })
+    },
+    expiresAt: new Date(Date.now() + config.ttl.authorizationCode * 1000)
+  })
+  // FR-C14: unconditional, so a client can tell which provider answered.
+  return { code, iss: config.issuer }
+}

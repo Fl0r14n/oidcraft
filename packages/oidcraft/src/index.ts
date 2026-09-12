@@ -24,8 +24,17 @@ export {
   type Ttl
 } from './config'
 export type { ClientAuthenticationInput, ClientCertificate, ContextProvider, RequestContext } from './context'
+export { type CookieOptions, clearCookie, parseCookies, serializeCookie } from './cookies'
+export { type AuthorizationRequest, redirectTo } from './endpoints/authorization'
 export { metadata } from './endpoints/discovery'
 export { ConfigurationError, errorResponse, OAuthError, type OAuthErrorCode, type OAuthErrorInit } from './errors'
+export {
+  type InteractionCompletion,
+  type InteractionKind,
+  type InteractionOutcome,
+  type InteractionView,
+  interactions
+} from './interactions'
 export {
   type ActiveKey,
   generatedKeyStore,
@@ -38,4 +47,5 @@ export {
 } from './keys'
 export { type FromKvOptions, fromKv } from './kv'
 export { createProvider, type Provider } from './provider'
+export { isFresh, type LoginInput, readSession, SESSION_COOKIE, startSession } from './session'
 export type { Account, Artifact, ArtifactKind, Client, ClientAuthMethod, FederatedIdentity, Grant, Seconds, Session } from './types'

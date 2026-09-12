@@ -87,7 +87,9 @@ interaction rather than the OP choosing an upstream itself.
 - [ ] The remaining screens: account selection, upstream selection, device code, logout
 - [x] Management API (FR-M1) over clients, grants, sessions, keys and identities, with audit
       events (FR-M3) — functions, not routes, so the host authorizes it
-- [ ] Admin UI (FR-M2), using `@vuetify/v0` in `apps/server/src/admin`
+- [x] Admin UI (FR-M2): clients table and key list, `@vuetify/v0`'s `createDataTable` for
+      sort/filter/paginate and its `Dialog` for the destructive confirmation
+- [ ] Admin: sessions and grants by account, upstream provider configuration
 - [x] First manual publish: `oidcraft@0.0.1` claimed the name — the similarity check cleared
 - [ ] `npm trust github` registration, so releases publish from CI (ARCHITECTURE.md §11)
 - [ ] Docs site

@@ -1,0 +1,31 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      # biome ci, not the `lint` script — that one rewrites files instead of failing
+      - run: bunx biome ci .
+      # build first: the apps resolve `oidcraft` through its exports map, which points into
+      # packages/oidcraft/dist, so on a fresh clone typecheck cannot resolve the package until it
+      # exists. It also runs verify-entries, which catches an optional peer leaking out of its entry.
+      - run: bun run build
+      - run: bun run typecheck
+      - run: bun test

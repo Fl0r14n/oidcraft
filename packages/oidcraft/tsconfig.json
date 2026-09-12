@@ -1,7 +1,10 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "paths": { "oidcraft": ["./src/index.ts"] }
+    "paths": {
+      "oidcraft": ["./src/index.ts"]
+    },
+    "resolveJsonModule": true
   },
-  "include": ["src/**/*.ts", "tsdown.config.ts", "verify-entries.ts"]
+  "include": ["src/**/*.ts", "tsdown.config.ts", "verify-entries.ts", "exports.test.ts"]
 }

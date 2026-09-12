@@ -344,6 +344,11 @@ silently when missing (§1.1).
 
 ## 10. Testing
 
+The gate is `.github/workflows/ci.yml` on every push and pull request: `biome ci`, then `build`
+(which runs `verify-entries`), then `typecheck`, then `bun test`. Build precedes typecheck because
+the apps resolve `oidcraft` through its exports map into `dist/`, which does not exist on a fresh
+clone.
+
 - **Unit** — `bun test` per package. Every `FR-C*` gets a test that exercises the wire format, not
   just the function behind it (NFR-C3).
 - **Adapter conformance** — one shared suite every adapter runs, so memory, Drizzle and Kysely are

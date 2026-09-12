@@ -13,6 +13,9 @@ written against. `bun run --filter=oidcraft build` produces all seven entries an
 
 ## M0 — foundation
 
+- [x] CI: `biome ci`, build + `verify-entries`, typecheck, `bun test` on push and PR
+- [x] `exports.test.ts`: the exports map, the source tree and the build entries agree
+
 - [ ] Root entry: config construction with validation (NFR-D2), route table, error responses
 - [ ] `KeyStore` + JWKS endpoint + discovery document (FR-C6, FR-C10)
 - [ ] `oidcraft/adapters/memory` and the shared adapter-conformance suite (FR-A3, FR-A4)

@@ -3,5 +3,5 @@
   "compilerOptions": {
     "types": ["bun"]
   },
-  "include": ["src/**/*.ts", "src/**/*.vue", "env.d.ts", "index.ts", "build.ts"]
+  "include": ["src/**/*.ts", "src/**/*.vue", "env.d.ts"]
 }

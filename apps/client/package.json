@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bun --env-file=../../.env --watch index.ts",
-    "start": "NODE_ENV=production bun --env-file=../../.env index.ts",
-    "build": "vue-tsgo --noEmit && bun --env-file=../../.env build.ts",
+    "dev": "bun --env-file=../../.env index.html",
+    "start": "bun --env-file=../../.env index.html",
+    "build": "vue-tsgo --noEmit",
     "typecheck": "vue-tsgo --noEmit"
   },
   "dependencies": {

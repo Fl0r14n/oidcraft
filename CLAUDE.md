@@ -68,11 +68,12 @@ bun run conformance      # OpenID Foundation suite against apps/server
 
 ## Gotchas
 
-- **Each app needs its own `bunfig.toml`.** `Bun.serve` reads plugins from the served entrypoint's
-  directory, so the root one does not reach `apps/*`. Missing, it does not error — a `.vue` import
-  resolves to a path string and the page renders blank.
-- **`bun build` the CLI takes no plugins.** Production builds are `build.ts` scripts calling
-  `Bun.build` directly.
+- **There is no build step.** `bun index.html` is the client — Bun bundles Vue, compiles Tailwind
+  and inlines `OIDCRAFT_PUBLIC_*` itself. The server runs from source. Do not add a bundler or a
+  `dist/`; `build` scripts are typechecks.
+- **Each app needs its own `bunfig.toml`.** Bun reads plugins from `[serve.static]` next to the
+  served entrypoint, so the root one does not reach `apps/*`. Missing, it does not error — a `.vue`
+  import resolves to a path string and the page renders blank.
 - **`vue-tsc` does not run on TypeScript 7.** Packages containing `.vue` files type-check with
   `vue-tsgo`; everything else uses `tsc`. Not `tsgo` — that is the older
   `@typescript/native-preview` binary and is not what `typescript@7` installs.

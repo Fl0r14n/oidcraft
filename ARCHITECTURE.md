@@ -17,24 +17,26 @@ How oidcraft is built. `REQUIREMENTS.md` says what it must do; every section her
 | **tsdown** | latest | Library builds: ESM + `.d.mts`. |
 | **Drizzle / Kysely** | 0.45 / 0.28 | First-party adapters (FR-A4). Peer dependencies, never bundled. |
 
-### 1.1 Why not Vite anywhere
+### 1.1 No bundler, no build step
 
-Both apps bundle with `Bun.build` and serve with `Bun.serve`. Bun's HTML entrypoints give
-dev-server HMR and a production build from the same `index.html`, which removes a second bundler,
-a second config format and a second set of environment-variable semantics from a repo that already
-has Bun.
+Neither app has one. `bun index.html` **is** the client: Bun's dev server bundles the Vue SFCs,
+compiles Tailwind, inlines `OIDCRAFT_PUBLIC_*` and serves the page with HMR. The server app runs
+from source, because Bun executes TypeScript. There is no Vite, no `Bun.build` script, no `dist/`,
+and nothing to keep in sync between a dev path and a build path.
 
-The cost is three sharp edges, all of them measured here rather than assumed:
+Two sharp edges, both measured here rather than assumed:
 
-- `bun build` **the CLI** takes no plugins, so each app's production build is a `build.ts` script
-  calling `Bun.build` directly.
-- `Bun.serve`'s dev bundling reads its plugins from `[serve.static]` in the bunfig that sits **next
-  to the served entrypoint** — not the root one. Every app carries its own `bunfig.toml`. Deleting
-  one does not error; it silently serves a `.vue` import as a path string and renders a blank page.
+- **Plugins come from the bunfig next to the served entrypoint**, via `[serve.static]` — not the
+  root one. Each app carries its own `bunfig.toml`. Deleting it does not error; it silently serves
+  a `.vue` import as a path string and renders a blank page.
 - **No `@/` path alias in the apps.** `tsconfig.json` `paths` resolve under `bun build` but not
-  under `Bun.serve`'s dev bundler, which resolves the specifier relative to the importing file and
-  fails with `ENOENT … /src/@/App.vue`. App-internal imports are relative. Measured 2026-09-12
-  against Bun 1.4.0; recheck before reintroducing the alias.
+  under the dev server, which resolves the specifier relative to the importing file and fails with
+  `ENOENT … /src/@/App.vue`. App-internal imports are relative. Measured 2026-09-12 against Bun
+  1.4.0; recheck before reintroducing the alias.
+
+If a real production bundle is ever wanted — minified, content-hashed, served by something other
+than Bun — note that `bun build` **the CLI** takes no plugins, so it would have to be a `build.ts`
+calling `Bun.build` directly. Nothing needs that today.
 
 ### 1.2 TypeScript 7 and Vue
 
@@ -239,27 +241,17 @@ and easy to get wrong for accessibility. `DataTable`, `Dialog`/`AlertDialog`, `C
 and `Form` + `createValidation` cover it. It is headless, so Tailwind still does all the styling and
 nothing imposes a look on an operator who replaces these screens.
 
-#### Build steps
-
-**The server needs none.** Bun executes TypeScript directly, so `apps/server` runs from source in
-development and production alike; its `build` script is a typecheck and nothing else. That changes
-only when the login and admin screens ship browser assets — those get their own `build.ts`, the same
-pattern as the client.
-
-**The client keeps one**, though `Bun.serve` can bundle on the fly and serving straight from the dev
-bundler does work. The build earns its place for three reasons: assets come out minified and
-content-hashed so they can be cached hard, production serves static files instead of running a
-bundler in the request process, and a broken import fails the build rather than surfacing as a 500
-with a Bun error page at request time.
-
 ### 8.2 `apps/client` — the demo relying party
 
 Vue 3 + `vue-oidc`, ported from that library's own sample app. It proves the OP against a real,
 independently written client rather than against a test harness that shares its assumptions.
 
-Bundled by `Bun.build` with `bun-plugin-vue3` and `bun-plugin-tailwind`; no Vite. It uses
-`vue-oidc`'s composables (`useOAuth`, `useOAuthUser`) rather than its Vuetify component, so the
-demo carries no UI framework at all — a login button and a claims list do not need one.
+Run with `bun index.html` and nothing else (§1.1). It uses `vue-oidc`'s composables (`useOAuth`,
+`useOAuthUser`) rather than its Vuetify component, so the demo carries no UI framework at all — a
+login button and a claims list do not need one. `BUN_PORT` sets the port.
+
+`build` in both apps is a typecheck, kept under that name so `bun run build` at the root still
+checks everything.
 
 ## 9. Conventions
 

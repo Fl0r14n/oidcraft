@@ -74,7 +74,8 @@ for (const [entry, { owns, runtime }] of Object.entries(ENTRIES)) {
 
   if (entry === 'index') continue
 
-  // A core type redeclared here is an inlined copy: it compiles, and it drifts from the root silently.
+  // A core name redeclared here is either an inlined copy or a shadow of an exported one. Both are
+  // reported: the first is a real duplication, the second is a reader hazard worth renaming anyway.
   const inlined = declares(dts).filter(name => rootTypes.has(name))
   check(
     inlined.length === 0,

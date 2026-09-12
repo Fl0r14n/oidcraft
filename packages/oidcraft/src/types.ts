@@ -70,6 +70,7 @@ export type Grant = {
 
 export type ArtifactKind =
   | 'interaction'
+  | 'federation_handoff'
   | 'authorization_code'
   | 'access_token'
   | 'refresh_token'

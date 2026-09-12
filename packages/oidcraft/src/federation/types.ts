@@ -9,6 +9,10 @@ export type UpstreamProvider = {
   scopes: string[]
   /** Extra authorization-request parameters, e.g. `prompt`, `hd`, `domain_hint`. */
   authorizationParams?: Record<string, string>
+  /** Email domains this provider owns, for home-realm discovery (FR-F4). */
+  domains?: string[]
+  /** Human-readable, for an upstream-selection screen. */
+  label?: string
   /** Maps upstream claims onto local ones. Without it only `sub` is trusted (FR-F7). */
   claimMapper?: ClaimMapper
   /** Keep the upstream tokens for downstream API calls. Off by default — it is a credential store (NFR-S9). */
@@ -33,6 +37,12 @@ export type Handoff = {
   /** The downstream interaction this handoff resumes once the upstream returns (FR-F3). */
   interactionId: string
   expiresAt: Date
+}
+
+/** How the upstream round trip ended, for the host to act on. */
+export type FederationCallback = {
+  interactionId: string
+  identity: BrokeredIdentity
 }
 
 export type BrokeredIdentity = Omit<FederatedIdentity, 'accountId' | 'linkedAt'> & {

@@ -5,6 +5,12 @@ This file is working state: tick items off and add notes as work lands.
 
 ## Status
 
+**M3 is most of the way there.** The broker does both legs against a live upstream — discovery,
+PKCE, the code exchange, claim mapping, single-use handoffs, linking policies. What is left is the
+wiring: the authorization endpoint does not yet choose an upstream by itself, so a host calls
+`start` and `complete` around its own interaction. Logout propagation (FR-F8) and the `prompt=login`
+passthrough (FR-F9) are not built.
+
 **M4 is under way.** Revocation, introspection and logout are implemented, so every endpoint the
 default configuration advertises now answers for real — a test asserts that, rather than trusting
 it. Back-channel logout tokens are minted and handed to the host: the core performs no I/O, and a
@@ -55,12 +61,14 @@ answer 501 and point here. M1 is the code grant.
 
 ## M3 — federation
 
-- [ ] `UpstreamProvider` discovery and the RP leg (FR-F1)
-- [ ] Handoff: suspend/resume across the upstream round trip (FR-F3)
-- [ ] Home-realm discovery (FR-F4); linking policies (FR-F5)
-- [ ] Claim mapping (FR-F7); provenance into the ID token (FR-F6)
+- [x] `UpstreamProvider` discovery and the RP leg (FR-F1)
+- [x] Handoff: single-use suspend/resume across the upstream round trip (FR-F3)
+- [x] Home-realm discovery (FR-F4); linking policies (FR-F5)
+- [x] Claim mapping (FR-F7); provenance carried on the identity (FR-F6)
+- [x] Test upstream: a second oidcraft instance (ARCHITECTURE.md §10)
+- [ ] Wire the broker into the authorization endpoint's policy step, so an upstream round trip is
+      one interaction rather than the host stitching `start`/`complete` together
 - [ ] Logout propagation both ways (FR-F8); `prompt=login` / `max_age` passthrough (FR-F9)
-- [ ] Test upstream: a second oidcraft instance (ARCHITECTURE.md §10)
 
 ## M4 — the rest of the protocol
 

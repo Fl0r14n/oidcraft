@@ -52,7 +52,10 @@ answer 501 and point here. M1 is the code grant.
 
 ## M2 — storage and conformance
 
-- [ ] `oidcraft/adapters/drizzle` with migrations and real indexes (FR-A5)
+- [x] `oidcraft/adapters/drizzle` (SQLite) with real columns and indexes, passing the shared
+      conformance suite; `explain query plan` asserts revocation and the user-code lookup use
+      their indexes (FR-A5)
+- [ ] The same adapter against Postgres
 - [ ] `oidcraft/adapters/kysely`
 - [ ] OpenID Foundation conformance suite in CI: `basic`, `config` (NFR-C1)
 - [x] `oidcraft/runtimes/node` HTTP bridge, tested against a real node:http server (FR-R3)

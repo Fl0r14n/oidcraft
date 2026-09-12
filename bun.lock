@@ -52,6 +52,7 @@
         "jose": "^6.2.12",
       },
       "devDependencies": {
+        "drizzle-orm": "^0.45.2",
         "openid-client": "^6.8.8",
       },
       "peerDependencies": {

@@ -172,6 +172,10 @@ not one table keyed by a model-name string:
 | `ReplayGuard` | One-shot values: `jti`, DPoP proofs, upstream nonces (NFR-S5). |
 | `FederatedIdentityStore` | `(provider, subject) → account` links. Optional; only brokering deployments need it. |
 
+The Drizzle adapter is the demonstration: `explain query plan` in its test suite asserts that
+revoking by grant and looking up a device's user code both hit an index rather than scanning, which
+is exactly what the blob shape below cannot do.
+
 ### 4.1 Why not `oidc-provider`'s shape
 
 `oidc-provider`'s adapter is a single class instantiated per model name, with

@@ -41,8 +41,8 @@ These are the ones where a plausible-looking change is a security bug:
 
 - **The core never imports `node:*`** and never reads `X-Forwarded-*` on its own authority.
   The issuer is configuration (FR-R1, FR-R4, NFR-S6).
-- **A runtime global belongs to its own entry.** `node:` only in `./node`, `Bun.` only in `./bun`,
-  `Deno.` only in `./deno`. Only Node needs an HTTP bridge; every runtime needs a context provider,
+- **A runtime global belongs to its own entry.** `node:` only in `./runtimes/node`, `Bun.` only in
+  `./runtimes/bun`, `Deno.` only in `./runtimes/deno`. Only Node needs an HTTP bridge; every runtime needs a context provider,
   because client IP and the TLS client certificate are not on `Request` anywhere (ARCHITECTURE.md §3.1).
 - **The core performs no I/O and holds no state across requests.** Everything goes through the
   `Adapter` (FR-A1).
@@ -71,9 +71,9 @@ bun run conformance      # OpenID Foundation suite against apps/server
 
 ## Gotchas
 
-- **One package, seven subpath entries** (`packages/oidcraft`). An optional peer belongs to exactly
+- **One package, ten subpath entries** (`packages/oidcraft`). An optional peer belongs to exactly
   one entry; `bun run --filter=oidcraft build` runs `verify-entries.ts`, which fails the build if
-  one leaks, if a core type is inlined, or if `node:` appears outside the `./node` entry
+  one leaks, if a core type is inlined, or if `node:` appears outside the `./runtimes/node` entry
   (ARCHITECTURE.md §2.1–2.2). Do not split this into several packages without reading §2.1.
 - **There is no build step for the apps.** `bun index.html` is the client — Bun bundles Vue, compiles Tailwind
   and inlines `OIDCRAFT_PUBLIC_*` itself. The server runs from source. Do not add a bundler or a

@@ -48,11 +48,14 @@ binary, which is still on a `7.0.0-dev` tag and is not what the `typescript` pac
 ## 2. Workspace
 
 ```
-packages/oidcraft/          one published package, seven entries
+packages/oidcraft/          one published package, ten entries
   src/index.ts              .                     the OP. fetch in, fetch out, no I/O
   src/federation/           ./federation          the relying-party leg — upstream brokering
   src/interaction/          ./interaction         login/consent policy types
-  src/node/                 ./node                node:http / Express / Fastify bridge
+  src/runtimes/node/        ./runtimes/node       node:http bridge + request context
+  src/runtimes/bun/         ./runtimes/bun        request context for Bun.serve
+  src/runtimes/deno/        ./runtimes/deno       request context for Deno.serve
+  src/runtimes/workerd/     ./runtimes/workerd    request context for Cloudflare Workers
   src/adapters/memory/      ./adapters/memory     tests and development only
   src/adapters/drizzle/     ./adapters/drizzle    Postgres, SQLite
   src/adapters/kysely/      ./adapters/kysely     Postgres, SQLite, MySQL
@@ -90,7 +93,7 @@ fails silently — a leaked peer surfaces only as a resolution error in a consum
 it, and a core type inlined into an entry compiles fine while shipping a second copy that drifts.
 
 `verify-entries.ts` runs after `build` and asserts, per entry: no optional peer it does not own, in
-either the JS or the `.d.mts`; no `node:` builtin outside the `./node` entry (FR-R1); no redeclared
+either the JS or the `.d.mts`; no `node:` builtin outside the `./runtimes/node` entry (FR-R1); no redeclared
 core type; and — once an entry has runtime code — that it imports the root by package name rather
 than inlining a second copy of the core. Entries that are still types-only compile to `export {};`,
 so their runtime checks are reported as pending rather than passing quietly.
@@ -121,10 +124,11 @@ directly.
 **Every runtime needs a context provider**, though — the part that is easy to get wrong. Nothing in
 `RequestContext` is carried by `Request`, and each runtime exposes it differently:
 `server.requestIP(request)` on Bun, `info.remoteAddr` on Deno, `req.socket` on Node, `request.cf`
-plus `CF-Connecting-IP` on workerd. Hence one small entry per runtime — `oidcraft/bun`, `/deno`,
-`/node`, `/workerd` — each touching only its own globals and holding no protocol logic (FR-R3).
-`verify-entries.ts` fails the build if `node:`, `Bun.` or `Deno.` appears outside the entry that
-owns it (§2.2).
+plus `CF-Connecting-IP` on workerd. Hence one small entry per runtime under `oidcraft/runtimes/*`,
+grouped the way the adapters are and for the same reason — each is one interchangeable
+implementation of a single seam. Each touches only its own globals and holds no protocol logic
+(FR-R3). `verify-entries.ts` fails the build if `node:`, `Bun.` or `Deno.` appears outside the entry
+that owns it (§2.2).
 
 One consequence is worth stating plainly: **mTLS client authentication is unavailable on Bun**.
 `Bun.serve` can request a client certificate but exposes no way to read it, so `tls_client_auth`

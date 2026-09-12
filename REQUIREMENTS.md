@@ -248,8 +248,8 @@ rather than `Request`/`Response`. Bun, Deno and workerd hand the core a `Request
 Every runtime nonetheless needs a small **context provider**, because what FR-R4 requires is not
 carried by `Request` on any of them, and each exposes it differently: `server.requestIP(request)`
 on Bun, the `info.remoteAddr` second argument on Deno, `req.socket` on Node, `request.cf` and
-`CF-Connecting-IP` on workerd. One entry per runtime (`oidcraft/bun`, `/deno`, `/node`,
-`/workerd`), each touching only its own globals and containing no protocol logic.
+`CF-Connecting-IP` on workerd. One entry per runtime under `oidcraft/runtimes/*`, each touching only
+its own globals and containing no protocol logic.
 
 **FR-R4** — Everything the core cannot learn from the `Request` — the verified client TLS
 certificate, the real client IP, the deployment's public origin — arrives as an explicit

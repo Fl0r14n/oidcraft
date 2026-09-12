@@ -44,21 +44,21 @@
       "types": "./dist/interaction.d.mts",
       "import": "./dist/interaction.mjs"
     },
-    "./node": {
-      "types": "./dist/node.d.mts",
-      "import": "./dist/node.mjs"
+    "./runtimes/node": {
+      "types": "./dist/runtimes/node.d.mts",
+      "import": "./dist/runtimes/node.mjs"
     },
-    "./bun": {
-      "types": "./dist/bun.d.mts",
-      "import": "./dist/bun.mjs"
+    "./runtimes/bun": {
+      "types": "./dist/runtimes/bun.d.mts",
+      "import": "./dist/runtimes/bun.mjs"
     },
-    "./deno": {
-      "types": "./dist/deno.d.mts",
-      "import": "./dist/deno.mjs"
+    "./runtimes/deno": {
+      "types": "./dist/runtimes/deno.d.mts",
+      "import": "./dist/runtimes/deno.mjs"
     },
-    "./workerd": {
-      "types": "./dist/workerd.d.mts",
-      "import": "./dist/workerd.mjs"
+    "./runtimes/workerd": {
+      "types": "./dist/runtimes/workerd.d.mts",
+      "import": "./dist/runtimes/workerd.mjs"
     },
     "./adapters/memory": {
       "types": "./dist/adapters/memory.d.mts",

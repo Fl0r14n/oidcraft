@@ -9,10 +9,10 @@ const ENTRIES = {
   index: { owns: [] as string[], runtime: undefined },
   federation: { owns: ['openid-client'], runtime: undefined },
   interaction: { owns: [], runtime: undefined },
-  node: { owns: [], runtime: 'node' },
-  bun: { owns: [], runtime: 'bun' },
-  deno: { owns: [], runtime: 'deno' },
-  workerd: { owns: [], runtime: 'workerd' },
+  'runtimes/node': { owns: [], runtime: 'node' },
+  'runtimes/bun': { owns: [], runtime: 'bun' },
+  'runtimes/deno': { owns: [], runtime: 'deno' },
+  'runtimes/workerd': { owns: [], runtime: 'workerd' },
   'adapters/memory': { owns: [], runtime: undefined },
   'adapters/drizzle': { owns: ['drizzle-orm'], runtime: undefined },
   'adapters/kysely': { owns: ['kysely'], runtime: undefined }
@@ -56,7 +56,10 @@ for (const [entry, { owns, runtime }] of Object.entries(ENTRIES)) {
   // entry owns its own; everything else must stay portable (FR-R1, FR-R3).
   if (runtime !== 'node') {
     const offending = imports(js).filter(id => id.startsWith('node:'))
-    check(offending.length === 0, `${entry} imports ${offending.join(', ')} — only the /node entry may touch node: builtins (FR-R1)`)
+    check(
+      offending.length === 0,
+      `${entry} imports ${offending.join(', ')} — only the /runtimes/node entry may touch node: builtins (FR-R1)`
+    )
   }
   for (const [global, owner] of [
     ['Bun', 'bun'],
@@ -65,7 +68,7 @@ for (const [entry, { owns, runtime }] of Object.entries(ENTRIES)) {
     if (runtime === owner) continue
     check(
       !new RegExp(`(^|[^.\\w])${global}\\.`).test(js),
-      `${entry} reaches for the ${global} global — only the /${owner} entry may, or the package stops running anywhere else (FR-R1)`
+      `${entry} reaches for the ${global} global — only the /runtimes/${owner} entry may, or the package stops running anywhere else (FR-R1)`
     )
   }
 
@@ -105,4 +108,4 @@ if (failures.length) {
 }
 
 const note = stubs > 0 ? ` (${stubs} entries still types-only — their peer checks are pending)` : ''
-console.log(`✓ entry invariants hold: optional peers confined, no inlined core types, no node: outside /node${note}`)
+console.log(`✓ entry invariants hold: optional peers confined, no inlined core types, no node: outside /runtimes/node${note}`)

@@ -33,8 +33,8 @@ written against. `bun run --filter=oidcraft build` produces all seven entries an
 - [ ] `oidcraft/adapters/drizzle` with migrations and real indexes (FR-A5)
 - [ ] `oidcraft/adapters/kysely`
 - [ ] OpenID Foundation conformance suite in CI: `basic`, `config` (NFR-C1)
-- [ ] `oidcraft/node` HTTP bridge + a Node smoke test (FR-R3)
-- [ ] Runtime context providers: `oidcraft/{bun,deno,workerd}`, one smoke test each (FR-R3, FR-R4)
+- [ ] `oidcraft/runtimes/node` HTTP bridge + a Node smoke test (FR-R3)
+- [ ] Context providers: `oidcraft/runtimes/{bun,deno,workerd}`, one smoke test each (FR-R3, FR-R4)
 - [ ] Capability gating: disable mTLS methods where no certificate can be supplied (FR-R5, `G-8`)
 
 ## M3 — federation

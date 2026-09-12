@@ -4,7 +4,7 @@ import type { Client } from './types'
  * What a WHATWG `Request` cannot carry, supplied by the host (FR-R4).
  *
  * Every one of these is runtime-specific, which is why each runtime gets its own tiny entry —
- * `oidcraft/bun`, `oidcraft/deno`, `oidcraft/node`, `oidcraft/workerd` — rather than the core
+ * `oidcraft/runtimes/{bun,deno,node,workerd}` — rather than the core
  * sniffing for globals or trusting a header.
  */
 export type RequestContext = {

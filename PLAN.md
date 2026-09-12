@@ -5,11 +5,12 @@ This file is working state: tick items off and add notes as work lands.
 
 ## Status
 
-Scaffold only. The workspace, the toolchain, the build and the adapter contract exist; no protocol
-code does. Most entries under `packages/oidcraft/src` are stub barrels proving the wiring, except
-`src/adapter.ts` and `src/federation/types.ts`, which are the real contracts everything else is
-written against. `bun run --filter=oidcraft build` produces all seven entries and passes
-`verify-entries.ts`.
+**M0 is done.** `createProvider` validates its configuration at construction, routes, and serves a
+real discovery document and JWKS; `fromKv` derives a complete `Adapter` from four key-value methods,
+and the memory adapter passes the shared conformance suite. 78 tests. `apps/server` runs it.
+
+Nothing of the protocol proper exists yet: the authorization, token, userinfo and logout endpoints
+answer 501 and point here. M1 is the code grant.
 
 ## M0 — foundation
 

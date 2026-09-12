@@ -6,8 +6,8 @@
     "apps/*"
   ],
   "scripts": {
-    "dev": "bun run --parallel --elide-lines=0 --filter=@oidcraft/server-app --filter=@oidcraft/client-app dev",
-    "dev:server": "bun run --filter=@oidcraft/server-app dev",
+    "dev": "bun run --filter=oidcraft build && bun run --parallel --elide-lines=0 --filter=@oidcraft/server-app --filter=@oidcraft/client-app dev",
+    "dev:server": "bun run --filter=oidcraft build && bun run --filter=@oidcraft/server-app dev",
     "dev:client": "bun run --filter=@oidcraft/client-app dev",
     "build": "bun run --filter='*' build",
     "typecheck": "bun run --filter='*' typecheck",

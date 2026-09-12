@@ -350,10 +350,14 @@ The gate is `.github/workflows/ci.yml` on every push and pull request: `biome ci
 the apps resolve `oidcraft` through its exports map into `dist/`, which does not exist on a fresh
 clone.
 
+- **Adapter conformance** — `adapterConformance(name, create)` in `src/adapter-conformance.ts` is one
+  suite every adapter runs, covering the queries the protocol actually needs: expiry enforced by
+  storage, `kind` as part of an artifact's identity, `revokeByGrantId` removing that grant and
+  nothing else, lookup by user code and by upstream session, and the replay guard admitting a value
+  once. An adapter that passes it is interchangeable with the others (FR-A4).
+
 - **Unit** — `bun test` per package. Every `FR-C*` gets a test that exercises the wire format, not
   just the function behind it (NFR-C3).
-- **Adapter conformance** — one shared suite every adapter runs, so memory, Drizzle and Kysely are
-  provably interchangeable.
 - **Protocol conformance** — the OpenID Foundation suite (a Docker image) runs in CI against
   `apps/server` for the `basic`, `config` and `dynamic` OP profiles. Red suite, failed build
   (NFR-C1).

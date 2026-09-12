@@ -104,10 +104,24 @@ the first publish is the test. The fallback is a scoped single package, which sk
 
 ### 3.1 Request pipeline
 
-The root entry exposes one function of `(Request, RequestContext) => Promise<Response>`. It is
-the whole surface. On Bun, Deno and workerd that mounts directly into the runtime's server with no
-adapter; the `./node` entry exists only to translate `IncomingMessage`/`ServerResponse` into that
-shape for node:http hosts (FR-R3).
+The root entry exposes one function of `(Request, RequestContext) => Promise<Response>`. It is the
+whole surface.
+
+**Only Node needs an HTTP bridge.** `node:http` speaks `IncomingMessage`/`ServerResponse`; Bun, Deno
+and workerd hand over a `Request` and take a `Response`, so the handler mounts into their servers
+directly.
+
+**Every runtime needs a context provider**, though — the part that is easy to get wrong. Nothing in
+`RequestContext` is carried by `Request`, and each runtime exposes it differently:
+`server.requestIP(request)` on Bun, `info.remoteAddr` on Deno, `req.socket` on Node, `request.cf`
+plus `CF-Connecting-IP` on workerd. Hence one small entry per runtime — `oidcraft/bun`, `/deno`,
+`/node`, `/workerd` — each touching only its own globals and holding no protocol logic (FR-R3).
+`verify-entries.ts` fails the build if `node:`, `Bun.` or `Deno.` appears outside the entry that
+owns it (§2.2).
+
+One consequence is worth stating plainly: **mTLS client authentication is unavailable on Bun**.
+`Bun.serve` can request a client certificate but exposes no way to read it, so `tls_client_auth`
+and certificate-bound tokens are disabled there rather than silently advertised (`G-8`, FR-R5).
 
 ```
 Request
@@ -120,8 +134,8 @@ Request
 ```
 
 `RequestContext` carries what the core cannot learn from the `Request` on its own authority: the
-verified client certificate for mTLS, the client IP, and the deployment's public origin
-(FR-R4, NFR-S6). The issuer is configuration and is never derived from a header.
+verified client certificate for mTLS, the client IP, and the deployment's public origin (FR-R4,
+NFR-S6). The issuer is configuration and is never derived from a header.
 
 ### 3.2 What the core does not do
 

@@ -6,13 +6,16 @@
 import { readFileSync } from 'node:fs'
 
 const ENTRIES = {
-  index: { owns: [] as string[], mayUseNode: false },
-  federation: { owns: ['openid-client'], mayUseNode: false },
-  interaction: { owns: [], mayUseNode: false },
-  node: { owns: [], mayUseNode: true },
-  'adapters/memory': { owns: [], mayUseNode: false },
-  'adapters/drizzle': { owns: ['drizzle-orm'], mayUseNode: false },
-  'adapters/kysely': { owns: ['kysely'], mayUseNode: false }
+  index: { owns: [] as string[], runtime: undefined },
+  federation: { owns: ['openid-client'], runtime: undefined },
+  interaction: { owns: [], runtime: undefined },
+  node: { owns: [], runtime: 'node' },
+  bun: { owns: [], runtime: 'bun' },
+  deno: { owns: [], runtime: 'deno' },
+  workerd: { owns: [], runtime: 'workerd' },
+  'adapters/memory': { owns: [], runtime: undefined },
+  'adapters/drizzle': { owns: ['drizzle-orm'], runtime: undefined },
+  'adapters/kysely': { owns: ['kysely'], runtime: undefined }
 } as const
 
 const OPTIONAL_PEERS = ['openid-client', 'drizzle-orm', 'kysely'] as const
@@ -33,9 +36,10 @@ const check = (ok: boolean, failure: string) => {
 }
 
 const rootTypes = new Set(declares(read('index.d.mts')))
+const rootValues = new Set(declares(read('index.mjs')))
 let stubs = 0
 
-for (const [entry, { owns, mayUseNode }] of Object.entries(ENTRIES)) {
+for (const [entry, { owns, runtime }] of Object.entries(ENTRIES)) {
   const js = read(`${entry}.mjs`)
   const dts = read(`${entry}.d.mts`)
 
@@ -48,10 +52,21 @@ for (const [entry, { owns, mayUseNode }] of Object.entries(ENTRIES)) {
     )
   }
 
-  // The core runs on workerd and Deno only while nothing in its graph reaches for a node builtin (FR-R1).
-  if (!mayUseNode) {
+  // A runtime global in a shared entry is what makes a library node-only by accident. Each runtime
+  // entry owns its own; everything else must stay portable (FR-R1, FR-R3).
+  if (runtime !== 'node') {
     const offending = imports(js).filter(id => id.startsWith('node:'))
     check(offending.length === 0, `${entry} imports ${offending.join(', ')} — only the /node entry may touch node: builtins (FR-R1)`)
+  }
+  for (const [global, owner] of [
+    ['Bun', 'bun'],
+    ['Deno', 'deno']
+  ] as const) {
+    if (runtime === owner) continue
+    check(
+      !new RegExp(`(^|[^.\\w])${global}\\.`).test(js),
+      `${entry} reaches for the ${global} global — only the /${owner} entry may, or the package stops running anywhere else (FR-R1)`
+    )
   }
 
   if (entry === 'index') continue
@@ -63,15 +78,20 @@ for (const [entry, { owns, mayUseNode }] of Object.entries(ENTRIES)) {
     `${entry}.d.mts redeclares ${inlined.join(', ')} — it has inlined core types instead of importing them from 'oidcraft'`
   )
 
+  // An entry may legitimately depend on the root for types alone — those are erased, so a missing
+  // runtime import proves nothing. What must never happen is the root's *runtime* symbols being
+  // copied in: that compiles, ships twice, and drifts.
+  const inlinedRuntime = declares(js).filter(name => rootValues.has(name))
+  check(
+    inlinedRuntime.length === 0,
+    `${entry}.mjs redeclares ${inlinedRuntime.join(', ')} — it has inlined core runtime code instead of importing it from 'oidcraft'`
+  )
+
   if (isTypesOnly(js)) {
     stubs++
     continue
   }
 
-  check(
-    imports(js).includes('oidcraft'),
-    `${entry}.mjs does not import the root by package name — it has inlined a second copy of the core`
-  )
   for (const peer of owns) {
     check(importsPackage(js, peer), `${entry}.mjs does not import ${peer} — the entry that owns it has inlined or lost it`)
   }
@@ -84,5 +104,5 @@ if (failures.length) {
   process.exit(1)
 }
 
-const note = stubs > 0 ? ` (${stubs} entries still types-only — their runtime checks are pending)` : ''
+const note = stubs > 0 ? ` (${stubs} entries still types-only — their peer checks are pending)` : ''
 console.log(`✓ entry invariants hold: optional peers confined, no inlined core types, no node: outside /node${note}`)

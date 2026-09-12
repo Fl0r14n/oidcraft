@@ -239,13 +239,26 @@ audit events go; the library does not persist them.
 **FR-R2** — All cryptography goes through WebCrypto (`crypto.subtle`, `crypto.getRandomValues`)
 via `jose`. No `node:crypto`, no native addon, no dependency on a C++ build.
 
-**FR-R3** — Supported hosts: Bun ≥ 1.4, Node ≥ 22 (via the `oidcraft/node` entry), Deno, and workerd-shaped
-runtimes. A host bridge may exist only to translate the runtime's HTTP types to `Request`/
-`Response`; it may never contain protocol logic.
+**FR-R3** — Supported hosts: Bun ≥ 1.4, Node ≥ 22, Deno, and workerd-shaped runtimes.
 
-**FR-R4** — Everything the core cannot learn from the `Request` — the client TLS certificate, the
-real client IP, the deployment's public origin — is passed in explicitly. The core never reads
-`X-Forwarded-*` on its own authority (NFR-S6).
+Only **Node** needs an HTTP bridge, because `node:http` speaks `IncomingMessage`/`ServerResponse`
+rather than `Request`/`Response`. Bun, Deno and workerd hand the core a `Request` and take a
+`Response`, so it mounts into their servers directly.
+
+Every runtime nonetheless needs a small **context provider**, because what FR-R4 requires is not
+carried by `Request` on any of them, and each exposes it differently: `server.requestIP(request)`
+on Bun, the `info.remoteAddr` second argument on Deno, `req.socket` on Node, `request.cf` and
+`CF-Connecting-IP` on workerd. One entry per runtime (`oidcraft/bun`, `/deno`, `/node`,
+`/workerd`), each touching only its own globals and containing no protocol logic.
+
+**FR-R4** — Everything the core cannot learn from the `Request` — the verified client TLS
+certificate, the real client IP, the deployment's public origin — arrives as an explicit
+`RequestContext`. The core never reads `X-Forwarded-*` on its own authority (NFR-S6).
+
+**FR-R5** — A capability the running runtime cannot supply disables the features that need it,
+loudly, at construction rather than at the first request (NFR-D2). The mTLS client-authentication
+methods (FR-C4) and certificate-bound tokens (FR-C13) require `RequestContext.clientCertificate`;
+where no provider can supply one, advertising them in discovery would be a lie (`G-8`).
 
 ## 10. Non-functional
 
@@ -333,6 +346,14 @@ ecosystem is. First-party, community, or not at all?
 
 **G-6 — Multi-tenancy.** One process serving several issuers is a different configuration and
 storage shape. Deferred, but the adapter interfaces should not make it impossible.
+
+**G-8 — mTLS on Bun.** `Bun.serve` accepts `tls.requestCert`, so the handshake can ask for a client
+certificate, but its `Server` interface exposes only `requestIP`, `timeout`, `upgrade`, `publish`
+and `ref`/`unref` — no peer-certificate accessor. So `tls_client_auth`,
+`self_signed_tls_client_auth` (FR-C4) and certificate-bound tokens (FR-C13) are not implementable
+on Bun today without dropping to `node:tls`. Verified against `bun-types` 1.4.2 on 2026-09-12.
+Options: leave them unavailable there (current plan, FR-R5), terminate mTLS at a proxy and accept a
+header on an explicitly trusted hop, or open an upstream request. Node and workerd are unaffected.
 
 **G-7 — Drizzle v1.** `drizzle-orm` is at `1.0.0-rc.5` with `latest` still on `0.45.2`. The
 adapter targets `0.45` until v1 is on `latest`.

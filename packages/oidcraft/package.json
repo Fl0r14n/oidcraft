@@ -48,6 +48,18 @@
       "types": "./dist/node.d.mts",
       "import": "./dist/node.mjs"
     },
+    "./bun": {
+      "types": "./dist/bun.d.mts",
+      "import": "./dist/bun.mjs"
+    },
+    "./deno": {
+      "types": "./dist/deno.d.mts",
+      "import": "./dist/deno.mjs"
+    },
+    "./workerd": {
+      "types": "./dist/workerd.d.mts",
+      "import": "./dist/workerd.mjs"
+    },
     "./adapters/memory": {
       "types": "./dist/adapters/memory.d.mts",
       "import": "./dist/adapters/memory.mjs"

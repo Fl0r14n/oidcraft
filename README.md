@@ -9,7 +9,10 @@ One package, seven entries:
 oidcraft                     the OP — one fetch handler, no I/O, no node:*
 oidcraft/federation          the relying-party leg: brokering to upstream OPs
 oidcraft/interaction         login / consent policy
-oidcraft/node                node:http bridge — the only runtime that needs one
+oidcraft/node                node:http bridge + request context
+oidcraft/bun                 request context for Bun.serve
+oidcraft/deno                request context for Deno.serve
+oidcraft/workerd             request context for Cloudflare Workers
 oidcraft/adapters/memory     development and tests
 oidcraft/adapters/drizzle    Postgres, SQLite
 oidcraft/adapters/kysely     Postgres, SQLite, MySQL
@@ -17,6 +20,10 @@ oidcraft/adapters/kysely     Postgres, SQLite, MySQL
 
 `drizzle-orm`, `kysely` and `openid-client` are optional peers, each confined to the entry that
 owns it — importing the core pulls none of them.
+
+```
+Only Node needs an HTTP bridge; the rest are small context providers for what `Request` does not
+carry (client IP, verified TLS client certificate).
 
 ```
 packages/oidcraft            the package

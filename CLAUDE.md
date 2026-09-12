@@ -41,6 +41,9 @@ These are the ones where a plausible-looking change is a security bug:
 
 - **The core never imports `node:*`** and never reads `X-Forwarded-*` on its own authority.
   The issuer is configuration (FR-R1, FR-R4, NFR-S6).
+- **A runtime global belongs to its own entry.** `node:` only in `./node`, `Bun.` only in `./bun`,
+  `Deno.` only in `./deno`. Only Node needs an HTTP bridge; every runtime needs a context provider,
+  because client IP and the TLS client certificate are not on `Request` anywhere (ARCHITECTURE.md §3.1).
 - **The core performs no I/O and holds no state across requests.** Everything goes through the
   `Adapter` (FR-A1).
 - **PKCE is not optional, refresh tokens always rotate, and replaying a single-use artifact revokes

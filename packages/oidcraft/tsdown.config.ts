@@ -27,7 +27,14 @@ export default defineConfig([
     clean: false
   },
   {
-    entry: { interaction: 'src/interaction/index.ts', node: 'src/node/index.ts' },
+    // one entry per runtime: each may touch only its own globals, nothing may touch another's
+    entry: {
+      interaction: 'src/interaction/index.ts',
+      node: 'src/node/index.ts',
+      bun: 'src/bun/index.ts',
+      deno: 'src/deno/index.ts',
+      workerd: 'src/workerd/index.ts'
+    },
     outDir: 'dist',
     format: 'esm',
     deps: { neverBundle: external },

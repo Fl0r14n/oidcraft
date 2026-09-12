@@ -10,4 +10,5 @@ export type {
   ReplayGuard,
   SessionStore
 } from './adapter'
+export type { ClientAuthenticationInput, ClientCertificate, ContextProvider, RequestContext } from './context'
 export type { Account, Artifact, ArtifactKind, Client, ClientAuthMethod, FederatedIdentity, Grant, Seconds, Session } from './types'

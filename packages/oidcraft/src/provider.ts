@@ -2,7 +2,10 @@ import { type ProviderConfig, type ResolvedConfig, resolveConfig } from './confi
 import type { RequestContext } from './context'
 import { authorize, parseAuthorizationRequest, redirectTo, validateAuthorizationRequest } from './endpoints/authorization'
 import { discoveryEndpoint } from './endpoints/discovery'
+import { endSessionEndpoint, type LogoutNotification } from './endpoints/end-session'
+import { introspectionEndpoint } from './endpoints/introspection'
 import { jwksEndpoint } from './endpoints/jwks'
+import { revocationEndpoint } from './endpoints/revocation'
 import { tokenEndpoint } from './endpoints/token'
 import { userinfoEndpoint } from './endpoints/userinfo'
 import { errorResponse, OAuthError } from './errors'
@@ -71,6 +74,21 @@ const authorizationHandler: Handler = async (config, request) => {
   }
 }
 
+/**
+ * Back-channel logout tokens are handed to the host rather than delivered here: the core performs
+ * no I/O (FR-A1), and a fan-out with retries does not belong inside a request.
+ */
+export type LogoutDelivery = (notifications: LogoutNotification[]) => void | Promise<void>
+
+const endSessionHandler: Handler = async (config, request) => {
+  const session = await readSession(config, request)
+  const { response, notifications } = await endSessionEndpoint(config, request, session)
+  // From the resolved config, never a module-level pointer: two providers in one process must not
+  // be able to reach each other's callback (FR-A1).
+  if (notifications.length && config.onLogout) await config.onLogout(notifications)
+  return response
+}
+
 const GET = 'GET'
 
 const routeTable = (config: ResolvedConfig) => {
@@ -83,9 +101,9 @@ const routeTable = (config: ResolvedConfig) => {
   add(config.routes.authorization, [GET, 'POST'], authorizationHandler)
   add(config.routes.token, ['POST'], async (cfg, req) => tokenEndpoint(cfg, req))
   add(config.routes.userinfo, [GET, 'POST'], async (cfg, req) => userinfoEndpoint(cfg, req))
-  add(config.routes.endSession, [GET, 'POST'], notImplemented('end session'))
-  if (config.features.revocation) add(config.routes.revocation, ['POST'], notImplemented('revocation'))
-  if (config.features.introspection) add(config.routes.introspection, ['POST'], notImplemented('introspection'))
+  add(config.routes.endSession, [GET, 'POST'], endSessionHandler)
+  if (config.features.revocation) add(config.routes.revocation, ['POST'], async (cfg, req) => revocationEndpoint(cfg, req))
+  if (config.features.introspection) add(config.routes.introspection, ['POST'], async (cfg, req) => introspectionEndpoint(cfg, req))
   if (config.features.dynamicRegistration) add(config.routes.registration, ['POST'], notImplemented('registration'))
   if (config.features.deviceFlow) add(config.routes.deviceAuthorization, ['POST'], notImplemented('device authorization'))
   if (config.features.pushedAuthorizationRequests) {

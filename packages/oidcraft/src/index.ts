@@ -27,6 +27,7 @@ export type { ClientAuthenticationInput, ClientCertificate, ContextProvider, Req
 export { type CookieOptions, clearCookie, parseCookies, serializeCookie } from './cookies'
 export { type AuthorizationRequest, redirectTo } from './endpoints/authorization'
 export { metadata } from './endpoints/discovery'
+export { type LogoutNotification, logoutTokens } from './endpoints/end-session'
 export { ConfigurationError, errorResponse, OAuthError, type OAuthErrorCode, type OAuthErrorInit } from './errors'
 export {
   type InteractionCompletion,
@@ -46,6 +47,6 @@ export {
   staticKeyStore
 } from './keys'
 export { type FromKvOptions, fromKv } from './kv'
-export { createProvider, type Provider } from './provider'
+export { createProvider, type LogoutDelivery, type Provider } from './provider'
 export { isFresh, type LoginInput, readSession, SESSION_COOKIE, startSession } from './session'
 export type { Account, Artifact, ArtifactKind, Client, ClientAuthMethod, FederatedIdentity, Grant, Seconds, Session } from './types'

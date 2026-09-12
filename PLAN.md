@@ -5,6 +5,11 @@ This file is working state: tick items off and add notes as work lands.
 
 ## Status
 
+**M4 is under way.** Revocation, introspection and logout are implemented, so every endpoint the
+default configuration advertises now answers for real — a test asserts that, rather than trusting
+it. Back-channel logout tokens are minted and handed to the host: the core performs no I/O, and a
+fan-out with retries does not belong in a request.
+
 **M1 is done.** The code grant works end to end: a browser completes login and consent, exchanges
 the code with PKCE, and receives an ID token that verifies against the published JWKS. Replaying a
 code or a refresh token revokes the grant. 107 tests.
@@ -44,7 +49,7 @@ answer 501 and point here. M1 is the code grant.
 - [ ] `oidcraft/adapters/drizzle` with migrations and real indexes (FR-A5)
 - [ ] `oidcraft/adapters/kysely`
 - [ ] OpenID Foundation conformance suite in CI: `basic`, `config` (NFR-C1)
-- [ ] `oidcraft/runtimes/node` HTTP bridge + a Node smoke test (FR-R3)
+- [x] `oidcraft/runtimes/node` HTTP bridge, tested against a real node:http server (FR-R3)
 - [ ] Context providers: `oidcraft/runtimes/{bun,deno,workerd}`, one smoke test each (FR-R3, FR-R4)
 - [ ] Capability gating: disable mTLS methods where no certificate can be supplied (FR-R5, `G-8`)
 
@@ -59,7 +64,7 @@ answer 501 and point here. M1 is the code grant.
 
 ## M4 — the rest of the protocol
 
-- [ ] Revocation, introspection (FR-C8); logout endpoints (FR-C11)
+- [x] Revocation, introspection (FR-C8); RP-initiated and back-channel logout (FR-C11)
 - [ ] PAR, JAR (FR-C12); DPoP (FR-C13)
 - [ ] Device grant (FR-C7); DCR (FR-C9); pairwise subjects (FR-C18)
 - [ ] Token exchange (FR-C2); RAR (FR-C15); step-up (FR-C16); CIBA (FR-C17)

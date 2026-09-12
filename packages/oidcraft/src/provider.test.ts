@@ -104,14 +104,26 @@ describe('routing', () => {
     expect(response.headers.get('allow')).toBe('GET')
   })
 
-  test('an unimplemented endpoint answers 501 rather than pretending', async () => {
-    const { status, body } = await json('/session/end')
-    expect(status).toBe(501)
-    expect(body.error_uri).toContain('PLAN.md')
+  // Every endpoint the default configuration routes is implemented; the ones that are not are
+  // reachable only by turning their feature on, and they say so rather than pretending.
+  test('an endpoint behind an unimplemented feature answers 501', async () => {
+    const withDevice = createProvider({ issuer: 'https://op.example.com', adapter, features: { deviceFlow: true } })
+    const response = await withDevice.handle(new Request('https://op.example.com/device/authorize', { method: 'POST' }))
+    expect(response.status).toBe(501)
+    expect((await response.json()).error_uri).toContain('PLAN.md')
   })
 
-  test('an implemented endpoint no longer answers 501', async () => {
-    expect((await json('/token', { method: 'POST' })).status).toBe(401)
+  test('every route the default configuration advertises is implemented', async () => {
+    const { body } = await json('/.well-known/openid-configuration')
+    const endpoints = Object.entries(body).filter(([key]) => key.endsWith('_endpoint'))
+    for (const [name, url] of endpoints as [string, string][]) {
+      const path = new URL(url).pathname
+      const response = await get(
+        path,
+        name === 'token_endpoint' || name.startsWith('revocation') || name.startsWith('introspection') ? { method: 'POST' } : {}
+      )
+      expect({ name, status: response.status }).not.toEqual({ name, status: 501 })
+    }
   })
 
   test('an error response is never cached', async () => {

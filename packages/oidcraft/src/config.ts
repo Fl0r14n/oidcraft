@@ -97,6 +97,8 @@ export type ProviderConfig = {
   clientAuthMethods?: ClientAuthMethod[]
   features?: Partial<Features>
   capabilities?: Partial<Capabilities>
+  /** Delivers back-channel logout tokens. The core mints them; it never POSTs them (FR-A1, FR-C11). */
+  onLogout?: (notifications: { clientId: string; uri: string; logoutToken: string }[]) => void | Promise<void>
 }
 
 export type ResolvedConfig = {
@@ -111,6 +113,7 @@ export type ResolvedConfig = {
   clientAuthMethods: ClientAuthMethod[]
   features: Features
   capabilities: Capabilities
+  onLogout: ProviderConfig['onLogout']
 }
 
 const MTLS_METHODS: ClientAuthMethod[] = ['tls_client_auth', 'self_signed_tls_client_auth']
@@ -194,7 +197,8 @@ export const resolveConfig = (config: ProviderConfig): ResolvedConfig => {
     claims: config.claims ?? DEFAULT_CLAIMS,
     clientAuthMethods,
     features,
-    capabilities
+    capabilities,
+    onLogout: config.onLogout
   }
 }
 

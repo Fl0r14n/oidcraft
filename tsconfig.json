@@ -1,13 +1,5 @@
 {
   "extends": "./tsconfig.base.json",
   "files": [],
-  "references": [
-    { "path": "./packages/core" },
-    { "path": "./packages/federation" },
-    { "path": "./packages/interaction" },
-    { "path": "./packages/adapter-memory" },
-    { "path": "./packages/adapter-drizzle" },
-    { "path": "./packages/adapter-kysely" },
-    { "path": "./packages/node" }
-  ]
+  "references": [{ "path": "./packages/oidcraft" }, { "path": "./apps/client" }, { "path": "./apps/server" }]
 }

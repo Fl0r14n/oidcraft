@@ -1,4 +1,4 @@
-import type { FederatedIdentity } from '@oidcraft/core'
+import type { FederatedIdentity } from 'oidcraft'
 
 /** An upstream OP this provider brokers to. Discovery is by issuer; nothing is hardcoded (FR-F1). */
 export type UpstreamProvider = {

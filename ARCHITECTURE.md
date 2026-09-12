@@ -12,10 +12,10 @@ How oidcraft is built. `REQUIREMENTS.md` says what it must do; every section her
 | **Tailwind** | 4.3.x | Styling for both apps, via `bun-plugin-tailwind`. No other CSS pipeline. |
 | **@vuetify/v0** | 1.2.x | Headless Vue primitives, in the **admin surface only** (§8.1). Vue 3.5 is its only dependency. |
 | **Biome** | 2.5.x | Lint and format. `biome.json` settles formatting; it is not a matter of preference. |
-| **jose** | ^6 | The only runtime dependency of `@oidcraft/core`. WebCrypto-backed, runtime-agnostic (NFR-D4). |
-| **openid-client** | ^6 | Only in `@oidcraft/federation`, only for the relying-party leg (FR-F1). |
-| **tsdown** | latest | Library builds: ESM + `.d.mts`. |
-| **Drizzle / Kysely** | 0.45 / 0.28 | First-party adapters (FR-A4). Peer dependencies, never bundled. |
+| **jose** | ^6 | The only runtime dependency. WebCrypto-backed, runtime-agnostic (NFR-D4). |
+| **openid-client** | ^6 | Optional peer, confined to the `./federation` entry (§2.2). |
+| **tsdown** | 0.23.x | Library build: seven ESM entries with `.d.mts` types (§2.2). |
+| **Drizzle / Kysely** | 0.45 / 0.28 | First-party adapters (FR-A4). Optional peers, never bundled (§2.2). |
 
 ### 1.1 No bundler, no build step
 
@@ -48,33 +48,65 @@ binary, which is still on a `7.0.0-dev` tag and is not what the `typescript` pac
 ## 2. Workspace
 
 ```
-packages/
-  core              @oidcraft/core              the OP. fetch in, fetch out, no I/O
-  federation        @oidcraft/federation        the relying-party leg — upstream brokering
-  interaction       @oidcraft/interaction       login/consent policy types and reference screens
-  adapter-memory    @oidcraft/adapter-memory    tests and development only
-  adapter-drizzle   @oidcraft/adapter-drizzle   Postgres, SQLite
-  adapter-kysely    @oidcraft/adapter-kysely    Postgres, SQLite, MySQL
-  node              @oidcraft/node              node:http / Express / Fastify bridge
+packages/oidcraft/          one published package, seven entries
+  src/index.ts              .                     the OP. fetch in, fetch out, no I/O
+  src/federation/           ./federation          the relying-party leg — upstream brokering
+  src/interaction/          ./interaction         login/consent policy types
+  src/node/                 ./node                node:http / Express / Fastify bridge
+  src/adapters/memory/      ./adapters/memory     tests and development only
+  src/adapters/drizzle/     ./adapters/drizzle    Postgres, SQLite
+  src/adapters/kysely/      ./adapters/kysely     Postgres, SQLite, MySQL
 apps/
-  server            the reference OP: mounts the core, the login screens and the admin UI
-  client            the demo relying party: Vue 3 + vue-oidc
+  server                    the reference OP: mounts the core, the login screens and the admin UI
+  client                    the demo relying party: Vue 3 + vue-oidc
 ```
 
-The unscoped `oidcraft` package is the batteries-included re-export (core + memory adapter +
-reference interaction) and is what a first-time reader installs.
+### 2.1 One package, not seven
 
-**Scoped publishing is deliberate.** npm rejects new *unscoped* names that are too similar to an
-existing one, server-side on the `PUT`, where neither `npm view` nor `npm publish --dry-run` can
-see it coming — and `oidc` is taken. A scope skips that check entirely.
+`oidcraft` ships as a single package with subpath exports, and `drizzle-orm`, `kysely` and
+`openid-client` are **optional** peer dependencies — nobody installing it for Kysely pulls Drizzle.
+
+The reason is the adapter contract. It is the part of this library most likely to churn before 1.0,
+and it is exactly the coupling that makes a split painful: separate versioning puts consumers on
+`@oidcraft/core@0.5` with `@oidcraft/adapter-drizzle@0.3` and a type error they cannot resolve.
+Auth.js lives that; `oidc-provider` and `better-auth` do not, because they are single packages.
+`drizzle-orm` itself is the closest precedent — dozens of driver adapters as subpath exports with
+optional peers, not as separate packages.
+
+Two secondary reasons. Going one package to several later is mechanical; going several to one is a
+breaking change for every consumer, so the merged shape is the reversible one. And npm's trusted
+publishing cannot bootstrap a *new* package — the configuration only exists once a version is
+published — so every extra package is another manual first publish and another `npm trust github`
+run behind a browser OTP.
+
+What the split was actually buying is a hard wall stopping the core from importing `openid-client`.
+`verify-entries.ts` replaces it (§2.2).
+
+### 2.2 Entry invariants
+
+Each optional peer is confined to the one entry that owns it; that is what keeps it optional rather
+than a tax on every consumer. Nothing enforces this at build time, and every way of breaking it
+fails silently — a leaked peer surfaces only as a resolution error in a consumer who never installed
+it, and a core type inlined into an entry compiles fine while shipping a second copy that drifts.
+
+`verify-entries.ts` runs after `build` and asserts, per entry: no optional peer it does not own, in
+either the JS or the `.d.mts`; no `node:` builtin outside the `./node` entry (FR-R1); no redeclared
+core type; and — once an entry has runtime code — that it imports the root by package name rather
+than inlining a second copy of the core. Entries that are still types-only compile to `export {};`,
+so their runtime checks are reported as pending rather than passing quietly.
+
+**Publishing unscoped carries one risk.** npm rejects new unscoped names too similar to an existing
+one, server-side on the `PUT`, where neither `npm view` nor `npm publish --dry-run` sees it coming —
+and `oidc` is taken. `oidcraft` is four characters longer and a real blend, so it should clear, but
+the first publish is the test. The fallback is a scoped single package, which skips the check.
 
 ## 3. The core
 
 ### 3.1 Request pipeline
 
-`@oidcraft/core` exposes one function of `(Request, RequestContext) => Promise<Response>`. It is
+The root entry exposes one function of `(Request, RequestContext) => Promise<Response>`. It is
 the whole surface. On Bun, Deno and workerd that mounts directly into the runtime's server with no
-adapter; `@oidcraft/node` exists only to translate `IncomingMessage`/`ServerResponse` into that
+adapter; the `./node` entry exists only to translate `IncomingMessage`/`ServerResponse` into that
 shape for node:http hosts (FR-R3).
 
 ```
@@ -100,7 +132,7 @@ property that makes horizontal scaling and serverless hosting the same thing.
 
 ## 4. The adapter layer
 
-`packages/core/src/adapter.ts` is the contract. Storage is **a set of narrow capability stores**,
+`packages/oidcraft/src/adapter.ts` is the contract. Storage is **a set of narrow capability stores**,
 not one table keyed by a model-name string:
 
 | Store | Holds |
@@ -151,7 +183,7 @@ across a multilateral trust fabric — is a different protocol solving a differe
 ```
   client ──authorization request──▶ oidcraft ──▶ interaction: which upstream? (FR-F4)
                                        │
-                                       ├── @oidcraft/federation is the RP:
+                                       ├── oidcraft/federation is the RP:
                                        │     authorization request ──▶ upstream OP
                                        │     callback ◀── code + state + PKCE verifier
                                        │
@@ -161,7 +193,7 @@ across a multilateral trust fabric — is a different protocol solving a differe
   client ◀──────code──────────────────┘  the downstream interaction resumes
 ```
 
-The handoff (`federation/src/types.ts`) carries `state`, `nonce`, the PKCE verifier and **the id of
+The handoff (`src/federation/types.ts`) carries `state`, `nonce`, the PKCE verifier and **the id of
 the downstream interaction it resumes**. That last field is what makes this a suspend/resume of one
 authorization request rather than two unrelated flows stapled together — and it is why the handoff
 must be single-use, expiring and bound to the browser that started it (FR-F3).
@@ -216,7 +248,7 @@ and lets a host replace the screens entirely. The difference is that oidcraft sh
 
 ## 7. Administration
 
-`@oidcraft/core` exposes the management surface as fetch handlers over clients, grants, sessions,
+The root entry exposes the management surface as fetch handlers over clients, grants, sessions,
 keys and upstreams (FR-M1). **The library never decides who is an administrator** — the host mounts
 these behind its own authentication, and the reference app does so behind its own admin session.
 Writes emit audit events the host routes somewhere; the library persists none of them (FR-M3).
@@ -232,7 +264,7 @@ exists: a reference that is never executed is a reference that is wrong.
 **The two surfaces get different answers on components.**
 
 The **login, consent and device screens** use Tailwind and plain markup, no component library. They
-are a handful of forms, they exist to be forked (FR-I3), and `@oidcraft/interaction` must not put a
+are a handful of forms, they exist to be forked (FR-I3), and the `./interaction` entry must not put a
 UI peer dependency on every consumer that wants the policy layer.
 
 The **admin UI** uses `@vuetify/v0`. Client CRUD, session inspection and grant revocation are
@@ -299,10 +331,10 @@ silently when missing (§1.1).
 
 ## 11. Publishing
 
-Scoped packages under `@oidcraft/*` plus the unscoped `oidcraft` meta-package. Trusted publishing
-(OIDC) from GitHub Actions, which needs `permissions: id-token: write`, no `NODE_AUTH_TOKEN`, and
+One package, `oidcraft`, built by `tsdown` to ESM with `.d.mts` types. Trusted publishing (OIDC)
+from GitHub Actions, which needs `permissions: id-token: write`, no `NODE_AUTH_TOKEN`, and
 `actions/setup-node` with `registry-url` set.
 
-**The first publish of each package must be manual**, with a login or token: npm's trusted-publisher
-configuration only exists once a version has been published, so OIDC cannot bootstrap a new package
-(npm/cli#8544). Configure `npm trust github` per package after that first release.
+**The first publish must be manual**, with a login or token: npm's trusted-publisher configuration
+only exists once a version has been published, so OIDC cannot bootstrap a new package
+(npm/cli#8544). Configure `npm trust github` after that first release — once, not seven times (§2.1).

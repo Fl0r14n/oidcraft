@@ -18,7 +18,7 @@
         "pinia": "^4.0.3",
         "vue": "^3.5.42",
         "vue-oidc": "^5.3.0",
-        "vue-router": "^5.2.0",
+        "vue-router": "^5.3.1",
       },
       "devDependencies": {
         "bun-plugin-tailwind": "^0.1.2",
@@ -31,13 +31,9 @@
       "name": "@oidcraft/server-app",
       "version": "0.0.0",
       "dependencies": {
-        "@oidcraft/adapter-drizzle": "workspace:*",
-        "@oidcraft/adapter-memory": "workspace:*",
-        "@oidcraft/core": "workspace:*",
-        "@oidcraft/federation": "workspace:*",
-        "@oidcraft/interaction": "workspace:*",
         "@vuetify/v0": "^1.2.2",
         "drizzle-orm": "^0.45.2",
+        "oidcraft": "workspace:*",
         "pg": "^8.16.3",
         "vue": "^3.5.42",
         "vue-router": "^5.2.0",
@@ -49,61 +45,22 @@
         "vue-tsgo": "^0.3.0",
       },
     },
-    "packages/adapter-drizzle": {
-      "name": "@oidcraft/adapter-drizzle",
-      "version": "0.0.0",
-      "dependencies": {
-        "@oidcraft/core": "workspace:*",
-      },
-      "peerDependencies": {
-        "drizzle-orm": ">=0.45",
-      },
-    },
-    "packages/adapter-kysely": {
-      "name": "@oidcraft/adapter-kysely",
-      "version": "0.0.0",
-      "dependencies": {
-        "@oidcraft/core": "workspace:*",
-      },
-      "peerDependencies": {
-        "kysely": ">=0.28",
-      },
-    },
-    "packages/adapter-memory": {
-      "name": "@oidcraft/adapter-memory",
-      "version": "0.0.0",
-      "dependencies": {
-        "@oidcraft/core": "workspace:*",
-      },
-    },
-    "packages/core": {
-      "name": "@oidcraft/core",
+    "packages/oidcraft": {
+      "name": "oidcraft",
       "version": "0.0.0",
       "dependencies": {
         "jose": "^6.2.12",
       },
-    },
-    "packages/federation": {
-      "name": "@oidcraft/federation",
-      "version": "0.0.0",
-      "dependencies": {
-        "@oidcraft/core": "workspace:*",
-        "openid-client": "^6.8.8",
+      "peerDependencies": {
+        "drizzle-orm": ">=0.45",
+        "kysely": ">=0.28",
+        "openid-client": "^6",
       },
-    },
-    "packages/interaction": {
-      "name": "@oidcraft/interaction",
-      "version": "0.0.0",
-      "dependencies": {
-        "@oidcraft/core": "workspace:*",
-      },
-    },
-    "packages/node": {
-      "name": "@oidcraft/node",
-      "version": "0.0.0",
-      "dependencies": {
-        "@oidcraft/core": "workspace:*",
-      },
+      "optionalPeers": [
+        "drizzle-orm",
+        "kysely",
+        "openid-client",
+      ],
     },
   },
   "packages": {
@@ -171,21 +128,7 @@
 
     "@napi-rs/wasm-runtime": ["@napi-rs/wasm-runtime@1.2.4", "", { "dependencies": { "@tybys/wasm-util": "^0.10.3" }, "peerDependencies": { "@emnapi/core": "^1.7.1 || ^2.0.0-alpha.4", "@emnapi/runtime": "^1.7.1 || ^2.0.0-alpha.4" } }, "sha512-AJxoUD2/15ESHbvpcyjU274nsAPLuOtPHCk0vKJM5pj//Fg/B1FXNWjPnXTT9PymCYYiHo4zPj0ZomXBKhoy7g=="],
 
-    "@oidcraft/adapter-drizzle": ["@oidcraft/adapter-drizzle@workspace:packages/adapter-drizzle"],
-
-    "@oidcraft/adapter-kysely": ["@oidcraft/adapter-kysely@workspace:packages/adapter-kysely"],
-
-    "@oidcraft/adapter-memory": ["@oidcraft/adapter-memory@workspace:packages/adapter-memory"],
-
     "@oidcraft/client-app": ["@oidcraft/client-app@workspace:apps/client"],
-
-    "@oidcraft/core": ["@oidcraft/core@workspace:packages/core"],
-
-    "@oidcraft/federation": ["@oidcraft/federation@workspace:packages/federation"],
-
-    "@oidcraft/interaction": ["@oidcraft/interaction@workspace:packages/interaction"],
-
-    "@oidcraft/node": ["@oidcraft/node@workspace:packages/node"],
 
     "@oidcraft/server-app": ["@oidcraft/server-app@workspace:apps/server"],
 
@@ -515,8 +458,6 @@
 
     "jose": ["jose@6.2.12", "", {}, "sha512-9NiFmJEex0sy2Dk58j2UGBSHgUs2ypF9eZSu4L6vjOX3Dp96Sw1F3uL+H+D1sx02jZZdzUT0HgvCy59CuvXcWw=="],
 
-    "kysely": ["kysely@0.29.5", "", {}, "sha512-ooa+eSbBNPTo3MycPEuW5jdrxQdQwdtB3LC3h43FiXQbIry5tR0C5lDG7eealK0E4D7XjrnOP5DIUg/LyjRMYQ=="],
-
     "lite-emit": ["lite-emit@4.0.0", "", {}, "sha512-8krVeIZLS7JbkXz4R9xYziqHcxga6UgmomVWb45g21aB4M8qzDwr7FTEW3PJa80PTUASXeqbfipveKCB5YZdug=="],
 
     "local-pkg": ["local-pkg@1.2.1", "", { "dependencies": { "mlly": "^1.7.4", "pkg-types": "^2.3.0", "quansync": "^0.2.11" } }, "sha512-++gUqRDEvcnN6Zhqrr+y/CkVEHhlrR96vZn3nZZPYzMcBUyBtTKzB9NadClFIsIVSsu+3i9tfk/erqy9kAmt7Q=="],
@@ -533,11 +474,9 @@
 
     "nostics": ["nostics@1.2.0", "", {}, "sha512-FGqEfhQjrvo1lL8KFifdTQiNwwQHJxC1jtYE1Rc54qF/jxONUNL+kC9gS1krX8Q65PgrQ5fCqH/I4NhWBvdSqg=="],
 
-    "oauth4webapi": ["oauth4webapi@3.8.8", "", {}, "sha512-8N28E+a/oxfXWBgOMt+ZP/JUf/XR+IFbvkAEPP3gznXOMv9BpAAwiIj0TFNz3tGTPc0ZQ8zmWBNgN1nAys0gng=="],
-
     "obug": ["obug@2.2.1", "", {}, "sha512-XrsrhT5sybtKI6wakr2SPOlGZWWYbUXZ7a0jT8/QOeAPau+1X/bSegNe5YR75oJmEZQbKningirmGOEJCIk61Q=="],
 
-    "openid-client": ["openid-client@6.8.8", "", { "dependencies": { "jose": "^6.2.12", "oauth4webapi": "^3.8.8" } }, "sha512-ZsucJA5Ad04Uv7YN4ql+s4GXNmb9uAYQwyJTsJx7CH/MX3JZioLE2pVKi1SC+YrbSLA4Px3Gi30dMjgOZtb6pA=="],
+    "oidcraft": ["oidcraft@workspace:packages/oidcraft"],
 
     "oxc-parser": ["oxc-parser@0.139.0", "", { "dependencies": { "@oxc-project/types": "^0.139.0" }, "optionalDependencies": { "@oxc-parser/binding-android-arm-eabi": "0.139.0", "@oxc-parser/binding-android-arm64": "0.139.0", "@oxc-parser/binding-darwin-arm64": "0.139.0", "@oxc-parser/binding-darwin-x64": "0.139.0", "@oxc-parser/binding-freebsd-x64": "0.139.0", "@oxc-parser/binding-linux-arm-gnueabihf": "0.139.0", "@oxc-parser/binding-linux-arm-musleabihf": "0.139.0", "@oxc-parser/binding-linux-arm64-gnu": "0.139.0", "@oxc-parser/binding-linux-arm64-musl": "0.139.0", "@oxc-parser/binding-linux-ppc64-gnu": "0.139.0", "@oxc-parser/binding-linux-riscv64-gnu": "0.139.0", "@oxc-parser/binding-linux-riscv64-musl": "0.139.0", "@oxc-parser/binding-linux-s390x-gnu": "0.139.0", "@oxc-parser/binding-linux-x64-gnu": "0.139.0", "@oxc-parser/binding-linux-x64-musl": "0.139.0", "@oxc-parser/binding-openharmony-arm64": "0.139.0", "@oxc-parser/binding-wasm32-wasi": "0.139.0", "@oxc-parser/binding-win32-arm64-msvc": "0.139.0", "@oxc-parser/binding-win32-ia32-msvc": "0.139.0", "@oxc-parser/binding-win32-x64-msvc": "0.139.0" } }, "sha512-cf1TKZN+zc0lwqigeyXKzKVk5+vNRe99Or2+wVJsXLdlhJgC+gsIniYDfj/ZEBzCJ8Xm21ZG6YtMbR262CcS2w=="],
 

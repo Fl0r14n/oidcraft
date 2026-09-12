@@ -1,0 +1,96 @@
+{
+  "name": "oidcraft",
+  "version": "0.0.0",
+  "description": "An OpenID Provider library: RFC-compliant core, runtime-portable, pluggable storage, identity brokering built in",
+  "license": "MIT",
+  "author": "Fl0r14n <florian.chis@gmail.com>",
+  "homepage": "https://github.com/Fl0r14n/oidcraft",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Fl0r14n/oidcraft"
+  },
+  "keywords": [
+    "oidc",
+    "openid",
+    "openid-connect",
+    "oauth",
+    "oauth2",
+    "oauth2.1",
+    "authorization-server",
+    "identity-provider",
+    "sso",
+    "federation",
+    "pkce",
+    "dpop",
+    "bun",
+    "deno"
+  ],
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "main": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    },
+    "./federation": {
+      "types": "./dist/federation.d.mts",
+      "import": "./dist/federation.mjs"
+    },
+    "./interaction": {
+      "types": "./dist/interaction.d.mts",
+      "import": "./dist/interaction.mjs"
+    },
+    "./node": {
+      "types": "./dist/node.d.mts",
+      "import": "./dist/node.mjs"
+    },
+    "./adapters/memory": {
+      "types": "./dist/adapters/memory.d.mts",
+      "import": "./dist/adapters/memory.mjs"
+    },
+    "./adapters/drizzle": {
+      "types": "./dist/adapters/drizzle.d.mts",
+      "import": "./dist/adapters/drizzle.mjs"
+    },
+    "./adapters/kysely": {
+      "types": "./dist/adapters/kysely.d.mts",
+      "import": "./dist/adapters/kysely.mjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "tsdown && bun run verify:entries",
+    "verify:entries": "bun run verify-entries.ts",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "jose": "^6.2.12"
+  },
+  "peerDependencies": {
+    "drizzle-orm": ">=0.45",
+    "kysely": ">=0.28",
+    "openid-client": "^6"
+  },
+  "peerDependenciesMeta": {
+    "drizzle-orm": {
+      "optional": true
+    },
+    "kysely": {
+      "optional": true
+    },
+    "openid-client": {
+      "optional": true
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

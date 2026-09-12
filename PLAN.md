@@ -5,16 +5,17 @@ This file is working state: tick items off and add notes as work lands.
 
 ## Status
 
-Scaffold only. The workspace, the toolchain and the adapter contract exist; no protocol code does.
-`packages/*/src` are stub barrels proving the workspace wiring, except
-`packages/core/src/adapter.ts` and `packages/federation/src/types.ts`, which are the real contracts
-everything else is written against.
+Scaffold only. The workspace, the toolchain, the build and the adapter contract exist; no protocol
+code does. Most entries under `packages/oidcraft/src` are stub barrels proving the wiring, except
+`src/adapter.ts` and `src/federation/types.ts`, which are the real contracts everything else is
+written against. `bun run --filter=oidcraft build` produces all seven entries and passes
+`verify-entries.ts`.
 
 ## M0 — foundation
 
-- [ ] `@oidcraft/core`: config construction with validation (NFR-D2), route table, error responses
+- [ ] Root entry: config construction with validation (NFR-D2), route table, error responses
 - [ ] `KeyStore` + JWKS endpoint + discovery document (FR-C6, FR-C10)
-- [ ] `@oidcraft/adapter-memory` and the shared adapter-conformance suite (FR-A3, FR-A4)
+- [ ] `oidcraft/adapters/memory` and the shared adapter-conformance suite (FR-A3, FR-A4)
 - [ ] `fromKv` derivation over `KvStore`
 
 ## M1 — the code grant
@@ -29,10 +30,10 @@ everything else is written against.
 
 ## M2 — storage and conformance
 
-- [ ] `@oidcraft/adapter-drizzle` with migrations and real indexes (FR-A5)
-- [ ] `@oidcraft/adapter-kysely`
+- [ ] `oidcraft/adapters/drizzle` with migrations and real indexes (FR-A5)
+- [ ] `oidcraft/adapters/kysely`
 - [ ] OpenID Foundation conformance suite in CI: `basic`, `config` (NFR-C1)
-- [ ] `@oidcraft/node` bridge + a Node smoke test (FR-R3)
+- [ ] `oidcraft/node` bridge + a Node smoke test (FR-R3)
 
 ## M3 — federation
 
@@ -54,7 +55,7 @@ everything else is written against.
 
 - [ ] Reference interaction screens (FR-I3), consent memory (FR-I4)
 - [ ] Management API (FR-M1) and admin UI (FR-M2)
-- [ ] `oidcraft` meta-package; docs site; first manual publish (ARCHITECTURE.md §11)
+- [ ] Docs site; first manual publish, then `npm trust github` (ARCHITECTURE.md §11)
 
 ## Decisions waiting on an answer
 

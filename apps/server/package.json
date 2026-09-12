@@ -11,13 +11,9 @@
     "typecheck": "vue-tsgo --noEmit"
   },
   "dependencies": {
-    "@oidcraft/adapter-drizzle": "workspace:*",
-    "@oidcraft/adapter-memory": "workspace:*",
-    "@oidcraft/core": "workspace:*",
-    "@oidcraft/federation": "workspace:*",
-    "@oidcraft/interaction": "workspace:*",
     "@vuetify/v0": "^1.2.2",
     "drizzle-orm": "^0.45.2",
+    "oidcraft": "workspace:*",
     "pg": "^8.16.3",
     "vue": "^3.5.42",
     "vue-router": "^5.2.0"

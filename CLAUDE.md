@@ -39,7 +39,7 @@ Read the relevant one before anything else.
 
 These are the ones where a plausible-looking change is a security bug:
 
-- **`@oidcraft/core` never imports `node:*`** and never reads `X-Forwarded-*` on its own authority.
+- **The core never imports `node:*`** and never reads `X-Forwarded-*` on its own authority.
   The issuer is configuration (FR-R1, FR-R4, NFR-S6).
 - **The core performs no I/O and holds no state across requests.** Everything goes through the
   `Adapter` (FR-A1).
@@ -68,7 +68,11 @@ bun run conformance      # OpenID Foundation suite against apps/server
 
 ## Gotchas
 
-- **There is no build step.** `bun index.html` is the client — Bun bundles Vue, compiles Tailwind
+- **One package, seven subpath entries** (`packages/oidcraft`). An optional peer belongs to exactly
+  one entry; `bun run --filter=oidcraft build` runs `verify-entries.ts`, which fails the build if
+  one leaks, if a core type is inlined, or if `node:` appears outside the `./node` entry
+  (ARCHITECTURE.md §2.1–2.2). Do not split this into several packages without reading §2.1.
+- **There is no build step for the apps.** `bun index.html` is the client — Bun bundles Vue, compiles Tailwind
   and inlines `OIDCRAFT_PUBLIC_*` itself. The server runs from source. Do not add a bundler or a
   `dist/`; `build` scripts are typechecks.
 - **Each app needs its own `bunfig.toml`.** Bun reads plugins from `[serve.static]` next to the

@@ -145,7 +145,9 @@ the host runs, never as something the library applies at boot.
 the core queries by (`grant_id`, `user_code`, `expires_at`, `account_id`, upstream session id). A
 JSON blob with no index is a correctness problem at revocation time, not just a slow one.
 
-**FR-A6** — A TypeORM adapter is community-supported, not first-party (`G-5`).
+**FR-A6** — A TypeORM adapter is community-supported, not first-party (`G-5`). A third-party adapter
+is an ordinary package depending on `oidcraft` and implementing `Adapter`; nothing about the
+contract is internal.
 
 ## 6. Federation — `FR-F*`
 
@@ -237,7 +239,7 @@ audit events go; the library does not persist them.
 **FR-R2** — All cryptography goes through WebCrypto (`crypto.subtle`, `crypto.getRandomValues`)
 via `jose`. No `node:crypto`, no native addon, no dependency on a C++ build.
 
-**FR-R3** — Supported hosts: Bun ≥ 1.4, Node ≥ 22 (via `@oidcraft/node`), Deno, and workerd-shaped
+**FR-R3** — Supported hosts: Bun ≥ 1.4, Node ≥ 22 (via the `oidcraft/node` entry), Deno, and workerd-shaped
 runtimes. A host bridge may exist only to translate the runtime's HTTP types to `Request`/
 `Response`; it may never contain protocol logic.
 
@@ -307,7 +309,9 @@ with no key, DPoP required with no nonce store — fails at construction, not at
 **NFR-D3** — Errors carry the OAuth error code, the specification clause and what the caller must
 change.
 
-**NFR-D4** — Zero runtime dependencies beyond `jose` in `@oidcraft/core`.
+**NFR-D4** — Zero runtime dependencies beyond `jose`. Everything else — `openid-client`,
+`drizzle-orm`, `kysely` — is an optional peer confined to its own subpath entry, so importing the
+core pulls none of them.
 
 ## 11. Open questions — `G-*`
 
@@ -316,7 +320,7 @@ brokering (FR-F*) first; decide later whether entity statements are in scope at 
 
 **G-2 — How much of the account does the library own?** `AccountStore` currently pushes passwords,
 MFA and enrolment entirely onto the host, which makes "batteries included" thinner than Django's
-oauth-toolkit. An optional `@oidcraft/accounts` with argon2 and TOTP would close the gap and widen
+oauth-toolkit. An optional `oidcraft/accounts` entry with argon2 and TOTP would close the gap and widen
 the security surface.
 
 **G-3 — FAPI 2.0.** Worth the constraint it imposes on the core's defaults, or a profile package?

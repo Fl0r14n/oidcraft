@@ -1,0 +1,30 @@
+{
+  "name": "oidcraft-monorepo",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "bun run --parallel --elide-lines=0 --filter=@oidcraft/server-app --filter=@oidcraft/client-app dev",
+    "dev:server": "bun run --filter=@oidcraft/server-app dev",
+    "dev:client": "bun run --filter=@oidcraft/client-app dev",
+    "build": "bun run --filter='*' build",
+    "typecheck": "bun run --filter='*' typecheck",
+    "test": "bun test",
+    "conformance": "bun run ./scripts/conformance.ts",
+    "lint": "biome check .",
+    "format": "biome check --write .",
+    "db:up": "docker compose up -d postgres",
+    "db:down": "docker compose down"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "latest",
+    "@types/bun": "latest",
+    "tsdown": "latest",
+    "typescript": "^7.0.2"
+  },
+  "engines": {
+    "bun": ">=1.4.0"
+  }
+}

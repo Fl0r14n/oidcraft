@@ -1,0 +1,31 @@
+{
+  "name": "@oidcraft/server-app",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun --env-file=../../.env --watch index.ts",
+    "start": "NODE_ENV=production bun --env-file=../../.env index.ts",
+    "build": "vue-tsgo --noEmit",
+    "jwks": "bun ./scripts/generate-jwks.ts",
+    "typecheck": "vue-tsgo --noEmit"
+  },
+  "dependencies": {
+    "@oidcraft/adapter-drizzle": "workspace:*",
+    "@oidcraft/adapter-memory": "workspace:*",
+    "@oidcraft/core": "workspace:*",
+    "@oidcraft/federation": "workspace:*",
+    "@oidcraft/interaction": "workspace:*",
+    "@vuetify/v0": "^1.2.2",
+    "drizzle-orm": "^0.45.2",
+    "pg": "^8.16.3",
+    "vue": "^3.5.42",
+    "vue-router": "^5.2.0"
+  },
+  "devDependencies": {
+    "bun-plugin-tailwind": "^0.1.2",
+    "bun-plugin-vue3": "^1.1.0",
+    "tailwindcss": "^4.3.3",
+    "vue-tsgo": "^0.3.0"
+  }
+}

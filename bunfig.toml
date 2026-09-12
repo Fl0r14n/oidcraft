@@ -1,0 +1,14 @@
+# Top level, before any section header: TOML binds a bare key to the table above it,
+# so moving this below `[install]` makes it `install.preload` and it is silently ignored.
+# Resolution follows the directory `bun` was invoked from and does not walk up, so this does
+# NOT reach a package script — `apps/*` each carry their own (ARCHITECTURE.md §9.3).
+preload = ["bun-plugin-vue3"]
+
+[install]
+linker = "hoisted"
+exact = false
+
+# `bun test` does not inherit the top-level `preload`.
+[test]
+root = "."
+preload = ["bun-plugin-vue3"]

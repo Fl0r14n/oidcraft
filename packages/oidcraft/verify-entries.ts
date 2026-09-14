@@ -97,7 +97,12 @@ for (const [entry, { owns, runtime }] of Object.entries(ENTRIES)) {
   }
 
   for (const peer of owns) {
-    check(importsPackage(js, peer), `${entry}.mjs does not import ${peer} — the entry that owns it has inlined or lost it`)
+    // Either bundle counts: an adapter may use its peer for types alone, which is a *stronger*
+    // position — zero runtime coupling — and asserting a runtime import would forbid it.
+    check(
+      importsPackage(js, peer) || importsPackage(dts, peer),
+      `${entry} does not reference ${peer} in either bundle — the entry that owns it has inlined or lost it`
+    )
   }
 }
 

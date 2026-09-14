@@ -8,6 +8,8 @@ import type { Client, Session } from './types'
 export type IdTokenInput = {
   client: Client
   session: Session
+  /** Pairwise or public, decided per client (FR-C18). */
+  subject?: string | undefined
   nonce?: string | undefined
   accessToken?: string | undefined
   code?: string | undefined
@@ -31,7 +33,7 @@ export const mintIdToken = async (config: ResolvedConfig, input: IdTokenInput) =
   const now = Math.floor(Date.now() / 1000)
   const payload: Record<string, unknown> = {
     ...input.claims,
-    sub: input.session.accountId,
+    sub: input.subject ?? input.session.accountId,
     auth_time: Math.floor(input.session.authTime.getTime() / 1000),
     ...(input.nonce && { nonce: input.nonce }),
     ...(input.session.acr && { acr: input.session.acr }),

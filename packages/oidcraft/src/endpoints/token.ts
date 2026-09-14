@@ -4,8 +4,10 @@ import { verifyDpopProof } from '../dpop'
 import { OAuthError } from '../errors'
 import { verifyChallenge } from '../pkce'
 import { token as randomToken } from '../random'
+import { subjectFor } from '../subjects'
 import { mintIdToken } from '../tokens'
 import type { Artifact, Client, Grant, Session } from '../types'
+import { consumeDeviceCode } from './device'
 
 const NO_STORE = { 'cache-control': 'no-store', pragma: 'no-cache' }
 
@@ -35,6 +37,8 @@ const issueTokens = async (
 ) => {
   const accessToken = randomToken()
   const expiresIn = config.ttl.accessToken
+  // FR-C18: what this client is told the user is called, which may not be the local account id.
+  const subject = await subjectFor(config, client, session.accountId)
 
   await config.adapter.artifacts.upsert({
     id: accessToken,
@@ -43,7 +47,7 @@ const issueTokens = async (
     accountId: session.accountId,
     grantId: grant.id,
     // RFC 9449 §6: the confirmation claim is what makes the token useless without the key.
-    payload: { scopes, sessionId: session.id, ...(jkt && { cnf: { jkt } }) },
+    payload: { scopes, sessionId: session.id, subject, ...(jkt && { cnf: { jkt } }) },
     expiresAt: new Date(Date.now() + expiresIn * 1000)
   })
 
@@ -66,6 +70,7 @@ const issueTokens = async (
   const idToken = await mintIdToken(config, {
     client,
     session,
+    subject,
     nonce,
     accessToken,
     claims: await config.adapter.accounts.claims(session.accountId, scopes, [])
@@ -147,6 +152,20 @@ const refreshTokenGrant = async (config: ResolvedConfig, client: Client, form: U
   return issueTokens(config, client, grant, session, requested?.length ? requested : granted, undefined, boundTo ?? jkt)
 }
 
+const deviceCodeGrant = async (config: ResolvedConfig, client: Client, form: URLSearchParams, jkt?: string) => {
+  const deviceCode = form.get('device_code')
+  if (!deviceCode) throw new OAuthError('invalid_request', { description: 'device_code is required' })
+
+  const { payload } = await consumeDeviceCode(config, deviceCode, client.clientId)
+  if (!payload.grantId || !payload.sessionId) throw new OAuthError('invalid_grant', { description: 'this device code was never approved' })
+
+  const grant = await config.adapter.grants.find(payload.grantId)
+  const session = await config.adapter.sessions.find(payload.sessionId)
+  if (!grant || !session) throw new OAuthError('invalid_grant', { description: 'the grant or session behind this device code is gone' })
+
+  return issueTokens(config, client, grant, session, payload.scopes, undefined, jkt)
+}
+
 /** A client may always offer a proof; one registered for bound tokens must (RFC 9449 §5). */
 const bindingFor = async (config: ResolvedConfig, client: Client, request: Request) => {
   if (!config.features.dpop) return undefined
@@ -179,6 +198,8 @@ export const tokenEndpoint = async (config: ResolvedConfig, request: Request) =>
         return authorizationCodeGrant(config, client, form, jkt)
       case 'refresh_token':
         return refreshTokenGrant(config, client, form, jkt)
+      case 'urn:ietf:params:oauth:grant-type:device_code':
+        return deviceCodeGrant(config, client, form, jkt)
       default:
         throw new OAuthError('unsupported_grant_type', { description: `${grantType} is not supported` })
     }

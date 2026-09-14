@@ -14,6 +14,7 @@ export type Routes = {
   registration: string
   endSession: string
   deviceAuthorization: string
+  deviceVerification: string
   pushedAuthorizationRequest: string
 }
 
@@ -29,6 +30,7 @@ export const DEFAULT_ROUTES: Routes = {
   registration: '/register',
   endSession: '/session/end',
   deviceAuthorization: '/device/authorize',
+  deviceVerification: '/device',
   pushedAuthorizationRequest: '/request'
 }
 
@@ -97,6 +99,13 @@ export type ProviderConfig = {
   clientAuthMethods?: ClientAuthMethod[]
   features?: Partial<Features>
   capabilities?: Partial<Capabilities>
+  /** Default subject type for clients that declare none. @default 'public' */
+  subjectType?: 'public' | 'pairwise'
+  /**
+   * Secret that scopes pairwise subjects. Without it the mapping is a pure function of account and
+   * sector, which two colluding relying parties can recompute and correlate (FR-C18, OIDC Core §8.1).
+   */
+  pairwiseSalt?: string
   /** Delivers back-channel logout tokens. The core mints them; it never POSTs them (FR-A1, FR-C11). */
   onLogout?: (notifications: { clientId: string; uri: string; logoutToken: string }[]) => void | Promise<void>
   /**
@@ -140,6 +149,8 @@ export type ResolvedConfig = {
   resolveClientJwks: ProviderConfig['resolveClientJwks']
   onRegister: ProviderConfig['onRegister']
   onAudit: ProviderConfig['onAudit']
+  subjectType: 'public' | 'pairwise'
+  pairwiseSalt: string | undefined
 }
 
 const MTLS_METHODS: ClientAuthMethod[] = ['tls_client_auth', 'self_signed_tls_client_auth']
@@ -206,6 +217,10 @@ export const resolveConfig = (config: ProviderConfig): ResolvedConfig => {
     problems.push('features.dynamicRegistration needs an adapter whose clients store implements create (FR-C9)')
   }
 
+  if ((config.subjectType === 'pairwise' || config.pairwiseSalt !== undefined) && !config.pairwiseSalt) {
+    problems.push('subjectType "pairwise" needs a pairwiseSalt; without one the subjects are trivially correlated (FR-C18)')
+  }
+
   if (features.deviceFlow && !config.adapter?.artifacts.findByUserCode) {
     problems.push('features.deviceFlow needs an adapter whose artifacts store implements findByUserCode (FR-C7)')
   }
@@ -227,7 +242,9 @@ export const resolveConfig = (config: ProviderConfig): ResolvedConfig => {
     onLogout: config.onLogout,
     resolveClientJwks: config.resolveClientJwks,
     onRegister: config.onRegister,
-    onAudit: config.onAudit
+    onAudit: config.onAudit,
+    subjectType: config.subjectType ?? 'public',
+    pairwiseSalt: config.pairwiseSalt
   }
 }
 

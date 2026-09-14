@@ -41,5 +41,7 @@ export const userinfoEndpoint = async (config: ResolvedConfig, request: Request)
   if (!scopes.includes('openid')) throw unauthorized('the access token does not carry the openid scope')
 
   const claims = await config.adapter.accounts.claims(artifact.accountId, scopes, [])
-  return Response.json({ sub: artifact.accountId, ...claims }, { headers: { 'cache-control': 'no-store' } })
+  // OIDC Core §5.3.2: the same sub the ID token carried, or the client cannot match them up.
+  const subject = (artifact.payload.subject as string | undefined) ?? artifact.accountId
+  return Response.json({ sub: subject, ...claims }, { headers: { 'cache-control': 'no-store' } })
 }

@@ -37,7 +37,7 @@ export const metadata = (config: ResolvedConfig, algorithms: string[]) => {
     response_types_supported: ['code', 'id_token', 'code id_token'],
     response_modes_supported: ['query', 'fragment', 'form_post'],
     grant_types_supported: grantTypes,
-    subject_types_supported: ['public', 'pairwise'],
+    subject_types_supported: config.pairwiseSalt ? ['public', 'pairwise'] : ['public'],
     id_token_signing_alg_values_supported: algorithms,
     token_endpoint_auth_methods_supported: authMethods,
     token_endpoint_auth_signing_alg_values_supported: algorithms,

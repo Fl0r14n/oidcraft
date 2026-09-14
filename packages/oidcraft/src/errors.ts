@@ -17,6 +17,9 @@ export type OAuthErrorCode =
   | 'invalid_target'
   | 'invalid_dpop_proof'
   | 'use_dpop_nonce'
+  | 'authorization_pending'
+  | 'slow_down'
+  | 'expired_token'
 
 export type OAuthErrorInit = {
   description?: string
@@ -71,7 +74,11 @@ const STATUS: Record<OAuthErrorCode, number> = {
   account_selection_required: 400,
   invalid_target: 400,
   invalid_dpop_proof: 400,
-  use_dpop_nonce: 400
+  use_dpop_nonce: 400,
+  // RFC 8628 §3.5: these are the normal course of a device flow, not failures of the request.
+  authorization_pending: 400,
+  slow_down: 400,
+  expired_token: 400
 }
 
 /**

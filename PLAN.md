@@ -78,7 +78,7 @@ interaction rather than the OP choosing an upstream itself.
 - [x] PAR (RFC 9126) and JAR by value (RFC 9101) (FR-C12)
 - [ ] JAR by reference — needs a host resolver, since the core will not fetch a client-chosen URL
 - [x] DCR (FR-C9) with RFC 7592 client management, gated by `onRegister`
-- [ ] Device grant (FR-C7); pairwise subjects (FR-C18)
+- [x] Device grant (FR-C7) with slow-down enforcement; pairwise subjects (FR-C18)
 - [ ] Token exchange (FR-C2); RAR (FR-C15); step-up (FR-C16); CIBA (FR-C17)
 
 ## M5 — batteries

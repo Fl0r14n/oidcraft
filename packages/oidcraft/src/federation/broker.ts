@@ -48,11 +48,17 @@ export const createBroker = (config: BrokerConfig) => {
      * resume (FR-F3). The handoff is single-use, expiring, and carries the PKCE verifier — it never
      * travels in the URL.
      */
-    async start(interactionId: string, providerId: string, options: { loginHint?: string; prompt?: string; uiLocales?: string } = {}) {
+    async start(
+      interactionId: string,
+      providerId: string,
+      options: { loginHint?: string; prompt?: string | string[]; uiLocales?: string | string[]; maxAge?: number; acrValues?: string[] } = {}
+    ) {
       const provider = providerById(providerId)
       if (!provider) throw new Error(`unknown upstream provider ${providerId}`)
 
       const configuration = await configurationFor(provider)
+      const prompt = Array.isArray(options.prompt) ? options.prompt.join(' ') : options.prompt
+      const uiLocales = Array.isArray(options.uiLocales) ? options.uiLocales.join(' ') : options.uiLocales
       const codeVerifier = client.randomPKCECodeVerifier()
       const handoff: Handoff = {
         provider: provider.id,
@@ -80,10 +86,12 @@ export const createBroker = (config: BrokerConfig) => {
         code_challenge_method: 'S256',
         ...provider.authorizationParams,
         ...(options.loginHint && { login_hint: options.loginHint }),
-        // FR-F9: a downstream prompt=login must force a fresh upstream authentication, not be
-        // satisfied by whatever session the upstream happens to still hold.
-        ...(options.prompt && { prompt: options.prompt }),
-        ...(options.uiLocales && { ui_locales: options.uiLocales })
+        // FR-F9: the downstream client asked for these, and satisfying them from whatever session
+        // the upstream happens to hold would answer a question nobody asked.
+        ...(prompt && { prompt }),
+        ...(options.maxAge !== undefined && { max_age: String(options.maxAge) }),
+        ...(options.acrValues?.length && { acr_values: options.acrValues.join(' ') }),
+        ...(uiLocales && { ui_locales: uiLocales })
       })
 
       return { url: url.href, state: handoff.state }

@@ -1,5 +1,6 @@
 export { type Broker, type BrokerConfig, createBroker } from './broker'
 export { localSubject, pickClaims, renameClaims, standardClaims } from './claims'
 export { type LinkOptions, type LinkResult, linkIdentity } from './link'
+export { issuerOf, type UpstreamLogout, upstreamLogout } from './logout'
 export { type SelectionHints, selectUpstream } from './select'
 export type { BrokeredIdentity, ClaimMapper, FederationCallback, Handoff, LinkPolicy, UpstreamProvider } from './types'

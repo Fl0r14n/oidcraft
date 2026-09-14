@@ -68,7 +68,8 @@ interaction rather than the OP choosing an upstream itself.
 - [x] Test upstream: a second oidcraft instance (ARCHITECTURE.md §10)
 - [ ] Wire the broker into the authorization endpoint's policy step, so an upstream round trip is
       one interaction rather than the host stitching `start`/`complete` together
-- [ ] Logout propagation both ways (FR-F8); `prompt=login` / `max_age` passthrough (FR-F9)
+- [x] Upstream back-channel logout mapped to the local sessions it produced (FR-F8)
+- [x] `prompt`, `max_age` and `acr_values` passed through to the upstream (FR-F9)
 
 ## M4 — the rest of the protocol
 

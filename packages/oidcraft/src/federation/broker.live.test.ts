@@ -153,6 +153,30 @@ describe('brokering to a live upstream', () => {
     expect(identity.upstreamTokens?.accessToken).toBeTruthy()
   })
 
+  // FR-F9: the downstream client asked for these; satisfying them from whatever session the
+  // upstream already holds would answer a question nobody asked.
+  test('prompt, max_age and acr_values reach the upstream authorization request', async () => {
+    const { url } = await broker.start('downstream-interaction-6', 'self', {
+      prompt: ['login'],
+      maxAge: 60,
+      acrValues: ['mfa'],
+      loginHint: 'ada@upstream.test',
+      uiLocales: ['de', 'en']
+    })
+    const params = new URL(url).searchParams
+    expect(params.get('prompt')).toBe('login')
+    expect(params.get('max_age')).toBe('60')
+    expect(params.get('acr_values')).toBe('mfa')
+    expect(params.get('login_hint')).toBe('ada@upstream.test')
+    expect(params.get('ui_locales')).toBe('de en')
+  })
+
+  test('a handoff is recorded against the downstream interaction it will resume', async () => {
+    const { state } = await broker.start('downstream-interaction-7', 'self')
+    const stored = await downstream.artifacts.find('federation_handoff', state)
+    expect((stored?.payload as { interactionId?: string }).interactionId).toBe('downstream-interaction-7')
+  })
+
   test('an unknown provider id is refused', async () => {
     expect(broker.start('x', 'nope')).rejects.toThrow(/unknown upstream provider/)
   })

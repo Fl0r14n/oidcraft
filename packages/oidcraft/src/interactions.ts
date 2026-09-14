@@ -17,6 +17,13 @@ export type InteractionView = {
   loginHint: string | undefined
   acrValues: string[] | undefined
   uiLocales: string[] | undefined
+  /**
+   * Seconds, when the client capped session age. Together with `prompt` this is what an upstream
+   * leg must pass through rather than satisfy from whatever session it already holds (FR-F9).
+   */
+  maxAge: number | undefined
+  /** Which upstreams this client may be brokered to, when it restricts them (FR-F2). */
+  upstreamProviders: string[] | undefined
   expiresAt: Date
 }
 
@@ -41,6 +48,7 @@ const load = async (config: ResolvedConfig, id: string) => {
 export const interactions = (config: ResolvedConfig) => ({
   async find(id: string): Promise<InteractionView> {
     const { artifact, request, kind } = await load(config, id)
+    const client = await config.adapter.clients.find(request.clientId)
     return {
       id,
       kind,
@@ -50,6 +58,8 @@ export const interactions = (config: ResolvedConfig) => ({
       loginHint: request.loginHint,
       acrValues: request.acrValues,
       uiLocales: request.uiLocales,
+      maxAge: request.maxAge,
+      upstreamProviders: client?.upstreamProviders,
       expiresAt: artifact.expiresAt
     }
   },

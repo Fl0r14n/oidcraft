@@ -1,4 +1,5 @@
 import type { Adapter } from './adapter'
+import type { ExchangePolicy } from './endpoints/token-exchange'
 import { ConfigurationError } from './errors'
 import type { Client, ClientAuthMethod, Seconds } from './types'
 
@@ -102,6 +103,16 @@ export type ProviderConfig = {
   /** Default subject type for clients that declare none. @default 'public' */
   subjectType?: 'public' | 'pairwise'
   /**
+   * Decides who may act as whom in a token exchange. There is no default, because a library cannot
+   * know which impersonation a deployment considers legitimate (FR-C2, RFC 8693).
+   */
+  exchangePolicy?: ExchangePolicy
+  /**
+   * The `authorization_details` types this deployment understands (FR-C15). Only the host knows
+   * what its types mean, so an undeclared one is refused rather than silently granted.
+   */
+  authorizationDetailTypes?: string[]
+  /**
    * Secret that scopes pairwise subjects. Without it the mapping is a pure function of account and
    * sector, which two colluding relying parties can recompute and correlate (FR-C18, OIDC Core §8.1).
    */
@@ -151,6 +162,8 @@ export type ResolvedConfig = {
   onAudit: ProviderConfig['onAudit']
   subjectType: 'public' | 'pairwise'
   pairwiseSalt: string | undefined
+  exchangePolicy: ExchangePolicy | undefined
+  authorizationDetailTypes: string[]
 }
 
 const MTLS_METHODS: ClientAuthMethod[] = ['tls_client_auth', 'self_signed_tls_client_auth']
@@ -244,7 +257,9 @@ export const resolveConfig = (config: ProviderConfig): ResolvedConfig => {
     onRegister: config.onRegister,
     onAudit: config.onAudit,
     subjectType: config.subjectType ?? 'public',
-    pairwiseSalt: config.pairwiseSalt
+    pairwiseSalt: config.pairwiseSalt,
+    exchangePolicy: config.exchangePolicy,
+    authorizationDetailTypes: config.authorizationDetailTypes ?? []
   }
 }
 

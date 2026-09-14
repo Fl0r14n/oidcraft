@@ -27,11 +27,12 @@ export {
 export type { ClientAuthenticationInput, ClientCertificate, ContextProvider, RequestContext } from './context'
 export { type CookieOptions, clearCookie, parseCookies, serializeCookie } from './cookies'
 export { accessTokenHash, type DpopProof, htu, type VerifyOptions, verifyDpopProof } from './dpop'
-export { type AuthorizationRequest, redirectTo } from './endpoints/authorization'
+export { type AuthorizationDetail, type AuthorizationRequest, redirectTo } from './endpoints/authorization'
 export { type DeviceApproval, type DevicePayload, normalizeUserCode, userCode } from './endpoints/device'
 export { metadata } from './endpoints/discovery'
 export { type LogoutNotification, logoutTokens } from './endpoints/end-session'
 export { clientResponse } from './endpoints/registration'
+export { type ExchangeDecision, type ExchangePolicy, SUPPORTED_TOKEN_TYPES, TOKEN_EXCHANGE } from './endpoints/token-exchange'
 export { ConfigurationError, errorResponse, OAuthError, type OAuthErrorCode, type OAuthErrorInit } from './errors'
 export {
   type InteractionCompletion,

@@ -16,6 +16,7 @@ export const metadata = (config: ResolvedConfig, algorithms: string[]) => {
 
   const grantTypes = ['authorization_code', 'refresh_token', 'client_credentials']
   if (features.deviceFlow) grantTypes.push('urn:ietf:params:oauth:grant-type:device_code')
+  if (config.exchangePolicy) grantTypes.push('urn:ietf:params:oauth:grant-type:token-exchange')
 
   return {
     issuer: config.issuer,
@@ -49,6 +50,7 @@ export const metadata = (config: ResolvedConfig, algorithms: string[]) => {
     authorization_response_iss_parameter_supported: true,
     ...(features.dpop && { dpop_signing_alg_values_supported: algorithms }),
     // JAR by value only: resolving a client-supplied request_uri would be outbound I/O (FR-A1).
+    ...(config.authorizationDetailTypes.length && { authorization_details_types_supported: config.authorizationDetailTypes }),
     request_parameter_supported: true,
     request_uri_parameter_supported: false,
     require_request_uri_registration: false,

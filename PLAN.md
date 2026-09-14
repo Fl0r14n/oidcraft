@@ -79,7 +79,9 @@ interaction rather than the OP choosing an upstream itself.
 - [ ] JAR by reference — needs a host resolver, since the core will not fetch a client-chosen URL
 - [x] DCR (FR-C9) with RFC 7592 client management, gated by `onRegister`
 - [x] Device grant (FR-C7) with slow-down enforcement; pairwise subjects (FR-C18)
-- [ ] Token exchange (FR-C2); RAR (FR-C15); step-up (FR-C16); CIBA (FR-C17)
+- [x] Token exchange (FR-C2), gated on an explicit `exchangePolicy`; RAR (FR-C15) with declared
+      types; step-up (FR-C16) forcing re-authentication for an unmet `acr`
+- [ ] CIBA (FR-C17)
 
 ## M5 — batteries
 

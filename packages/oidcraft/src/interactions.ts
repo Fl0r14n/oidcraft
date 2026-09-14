@@ -109,16 +109,13 @@ export const interactions = (config: ResolvedConfig) => ({
 
 const authorizationUrl = (config: ResolvedConfig, request: AuthorizationRequest) => {
   const url = new URL(config.routes.authorization, config.issuer)
-  const params = url.searchParams
-  params.set('client_id', request.clientId)
-  params.set('redirect_uri', request.redirectUri)
-  params.set('response_type', request.responseType)
-  params.set('scope', request.scopes.join(' '))
-  params.set('code_challenge', request.codeChallenge)
-  params.set('code_challenge_method', 'S256')
-  if (request.state !== undefined) params.set('state', request.state)
-  if (request.nonce !== undefined) params.set('nonce', request.nonce)
-  if (request.responseMode !== 'query') params.set('response_mode', request.responseMode)
-  // prompt is deliberately dropped: it has just been satisfied, and replaying it loops forever.
+  const params = new URLSearchParams(request.raw)
+  // prompt is the one parameter dropped: it has just been satisfied, and replaying it loops forever.
+  params.delete('prompt')
+  // A pushed or signed request was already resolved into these parameters; replaying the reference
+  // would consume it a second time (RFC 9126 §4).
+  params.delete('request_uri')
+  params.delete('request')
+  url.search = params.toString()
   return url.toString()
 }

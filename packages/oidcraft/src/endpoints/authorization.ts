@@ -19,7 +19,18 @@ export type AuthorizationRequest = {
   loginHint: string | undefined
   acrValues: string[] | undefined
   uiLocales: string[] | undefined
+  /** RFC 9396: what the client wants to do, not merely which scopes it holds. */
+  authorizationDetails: AuthorizationDetail[] | undefined
+  /**
+   * The request exactly as it arrived. Resuming after an interaction replays this rather than
+   * rebuilding from the fields above: a hand-maintained list silently drops every parameter nobody
+   * remembered to add to it, which is how `authorization_details` went missing once already.
+   */
+  raw: string
 }
+
+/** RFC 9396 §2. `type` is the only member the spec fixes; the rest is the host's schema. */
+export type AuthorizationDetail = { type: string } & Record<string, unknown>
 
 const SUPPORTED_RESPONSE_TYPES = ['code']
 
@@ -104,8 +115,44 @@ export const validateAuthorizationRequest = (
     maxAge,
     loginHint: params.get('login_hint') ?? undefined,
     acrValues: params.get('acr_values') ? list(params.get('acr_values')) : undefined,
-    uiLocales: params.get('ui_locales') ? list(params.get('ui_locales')) : undefined
+    uiLocales: params.get('ui_locales') ? list(params.get('ui_locales')) : undefined,
+    authorizationDetails: parseAuthorizationDetails(config, params.get('authorization_details')),
+    raw: params.toString()
   }
+}
+
+const parseAuthorizationDetails = (config: ResolvedConfig, raw: string | null) => {
+  if (!raw) return undefined
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    throw new OAuthError('invalid_authorization_details', { description: 'authorization_details is not JSON', spec: 'RFC 9396 §5' })
+  }
+  if (!Array.isArray(parsed) || parsed.length === 0) {
+    throw new OAuthError('invalid_authorization_details', {
+      description: 'authorization_details must be a non-empty array',
+      spec: 'RFC 9396 §2'
+    })
+  }
+  for (const detail of parsed) {
+    const type = (detail as { type?: unknown }).type
+    if (typeof type !== 'string') {
+      throw new OAuthError('invalid_authorization_details', {
+        description: 'every authorization detail needs a string type',
+        spec: 'RFC 9396 §2'
+      })
+    }
+    // Only the host knows what its types mean, so it declares them; an unknown one is refused
+    // rather than silently granted.
+    if (!config.authorizationDetailTypes.includes(type)) {
+      throw new OAuthError('invalid_authorization_details', {
+        description: `authorization_details type ${type} is not supported`,
+        spec: 'RFC 9396 §5'
+      })
+    }
+  }
+  return parsed as AuthorizationDetail[]
 }
 
 export const redirectTo = (request: AuthorizationRequest, values: Record<string, string>) => {
@@ -131,7 +178,10 @@ export const authorize = async (
   request: AuthorizationRequest,
   session: Session | undefined
 ): Promise<AuthorizationOutcome> => {
-  const needsLogin = !session || request.prompt.includes('login') || !isFresh(session, request.maxAge)
+  // RFC 9470: a resource server can demand a stronger acr, and honouring it means re-authenticating
+  // rather than issuing a token that quietly fails to meet it.
+  const acrUnmet = Boolean(request.acrValues?.length && (!session?.acr || !request.acrValues.includes(session.acr)))
+  const needsLogin = !session || request.prompt.includes('login') || !isFresh(session, request.maxAge) || acrUnmet
 
   if (needsLogin) {
     if (request.prompt.includes('none')) {
@@ -184,7 +234,8 @@ const issueCode = async (config: ResolvedConfig, request: AuthorizationRequest, 
       codeChallenge: request.codeChallenge,
       scopes: request.scopes,
       sessionId: session.id,
-      ...(request.nonce && { nonce: request.nonce })
+      ...(request.nonce && { nonce: request.nonce }),
+      ...(request.authorizationDetails && { authorizationDetails: request.authorizationDetails })
     },
     expiresAt: new Date(Date.now() + config.ttl.authorizationCode * 1000)
   })

@@ -8,6 +8,7 @@ import { subjectFor } from '../subjects'
 import { mintIdToken } from '../tokens'
 import type { Artifact, Client, Grant, Session } from '../types'
 import { consumeDeviceCode } from './device'
+import { SUPPORTED_TOKEN_TYPES, TOKEN_EXCHANGE, tokenExchange } from './token-exchange'
 
 const NO_STORE = { 'cache-control': 'no-store', pragma: 'no-cache' }
 
@@ -33,7 +34,8 @@ const issueTokens = async (
   session: Session,
   scopes: string[],
   nonce?: string,
-  jkt?: string
+  jkt?: string,
+  authorizationDetails?: unknown[]
 ) => {
   const accessToken = randomToken()
   const expiresIn = config.ttl.accessToken
@@ -47,7 +49,13 @@ const issueTokens = async (
     accountId: session.accountId,
     grantId: grant.id,
     // RFC 9449 §6: the confirmation claim is what makes the token useless without the key.
-    payload: { scopes, sessionId: session.id, subject, ...(jkt && { cnf: { jkt } }) },
+    payload: {
+      scopes,
+      sessionId: session.id,
+      subject,
+      ...(authorizationDetails && { authorizationDetails }),
+      ...(jkt && { cnf: { jkt } })
+    },
     expiresAt: new Date(Date.now() + expiresIn * 1000)
   })
 
@@ -81,6 +89,7 @@ const issueTokens = async (
     token_type: jkt ? 'DPoP' : 'Bearer',
     expires_in: expiresIn,
     scope: scopes.join(' '),
+    ...(authorizationDetails && { authorization_details: authorizationDetails }),
     id_token: idToken,
     ...(refreshToken && { refresh_token: refreshToken })
   }
@@ -121,7 +130,16 @@ const authorizationCodeGrant = async (config: ResolvedConfig, client: Client, fo
   await config.adapter.artifacts.consume('authorization_code', code)
 
   const { grant, session } = await loadGrantAndSession(config, artifact)
-  return issueTokens(config, client, grant, session, scopesOf(artifact), artifact.payload.nonce as string | undefined, jkt)
+  return issueTokens(
+    config,
+    client,
+    grant,
+    session,
+    scopesOf(artifact),
+    artifact.payload.nonce as string | undefined,
+    jkt,
+    artifact.payload.authorizationDetails as unknown[] | undefined
+  )
 }
 
 const refreshTokenGrant = async (config: ResolvedConfig, client: Client, form: URLSearchParams, jkt?: string) => {
@@ -150,6 +168,39 @@ const refreshTokenGrant = async (config: ResolvedConfig, client: Client, form: U
 
   const { grant, session } = await loadGrantAndSession(config, artifact)
   return issueTokens(config, client, grant, session, requested?.length ? requested : granted, undefined, boundTo ?? jkt)
+}
+
+const exchangeGrant = async (config: ResolvedConfig, client: Client, form: URLSearchParams, jkt?: string) => {
+  const { decision, requestedType, subject } = await tokenExchange(config, client, form)
+
+  const accessToken = randomToken()
+  const expiresIn = config.ttl.accessToken
+  await config.adapter.artifacts.upsert({
+    id: accessToken,
+    kind: 'access_token',
+    clientId: client.clientId,
+    accountId: decision.accountId,
+    ...(subject.grantId && { grantId: subject.grantId }),
+    payload: {
+      scopes: decision.scopes,
+      sessionId: subject.payload.sessionId as string,
+      subject: decision.accountId,
+      // RFC 8693 §4.1: who is acting, so a resource server can tell delegation from the real thing.
+      ...(decision.actor && { act: { client_id: decision.actor.clientId } }),
+      ...(decision.resource && { resource: decision.resource }),
+      ...(decision.audience && { aud: decision.audience }),
+      ...(jkt && { cnf: { jkt } })
+    },
+    expiresAt: new Date(Date.now() + expiresIn * 1000)
+  })
+
+  return {
+    access_token: accessToken,
+    issued_token_type: SUPPORTED_TOKEN_TYPES.includes(requestedType) ? requestedType : SUPPORTED_TOKEN_TYPES[0],
+    token_type: jkt ? 'DPoP' : 'Bearer',
+    expires_in: expiresIn,
+    scope: decision.scopes.join(' ')
+  }
 }
 
 const deviceCodeGrant = async (config: ResolvedConfig, client: Client, form: URLSearchParams, jkt?: string) => {
@@ -200,6 +251,8 @@ export const tokenEndpoint = async (config: ResolvedConfig, request: Request) =>
         return refreshTokenGrant(config, client, form, jkt)
       case 'urn:ietf:params:oauth:grant-type:device_code':
         return deviceCodeGrant(config, client, form, jkt)
+      case TOKEN_EXCHANGE:
+        return exchangeGrant(config, client, form, jkt)
       default:
         throw new OAuthError('unsupported_grant_type', { description: `${grantType} is not supported` })
     }

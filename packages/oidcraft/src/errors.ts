@@ -20,6 +20,7 @@ export type OAuthErrorCode =
   | 'authorization_pending'
   | 'slow_down'
   | 'expired_token'
+  | 'invalid_authorization_details'
 
 export type OAuthErrorInit = {
   description?: string
@@ -78,7 +79,8 @@ const STATUS: Record<OAuthErrorCode, number> = {
   // RFC 8628 §3.5: these are the normal course of a device flow, not failures of the request.
   authorization_pending: 400,
   slow_down: 400,
-  expired_token: 400
+  expired_token: 400,
+  invalid_authorization_details: 400
 }
 
 /**

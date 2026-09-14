@@ -36,16 +36,6 @@ export type Provider = {
 
 type Handler = (config: ResolvedConfig, request: Request, context: RequestContext) => Promise<Response>
 
-const notImplemented =
-  (endpoint: string): Handler =>
-  async () => {
-    throw new OAuthError('temporarily_unavailable', {
-      description: `the ${endpoint} endpoint is not implemented yet`,
-      spec: 'https://github.com/Fl0r14n/oidcraft/blob/main/PLAN.md',
-      status: 501
-    })
-  }
-
 const seeOther = (url: string, setCookie?: string) =>
   new Response(null, {
     status: 303,

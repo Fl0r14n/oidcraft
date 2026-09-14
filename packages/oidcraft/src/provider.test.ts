@@ -104,13 +104,24 @@ describe('routing', () => {
     expect(response.headers.get('allow')).toBe('GET')
   })
 
-  // Every endpoint the default configuration routes is implemented; the ones that are not are
-  // reachable only by turning their feature on, and they say so rather than pretending.
-  test('an endpoint behind an unimplemented feature answers 501', async () => {
-    const withDevice = createProvider({ issuer: 'https://op.example.com', adapter, features: { deviceFlow: true } })
-    const response = await withDevice.handle(new Request('https://op.example.com/device/authorize', { method: 'POST' }))
-    expect(response.status).toBe(501)
-    expect((await response.json()).error_uri).toContain('PLAN.md')
+  // Nothing advertised may be a stub. This held when most endpoints were unbuilt and it holds now
+  // that none are; it is the assertion that stops metadata drifting ahead of behaviour.
+  test('no routed endpoint answers 501, whatever features are on', async () => {
+    const everything = createProvider({
+      issuer: 'https://op.example.com',
+      adapter,
+      features: { deviceFlow: true, dynamicRegistration: true, pushedAuthorizationRequests: true, dpop: true }
+    })
+    const metadata = await (await everything.handle(new Request('https://op.example.com/.well-known/openid-configuration'))).json()
+    const endpoints = Object.entries(metadata).filter(([key]) => key.endsWith('_endpoint')) as [string, string][]
+    expect(endpoints.length).toBeGreaterThan(6)
+
+    for (const [name, url] of endpoints) {
+      for (const method of ['GET', 'POST']) {
+        const response = await everything.handle(new Request(url, { method }))
+        expect({ name, method, status: response.status }).not.toEqual({ name, method, status: 501 })
+      }
+    }
   })
 
   test('every route the default configuration advertises is implemented', async () => {

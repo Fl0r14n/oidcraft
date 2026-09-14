@@ -111,7 +111,61 @@ here, or under any load.
 - [x] Admin: upstream providers shown read-only, since they are deployment configuration
 - [x] First manual publish: `oidcraft@0.0.1` claimed the name — the similarity check cleared
 - [ ] `npm trust github` registration, so releases publish from CI (ARCHITECTURE.md §11)
-- [ ] Docs site
+- [ ] Docs site — **after** the review and the conformance run; requirements below
+
+## Next, in this order
+
+1. **A manual in-depth review.** Nothing here has been read by anyone other than its author. 366
+   passing tests say the code does what its tests say, which is a weaker statement than it looks.
+2. **The OpenID Foundation conformance suite** (NFR-C1) — `basic`, `config`, `dynamic`. See
+   `conformance/README.md`: no published image, so it needs a Maven build and an OP it can reach.
+   Until it is green, "RFC-compliant" stays an intention.
+3. **The docs site**, once there is something certified to document.
+
+## Docs site — requirements
+
+Recorded now so the decisions are not re-made later. Not started.
+
+**Samples are executed, never written.** Every code block comes from a file the test suite runs and
+is extracted at build time, the way `minimal.test.ts` already does for the README example. A rotted
+sample in a charting library is an annoyance; in an auth library it is a security instruction that
+no longer holds.
+
+**The landing page says what is not done.** "Not run against the OpenID Foundation suite. Not used
+in production" belongs above the fold, not in a FAQ. Docs sites are where that discipline erodes
+into "production-ready" and a grid of green ticks, so this is an acceptance criterion rather than an
+intention. If the site cannot say it on page one, it is not ready to exist.
+
+**The requirement ids are the spine.** There are 82 `FR-*`/`NFR-*`/`G-*` ids and 62 of them are
+cited in the source. `FR-C3` should be a link — to the requirement, to where it is implemented, to
+the test that proves it. That is the thing no other provider's documentation has, and the content
+already exists.
+
+**It renders the existing files; it must not fork them.** `ARCHITECTURE.md`, `REQUIREMENTS.md` and
+`PLAN.md` stay the source. Two copies of a requirement is strictly worse than one.
+
+Pages that do not exist yet and have to be written:
+
+- The interaction contract — every integrator implements login and consent, and it is currently only
+  described in `FR-I*`. This is the page that decides whether someone succeeds.
+- Adapter authoring: `KvStore` in four methods, or the full `Adapter`, and how to run the shared
+  conformance suite against your own.
+- Configuration reference, generatable from the `.d.mts`.
+- Error reference: each OAuth error, what causes it, which clause.
+- Security posture: the non-negotiables with their reasons — PKCE, rotation, replay revoking the
+  grant, exact redirect matching — and the known gaps, `G-8` among them.
+- Runtime deployment: what differs across Bun, Node, Deno and workerd.
+- Coming from `oidc-provider`, including where it is still the better choice.
+
+Mechanics: search, dark mode, built and deployed by CI to GitHub Pages — docs built by hand stop
+being built — and either versioned docs or a plain statement that they track `main`, since the API
+will churn at `0.0.x`.
+
+**Open decision: the generator.** `apps/*` have no Vite because Bun's bundler sufficed for bundling
+two small apps, which does not automatically extend to a docs generator. VitePress in `apps/docs`
+with its Vite contained there is the recommendation; Starlight is the alternative if Vue should stay
+out of the docs toolchain. Worth breaking the pattern deliberately and writing down why, rather than
+building a worse site to preserve a rule that was about something else.
 
 ## Decisions waiting on an answer
 

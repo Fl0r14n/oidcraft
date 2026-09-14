@@ -87,7 +87,7 @@ export const endSessionEndpoint = async (
   const client = await clientFromHint(config, hint, params.get('client_id'))
 
   const requested = params.get('post_logout_redirect_uri')
-  const target = resolveTarget(config, client, requested, Boolean(claims))
+  const target = resolveTarget(client, requested, Boolean(claims))
 
   const notifications = session ? await logoutTokens(config, session) : []
   if (session) await config.adapter.sessions.destroy(session.id)
@@ -109,7 +109,7 @@ export const endSessionEndpoint = async (
   return { response: new Response(null, { status: 303, headers }), notifications }
 }
 
-const resolveTarget = (config: ResolvedConfig, client: Client | undefined, requested: string | null, verifiedHint: boolean) => {
+const resolveTarget = (client: Client | undefined, requested: string | null, verifiedHint: boolean) => {
   if (!requested) return undefined
   // NFR-S2 again: exact match against what that client registered, and only when we know the client.
   if (!client || !verifiedHint) {

@@ -174,7 +174,7 @@ describe('brokering to a live upstream', () => {
   test('a handoff is recorded against the downstream interaction it will resume', async () => {
     const { state } = await broker.start('downstream-interaction-7', 'self')
     const stored = await downstream.artifacts.find('federation_handoff', state)
-    expect((stored?.payload as { interactionId?: string }).interactionId).toBe('downstream-interaction-7')
+    expect((stored?.payload as { interactionId?: string } | undefined)?.interactionId).toBe('downstream-interaction-7')
   })
 
   test('an unknown provider id is refused', async () => {

@@ -16,7 +16,8 @@
     "lint": "biome check .",
     "format": "biome check --write .",
     "db:up": "docker compose up -d postgres",
-    "db:down": "docker compose down"
+    "db:down": "docker compose down",
+    "verify": "./scripts/verify.sh"
   },
   "devDependencies": {
     "@biomejs/biome": "latest",

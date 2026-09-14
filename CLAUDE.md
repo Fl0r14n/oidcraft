@@ -57,6 +57,10 @@ These are the ones where a plausible-looking change is a security bug:
 
 Always `bun`, never npm/yarn/pnpm.
 
+**Run `bun run verify` before every commit.** It is the CI sequence in CI's order and stops at
+the first failure — printing four exit codes and reading past a red one is how this repo got two
+broken pushes.
+
 ```sh
 bun install
 bun run dev              # server (3001) + client (3000)

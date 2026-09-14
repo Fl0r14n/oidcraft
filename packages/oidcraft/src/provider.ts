@@ -77,7 +77,7 @@ const authorizationHandler: Handler = async (config, request) => {
   }
 
   try {
-    const outcome = await authorize(config, validated, await readSession(config, request))
+    const outcome = await authorize(config, validated, await readSession(config, request), client)
     if (outcome.kind === 'redirect') return seeOther(outcome.url)
 
     if (!config.interactionUrl) {

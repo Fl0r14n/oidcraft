@@ -4,6 +4,7 @@ import { assertChallenge } from '../pkce'
 import { token } from '../random'
 import { isFresh } from '../session'
 import type { Artifact, Client, Grant, Session } from '../types'
+import { selectUpstream } from '../upstreams'
 
 export type AuthorizationRequest = {
   clientId: string
@@ -176,7 +177,8 @@ export type AuthorizationOutcome = { kind: 'redirect'; url: string } | { kind: '
 export const authorize = async (
   config: ResolvedConfig,
   request: AuthorizationRequest,
-  session: Session | undefined
+  session: Session | undefined,
+  client?: Client
 ): Promise<AuthorizationOutcome> => {
   // RFC 9470: a resource server can demand a stronger acr, and honouring it means re-authenticating
   // rather than issuing a token that quietly fails to meet it.
@@ -187,7 +189,7 @@ export const authorize = async (
     if (request.prompt.includes('none')) {
       throw new OAuthError('login_required', { description: 'no usable session and prompt=none', spec: 'OIDC Core §3.1.2.6' })
     }
-    return { kind: 'interaction', id: await suspend(config, request, 'login'), reason: 'login' }
+    return { kind: 'interaction', id: await suspend(config, request, 'login', undefined, client), reason: 'login' }
   }
 
   const grant = await config.adapter.grants.findByAccountAndClient(session.accountId, request.clientId)
@@ -206,15 +208,39 @@ export const authorize = async (
   return { kind: 'redirect', url: redirectTo(request, await issueCode(config, request, session, grant as Grant)) }
 }
 
-const suspend = async (config: ResolvedConfig, request: AuthorizationRequest, kind: 'login' | 'consent', session?: Session) => {
+const suspend = async (
+  config: ResolvedConfig,
+  request: AuthorizationRequest,
+  kind: 'login' | 'consent',
+  session?: Session,
+  client?: Client
+) => {
   const id = token()
+  // FR-F4: which upstream to use is a decision, so the provider makes it here; performing the round
+  // trip is I/O, so the host does that. When nothing decides it, the candidates go to the screen
+  // rather than one being guessed.
+  const upstream =
+    kind === 'login' && config.upstreams.length
+      ? selectUpstream(config.upstreams, {
+          loginHint: request.loginHint,
+          acrValues: request.acrValues,
+          allowed: client?.upstreamProviders
+        })
+      : undefined
+
   const artifact: Artifact = {
     id,
     kind: 'interaction',
     clientId: request.clientId,
     // A consent interaction already knows who is consenting; a login one does not yet.
     ...(session && { accountId: session.accountId }),
-    payload: { request: request as unknown as Record<string, unknown>, interactionKind: kind },
+    payload: {
+      request: request as unknown as Record<string, unknown>,
+      interactionKind: kind,
+      ...(upstream && {
+        upstream: { chosen: upstream.chosen?.id, candidates: upstream.candidates.map(provider => provider.id) }
+      })
+    },
     expiresAt: new Date(Date.now() + config.ttl.interaction * 1000)
   }
   await config.adapter.artifacts.upsert(artifact)

@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'bun:test'
+import { selectUpstream } from 'oidcraft'
 import { memoryAdapter } from '../adapters/memory'
 import type { Adapter } from '../index'
 import { localSubject, pickClaims, renameClaims } from './claims'
 import { linkIdentity } from './link'
-import { selectUpstream } from './select'
 import type { BrokeredIdentity, UpstreamProvider } from './types'
 
 const provider = (over: Partial<UpstreamProvider> = {}): UpstreamProvider => ({
@@ -150,5 +150,97 @@ describe('account linking', () => {
   test('an adapter without a FederatedIdentityStore is refused', async () => {
     const adapter = await memoryAdapter({ federation: false })
     expect(linkIdentity(adapter, identity())).rejects.toThrow(/FederatedIdentityStore/)
+  })
+})
+
+describe('the provider choosing an upstream', () => {
+  const ISSUER = 'https://op.example.com'
+  const REDIRECT = 'https://rp.example.com/cb'
+
+  const upstreams = [
+    { id: 'entra', label: 'Work account', domains: ['corp.example'] },
+    { id: 'google', label: 'Google', domains: ['gmail.com'] }
+  ]
+
+  const providerWith = async (over: Record<string, unknown> = {}) => {
+    const { createProvider } = await import('../provider')
+    const adapter = await memoryAdapter()
+    await adapter.clients.create?.({
+      clientId: 'rp',
+      redirectUris: [REDIRECT],
+      grantTypes: ['authorization_code'],
+      responseTypes: ['code'],
+      scopes: ['openid'],
+      tokenEndpointAuthMethod: 'none',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      ...((over.client as object) ?? {})
+    })
+    return createProvider({ issuer: ISSUER, adapter, interactionUrl: `${ISSUER}/interaction`, upstreams } as never)
+  }
+
+  const viewFor = async (query: Record<string, string> = {}, over: Record<string, unknown> = {}) => {
+    const provider = await providerWith(over)
+    const params = new URLSearchParams({
+      client_id: 'rp',
+      redirect_uri: REDIRECT,
+      response_type: 'code',
+      scope: 'openid',
+      code_challenge: 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM',
+      code_challenge_method: 'S256',
+      ...query
+    })
+    const response = await provider.handle(new Request(`${ISSUER}/authorize?${params}`))
+    const id = new URL(response.headers.get('location') as string).pathname.split('/').pop() as string
+    return provider.interactions.find(id)
+  }
+
+  test('an email domain decides it, and the screen is told which', async () => {
+    const view = await viewFor({ login_hint: 'ada@corp.example' })
+    expect(view.upstream?.chosen).toBe('entra')
+  })
+
+  test('acr_values naming a provider decides it', async () => {
+    expect((await viewFor({ acr_values: 'urn:oidcraft:idp:google' })).upstream?.chosen).toBe('google')
+  })
+
+  // Guessing here would sign the user in somewhere they did not ask for.
+  test('an ambiguous request offers the candidates and chooses nothing', async () => {
+    const view = await viewFor()
+    expect(view.upstream?.chosen).toBeUndefined()
+    expect(view.upstream?.candidates).toEqual(['entra', 'google'])
+  })
+
+  // FR-F2: a client may restrict which upstreams it will accept.
+  test("a client's allowed list narrows the candidates, and one left decides it", async () => {
+    const view = await viewFor({}, { client: { upstreamProviders: ['google'] } })
+    expect(view.upstream?.chosen).toBe('google')
+  })
+
+  test('no upstreams configured means no upstream decision at all', async () => {
+    const { createProvider } = await import('../provider')
+    const adapter = await memoryAdapter()
+    await adapter.clients.create?.({
+      clientId: 'rp',
+      redirectUris: [REDIRECT],
+      grantTypes: ['authorization_code'],
+      responseTypes: ['code'],
+      scopes: ['openid'],
+      tokenEndpointAuthMethod: 'none',
+      createdAt: new Date(),
+      updatedAt: new Date()
+    })
+    const provider = createProvider({ issuer: ISSUER, adapter, interactionUrl: `${ISSUER}/interaction` })
+    const params = new URLSearchParams({
+      client_id: 'rp',
+      redirect_uri: REDIRECT,
+      response_type: 'code',
+      scope: 'openid',
+      code_challenge: 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM',
+      code_challenge_method: 'S256'
+    })
+    const response = await provider.handle(new Request(`${ISSUER}/authorize?${params}`))
+    const id = new URL(response.headers.get('location') as string).pathname.split('/').pop() as string
+    expect((await provider.interactions.find(id)).upstream).toBeUndefined()
   })
 })

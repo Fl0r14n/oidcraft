@@ -24,6 +24,12 @@ export type InteractionView = {
   maxAge: number | undefined
   /** Which upstreams this client may be brokered to, when it restricts them (FR-F2). */
   upstreamProviders: string[] | undefined
+  /**
+   * Home-realm discovery's answer (FR-F4). `chosen` is set when one upstream is unambiguous;
+   * otherwise `candidates` is what the screen offers, because guessing would sign the user in
+   * somewhere they did not ask for.
+   */
+  upstream: { chosen: string | undefined; candidates: string[] } | undefined
   expiresAt: Date
 }
 
@@ -60,6 +66,7 @@ export const interactions = (config: ResolvedConfig) => ({
       uiLocales: request.uiLocales,
       maxAge: request.maxAge,
       upstreamProviders: client?.upstreamProviders,
+      upstream: artifact.payload.upstream as InteractionView['upstream'],
       expiresAt: artifact.expiresAt
     }
   },

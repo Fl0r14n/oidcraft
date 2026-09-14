@@ -66,8 +66,8 @@ interaction rather than the OP choosing an upstream itself.
 - [x] Home-realm discovery (FR-F4); linking policies (FR-F5)
 - [x] Claim mapping (FR-F7); provenance carried on the identity (FR-F6)
 - [x] Test upstream: a second oidcraft instance (ARCHITECTURE.md §10)
-- [ ] Wire the broker into the authorization endpoint's policy step, so an upstream round trip is
-      one interaction rather than the host stitching `start`/`complete` together
+- [x] The authorization endpoint chooses the upstream (FR-F4) and the interaction carries that
+      choice; the host still performs the round trip, because that part is I/O
 - [x] Upstream back-channel logout mapped to the local sessions it produced (FR-F8)
 - [x] `prompt`, `max_age` and `acr_values` passed through to the upstream (FR-F9)
 

@@ -1,7 +1,7 @@
 import type { Adapter } from 'oidcraft'
+import { type SelectionHints, selectUpstream } from 'oidcraft'
 import * as client from 'openid-client'
 import { pickClaims } from './claims'
-import { type SelectionHints, selectUpstream } from './select'
 import type { BrokeredIdentity, FederationCallback, Handoff, UpstreamProvider } from './types'
 
 export type BrokerConfig = {

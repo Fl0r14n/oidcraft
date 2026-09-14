@@ -2,6 +2,7 @@ import type { Adapter } from './adapter'
 import type { ExchangePolicy } from './endpoints/token-exchange'
 import { ConfigurationError } from './errors'
 import type { Client, ClientAuthMethod, Seconds } from './types'
+import type { UpstreamDescriptor } from './upstreams'
 
 export type Routes = {
   discovery: string
@@ -113,6 +114,11 @@ export type ProviderConfig = {
   features?: Partial<Features>
   capabilities?: Partial<Capabilities>
   /** Default subject type for clients that declare none. @default 'public' */
+  /**
+   * The upstreams this deployment brokers to, for home-realm discovery (FR-F4). Descriptions only:
+   * the credentials live with the broker in `oidcraft/federation`, because using them is I/O.
+   */
+  upstreams?: UpstreamDescriptor[]
   subjectType?: 'public' | 'pairwise'
   /**
    * Decides who may act as whom in a token exchange. There is no default, because a library cannot
@@ -183,6 +189,7 @@ export type ResolvedConfig = {
   resolveClientJwks: ProviderConfig['resolveClientJwks']
   onRegister: ProviderConfig['onRegister']
   onAudit: ProviderConfig['onAudit']
+  upstreams: UpstreamDescriptor[]
   subjectType: 'public' | 'pairwise'
   pairwiseSalt: string | undefined
   exchangePolicy: ExchangePolicy | undefined
@@ -280,6 +287,7 @@ export const resolveConfig = (config: ProviderConfig): ResolvedConfig => {
     resolveClientJwks: config.resolveClientJwks,
     onRegister: config.onRegister,
     onAudit: config.onAudit,
+    upstreams: config.upstreams ?? [],
     subjectType: config.subjectType ?? 'public',
     pairwiseSalt: config.pairwiseSalt,
     exchangePolicy: config.exchangePolicy,

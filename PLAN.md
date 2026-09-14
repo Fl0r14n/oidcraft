@@ -57,7 +57,7 @@ interaction rather than the OP choosing an upstream itself.
 - [x] `oidcraft/runtimes/node` HTTP bridge, tested against a real node:http server (FR-R3)
 - [x] Capability gating: mTLS methods are refused at construction where no certificate can be
       supplied, and absent from discovery (FR-R5, `G-8`)
-- [ ] Smoke tests for `oidcraft/runtimes/{bun,deno,workerd}` — written but only `node` is exercised
+- [x] Smoke tests for `oidcraft/runtimes/{bun,deno,workerd}`
 
 ## M3 — federation
 
@@ -87,12 +87,13 @@ interaction rather than the OP choosing an upstream itself.
 ## M5 — batteries
 
 - [x] Reference login and consent screens (FR-I3), remembered consent (FR-I4)
-- [ ] The remaining screens: account selection, upstream selection, device code, logout
+- [x] The remaining screens: account selection, upstream selection, device code, logout
 - [x] Management API (FR-M1) over clients, grants, sessions, keys and identities, with audit
       events (FR-M3) — functions, not routes, so the host authorizes it
 - [x] Admin UI (FR-M2): clients table and key list, `@vuetify/v0`'s `createDataTable` for
       sort/filter/paginate and its `Dialog` for the destructive confirmation
-- [ ] Admin: sessions and grants by account, upstream provider configuration
+- [x] Admin: sessions and grants by account, with revoke and end-session
+- [ ] Admin: upstream provider configuration
 - [x] First manual publish: `oidcraft@0.0.1` claimed the name — the similarity check cleared
 - [ ] `npm trust github` registration, so releases publish from CI (ARCHITECTURE.md §11)
 - [ ] Docs site

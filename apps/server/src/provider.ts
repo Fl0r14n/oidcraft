@@ -27,5 +27,7 @@ await seedDemoClient(adapter)
 export const provider = createProvider({
   issuer: issuer(),
   adapter,
-  interactionUrl: `${issuer()}/interaction`
+  interactionUrl: `${issuer()}/interaction`,
+  // The reference deployment turns these on so the screens below have something to drive.
+  features: { deviceFlow: true, pushedAuthorizationRequests: true, dpop: true }
 })

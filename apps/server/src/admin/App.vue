@@ -29,6 +29,8 @@
       <template v-else>
         <ClientsTable :clients="clients" @deleted="remove" />
 
+        <AccountPanel :token="token" />
+
         <section class="mt-10">
           <h2 class="mb-4 text-sm font-semibold tracking-tight">Signing keys</h2>
           <ul class="space-y-2">
@@ -52,6 +54,7 @@
 
 <script setup lang="ts">
 import { onMounted, shallowRef } from 'vue'
+import AccountPanel from './AccountPanel.vue'
 import ClientsTable from './ClientsTable.vue'
 import type { AdminClient } from './client'
 import { AdminError, api, readToken, writeToken } from './client'

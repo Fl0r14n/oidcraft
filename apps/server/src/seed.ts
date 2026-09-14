@@ -26,7 +26,7 @@ export const seedDemoClient = async (adapter: Adapter) => {
     clientName: 'oidcraft demo client',
     redirectUris: [`${origin}/oauth_callback`],
     postLogoutRedirectUris: [`${origin}/`],
-    grantTypes: ['authorization_code', 'refresh_token'],
+    grantTypes: ['authorization_code', 'refresh_token', 'urn:ietf:params:oauth:grant-type:device_code'],
     responseTypes: ['code'],
     scopes: ['openid', 'profile', 'email', 'offline_access'],
     // Public: a browser app cannot keep a secret, so PKCE is what protects the code (FR-C3).

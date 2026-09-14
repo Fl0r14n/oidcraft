@@ -1,7 +1,7 @@
 /// <reference types="bun" />
 import { serve } from 'bun'
 import { adminApi } from './src/admin/api'
-import { interactionRoutes } from './src/interaction/routes'
+import { deviceRoutes, interactionRoutes, logoutRoutes } from './src/interaction/routes'
 import { provider } from './src/provider'
 
 const port = Number(Bun.env.SERVER_PORT ?? 3001)
@@ -22,8 +22,16 @@ const server = serve({
   },
   async fetch(request) {
     const url = new URL(request.url)
+    if (url.pathname === '/interaction/logout') {
+      const response = await logoutRoutes(request, url)
+      if (response) return response
+    }
     if (url.pathname.startsWith('/interaction/')) {
       const response = await interactionRoutes(request, url)
+      if (response) return response
+    }
+    if (url.pathname === '/device' || url.pathname === '/device/decide') {
+      const response = await deviceRoutes(request, url)
       if (response) return response
     }
     return provider.handle(request)
@@ -34,3 +42,4 @@ console.log(`op on http://localhost:${server.port}`)
 console.log(`  discovery  http://localhost:${server.port}/.well-known/openid-configuration`)
 console.log(`  jwks       http://localhost:${server.port}/jwks`)
 console.log(`  admin      http://localhost:${server.port}/admin`)
+console.log(`  device     http://localhost:${server.port}/device`)

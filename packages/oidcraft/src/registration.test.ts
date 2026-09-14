@@ -92,9 +92,15 @@ describe('dynamic client registration', () => {
     expect((await response.json()).error_description).toContain('unknown scope')
   })
 
+  // tls_client_auth is absent from the defaults because this runtime cannot supply a client
+  // certificate at all (FR-R5, G-8), so a client asking to register for it is refused.
   test('an auth method the provider does not offer is refused', async () => {
-    const response = await register({ ...valid, token_endpoint_auth_method: 'client_secret_jwt' })
+    const response = await register({ ...valid, token_endpoint_auth_method: 'tls_client_auth' })
     expect((await response.json()).error_description).toContain('not offered')
+  })
+
+  test('an auth method the provider does offer is accepted', async () => {
+    expect((await register({ ...valid, token_endpoint_auth_method: 'client_secret_jwt' })).status).toBe(201)
   })
 
   // FR-C9: disabled is the default, and the route does not exist at all.

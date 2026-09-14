@@ -1,3 +1,4 @@
+import { ASSERTION_TYPE, verifyClientAssertion } from './client-assertion'
 import type { ResolvedConfig } from './config'
 import { OAuthError } from './errors'
 import { equals } from './random'
@@ -5,10 +6,22 @@ import type { Client } from './types'
 
 export type AuthenticatedClient = { client: Client; method: string }
 
-const unauthorized = (description: string) =>
+/** The assertion names its own client, which is what lets `client_id` be omitted (RFC 7523 §2.2). */
+const subjectOf = (assertion: string | null) => {
+  if (!assertion) return undefined
+  try {
+    const payload = assertion.split('.')[1]
+    if (!payload) return undefined
+    return (JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/'))) as { sub?: string }).sub
+  } catch {
+    return undefined
+  }
+}
+
+const unauthorized = (description: string, spec = 'RFC 6749 §2.3, OIDC Core §9') =>
   new OAuthError('invalid_client', {
     description,
-    spec: 'RFC 6749 §2.3, OIDC Core §9',
+    spec,
     headers: { 'www-authenticate': 'Basic realm="oidcraft"' }
   })
 
@@ -34,10 +47,15 @@ export const authenticateClient = async (config: ResolvedConfig, form: URLSearch
   const basic = authorization?.toLowerCase().startsWith('basic ') ? fromBasic(authorization) : undefined
   const postId = form.get('client_id')
   const postSecret = form.get('client_secret')
+  const assertion = form.get('client_assertion')
 
   if (basic && postSecret) throw unauthorized('client credentials were sent both in the Authorization header and the body')
+  if (assertion && (basic || postSecret)) throw unauthorized('a client assertion was sent alongside a secret')
+  if (assertion && form.get('client_assertion_type') !== ASSERTION_TYPE) {
+    throw unauthorized(`client_assertion_type must be ${ASSERTION_TYPE}`, 'RFC 7523 §2.2')
+  }
 
-  const clientId = basic?.clientId ?? postId
+  const clientId = basic?.clientId ?? postId ?? subjectOf(assertion)
   if (!clientId) throw unauthorized('no client_id was presented')
 
   const client = await config.adapter.clients.find(clientId)
@@ -49,9 +67,16 @@ export const authenticateClient = async (config: ResolvedConfig, form: URLSearch
   }
 
   if (method === 'none') {
-    if (basic || postSecret) throw unauthorized(`client ${clientId} is public and must not present a secret`)
+    if (basic || postSecret || assertion) throw unauthorized(`client ${clientId} is public and must not present a credential`)
     return { client, method }
   }
+
+  if (method === 'private_key_jwt' || method === 'client_secret_jwt') {
+    if (!assertion) throw unauthorized(`client ${clientId} must authenticate with ${method}`)
+    return verifyClientAssertion(config, client, assertion)
+  }
+
+  if (assertion) throw unauthorized(`client ${clientId} is registered for ${method}, not a client assertion`)
 
   if (method === 'client_secret_basic' || method === 'client_secret_post') {
     const presented = method === 'client_secret_basic' ? basic?.clientSecret : (postSecret ?? undefined)

@@ -206,7 +206,13 @@ const DEFAULT_CLAIMS: Record<string, string[]> = {
   email: ['email', 'email_verified']
 }
 
-const DEFAULT_CLIENT_AUTH: ClientAuthMethod[] = ['client_secret_basic', 'client_secret_post', 'private_key_jwt', 'none']
+const DEFAULT_CLIENT_AUTH: ClientAuthMethod[] = [
+  'client_secret_basic',
+  'client_secret_post',
+  'client_secret_jwt',
+  'private_key_jwt',
+  'none'
+]
 
 export const resolveConfig = (config: ProviderConfig): ResolvedConfig => {
   const problems: string[] = []

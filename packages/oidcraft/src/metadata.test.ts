@@ -8,10 +8,36 @@ import { createProvider } from './provider'
  * catches metadata drifting away from behaviour, which is the failure the real suite finds most.
  */
 const ISSUER = 'https://op.example.com'
+const REDIRECT = 'https://rp.example.com/cb'
+const SECRET = 'a-long-enough-client-secret'
+const CHALLENGE = 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM'
 const adapter = await memoryAdapter()
 
+/** A client registered for everything the metadata claims, so the claims can be tried. */
+const advertisedClient = async (provider: ReturnType<typeof createProvider>) => {
+  const metadata = (await (await provider.handle(new Request(`${ISSUER}/.well-known/openid-configuration`))).json()) as Record<
+    string,
+    string[]
+  >
+  const clientId = 'advertised'
+  if (!(await adapter.clients.find(clientId))) {
+    await adapter.clients.create?.({
+      clientId,
+      clientSecret: SECRET,
+      redirectUris: [REDIRECT],
+      grantTypes: metadata.grant_types_supported as string[],
+      responseTypes: metadata.response_types_supported as string[],
+      scopes: metadata.scopes_supported as string[],
+      tokenEndpointAuthMethod: 'client_secret_basic',
+      createdAt: new Date(),
+      updatedAt: new Date()
+    })
+  }
+  return clientId
+}
+
 const providerWith = (over: Parameters<typeof createProvider>[0] extends infer T ? Partial<T> : never = {}) =>
-  createProvider({ issuer: ISSUER, adapter, ...over } as Parameters<typeof createProvider>[0])
+  createProvider({ issuer: ISSUER, adapter, interactionUrl: `${ISSUER}/interaction`, ...over } as Parameters<typeof createProvider>[0])
 
 const metadataOf = async (provider = providerWith()) =>
   (await (await provider.handle(new Request(`${ISSUER}/.well-known/openid-configuration`))).json()) as Record<string, unknown>
@@ -109,6 +135,88 @@ describe('discovery metadata', () => {
     const provider = providerWith({ features: { revocation: false } })
     const response = await provider.handle(new Request(`${ISSUER}/revoke`, { method: 'POST' }))
     expect(response.status).toBe(404)
+  })
+
+  /**
+   * The assertion that matters, and the one that was missing: every advertised value is *tried*,
+   * not merely read. Discovery advertised `id_token`, `code id_token`, `client_credentials` and
+   * `private_key_jwt` for a while, all of which the code refused — the earlier tests read those
+   * lists and checked their shape, which proves nothing about whether they are true (FR-C6).
+   */
+  test('every advertised response type is accepted', async () => {
+    const provider = providerWith()
+    const client = await advertisedClient(provider)
+    const metadata = await metadataOf(provider)
+
+    for (const responseType of metadata.response_types_supported as string[]) {
+      const response = await provider.handle(
+        new Request(
+          `${ISSUER}/authorize?${new URLSearchParams({
+            client_id: client,
+            redirect_uri: REDIRECT,
+            response_type: responseType,
+            scope: 'openid',
+            code_challenge: CHALLENGE,
+            code_challenge_method: 'S256'
+          })}`
+        )
+      )
+      const error = new URL(response.headers.get('location') ?? REDIRECT, ISSUER).searchParams.get('error')
+      expect({ responseType, error }).toEqual({ responseType, error: null })
+    }
+  })
+
+  test('every advertised grant type reaches its handler', async () => {
+    const provider = providerWith()
+    const client = await advertisedClient(provider)
+    const metadata = await metadataOf(provider)
+
+    for (const grantType of metadata.grant_types_supported as string[]) {
+      const response = await provider.handle(
+        new Request(`${ISSUER}/token`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/x-www-form-urlencoded', authorization: `Basic ${btoa(`${client}:${SECRET}`)}` },
+          body: new URLSearchParams({ grant_type: grantType, scope: 'profile' }).toString()
+        })
+      )
+      const body = (await response.json()) as { error?: string }
+      // A handler that rejects the *request* is fine; one that rejects the grant type is not.
+      expect({ grantType, error: body.error }).not.toEqual({ grantType, error: 'unsupported_grant_type' })
+      expect({ grantType, error: body.error }).not.toEqual({ grantType, error: 'unauthorized_client' })
+    }
+  })
+
+  test('every advertised client authentication method is implemented', async () => {
+    const provider = providerWith()
+    const metadata = await metadataOf(provider)
+
+    for (const method of metadata.token_endpoint_auth_methods_supported as string[]) {
+      const clientId = `probe-${method}`
+      await adapter.clients.create?.({
+        clientId,
+        ...(method === 'none' ? {} : { clientSecret: SECRET }),
+        redirectUris: [REDIRECT],
+        grantTypes: ['authorization_code'],
+        responseTypes: ['code'],
+        scopes: ['openid'],
+        tokenEndpointAuthMethod: method as never,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      })
+
+      const response = await provider.handle(
+        new Request(`${ISSUER}/token`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ grant_type: 'authorization_code', client_id: clientId, code: 'x' }).toString()
+        })
+      )
+      const body = (await response.json()) as { error_description?: string }
+      expect({ method, unimplemented: body.error_description?.includes('not implemented') ?? false }).toEqual({
+        method,
+        unimplemented: false
+      })
+    }
   })
 
   test('the document is cacheable and the JWKS is too', async () => {

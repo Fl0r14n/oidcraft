@@ -171,6 +171,49 @@ const refreshTokenGrant = async (config: ResolvedConfig, client: Client, form: U
   return issueTokens(config, client, grant, session, requested?.length ? requested : granted, undefined, boundTo ?? jkt)
 }
 
+/**
+ * The client acting as itself, with no user behind it (RFC 6749 §4.4).
+ *
+ * So: no ID token, because there is no subject to make claims about; no refresh token, because the
+ * client can simply ask again with the credentials it still holds (§4.4.3); and `openid` is refused,
+ * because a scope that means "tell me who the user is" is meaningless when there is no user.
+ */
+const clientCredentialsGrant = async (config: ResolvedConfig, client: Client, form: URLSearchParams, jkt?: string) => {
+  if (client.tokenEndpointAuthMethod === 'none') {
+    throw new OAuthError('invalid_client', {
+      description: 'a public client has no credentials of its own to present',
+      spec: 'RFC 6749 §4.4'
+    })
+  }
+
+  const requested = (form.get('scope') ?? '').split(' ').filter(Boolean)
+  if (requested.includes('openid')) {
+    throw new OAuthError('invalid_scope', { description: 'client_credentials identifies no user, so openid is meaningless here' })
+  }
+  const unallowed = requested.filter(scope => !client.scopes.includes(scope))
+  if (unallowed.length)
+    throw new OAuthError('invalid_scope', { description: `client ${client.clientId} may not request: ${unallowed.join(', ')}` })
+
+  const scopes = requested.length ? requested : client.scopes.filter(scope => scope !== 'openid' && scope !== 'offline_access')
+  const accessToken = randomToken()
+  const expiresIn = config.ttl.accessToken
+
+  await config.adapter.artifacts.upsert({
+    id: accessToken,
+    kind: 'access_token',
+    clientId: client.clientId,
+    payload: { scopes, ...(jkt && { cnf: { jkt } }) },
+    expiresAt: new Date(Date.now() + expiresIn * 1000)
+  })
+
+  return {
+    access_token: accessToken,
+    token_type: jkt ? 'DPoP' : 'Bearer',
+    expires_in: expiresIn,
+    scope: scopes.join(' ')
+  }
+}
+
 const cibaGrant = async (config: ResolvedConfig, client: Client, form: URLSearchParams, jkt?: string) => {
   const authReqId = form.get('auth_req_id')
   if (!authReqId) throw new OAuthError('invalid_request', { description: 'auth_req_id is required' })
@@ -264,6 +307,8 @@ export const tokenEndpoint = async (config: ResolvedConfig, request: Request) =>
         return authorizationCodeGrant(config, client, form, jkt)
       case 'refresh_token':
         return refreshTokenGrant(config, client, form, jkt)
+      case 'client_credentials':
+        return clientCredentialsGrant(config, client, form, jkt)
       case 'urn:ietf:params:oauth:grant-type:device_code':
         return deviceCodeGrant(config, client, form, jkt)
       case TOKEN_EXCHANGE:

@@ -47,9 +47,14 @@ differences that are the reason it exists:
 
 The core implements the following. Anything not listed is out of scope until it appears here.
 
-**FR-C1 — Authorization endpoint.** `code`, `id_token`, `code id_token` response types.
-`response_mode` of `query`, `fragment`, `form_post`. OIDC Core 1.0 §3. Implicit (`token`,
-`code token`) is **not** implemented: OAuth 2.1 removes it and RFC 9700 §2.1.2 forbids it.
+**FR-C1 — Authorization endpoint.** The `code` response type only. `response_mode` of `query`,
+`fragment`, `form_post`.
+
+Implicit (`token`, `code token`) and hybrid (`id_token`, `code id_token`) are **not** implemented
+and are not advertised: OAuth 2.1 removes them, RFC 9700 §2.1.2 forbids the token-bearing ones, and
+anything returning an ID token through the front channel hands it to the browser's history and
+`Referer`. This was listed as supported for a while and advertised in discovery while the code
+refused it — see `metadata.test.ts`, which now tries every advertised value rather than reading it.
 
 **FR-C2 — Token endpoint.** `authorization_code`, `refresh_token`, `client_credentials`,
 `urn:ietf:params:oauth:grant-type:device_code`, `urn:ietf:params:oauth:grant-type:token-exchange`
@@ -59,9 +64,15 @@ The core implements the following. Anything not listed is out of scope until it 
 confidential. `plain` is rejected; only `S256`. A client cannot opt out.
 
 **FR-C4 — Client authentication.** `none`, `client_secret_basic`, `client_secret_post`,
-`client_secret_jwt`, `private_key_jwt` (RFC 7523), `tls_client_auth` and
-`self_signed_tls_client_auth` (RFC 8705). The mTLS methods require the host to pass the verified
-client certificate in; the core never terminates TLS (FR-R4).
+`client_secret_jwt` and `private_key_jwt` (RFC 7523) are implemented and advertised.
+
+`tls_client_auth` and `self_signed_tls_client_auth` (RFC 8705) are **not implemented**. They require
+the host to pass the verified client certificate in — the core never terminates TLS (FR-R4) — and
+are refused at construction where the runtime cannot supply one (FR-R5, `G-8`).
+
+A JWT assertion is checked for its audience, a `jti` that has not been seen, and a lifetime under
+five minutes. The audience is what stops an assertion made out to this provider being replayed at
+another one; without it, every provider a client talks to could impersonate it everywhere else.
 
 **FR-C5 — UserInfo endpoint.** Claims resolved per request through `AccountStore.claims`, never
 served from a copy cached at authentication time. Signed and/or encrypted responses when the

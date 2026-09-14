@@ -40,8 +40,9 @@ export const metadata = (config: ResolvedConfig, algorithms: string[]) => {
       backchannel_user_code_parameter_supported: false
     }),
     scopes_supported: config.scopes,
-    // FR-C1: no implicit, no hybrid-with-token — OAuth 2.1 removes them and RFC 9700 §2.1.2 forbids them.
-    response_types_supported: ['code', 'id_token', 'code id_token'],
+    // FR-C1: `code` only. OAuth 2.1 removes the implicit and hybrid response types, and anything
+    // returning an id_token through the front channel hands it to the browser's history and Referer.
+    response_types_supported: ['code'],
     response_modes_supported: ['query', 'fragment', 'form_post'],
     grant_types_supported: grantTypes,
     subject_types_supported: config.pairwiseSalt ? ['public', 'pairwise'] : ['public'],

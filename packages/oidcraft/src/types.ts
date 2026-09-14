@@ -30,6 +30,8 @@ export type Client = {
   // Which upstream providers this client may broker to; empty means all enabled ones (FR-F4).
   upstreamProviders?: string[]
   backchannelLogoutUri?: string
+  /** OIDC CIBA 1.0 §7.1. `push` is out of scope (FR-C17). */
+  backchannelTokenDeliveryMode?: 'poll' | 'ping'
   frontchannelLogoutUri?: string
   registrationAccessToken?: string
   createdAt: Date

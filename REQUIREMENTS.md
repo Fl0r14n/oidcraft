@@ -110,6 +110,11 @@ fresher `auth_time`, and the OP must honour the resulting `acr_values`/`max_age`
 **FR-C17 — CIBA** — OpenID Connect Client-Initiated Backchannel Authentication, poll and ping
 modes. Push mode is out of scope.
 
+Identifying the user from a hint has no default and never will: the client never touches the user's
+browser, so who to reach is entirely the provider's decision, and a library guessing which
+`login_hint` means which account would be inventing an authentication decision. `resolveCibaUser`
+is required, and CIBA is refused without it.
+
 **FR-C18 — Pairwise subject identifiers** (`sector_identifier_uri`), alongside public ones.
 
 ## 4. Tokens — `FR-T*`

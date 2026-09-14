@@ -28,6 +28,7 @@ export type { ClientAuthenticationInput, ClientCertificate, ContextProvider, Req
 export { type CookieOptions, clearCookie, parseCookies, serializeCookie } from './cookies'
 export { accessTokenHash, type DpopProof, htu, issueNonce, NONCE_NAMESPACE, type VerifyOptions, verifyDpopProof } from './dpop'
 export { type AuthorizationDetail, type AuthorizationRequest, redirectTo } from './endpoints/authorization'
+export { CIBA_GRANT, type CibaDecision, type CibaPayload } from './endpoints/ciba'
 export { type DeviceApproval, type DevicePayload, normalizeUserCode, userCode } from './endpoints/device'
 export { metadata } from './endpoints/discovery'
 export { type LogoutNotification, logoutTokens } from './endpoints/end-session'

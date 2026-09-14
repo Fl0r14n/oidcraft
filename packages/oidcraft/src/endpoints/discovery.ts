@@ -17,6 +17,7 @@ export const metadata = (config: ResolvedConfig, algorithms: string[]) => {
   const grantTypes = ['authorization_code', 'refresh_token', 'client_credentials']
   if (features.deviceFlow) grantTypes.push('urn:ietf:params:oauth:grant-type:device_code')
   if (config.exchangePolicy) grantTypes.push('urn:ietf:params:oauth:grant-type:token-exchange')
+  if (features.ciba) grantTypes.push('urn:openid:params:grant-type:ciba')
 
   return {
     issuer: config.issuer,
@@ -32,6 +33,11 @@ export const metadata = (config: ResolvedConfig, algorithms: string[]) => {
     ...(features.pushedAuthorizationRequests && {
       pushed_authorization_request_endpoint: url(routes.pushedAuthorizationRequest),
       require_pushed_authorization_requests: false
+    }),
+    ...(features.ciba && {
+      backchannel_authentication_endpoint: url(routes.backchannelAuthentication),
+      backchannel_token_delivery_modes_supported: ['poll', 'ping'],
+      backchannel_user_code_parameter_supported: false
     }),
     scopes_supported: config.scopes,
     // FR-C1: no implicit, no hybrid-with-token — OAuth 2.1 removes them and RFC 9700 §2.1.2 forbids them.

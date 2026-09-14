@@ -17,6 +17,7 @@ export type Routes = {
   deviceAuthorization: string
   deviceVerification: string
   pushedAuthorizationRequest: string
+  backchannelAuthentication: string
 }
 
 export const DEFAULT_ROUTES: Routes = {
@@ -32,7 +33,8 @@ export const DEFAULT_ROUTES: Routes = {
   endSession: '/session/end',
   deviceAuthorization: '/device/authorize',
   deviceVerification: '/device',
-  pushedAuthorizationRequest: '/request'
+  pushedAuthorizationRequest: '/request',
+  backchannelAuthentication: '/backchannel'
 }
 
 export type Ttl = {
@@ -44,6 +46,7 @@ export type Ttl = {
   interaction: Seconds
   deviceCode: Seconds
   dpopNonce: Seconds
+  backchannelRequest: Seconds
   pushedAuthorizationRequest: Seconds
 }
 
@@ -56,6 +59,7 @@ export const DEFAULT_TTL: Ttl = {
   interaction: 600,
   deviceCode: 600,
   dpopNonce: 300,
+  backchannelRequest: 600,
   pushedAuthorizationRequest: 60
 }
 
@@ -79,6 +83,8 @@ export type Features = {
   dpop: boolean
   /** Demand a server-issued nonce on every DPoP proof (RFC 9449 §8). */
   dpopNonces: boolean
+  /** CIBA, poll and ping (FR-C17). */
+  ciba: boolean
 }
 
 export const DEFAULT_FEATURES: Features = {
@@ -89,7 +95,8 @@ export const DEFAULT_FEATURES: Features = {
   introspection: true,
   revocation: true,
   dpop: false,
-  dpopNonces: false
+  dpopNonces: false,
+  ciba: false
 }
 
 export type ProviderConfig = {
@@ -112,6 +119,17 @@ export type ProviderConfig = {
    * know which impersonation a deployment considers legitimate (FR-C2, RFC 8693).
    */
   exchangePolicy?: ExchangePolicy
+  /**
+   * Turns a CIBA hint into an account. No default: the client never touches the user's browser, so
+   * identifying them is entirely the provider's problem and guessing would be inventing an
+   * authentication decision (FR-C17).
+   */
+  resolveCibaUser?: (input: {
+    client: Client
+    hint: { kind: string; value: string }
+    scopes: string[]
+    bindingMessage: string | undefined
+  }) => Promise<{ accountId: string } | undefined> | { accountId: string } | undefined
   /**
    * The `authorization_details` types this deployment understands (FR-C15). Only the host knows
    * what its types mean, so an undeclared one is refused rather than silently granted.
@@ -168,6 +186,7 @@ export type ResolvedConfig = {
   subjectType: 'public' | 'pairwise'
   pairwiseSalt: string | undefined
   exchangePolicy: ExchangePolicy | undefined
+  resolveCibaUser: ProviderConfig['resolveCibaUser']
   authorizationDetailTypes: string[]
 }
 
@@ -264,6 +283,7 @@ export const resolveConfig = (config: ProviderConfig): ResolvedConfig => {
     subjectType: config.subjectType ?? 'public',
     pairwiseSalt: config.pairwiseSalt,
     exchangePolicy: config.exchangePolicy,
+    resolveCibaUser: config.resolveCibaUser,
     authorizationDetailTypes: config.authorizationDetailTypes ?? []
   }
 }

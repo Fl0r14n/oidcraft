@@ -21,6 +21,7 @@ export type OAuthErrorCode =
   | 'slow_down'
   | 'expired_token'
   | 'invalid_authorization_details'
+  | 'unknown_user_id'
 
 export type OAuthErrorInit = {
   description?: string
@@ -80,7 +81,8 @@ const STATUS: Record<OAuthErrorCode, number> = {
   authorization_pending: 400,
   slow_down: 400,
   expired_token: 400,
-  invalid_authorization_details: 400
+  invalid_authorization_details: 400,
+  unknown_user_id: 400
 }
 
 /**

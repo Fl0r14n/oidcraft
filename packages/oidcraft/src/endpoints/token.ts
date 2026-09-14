@@ -7,6 +7,7 @@ import { token as randomToken } from '../random'
 import { subjectFor } from '../subjects'
 import { mintIdToken } from '../tokens'
 import type { Artifact, Client, Grant, Session } from '../types'
+import { CIBA_GRANT, consumeAuthReqId } from './ciba'
 import { consumeDeviceCode } from './device'
 import { SUPPORTED_TOKEN_TYPES, TOKEN_EXCHANGE, tokenExchange } from './token-exchange'
 
@@ -170,6 +171,20 @@ const refreshTokenGrant = async (config: ResolvedConfig, client: Client, form: U
   return issueTokens(config, client, grant, session, requested?.length ? requested : granted, undefined, boundTo ?? jkt)
 }
 
+const cibaGrant = async (config: ResolvedConfig, client: Client, form: URLSearchParams, jkt?: string) => {
+  const authReqId = form.get('auth_req_id')
+  if (!authReqId) throw new OAuthError('invalid_request', { description: 'auth_req_id is required' })
+
+  const { payload } = await consumeAuthReqId(config, authReqId, client.clientId)
+  if (!payload.grantId || !payload.sessionId) throw new OAuthError('invalid_grant', { description: 'that request was never approved' })
+
+  const grant = await config.adapter.grants.find(payload.grantId)
+  const session = await config.adapter.sessions.find(payload.sessionId)
+  if (!grant || !session) throw new OAuthError('invalid_grant', { description: 'the grant or session behind that request is gone' })
+
+  return issueTokens(config, client, grant, session, payload.scopes, undefined, jkt)
+}
+
 const exchangeGrant = async (config: ResolvedConfig, client: Client, form: URLSearchParams, jkt?: string) => {
   const { decision, requestedType, subject } = await tokenExchange(config, client, form)
 
@@ -253,6 +268,8 @@ export const tokenEndpoint = async (config: ResolvedConfig, request: Request) =>
         return deviceCodeGrant(config, client, form, jkt)
       case TOKEN_EXCHANGE:
         return exchangeGrant(config, client, form, jkt)
+      case CIBA_GRANT:
+        return cibaGrant(config, client, form, jkt)
       default:
         throw new OAuthError('unsupported_grant_type', { description: `${grantType} is not supported` })
     }

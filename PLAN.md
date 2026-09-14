@@ -82,7 +82,7 @@ interaction rather than the OP choosing an upstream itself.
 - [x] Device grant (FR-C7) with slow-down enforcement; pairwise subjects (FR-C18)
 - [x] Token exchange (FR-C2), gated on an explicit `exchangePolicy`; RAR (FR-C15) with declared
       types; step-up (FR-C16) forcing re-authentication for an unmet `acr`
-- [ ] CIBA (FR-C17)
+- [x] CIBA (FR-C17), poll and ping
 
 ## M5 — batteries
 

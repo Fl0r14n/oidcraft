@@ -1,6 +1,7 @@
 import { type ProviderConfig, type ResolvedConfig, resolveConfig } from './config'
 import type { RequestContext } from './context'
 import { authorize, parseAuthorizationRequest, redirectTo, validateAuthorizationRequest } from './endpoints/authorization'
+import { backchannelAuthenticationEndpoint, type CibaDecision, resolveBackchannelRequest } from './endpoints/ciba'
 import { deviceAuthorizationEndpoint, findByUserCode, resolveDeviceCode } from './endpoints/device'
 import { discoveryEndpoint } from './endpoints/discovery'
 import { endSessionEndpoint, type LogoutNotification } from './endpoints/end-session'
@@ -30,6 +31,8 @@ export type Provider = {
     find: (userCode: string) => ReturnType<typeof findByUserCode>
     resolve: (userCode: string, outcome: Parameters<typeof resolveDeviceCode>[2]) => ReturnType<typeof resolveDeviceCode>
   }
+  /** CIBA's out-of-band half, for whatever channel actually asks the person (FR-C17). */
+  ciba: { resolve: (authReqId: string, outcome: CibaDecision) => ReturnType<typeof resolveBackchannelRequest> }
   /** The whole surface: a WHATWG Request in, a Response out, no I/O of its own (FR-R1, FR-A1). */
   handle(request: Request, context?: Partial<RequestContext>): Promise<Response>
 }
@@ -150,6 +153,9 @@ const routeTable = (config: ResolvedConfig) => {
   if (config.features.deviceFlow) {
     add(config.routes.deviceAuthorization, ['POST'], async (cfg, req) => deviceAuthorizationEndpoint(cfg, req))
   }
+  if (config.features.ciba) {
+    add(config.routes.backchannelAuthentication, ['POST'], async (cfg, req) => backchannelAuthenticationEndpoint(cfg, req))
+  }
   if (config.features.pushedAuthorizationRequests) {
     add(config.routes.pushedAuthorizationRequest, ['POST'], async (cfg, req) => pushedAuthorizationRequestEndpoint(cfg, req))
   }
@@ -172,6 +178,7 @@ export const createProvider = (config: ProviderConfig): Provider => {
       find: userCode => findByUserCode(resolved, userCode),
       resolve: (userCode, outcome) => resolveDeviceCode(resolved, userCode, outcome)
     },
+    ciba: { resolve: (authReqId, outcome) => resolveBackchannelRequest(resolved, authReqId, outcome) },
     async handle(request, context) {
       try {
         const route = routes.get(new URL(request.url).pathname)

@@ -3,8 +3,54 @@
 An OpenID Provider library for TypeScript. RFC-compliant core, runtime-portable, pluggable storage,
 and identity brokering as a first-class mode rather than an application concern.
 
-> **Status: scaffold.** The package structure, build and adapter contract exist; the protocol does
-> not yet. See [PLAN.md](https://github.com/Fl0r14n/oidcraft/blob/main/PLAN.md).
+> **Status: early.** The protocol is implemented and tested, but nothing has been run against the
+> OpenID Foundation conformance suite and no deployment has used it in production. See
+> [PLAN.md](https://github.com/Fl0r14n/oidcraft/blob/main/PLAN.md) for exactly what that means.
+
+## The smallest usable provider
+
+```ts
+import { createProvider } from 'oidcraft'
+import { memoryAdapter } from 'oidcraft/adapters/memory'
+
+const adapter = await memoryAdapter({
+  accounts: {
+    find: async accountId => ({ accountId, claims: {} }),
+    claims: async accountId => ({ name: accountId })
+  }
+})
+
+await adapter.clients.create?.({
+  clientId: 'demo',
+  redirectUris: ['http://localhost:3000/callback'],
+  grantTypes: ['authorization_code', 'refresh_token'],
+  responseTypes: ['code'],
+  scopes: ['openid', 'profile'],
+  tokenEndpointAuthMethod: 'none',
+  createdAt: new Date(),
+  updatedAt: new Date()
+})
+
+const provider = createProvider({
+  issuer: 'http://localhost:3001',
+  adapter,
+  interactionUrl: 'http://localhost:3001/interaction'
+})
+
+Bun.serve({ port: 3001, fetch: request => provider.handle(request) })
+```
+
+That is a real provider: discovery, JWKS and an authorization endpoint that suspends into your
+interaction screens. `minimal.test.ts` runs this exact code and counts its lines, because a promise
+with a number in it is worth checking rather than asserting.
+
+## What it does
+
+The authorization code grant with mandatory PKCE · interaction suspend/resume with remembered
+consent · token rotation with replay revocation · UserInfo · revocation and introspection ·
+RP-initiated and back-channel logout · DPoP with nonces · PAR and JAR · dynamic client registration ·
+the device grant · CIBA · token exchange · rich authorization requests · step-up · pairwise subjects ·
+identity brokering with home-realm discovery · a management API and an admin UI.
 
 ## Why
 

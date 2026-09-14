@@ -31,6 +31,20 @@
 
         <AccountPanel :token="token" />
 
+        <section v-if="upstreams.length" class="mt-10">
+          <h2 class="mb-4 text-sm font-semibold tracking-tight">Upstream providers</h2>
+          <ul class="space-y-2">
+            <li v-for="upstream in upstreams" :key="upstream.id" class="rounded-lg border border-neutral-200 px-3 py-2 text-xs dark:border-neutral-800">
+              <span class="font-mono">{{ upstream.id }}</span>
+              <span v-if="upstream.label" class="ml-2 text-neutral-500">{{ upstream.label }}</span>
+              <span v-if="upstream.domains?.length" class="ml-2 text-neutral-500">· {{ upstream.domains.join(', ') }}</span>
+            </li>
+          </ul>
+          <p class="mt-2 text-xs text-neutral-500">
+            Deployment configuration, not runtime state — shown here, set where the rest of the deployment is.
+          </p>
+        </section>
+
         <section class="mt-10">
           <h2 class="mb-4 text-sm font-semibold tracking-tight">Signing keys</h2>
           <ul class="space-y-2">
@@ -63,6 +77,7 @@ const issuer = process.env.OIDCRAFT_PUBLIC_ISSUER || globalThis.location?.origin
 const token = shallowRef(readToken())
 const clients = shallowRef<AdminClient[]>([])
 const keys = shallowRef<{ kid: string; alg: string; kty: string }[]>([])
+const upstreams = shallowRef<{ id: string; label?: string; domains?: string[] }[]>([])
 const error = shallowRef('')
 
 const reload = async () => {
@@ -70,12 +85,14 @@ const reload = async () => {
   writeToken(token.value)
   if (!token.value) return
   try {
-    const [clientList, keyList] = await Promise.all([
+    const [clientList, keyList, upstreamList] = await Promise.all([
       api<{ clients: AdminClient[] }>('/clients', token.value),
-      api<{ keys: { kid: string; alg: string; kty: string }[] }>('/keys', token.value)
+      api<{ keys: { kid: string; alg: string; kty: string }[] }>('/keys', token.value),
+      api<{ upstreams: { id: string; label?: string; domains?: string[] }[] }>('/upstreams', token.value)
     ])
     clients.value = clientList.clients
     keys.value = keyList.keys
+    upstreams.value = upstreamList.upstreams
   } catch (failure) {
     error.value = failure instanceof AdminError ? failure.message : 'Something went wrong.'
     clients.value = []

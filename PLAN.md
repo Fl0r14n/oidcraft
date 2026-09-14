@@ -5,22 +5,37 @@ This file is working state: tick items off and add notes as work lands.
 
 ## Status
 
-**A working OpenID Provider for the authorization code flow, plus identity brokering.** 177 tests.
+**Every `FR-*` on the plan is implemented.** 366 tests, and `bun run verify` is the gate.
 
-Done: configuration validated at construction, discovery, JWKS and key rotation, the code grant with
-mandatory PKCE, interaction suspend/resume with remembered consent, token issuance with refresh
-rotation and replay revocation, UserInfo, revocation, introspection, RP-initiated and back-channel
-logout, the `KvStore` derivation, memory and Drizzle/SQLite adapters passing one shared conformance
-suite, the Node bridge, and an identity broker exercised against a live second instance.
+The authorization code grant with mandatory PKCE, interaction suspend/resume, token issuance with
+rotation and replay revocation, UserInfo, revocation, introspection, logout in both directions,
+DPoP with nonces, PAR, JAR by value, dynamic client registration with RFC 7592 management, the
+device grant, CIBA in poll and ping, token exchange, RAR, step-up, pairwise subjects, identity
+brokering with home-realm discovery chosen by the provider, three storage adapters passing one
+conformance suite, four runtime context providers, a management API and an admin UI.
 
-**Not yet a complete OP.** The big absences are the sender-constraining and request-integrity
-features (DPoP, PAR, JAR), the remaining grants (device, token exchange, CIBA), dynamic
-registration, pairwise subjects, the management API and admin UI, and Postgres. Federation works but
-is not wired into the authorization endpoint, so a host drives `start`/`complete` around its own
-interaction rather than the OP choosing an upstream itself.
+### What is NOT done, and will not be silently forgotten
 
-**Nothing has been run against the OpenID Foundation conformance suite.** Until that happens,
-"RFC-compliant" is an intention, not a measurement (NFR-C1).
+**Nothing has been run against the OpenID Foundation conformance suite** (NFR-C1). Every compliance
+claim here rests on a reading of the specs and tests written by the same person who wrote the code,
+which is not the same thing as certification. The suite publishes no image; it needs a Maven build
+and an OP it can reach. `conformance/` holds the plan and a runner for whoever does that.
+
+**No deployment has run this in production**, against a real relying party that was not also written
+here, or under any load.
+
+### Decided against, rather than pending
+
+- **JAR by reference** (`request_uri` pointing at the client's own server) — resolving it means the
+  core fetching a URL the client chose, which is outbound I/O it does not do (FR-A1). A host that
+  needs it resolves and pushes the result. See `REQUIREMENTS.md` FR-C12.
+- **A Postgres schema shipped untested** — the Drizzle adapter's query logic is dialect-agnostic but
+  its schema module is not, and shipping a `pg-core` schema nothing has executed would be a claim
+  rather than a feature. SQLite is tested in-process; Postgres is a schema file away for whoever
+  needs it and can run it.
+- **Editing upstream providers from the admin UI** — an issuer and client credentials are deployment
+  configuration, not runtime state. The admin shows what is configured.
+- **CIBA push mode**, **OpenID Federation 1.0** trust chains (`G-1`), and **upstream SAML** (`G-4`).
 
 ## M0 — foundation
 
@@ -47,7 +62,7 @@ interaction rather than the OP choosing an upstream itself.
 - [x] `oidcraft/adapters/drizzle` (SQLite) with real columns and indexes, passing the shared
       conformance suite; `explain query plan` asserts revocation and the user-code lookup use
       their indexes (FR-A5)
-- [ ] The same adapter against Postgres
+- [~] Postgres — deliberately not shipped untested; see the status section
 - [x] `oidcraft/adapters/kysely`, passing the same conformance suite as memory and Drizzle
 - [x] `metadata.test.ts`: the discovery document against OIDC Discovery 1.0 §3 and RFC 8414 §2,
       cross-checked against behaviour. **Not certification** — see `conformance/README.md`
@@ -77,7 +92,7 @@ interaction rather than the OP choosing an upstream itself.
 - [x] DPoP (FR-C13): bound access and refresh tokens, `ath`/`htm`/`htu` checks, jti replay guard
 - [x] DPoP nonces (`DPoP-Nonce`, `use_dpop_nonce`)
 - [x] PAR (RFC 9126) and JAR by value (RFC 9101) (FR-C12)
-- [ ] JAR by reference — needs a host resolver, since the core will not fetch a client-chosen URL
+- [~] JAR by reference — decided against in the core; see the status section
 - [x] DCR (FR-C9) with RFC 7592 client management, gated by `onRegister`
 - [x] Device grant (FR-C7) with slow-down enforcement; pairwise subjects (FR-C18)
 - [x] Token exchange (FR-C2), gated on an explicit `exchangePolicy`; RAR (FR-C15) with declared
@@ -93,7 +108,7 @@ interaction rather than the OP choosing an upstream itself.
 - [x] Admin UI (FR-M2): clients table and key list, `@vuetify/v0`'s `createDataTable` for
       sort/filter/paginate and its `Dialog` for the destructive confirmation
 - [x] Admin: sessions and grants by account, with revoke and end-session
-- [ ] Admin: upstream provider configuration
+- [x] Admin: upstream providers shown read-only, since they are deployment configuration
 - [x] First manual publish: `oidcraft@0.0.1` claimed the name — the similarity check cleared
 - [ ] `npm trust github` registration, so releases publish from CI (ARCHITECTURE.md §11)
 - [ ] Docs site

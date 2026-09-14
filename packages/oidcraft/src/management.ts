@@ -103,6 +103,17 @@ export const management = (config: ResolvedConfig) => {
       }
     },
 
+    upstreams: {
+      /**
+       * Read-only on purpose. Upstreams are deployment configuration — an issuer and client
+       * credentials — not runtime state, so they are set where the rest of the deployment is set
+       * and an operator screen shows what is configured rather than editing it (FR-M2).
+       */
+      list() {
+        return config.upstreams
+      }
+    },
+
     identities: {
       async listForAccount(accountId: string) {
         return config.adapter.identities?.listForAccount(accountId) ?? []

@@ -66,6 +66,8 @@ export const adminApi = async (provider: Provider, request: Request, url: URL): 
 
     if (resource === 'keys' && request.method === 'GET') return json({ keys: await management.keys.list() })
 
+    if (resource === 'upstreams' && request.method === 'GET') return json({ upstreams: management.upstreams.list() })
+
     return json({ error: 'not_found' }, 404)
   } catch (error) {
     console.error('[admin]', error)

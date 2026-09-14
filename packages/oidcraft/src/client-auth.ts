@@ -1,6 +1,8 @@
 import { ASSERTION_TYPE, verifyClientAssertion } from './client-assertion'
 import type { ResolvedConfig } from './config'
+import type { ClientCertificate } from './context'
 import { OAuthError } from './errors'
+import { matchesRegisteredCertificate, matchesSubjectDn } from './mtls'
 import { equals } from './random'
 import type { Client } from './types'
 
@@ -42,7 +44,12 @@ const fromBasic = (header: string) => {
  * Credentials in two places at once is rejected rather than resolved by precedence: it is what an
  * attacker does to make the server and an auditing proxy disagree about who is calling.
  */
-export const authenticateClient = async (config: ResolvedConfig, form: URLSearchParams, headers: Headers): Promise<AuthenticatedClient> => {
+export const authenticateClient = async (
+  config: ResolvedConfig,
+  form: URLSearchParams,
+  headers: Headers,
+  certificate?: ClientCertificate | undefined
+): Promise<AuthenticatedClient> => {
   const authorization = headers.get('authorization')
   const basic = authorization?.toLowerCase().startsWith('basic ') ? fromBasic(authorization) : undefined
   const postId = form.get('client_id')
@@ -77,6 +84,17 @@ export const authenticateClient = async (config: ResolvedConfig, form: URLSearch
   }
 
   if (assertion) throw unauthorized(`client ${clientId} is registered for ${method}, not a client assertion`)
+
+  if (method === 'tls_client_auth' || method === 'self_signed_tls_client_auth') {
+    // The certificate must already have been verified by whatever terminated TLS: this establishes
+    // which client it is, not whether to trust it, and the two are only the same when the host did
+    // its half (FR-R4, RFC 8705 §2).
+    if (!certificate) throw unauthorized(`client ${clientId} must authenticate with ${method}, and no client certificate was presented`)
+    const ok =
+      method === 'tls_client_auth' ? matchesSubjectDn(client, certificate) : await matchesRegisteredCertificate(client, certificate)
+    if (!ok) throw unauthorized('the client certificate does not match the one registered for this client', 'RFC 8705 §2')
+    return { client, method }
+  }
 
   if (method === 'client_secret_basic' || method === 'client_secret_post') {
     const presented = method === 'client_secret_basic' ? basic?.clientSecret : (postSecret ?? undefined)

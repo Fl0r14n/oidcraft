@@ -25,7 +25,19 @@ export type Client = {
   requirePkce?: boolean
   requirePushedAuthorizationRequests?: boolean
   dpopBoundAccessTokens?: boolean
+  /** RFC 8705 §3: bind access tokens to the client's certificate. */
+  certificateBoundAccessTokens?: boolean
   sectorIdentifierUri?: string
+  /** RFC 9068. Opaque by default, because a revoked opaque token stops working at once (FR-T2). */
+  accessTokenFormat?: 'opaque' | 'jwt'
+  /** OIDC Core §5.3.2: when set, UserInfo answers with a signed JWT rather than JSON (FR-C5). */
+  userinfoSignedResponseAlg?: string
+  userinfoEncryptedResponseAlg?: string
+  userinfoEncryptedResponseEnc?: string
+  /** RFC 8705 §2.1.1: the subject DN the client's certificate must carry. */
+  tlsClientAuthSubjectDn?: string
+  /** OIDC Front-Channel Logout 1.0 §2: whether the iframe URL must carry `iss` and `sid`. */
+  frontchannelLogoutSessionRequired?: boolean
   subjectType?: 'public' | 'pairwise'
   // Which upstream providers this client may broker to; empty means all enabled ones (FR-F4).
   upstreamProviders?: string[]

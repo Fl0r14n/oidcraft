@@ -9,6 +9,32 @@ import type { Client, Session } from '../types'
 
 export type LogoutNotification = { clientId: string; uri: string; logoutToken: string }
 
+/** A URL the host loads in an iframe (OIDC Front-Channel Logout 1.0 §2). */
+export type FrontChannelLogout = { clientId: string; uri: string }
+
+/**
+ * The front-channel half (FR-C11). The core produces the URLs and does not render the iframes: it
+ * emits no HTML (ARCHITECTURE.md §3.2), and the page they live in is the host's to style and to
+ * decide the timeout of.
+ *
+ * `iss` and `sid` go on the URL only for a client that asked for them — §2 makes it opt-in, and
+ * sending a session identifier to a client that never requested one leaks it for no purpose.
+ */
+export const frontChannelLogouts = async (config: ResolvedConfig, session: Session): Promise<FrontChannelLogout[]> => {
+  const out: FrontChannelLogout[] = []
+  for (const clientId of session.clients) {
+    const client = await config.adapter.clients.find(clientId)
+    if (!client?.frontchannelLogoutUri) continue
+    const uri = new URL(client.frontchannelLogoutUri)
+    if (client.frontchannelLogoutSessionRequired) {
+      uri.searchParams.set('iss', config.issuer)
+      uri.searchParams.set('sid', session.id)
+    }
+    out.push({ clientId, uri: uri.toString() })
+  }
+  return out
+}
+
 /**
  * Back-channel logout tokens for the host to deliver (OIDC Back-Channel Logout 1.0 §2.4).
  *
@@ -72,7 +98,7 @@ const verifyHint = async (config: ResolvedConfig, hint: string) => {
   }
 }
 
-export type EndSessionResult = { response: Response; notifications: LogoutNotification[] }
+export type EndSessionResult = { response: Response; notifications: LogoutNotification[]; frontChannel: FrontChannelLogout[] }
 
 export const endSessionEndpoint = async (
   config: ResolvedConfig,
@@ -90,6 +116,7 @@ export const endSessionEndpoint = async (
   const target = resolveTarget(client, requested, Boolean(claims))
 
   const notifications = session ? await logoutTokens(config, session) : []
+  const frontChannel = session ? await frontChannelLogouts(config, session) : []
   if (session) await config.adapter.sessions.destroy(session.id)
 
   const headers = new Headers({
@@ -99,14 +126,14 @@ export const endSessionEndpoint = async (
 
   if (!target) {
     headers.set('content-type', 'text/plain; charset=utf-8')
-    return { response: new Response('You are signed out.', { status: 200, headers }), notifications }
+    return { response: new Response('You are signed out.', { status: 200, headers }), notifications, frontChannel }
   }
 
   const state = params.get('state')
   const redirect = new URL(target)
   if (state !== null) redirect.searchParams.set('state', state)
   headers.set('location', redirect.toString())
-  return { response: new Response(null, { status: 303, headers }), notifications }
+  return { response: new Response(null, { status: 303, headers }), notifications, frontChannel }
 }
 
 const resolveTarget = (client: Client | undefined, requested: string | null, verifiedHint: boolean) => {

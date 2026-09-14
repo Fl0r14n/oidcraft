@@ -12,7 +12,8 @@ export const metadata = (config: ResolvedConfig, algorithms: string[]) => {
   const url = (path: string) => `${config.issuer}${path}`
   const { features, routes } = config
 
-  const authMethods = config.clientAuthMethods.filter(method => config.capabilities.clientCertificate || !MTLS_METHODS.includes(method))
+  const mtlsAvailable = config.capabilities.clientCertificate
+  const authMethods = config.clientAuthMethods.filter(method => mtlsAvailable || !MTLS_METHODS.includes(method))
 
   const grantTypes = ['authorization_code', 'refresh_token', 'client_credentials']
   if (features.deviceFlow) grantTypes.push('urn:ietf:params:oauth:grant-type:device_code')
@@ -56,6 +57,12 @@ export const metadata = (config: ResolvedConfig, algorithms: string[]) => {
     // FR-C14: unconditional.
     authorization_response_iss_parameter_supported: true,
     ...(features.dpop && { dpop_signing_alg_values_supported: algorithms }),
+    // RFC 8705 §3.3, only where a certificate can actually reach us (FR-R5, G-8).
+    ...(mtlsAvailable && { tls_client_certificate_bound_access_tokens: true }),
+    // OIDC Core §5.3.2 (FR-C5) and the logout session parameters (FR-C11).
+    userinfo_signing_alg_values_supported: algorithms,
+    frontchannel_logout_session_supported: true,
+    backchannel_logout_session_supported: true,
     ...(features.dpopNonces && { dpop_bound_access_tokens_required: true }),
     // JAR by value only: resolving a client-supplied request_uri would be outbound I/O (FR-A1).
     ...(config.authorizationDetailTypes.length && { authorization_details_types_supported: config.authorizationDetailTypes }),

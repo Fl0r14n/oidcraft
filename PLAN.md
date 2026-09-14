@@ -113,20 +113,19 @@ here, or under any load.
 - [ ] `npm trust github` registration, so releases publish from CI (ARCHITECTURE.md §11)
 - [ ] Docs site — **after** the review and the conformance run; requirements below
 
-## Known gaps in `FR-*`
+## `FR-*` coverage
 
-Implemented requirements are ticked above; these are the parts of a requirement that are not, found
-by auditing `REQUIREMENTS.md` against behaviour rather than against the checkboxes.
+Every functional requirement in `REQUIREMENTS.md` is implemented, including the six that an audit
+against behaviour — rather than against these checkboxes — found missing after the list said
+otherwise: FR-C4's mTLS methods, FR-C5's signed and encrypted UserInfo, FR-C11's front-channel
+logout, FR-C13's certificate-bound tokens, FR-C16's resource-server challenge, and FR-T2's JWT
+access tokens.
 
-- **FR-C4** — `tls_client_auth`, `self_signed_tls_client_auth` (blocked on `G-8` for Bun)
-- **FR-C5** — signed and encrypted UserInfo responses
-- **FR-C11** — front-channel logout (RP-initiated and back-channel are done)
-- **FR-C13** — mTLS certificate-bound tokens; DPoP is done
-- **FR-C16** — the resource-server half: `insufficient_user_authentication` challenges
-- **FR-T2** — JWT access tokens (RFC 9068); they are always opaque today
+`metadata.test.ts` exercises every advertised value rather than reading it, which is the check that
+was missing when discovery advertised three things the code refused.
 
-None of these is advertised in discovery. `metadata.test.ts` exercises every advertised value, which
-is the check that was missing when three of them were.
+What is *not* claimed: see the status section. Implemented is not the same as certified, and no
+`FR-*` here has been checked by anything but its author and its tests.
 
 ## Next, in this order
 

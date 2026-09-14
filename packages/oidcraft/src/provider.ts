@@ -100,10 +100,12 @@ export type LogoutDelivery = (notifications: LogoutNotification[]) => void | Pro
 
 const endSessionHandler: Handler = async (config, request) => {
   const session = await readSession(config, request)
-  const { response, notifications } = await endSessionEndpoint(config, request, session)
+  const { response, notifications, frontChannel } = await endSessionEndpoint(config, request, session)
   // From the resolved config, never a module-level pointer: two providers in one process must not
   // be able to reach each other's callback (FR-A1).
   if (notifications.length && config.onLogout) await config.onLogout(notifications)
+  // The iframe page belongs to the host, so the URLs are handed over rather than rendered here.
+  if (frontChannel.length && config.onFrontChannelLogout) await config.onFrontChannelLogout(frontChannel)
   return response
 }
 
@@ -142,8 +144,8 @@ const routeTable = (config: ResolvedConfig) => {
   add(config.routes.oauthMetadata, [GET], async cfg => discoveryEndpoint(cfg))
   add(config.routes.jwks, [GET], async cfg => jwksEndpoint(cfg))
   add(config.routes.authorization, [GET, 'POST'], authorizationHandler)
-  add(config.routes.token, ['POST'], async (cfg, req) => tokenEndpoint(cfg, req))
-  add(config.routes.userinfo, [GET, 'POST'], async (cfg, req) => userinfoEndpoint(cfg, req))
+  add(config.routes.token, ['POST'], async (cfg, req, ctx) => tokenEndpoint(cfg, req, ctx.clientCertificate))
+  add(config.routes.userinfo, [GET, 'POST'], async (cfg, req, ctx) => userinfoEndpoint(cfg, req, ctx.clientCertificate))
   add(config.routes.endSession, [GET, 'POST'], endSessionHandler)
   if (config.features.revocation) add(config.routes.revocation, ['POST'], async (cfg, req) => revocationEndpoint(cfg, req))
   if (config.features.introspection) add(config.routes.introspection, ['POST'], async (cfg, req) => introspectionEndpoint(cfg, req))

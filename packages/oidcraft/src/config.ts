@@ -148,6 +148,8 @@ export type ProviderConfig = {
   pairwiseSalt?: string
   /** Delivers back-channel logout tokens. The core mints them; it never POSTs them (FR-A1, FR-C11). */
   onLogout?: (notifications: { clientId: string; uri: string; logoutToken: string }[]) => void | Promise<void>
+  /** Front-channel logout URLs for the host to load in iframes; the core renders no HTML (FR-C11). */
+  onFrontChannelLogout?: (targets: { clientId: string; uri: string }[]) => void | Promise<void>
   /**
    * Fetches the key set behind a client's `jwks_uri`, for request objects and private_key_jwt.
    * The core will not fetch it: that is outbound I/O to a URL the client chose (FR-A1, FR-R4).
@@ -186,6 +188,7 @@ export type ResolvedConfig = {
   features: Features
   capabilities: Capabilities
   onLogout: ProviderConfig['onLogout']
+  onFrontChannelLogout: ProviderConfig['onFrontChannelLogout']
   resolveClientJwks: ProviderConfig['resolveClientJwks']
   onRegister: ProviderConfig['onRegister']
   onAudit: ProviderConfig['onAudit']
@@ -290,6 +293,7 @@ export const resolveConfig = (config: ProviderConfig): ResolvedConfig => {
     features,
     capabilities,
     onLogout: config.onLogout,
+    onFrontChannelLogout: config.onFrontChannelLogout,
     resolveClientJwks: config.resolveClientJwks,
     onRegister: config.onRegister,
     onAudit: config.onAudit,

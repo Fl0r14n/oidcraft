@@ -1,3 +1,4 @@
+export { type AccessTokenInput, JWT_ACCESS_TOKEN_TYPE, mintJwtAccessToken, resolveAccessToken } from './access-token'
 export type {
   AccountStore,
   Adapter,
@@ -10,6 +11,7 @@ export type {
   ReplayGuard,
   SessionStore
 } from './adapter'
+export { ASSERTION_TYPE, verifyClientAssertion } from './client-assertion'
 export {
   type AuditEvent,
   type Capabilities,
@@ -31,7 +33,7 @@ export { type AuthorizationDetail, type AuthorizationRequest, redirectTo } from 
 export { CIBA_GRANT, type CibaDecision, type CibaPayload } from './endpoints/ciba'
 export { type DeviceApproval, type DevicePayload, normalizeUserCode, userCode } from './endpoints/device'
 export { metadata } from './endpoints/discovery'
-export { type LogoutNotification, logoutTokens } from './endpoints/end-session'
+export { type FrontChannelLogout, frontChannelLogouts, type LogoutNotification, logoutTokens } from './endpoints/end-session'
 export { clientResponse } from './endpoints/registration'
 export { type ExchangeDecision, type ExchangePolicy, SUPPORTED_TOKEN_TYPES, TOKEN_EXCHANGE } from './endpoints/token-exchange'
 export { ConfigurationError, errorResponse, OAuthError, type OAuthErrorCode, type OAuthErrorInit } from './errors'
@@ -54,8 +56,10 @@ export {
 } from './keys'
 export { type FromKvOptions, fromKv } from './kv'
 export { type Management, type ManagementClientInput, management } from './management'
+export { certificateThumbprint, matchesRegisteredCertificate, matchesSubjectDn } from './mtls'
 export { createProvider, type LogoutDelivery, type Provider } from './provider'
 export { isFresh, type LoginInput, readSession, SESSION_COOKIE, startSession } from './session'
+export { authenticationOf, meetsRequirement, type StepUpRequirement, type StepUpVerdict } from './step-up'
 export { pairwiseSubject, sectorOf, subjectFor } from './subjects'
 export type { Account, Artifact, ArtifactKind, Client, ClientAuthMethod, FederatedIdentity, Grant, Seconds, Session } from './types'
 export { ACR_PREFIX, type SelectionHints, selectUpstream, type UpstreamDescriptor } from './upstreams'

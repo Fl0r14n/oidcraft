@@ -1,7 +1,10 @@
+import { mintJwtAccessToken } from '../access-token'
 import { authenticateClient } from '../client-auth'
 import type { ResolvedConfig } from '../config'
+import type { ClientCertificate } from '../context'
 import { verifyDpopProof } from '../dpop'
 import { OAuthError } from '../errors'
+import { certificateThumbprint } from '../mtls'
 import { verifyChallenge } from '../pkce'
 import { token as randomToken } from '../random'
 import { subjectFor } from '../subjects'
@@ -36,15 +39,17 @@ const issueTokens = async (
   scopes: string[],
   nonce?: string,
   jkt?: string,
-  authorizationDetails?: unknown[]
+  authorizationDetails?: unknown[],
+  x5t?: string
 ) => {
-  const accessToken = randomToken()
+  const accessTokenId = randomToken()
   const expiresIn = config.ttl.accessToken
+  const accessTokenExpiry = new Date(Date.now() + expiresIn * 1000)
   // FR-C18: what this client is told the user is called, which may not be the local account id.
   const subject = await subjectFor(config, client, session.accountId)
 
   await config.adapter.artifacts.upsert({
-    id: accessToken,
+    id: accessTokenId,
     kind: 'access_token',
     clientId: client.clientId,
     accountId: session.accountId,
@@ -55,10 +60,22 @@ const issueTokens = async (
       sessionId: session.id,
       subject,
       ...(authorizationDetails && { authorizationDetails }),
-      ...(jkt && { cnf: { jkt } })
+      ...((jkt || x5t) && { cnf: { ...(jkt && { jkt }), ...(x5t && { 'x5t#S256': x5t }) } })
     },
-    expiresAt: new Date(Date.now() + expiresIn * 1000)
+    expiresAt: accessTokenExpiry
   })
+
+  const accessToken =
+    client.accessTokenFormat === 'jwt'
+      ? await mintJwtAccessToken(config, {
+          client,
+          id: accessTokenId,
+          subject,
+          scopes,
+          expiresAt: accessTokenExpiry,
+          ...((jkt || x5t) && { confirmation: { ...(jkt && { jkt }), ...(x5t && { 'x5t#S256': x5t }) } })
+        })
+      : accessTokenId
 
   let refreshToken: string | undefined
   // Only when the client asked for it: a refresh token nobody requested is a credential nobody guards.
@@ -106,7 +123,7 @@ const loadGrantAndSession = async (config: ResolvedConfig, artifact: Artifact) =
   return { grant, session }
 }
 
-const authorizationCodeGrant = async (config: ResolvedConfig, client: Client, form: URLSearchParams, jkt?: string) => {
+const authorizationCodeGrant = async (config: ResolvedConfig, client: Client, form: URLSearchParams, jkt?: string, x5t?: string) => {
   const code = form.get('code')
   if (!code) throw new OAuthError('invalid_request', { description: 'code is required' })
 
@@ -139,7 +156,8 @@ const authorizationCodeGrant = async (config: ResolvedConfig, client: Client, fo
     scopesOf(artifact),
     artifact.payload.nonce as string | undefined,
     jkt,
-    artifact.payload.authorizationDetails as unknown[] | undefined
+    artifact.payload.authorizationDetails as unknown[] | undefined,
+    x5t
   )
 }
 
@@ -289,9 +307,9 @@ const bindingFor = async (config: ResolvedConfig, client: Client, request: Reque
   return (await verifyDpopProof(config, request, { requireNonce: config.features.dpopNonces })).jkt
 }
 
-export const tokenEndpoint = async (config: ResolvedConfig, request: Request) => {
+export const tokenEndpoint = async (config: ResolvedConfig, request: Request, certificate?: ClientCertificate | undefined) => {
   const form = new URLSearchParams(await request.text())
-  const { client } = await authenticateClient(config, form, request.headers)
+  const { client } = await authenticateClient(config, form, request.headers, certificate)
 
   const grantType = form.get('grant_type')
   if (!grantType) throw new OAuthError('invalid_request', { description: 'grant_type is required' })
@@ -300,11 +318,14 @@ export const tokenEndpoint = async (config: ResolvedConfig, request: Request) =>
   }
 
   const jkt = await bindingFor(config, client, request)
+  // RFC 8705 §3: binding to the certificate the client already presented costs nothing extra and
+  // makes a stolen token useless without the private key behind it.
+  const x5t = client.certificateBoundAccessTokens && certificate ? await certificateThumbprint(certificate.der) : undefined
 
   const body = await (async () => {
     switch (grantType) {
       case 'authorization_code':
-        return authorizationCodeGrant(config, client, form, jkt)
+        return authorizationCodeGrant(config, client, form, jkt, x5t)
       case 'refresh_token':
         return refreshTokenGrant(config, client, form, jkt)
       case 'client_credentials':

@@ -63,12 +63,14 @@ refused it — see `metadata.test.ts`, which now tries every advertised value ra
 **FR-C3 — PKCE (RFC 7636) is mandatory** for every client on the code grant, public or
 confidential. `plain` is rejected; only `S256`. A client cannot opt out.
 
-**FR-C4 — Client authentication.** `none`, `client_secret_basic`, `client_secret_post`,
-`client_secret_jwt` and `private_key_jwt` (RFC 7523) are implemented and advertised.
+**FR-C4 — Client authentication.** All of `none`, `client_secret_basic`, `client_secret_post`,
+`client_secret_jwt`, `private_key_jwt` (RFC 7523), `tls_client_auth` and
+`self_signed_tls_client_auth` (RFC 8705).
 
-`tls_client_auth` and `self_signed_tls_client_auth` (RFC 8705) are **not implemented**. They require
-the host to pass the verified client certificate in — the core never terminates TLS (FR-R4) — and
-are refused at construction where the runtime cannot supply one (FR-R5, `G-8`).
+The mTLS methods need the host to pass the *verified* client certificate in — the core never
+terminates TLS (FR-R4), so it establishes which client presented a certificate, not whether to trust
+it. They are refused at construction, and absent from discovery, where the runtime cannot supply one
+(FR-R5, `G-8`).
 
 A JWT assertion is checked for its audience, a `jti` that has not been seen, and a lifetime under
 five minutes. The audience is what stops an assertion made out to this provider being replayed at

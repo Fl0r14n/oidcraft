@@ -48,7 +48,7 @@ interaction rather than the OP choosing an upstream itself.
       conformance suite; `explain query plan` asserts revocation and the user-code lookup use
       their indexes (FR-A5)
 - [ ] The same adapter against Postgres
-- [ ] `oidcraft/adapters/kysely`
+- [x] `oidcraft/adapters/kysely`, passing the same conformance suite as memory and Drizzle
 - [x] `metadata.test.ts`: the discovery document against OIDC Discovery 1.0 §3 and RFC 8414 §2,
       cross-checked against behaviour. **Not certification** — see `conformance/README.md`
 - [x] `conformance/` harness: plan configuration and a runner, for a suite built from source
@@ -75,7 +75,7 @@ interaction rather than the OP choosing an upstream itself.
 
 - [x] Revocation, introspection (FR-C8); RP-initiated and back-channel logout (FR-C11)
 - [x] DPoP (FR-C13): bound access and refresh tokens, `ath`/`htm`/`htu` checks, jti replay guard
-- [ ] DPoP nonces (`DPoP-Nonce`, `use_dpop_nonce`)
+- [x] DPoP nonces (`DPoP-Nonce`, `use_dpop_nonce`)
 - [x] PAR (RFC 9126) and JAR by value (RFC 9101) (FR-C12)
 - [ ] JAR by reference — needs a host resolver, since the core will not fetch a client-chosen URL
 - [x] DCR (FR-C9) with RFC 7592 client management, gated by `onRegister`

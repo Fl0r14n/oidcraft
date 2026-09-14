@@ -102,6 +102,8 @@
   },
   "devDependencies": {
     "drizzle-orm": "^0.45.2",
+    "kysely": "^0.28.7",
+    "kysely-bun-sqlite": "^0.3.2",
     "openid-client": "^6.8.8"
   },
   "publishConfig": {

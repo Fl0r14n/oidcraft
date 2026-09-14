@@ -1,7 +1,7 @@
 import { calculateJwkThumbprint, decodeProtectedHeader, importJWK, type JWK, jwtVerify } from 'jose'
 import type { ResolvedConfig } from './config'
 import { OAuthError } from './errors'
-import { base64url, sha256 } from './random'
+import { base64url, sha256, token } from './random'
 
 /** RFC 9449 §4.2: asymmetric only. A symmetric alg would let anyone holding the proof mint another. */
 const ALLOWED_ALGS = ['ES256', 'ES384', 'ES512', 'PS256', 'PS384', 'PS512', 'RS256', 'RS384', 'RS512', 'EdDSA']
@@ -10,6 +10,32 @@ const SKEW = 5
 const MAX_AGE = 60
 
 export type DpopProof = { jkt: string; jti: string }
+
+/**
+ * A server-chosen nonce the proof must echo (RFC 9449 §8).
+ *
+ * Without one a proof's freshness rests entirely on `iat`, so a clock-skew allowance is also a
+ * window in which a captured proof is replayable at a server that has not seen its `jti`. The nonce
+ * removes that: the server names the value, so it knows the proof was minted after it asked.
+ */
+export const NONCE_NAMESPACE = 'dpop-nonce'
+
+export const issueNonce = async (config: ResolvedConfig) => {
+  const nonce = token(16)
+  await config.adapter.replay.claim(NONCE_NAMESPACE, nonce, config.ttl.dpopNonce)
+  return nonce
+}
+
+const requireNonce = async (config: ResolvedConfig, presented: unknown) => {
+  const nonce = await issueNonce(config)
+  const description = presented === undefined ? 'a DPoP nonce is required' : 'that DPoP nonce is not one we issued, or it has expired'
+  throw new OAuthError('use_dpop_nonce', {
+    description,
+    spec: 'RFC 9449 §8',
+    status: 400,
+    headers: { 'dpop-nonce': nonce }
+  })
+}
 
 const invalid = (description: string, spec = 'RFC 9449 §4.3') =>
   new OAuthError('invalid_dpop_proof', { description, spec, headers: { 'www-authenticate': 'DPoP error="invalid_dpop_proof"' } })
@@ -23,6 +49,8 @@ export const htu = (request: Request) => {
 export const accessTokenHash = async (accessToken: string) => base64url(await sha256(accessToken))
 
 export type VerifyOptions = {
+  /** Demand a nonce this provider issued (RFC 9449 §8). */
+  requireNonce?: boolean | undefined
   /** Required when proving possession at a resource: binds the proof to one access token (§4.3). */
   accessToken?: string | undefined
   /** The thumbprint the token was issued against; a mismatch means a different key is presenting it. */
@@ -75,6 +103,16 @@ export const verifyDpopProof = async (config: ResolvedConfig, request: Request, 
   if (typeof jti !== 'string' || !jti) throw invalid('the DPoP proof has no jti')
   // NFR-S5: one proof, one use. Without this a captured proof is replayable for its whole window.
   if (!(await config.adapter.replay.claim('dpop', jti, MAX_AGE + SKEW))) throw invalid('this DPoP proof has already been used')
+
+  if (options.requireNonce) {
+    const presented = payload.nonce
+    // `claim` returns true for a value it has never seen — which here means a nonce we never
+    // issued. A nonce stays usable until it expires: it marks freshness, and it is the jti check
+    // above that stops a proof being replayed (RFC 9449 §8).
+    if (typeof presented !== 'string' || (await config.adapter.replay.claim(NONCE_NAMESPACE, presented, MAX_AGE))) {
+      await requireNonce(config, presented)
+    }
+  }
 
   if (options.accessToken) {
     const expected = await accessTokenHash(options.accessToken)

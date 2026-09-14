@@ -43,6 +43,7 @@ export type Ttl = {
   session: Seconds
   interaction: Seconds
   deviceCode: Seconds
+  dpopNonce: Seconds
   pushedAuthorizationRequest: Seconds
 }
 
@@ -54,6 +55,7 @@ export const DEFAULT_TTL: Ttl = {
   session: 1_209_600,
   interaction: 600,
   deviceCode: 600,
+  dpopNonce: 300,
   pushedAuthorizationRequest: 60
 }
 
@@ -75,6 +77,8 @@ export type Features = {
   introspection: boolean
   revocation: boolean
   dpop: boolean
+  /** Demand a server-issued nonce on every DPoP proof (RFC 9449 §8). */
+  dpopNonces: boolean
 }
 
 export const DEFAULT_FEATURES: Features = {
@@ -84,7 +88,8 @@ export const DEFAULT_FEATURES: Features = {
   pushedAuthorizationRequests: false,
   introspection: true,
   revocation: true,
-  dpop: false
+  dpop: false,
+  dpopNonces: false
 }
 
 export type ProviderConfig = {

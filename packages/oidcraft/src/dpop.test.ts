@@ -276,3 +276,98 @@ describe('discovery', () => {
     expect(body).not.toHaveProperty('dpop_signing_alg_values_supported')
   })
 })
+
+describe('DPoP nonces', () => {
+  const withNonces = () =>
+    createProvider({ issuer: ISSUER, adapter, interactionUrl: `${ISSUER}/interaction`, features: { dpop: true, dpopNonces: true } })
+
+  const nonced = async (method: string, uri: string, nonce: string, over: { accessToken?: string } = {}) => {
+    const jwk = await exportJWK(keyPair.publicKey)
+    return new SignJWT({
+      jti: token(16),
+      htm: method,
+      htu: uri,
+      nonce,
+      ...(over.accessToken && { ath: await accessTokenHash(over.accessToken) })
+    })
+      .setProtectedHeader({ alg: 'ES256', typ: 'dpop+jwt', jwk })
+      .setIssuedAt()
+      .sign(keyPair.privateKey)
+  }
+
+  // RFC 9449 §8: the server names the value, so it knows the proof was minted after it asked.
+  test('a proof without a nonce is refused and the nonce is handed back', async () => {
+    const provider = withNonces()
+    const response = await provider.handle(
+      new Request(`${ISSUER}/token`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded', dpop: await proof('POST', `${ISSUER}/token`) },
+        body: new URLSearchParams({ grant_type: 'authorization_code', code: 'x', client_id: 'rp' }).toString()
+      })
+    )
+    expect((await response.json()).error).toBe('use_dpop_nonce')
+    expect(response.headers.get('dpop-nonce')).toBeTruthy()
+  })
+
+  test('a nonce this provider never issued is refused', async () => {
+    const provider = withNonces()
+    const response = await provider.handle(
+      new Request(`${ISSUER}/token`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded', dpop: await nonced('POST', `${ISSUER}/token`, 'invented') },
+        body: new URLSearchParams({ grant_type: 'authorization_code', code: 'x', client_id: 'rp' }).toString()
+      })
+    )
+    const body = await response.json()
+    expect(body.error).toBe('use_dpop_nonce')
+    expect(body.error_description).toContain('not one we issued')
+  })
+
+  test('an issued nonce is accepted, and stays usable until it expires', async () => {
+    const provider = withNonces()
+    const first = await provider.handle(
+      new Request(`${ISSUER}/token`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded', dpop: await proof('POST', `${ISSUER}/token`) },
+        body: new URLSearchParams({ grant_type: 'authorization_code', code: 'x', client_id: 'rp' }).toString()
+      })
+    )
+    const nonce = first.headers.get('dpop-nonce') as string
+
+    // Past the nonce check: the failure is now the bogus code, not the proof.
+    const accepted = await provider.handle(
+      new Request(`${ISSUER}/token`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded', dpop: await nonced('POST', `${ISSUER}/token`, nonce) },
+        body: new URLSearchParams({ grant_type: 'authorization_code', code: 'x', client_id: 'rp' }).toString()
+      })
+    )
+    expect((await accepted.json()).error).toBe('invalid_grant')
+
+    // The nonce marks freshness and lasts its lifetime; a *proof* is what may not be reused, and
+    // the jti guard is what enforces that (RFC 9449 §8).
+    const secondProof = await nonced('POST', `${ISSUER}/token`, nonce)
+    const again = await provider.handle(
+      new Request(`${ISSUER}/token`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded', dpop: secondProof },
+        body: new URLSearchParams({ grant_type: 'authorization_code', code: 'x', client_id: 'rp' }).toString()
+      })
+    )
+    expect((await again.json()).error).toBe('invalid_grant')
+
+    const replayed = await provider.handle(
+      new Request(`${ISSUER}/token`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded', dpop: secondProof },
+        body: new URLSearchParams({ grant_type: 'authorization_code', code: 'x', client_id: 'rp' }).toString()
+      })
+    )
+    expect((await replayed.json()).error_description).toContain('already been used')
+  })
+
+  test('nonces are not demanded when the feature is off', async () => {
+    const response = await exchange(await codeFor(), { dpop: await proof('POST', `${ISSUER}/token`) })
+    expect(response.status).toBe(200)
+  })
+})

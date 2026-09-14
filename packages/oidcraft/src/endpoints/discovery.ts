@@ -49,6 +49,7 @@ export const metadata = (config: ResolvedConfig, algorithms: string[]) => {
     // FR-C14: unconditional.
     authorization_response_iss_parameter_supported: true,
     ...(features.dpop && { dpop_signing_alg_values_supported: algorithms }),
+    ...(features.dpopNonces && { dpop_bound_access_tokens_required: true }),
     // JAR by value only: resolving a client-supplied request_uri would be outbound I/O (FR-A1).
     ...(config.authorizationDetailTypes.length && { authorization_details_types_supported: config.authorizationDetailTypes }),
     request_parameter_supported: true,

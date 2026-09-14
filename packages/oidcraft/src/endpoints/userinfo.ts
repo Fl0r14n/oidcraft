@@ -34,7 +34,7 @@ export const userinfoEndpoint = async (config: ResolvedConfig, request: Request)
     if (presented.scheme !== 'dpop') {
       throw unauthorized('this access token is DPoP-bound and must be presented with the DPoP scheme', 'DPoP')
     }
-    await verifyDpopProof(config, request, { accessToken: presented.token, expectedJkt: boundTo })
+    await verifyDpopProof(config, request, { accessToken: presented.token, expectedJkt: boundTo, requireNonce: config.features.dpopNonces })
   }
 
   const scopes = (artifact.payload.scopes as string[] | undefined) ?? []

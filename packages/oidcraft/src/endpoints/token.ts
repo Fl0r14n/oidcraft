@@ -228,7 +228,7 @@ const bindingFor = async (config: ResolvedConfig, client: Client, request: Reque
       spec: 'RFC 9449 §5'
     })
   }
-  return (await verifyDpopProof(config, request)).jkt
+  return (await verifyDpopProof(config, request, { requireNonce: config.features.dpopNonces })).jkt
 }
 
 export const tokenEndpoint = async (config: ResolvedConfig, request: Request) => {

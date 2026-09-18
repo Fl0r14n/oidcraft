@@ -346,9 +346,10 @@ with no key, DPoP required with no nonce store — fails at construction, not at
 **NFR-D3** — Errors carry the OAuth error code, the specification clause and what the caller must
 change.
 
-**NFR-D4** — Zero runtime dependencies beyond `jose`. Everything else — `openid-client`,
-`drizzle-orm`, `kysely` — is an optional peer confined to its own subpath entry, so importing the
-core pulls none of them.
+**NFR-D4** — Zero runtime dependencies beyond `jose`. `drizzle-orm` and `kysely` are optional peers
+confined to their own subpath entries, so importing the core pulls neither. The relying-party code
+`oidcraft/federation` needs is this workspace's own and is bundled into that entry rather than
+depended on, so brokering adds no third-party package either.
 
 ## 11. Open questions — `G-*`
 

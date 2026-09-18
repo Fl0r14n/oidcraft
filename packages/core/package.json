@@ -1,0 +1,29 @@
+{
+  "name": "@oidcraft/core",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Internal: the relying-party core shared by oidcraft/federation and the framework client libraries. Bundled into each of them; never published.",
+  "license": "MIT",
+  "author": "Fl0r14n <florian.chis@gmail.com>",
+  "type": "module",
+  "main": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "jose": "^6.2.12"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

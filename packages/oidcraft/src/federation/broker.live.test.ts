@@ -35,8 +35,8 @@ await upstreamAdapter.clients.create?.({
   grantTypes: ['authorization_code'],
   responseTypes: ['code'],
   scopes: ['openid', 'email', 'profile'],
-  // openid-client v6 sends client_id/client_secret in the body by default, not a Basic header —
-  // measured 2026-09-12. The core enforces the method a client registered, so this must match.
+  // @oidcraft/core sends client_id/client_secret in the body unless `tokenAuthMethod` says otherwise,
+  // and the core enforces the method a client registered, so the two have to agree.
   tokenEndpointAuthMethod: 'client_secret_post',
   createdAt: new Date(),
   updatedAt: new Date()
@@ -179,5 +179,59 @@ describe('brokering to a live upstream', () => {
 
   test('an unknown provider id is refused', async () => {
     expect(broker.start('x', 'nope')).rejects.toThrow(/unknown upstream provider/)
+  })
+})
+
+/**
+ * FR-F11. The relying-party core reports a failure by returning a token that carries `error` and no
+ * credential; what the downstream client must never see is that shape, a stack trace, or silence.
+ */
+describe('an upstream that fails produces an OAuth error', () => {
+  test('a provider configured without openid is refused at construction, not at the callback', () => {
+    expect(() =>
+      createBroker({
+        adapter: downstream,
+        callbackUri: CALLBACK,
+        allowInsecure: true,
+        providers: [{ id: 'self', issuer: ISSUER, clientId: 'broker', scopes: ['email'] }]
+      })
+    ).toThrow(/never return an ID token/)
+  })
+
+  test('an unreachable upstream is temporarily_unavailable rather than a discovery stack trace', async () => {
+    const dead = createBroker({
+      adapter: downstream,
+      callbackUri: CALLBACK,
+      allowInsecure: true,
+      providers: [{ id: 'dead', issuer: 'http://127.0.0.1:1', clientId: 'broker', scopes: ['openid'] }]
+    })
+    expect(dead.start('downstream-interaction-8', 'dead')).rejects.toThrow(/returned no usable endpoints/)
+  })
+
+  // RFC 9207 §2.4: with more than one upstream configured, a code minted elsewhere is otherwise
+  // indistinguishable from one minted here, and gets exchanged here.
+  test('a callback carrying someone else’s iss is refused before the code is exchanged', async () => {
+    const { url } = await broker.start('downstream-interaction-9', 'self')
+    const callback = await authenticateUpstream(url)
+    callback.searchParams.set('iss', 'https://evil.example')
+
+    expect(broker.complete(callback)).rejects.toThrow(/different authorization server/)
+  })
+
+  test('the upstream’s own refusal reaches the downstream client as access_denied', async () => {
+    const { state } = await broker.start('downstream-interaction-10', 'self')
+    const refused = new URL(
+      `${CALLBACK}?state=${state}&error=access_denied&error_description=user+said+no&iss=${encodeURIComponent(ISSUER)}`
+    )
+
+    expect(broker.complete(refused)).rejects.toThrow(/refused the request with access_denied: user said no/)
+  })
+
+  test('a replayed handoff is refused whatever the callback carries', async () => {
+    const { state } = await broker.start('downstream-interaction-11', 'self')
+    const callback = new URL(`${CALLBACK}?state=${state}&code=whatever&iss=${encodeURIComponent(ISSUER)}`)
+    await broker.complete(callback).catch(() => undefined)
+
+    expect(broker.complete(callback)).rejects.toThrow(/did not start here/)
   })
 })

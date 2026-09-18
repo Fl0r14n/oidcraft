@@ -18,14 +18,15 @@ oidcraft/adapters/drizzle    Postgres, SQLite
 oidcraft/adapters/kysely     Postgres, SQLite, MySQL
 ```
 
-`drizzle-orm`, `kysely` and `openid-client` are optional peers, each confined to the entry that
-owns it — importing the core pulls none of them.
+`drizzle-orm` and `kysely` are optional peers, each confined to the entry that owns it — importing
+the core pulls neither.
 
 ```
 Only Node needs an HTTP bridge; the rest are small context providers for what `Request` does not
 carry (client IP, verified TLS client certificate).
 
 ```
+packages/core                the relying-party core. Private; bundled into whoever uses it
 packages/oidcraft            the package
 apps/server                  reference OP: protocol + login screens + admin
 apps/client                  demo relying party: Vue 3 + vue-oidc

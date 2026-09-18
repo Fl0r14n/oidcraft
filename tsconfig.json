@@ -1,5 +1,5 @@
 {
   "extends": "./tsconfig.base.json",
   "files": [],
-  "references": [{ "path": "./packages/oidcraft" }, { "path": "./apps/client" }, { "path": "./apps/server" }]
+  "references": [{ "path": "./packages/core" }, { "path": "./packages/oidcraft" }, { "path": "./apps/client" }, { "path": "./apps/server" }]
 }

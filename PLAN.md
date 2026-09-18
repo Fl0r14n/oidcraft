@@ -186,3 +186,110 @@ building a worse site to preserve a rule that was about something else.
 `G-1` OpenID Federation 1.0 · `G-2` how much of the account the library owns · `G-3` FAPI 2.0 ·
 `G-4` upstream SAML · `G-5` TypeORM · `G-6` multi-tenancy · `G-7` Drizzle v1 ·
 `G-8` mTLS on Bun
+
+## Federation moved off `openid-client`
+
+Landed 2026-09-18. `oidcraft/federation` is now a relying party through `packages/core`, this
+workspace's own RP core, and `openid-client` is gone from the peers. That package is **private and
+never published** — it is bundled into the `./federation` entry, so `dist/federation.mjs` imports
+`oidcraft` and `jose` and nothing else, and NFR-D4 is literally true again (ARCHITECTURE.md §2.1).
+
+The swap closed five things `openid-client` did that the ported core did not, each with tests:
+
+- **https is enforced** on every endpoint a code, a secret or a key crosses, `localhost` included.
+  `BrokerConfig.allowInsecure` now means something; before the swap it was a field with no effect
+  left over from `client.allowInsecureRequests`.
+- **The discovery document must assert the issuer it was fetched from** (OIDC Discovery 1.0 §4.3),
+  with Entra's `{tenantid}` template as the one exception.
+- **`iss` on the authorization response is checked** (RFC 9207 §2.4, the mix-up defence). A provider
+  advertising `authorization_response_iss_parameter_supported` must send it — oidcraft itself does
+  (FR-C14), so `broker.live.test.ts` exercises the required path, not only the optional one.
+- **`UpstreamProvider.tokenAuthMethod`** picks `client_secret_post`, `client_secret_basic` or `none`.
+  Before it was whatever `openid-client` defaulted to.
+- **FR-F11 is real**: an unreachable upstream, a refusal on the redirect, a wrong `iss` and a failed
+  ID token each become a distinct `OAuthError` with the clause that was violated.
+
+`metadata.contract.test.ts` pins the discovery document this OP *writes* to the type the RP core
+*reads*, so renaming an endpoint here is a compile error rather than someone's runtime `undefined`.
+
+## The monorepo: four libraries, one protocol core
+
+Decided 2026-09-18, not started. `vue-oidc`, `ngx-oauth` and `react-oauth-oidc` move into this
+workspace and their GitHub repositories are archived. The **npm packages keep their names and their
+users** — only the repositories are deprecated.
+
+The reason is not tidiness. Read side by side, the three libraries have already converged on the
+same module boundaries, independently:
+
+| module | vue-oidc | react-oauth-oidc | ngx-oauth |
+| --- | --- | --- | --- |
+| `config` `fetch` `functions` `jwt` `token` `types` `user` | yes | yes | yes |
+| storage | `ref.ts` | `storage.ts` | `storage.ts` |
+| flows | `flows.ts` | `flows.ts` | `oauth.ts` |
+| optional UI `component/` | Vuetify | yes | Material |
+
+That is one design written three times. Every Vue file above the core imports Vue exactly once, and
+always the same names — `ref`, `computed`, `watch`, `effectScope`, `inject`. ngx-oauth's library is
+47 `inject`, 16 `computed`, 14 `signal`, 12 `effect` and **no RxJS**. React has `store.ts` already.
+Three vocabularies for one idea, which is what makes the shared layer possible rather than wishful.
+
+### Target shape
+
+```
+packages/
+  core/          . protocol   discovery, PKCE, flow, jwt, redirect, types   (server + clients)
+                 ./client     storage, token lifecycle, refresh, authed fetch  (clients only)
+  oidcraft/      published: oidcraft
+  vue-oidc/      published: vue-oidc              peer: vue
+  ngx-oauth/     published: ngx-oauth             peer: @angular/core
+  react-oauth/   published: react-oauth-oidc      peer: react
+apps/
+  server/        reference OP, conformance target
+  demo-vue/  demo-react/  demo-angular/     the three existing sample apps
+```
+
+Two entries because the server must not bundle `localStorage`. `.` exists and is tested; `./client`
+is the layer the table above collapses into, written once against a signal interface narrow enough
+that `ref`, `signal` and `useSyncExternalStore` each satisfy it. Each binding is then its
+`component/`, its `axios/`, and the reactivity glue.
+
+**No published package here depends on another published package here.** That property is what
+keeps four publishers out of a version matrix, and `verify-entries.ts` already fails the build if a
+workspace-private package leaks into a published bundle.
+
+### Decided
+
+- **`ngx-oauth` drops `ng-packagr`.** Its library has no decorators — `@Injectable`, `@NgModule` and
+  `@Component` appear only in the sample app and the optional login component — so it satisfies
+  `erasableSyntaxOnly` and builds with tsdown like every other package here. The Angular *sample*
+  still needs the Angular CLI, which is a deliberate exception to §1.1's no-bundler rule for apps.
+- **Order: vue-oidc, then React, then Angular.** vue-oidc is the reference implementation, React is
+  the closest in shape and already on tsdown, and Angular goes last so the signal abstraction has
+  been validated against two frameworks before it meets the one with its own toolchain.
+
+### What would make `@oidcraft/core` a published package
+
+It is `private: true` today and that is a deferred decision, not a closed one. What argues for
+publishing, once the client libraries are actually here:
+
+- **Propagation.** A fix to the `iss` or nonce handling currently means publishing four packages and
+  every user upgrading four. Published, it is one release that anyone on a caret range picks up.
+- **Four consumers, not two.** The bundling case was obvious at two.
+- Svelte, Solid and vanilla come free rather than on request.
+
+What was *not* a real argument against it, and should not be reused: the §2.1 version matrix. That
+pain is specific to **peer** dependencies, where the consumer reconciles two versions. As an
+ordinary dependency there is nothing to reconcile. If it is published, `NFR-D4` needs one word —
+zero *third-party* runtime dependencies beyond `jose` — because the core's own tree is `jose` alone.
+
+### Still open
+
+- **`vue-oidc` still has its own copy** of this code. It moves into `packages/` and onto
+  `packages/core` with the Angular and React bindings; until it does, the two copies can drift, and
+  the four fixes above exist only here.
+- **Both halves carry their own `base64url`.** Four lines, duplicated between the OP and the RP core
+  because the alternative is the RP core depending on the provider. `verify-entries.ts` compares
+  against the root's *exported* names for exactly this reason — two independent libraries are
+  entitled to share a private helper's name.
+- **Introspection still authenticates with Basic unconditionally.** `tokenAuthMethod` covers the
+  token, refresh and revocation endpoints, where the choice actually varies between providers.

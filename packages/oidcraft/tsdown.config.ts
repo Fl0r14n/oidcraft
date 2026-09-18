@@ -18,11 +18,13 @@ export default defineConfig([
     clean: true
   },
   {
-    // the only entry that may import openid-client
+    // `@oidcraft/core` is deliberately absent from neverBundle: it is a workspace package that is
+    // never published, so it is compiled *into* this entry. A consumer resolves `oidcraft` and `jose`
+    // and nothing else (NFR-D4).
     entry: { federation: 'src/federation/index.ts' },
     outDir: 'dist',
     format: 'esm',
-    deps: { neverBundle: [...external, 'openid-client'] },
+    deps: { neverBundle: external },
     dts: true,
     clean: false
   },

@@ -79,6 +79,15 @@ bun run conformance      # OpenID Foundation suite against apps/server
   one entry; `bun run --filter=oidcraft build` runs `verify-entries.ts`, which fails the build if
   one leaks, if a core type is inlined, or if `node:` appears outside the `./runtimes/node` entry
   (ARCHITECTURE.md §2.1–2.2). Do not split this into several packages without reading §2.1.
+- **`packages/core` is the other half and is never published**: the relying-party core, used by
+  `oidcraft/federation` and by the client libraries moving into this workspace (`vue-oidc`, then the
+  Angular and React ones, each published under its own name). It is **bundled into** every consumer,
+  not depended on — `verify-entries.ts` fails the build if an entry still imports it, because that
+  name resolves to nothing once installed. Do not add it to `peerDependencies` (ARCHITECTURE.md §2.1).
+- **Do not add a `paths` alias in `packages/oidcraft/tsconfig.json` for `@oidcraft/core`.** Pointing
+  it at `../oidc/src` makes tsdown's declaration emit write `.d.ts` files beside that package's
+  sources. oidcraft type-checks against the built `.d.mts`, which is what a consumer resolves
+  anyway; `bun run --filter` builds the sibling first.
 - **There is no build step for the apps.** `bun index.html` is the client — Bun bundles Vue, compiles Tailwind
   and inlines `OIDCRAFT_PUBLIC_*` itself. The server runs from source. Do not add a bundler or a
   `dist/`; `build` scripts are typechecks.

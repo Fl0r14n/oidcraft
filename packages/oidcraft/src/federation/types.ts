@@ -1,3 +1,4 @@
+import type { TokenAuthMethod } from '@oidcraft/core'
 import type { FederatedIdentity } from 'oidcraft'
 
 /** An upstream OP this provider brokers to. Discovery is by issuer; nothing is hardcoded (FR-F1). */
@@ -9,6 +10,9 @@ export type UpstreamProvider = {
   scopes: string[]
   /** Extra authorization-request parameters, e.g. `prompt`, `hd`, `domain_hint`. */
   authorizationParams?: Record<string, string>
+  /** How client credentials reach this upstream's token endpoint. `client_secret_post` by default;
+   * some providers only honour the Basic header (RFC 6749 §2.3.1). */
+  tokenAuthMethod?: TokenAuthMethod
   /** Email domains this provider owns, for home-realm discovery (FR-F4). */
   domains?: string[]
   /** Human-readable, for an upstream-selection screen. */

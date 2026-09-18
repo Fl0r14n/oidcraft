@@ -13,7 +13,7 @@ How oidcraft is built. `REQUIREMENTS.md` says what it must do; every section her
 | **@vuetify/v0** | 1.2.x | Headless Vue primitives, in the **admin surface only** (§8.1). Vue 3.5 is its only dependency. |
 | **Biome** | 2.5.x | Lint and format. `biome.json` settles formatting; it is not a matter of preference. |
 | **jose** | ^6 | The only runtime dependency. WebCrypto-backed, runtime-agnostic (NFR-D4). |
-| **openid-client** | ^6 | Optional peer, confined to the `./federation` entry (§2.2). |
+| **@oidcraft/core** | workspace | This workspace's shared protocol core (§2.1). Not published; bundled into the `./federation` entry. |
 | **tsdown** | 0.23.x | Library build: seven ESM entries with `.d.mts` types (§2.2). |
 | **Drizzle / Kysely** | 0.45 / 0.28 | First-party adapters (FR-A4). Optional peers, never bundled (§2.2). |
 
@@ -48,6 +48,7 @@ binary, which is still on a `7.0.0-dev` tag and is not what the `typescript` pac
 ## 2. Workspace
 
 ```
+packages/core/              the relying-party core. Private, bundled into its consumers (§2.1)
 packages/oidcraft/          one published package, ten entries
   src/index.ts              .                     the OP. fetch in, fetch out, no I/O
   src/federation/           ./federation          the relying-party leg — upstream brokering
@@ -64,10 +65,10 @@ apps/
   client                    the demo relying party: Vue 3 + vue-oidc
 ```
 
-### 2.1 One package, not seven
+### 2.1 One published package, one private one
 
-`oidcraft` ships as a single package with subpath exports, and `drizzle-orm`, `kysely` and
-`openid-client` are **optional** peer dependencies — nobody installing it for Kysely pulls Drizzle.
+`oidcraft` ships as a single package with subpath exports, and `drizzle-orm` and `kysely` are
+**optional** peer dependencies — nobody installing it for Kysely pulls Drizzle.
 
 The reason is the adapter contract. It is the part of this library most likely to churn before 1.0,
 and it is exactly the coupling that makes a split painful: separate versioning puts consumers on
@@ -76,14 +77,38 @@ Auth.js lives that; `oidc-provider` and `better-auth` do not, because they are s
 `drizzle-orm` itself is the closest precedent — dozens of driver adapters as subpath exports with
 optional peers, not as separate packages.
 
-Two secondary reasons. Going one package to several later is mechanical; going several to one is a
-breaking change for every consumer, so the merged shape is the reversible one. And npm's trusted
-publishing cannot bootstrap a *new* package — the configuration only exists once a version is
-published — so every extra package is another manual first publish and another `npm trust github`
-run behind a browser OTP.
+Going one package to several later is mechanical; going several to one is a breaking change for
+every consumer, so the merged shape is the reversible one. And npm's trusted publishing cannot
+bootstrap a *new* package — the configuration only exists once a version is published — so every
+extra package is another manual first publish and another `npm trust github` run behind a browser
+OTP.
 
-What the split was actually buying is a hard wall stopping the core from importing `openid-client`.
-`verify-entries.ts` replaces it (§2.2).
+**`packages/core` is a package this workspace does not publish.** It is the relying-party leg —
+discovery, PKCE, the authorization round trip, ID token verification — and it has two kinds of
+consumer that have nothing else in common:
+
+- `oidcraft/federation`, because brokering *is* being a relying party at the upstream (§5);
+- the framework client libraries moving into this workspace — `vue-oidc`, and the Angular and React
+  ones — which publish under their own names and whose users have no OP at all.
+
+It is compiled *into* each of them rather than published beside them. That is what makes it free:
+no npm name to own, no trusted-publishing bootstrap, and NFR-D4 stays literally true —
+`dist/federation.mjs` imports `oidcraft` and `jose` and nothing else. A consumer never learns this
+package exists.
+
+This is deliberately the reversible direction. Not-published to published is additive; the reverse
+breaks anyone who found it. `PLAN.md` records what would flip it, and the client libraries landing
+here are the thing most likely to.
+
+An entry inside `oidcraft` could not have done the same job: a Vue application would be installing
+an OpenID Provider to get a login button.
+
+The one cost is duplication in the large. Both halves carry their own four-line `base64url`, because
+the alternative is the relying-party core depending on the provider, which is the coupling this
+shape exists to avoid. `verify-entries.ts` tolerates it deliberately and says why (§2.2).
+
+What a package split was never buying is a hard wall stopping the core from importing its optional
+peers. `verify-entries.ts` does that (§2.2).
 
 ### 2.2 Entry invariants
 
@@ -91,6 +116,11 @@ Each optional peer is confined to the one entry that owns it; that is what keeps
 than a tax on every consumer. Nothing enforces this at build time, and every way of breaking it
 fails silently — a leaked peer surfaces only as a resolution error in a consumer who never installed
 it, and a core type inlined into an entry compiles fine while shipping a second copy that drifts.
+
+It also asserts the opposite for `packages/core`: no entry may *import* it, because it is never
+published and a surviving import resolves to nothing on a consumer's machine. Bundled is the only
+correct outcome, and the check that it stayed bundled is the same shape as the check that an
+optional peer stayed external.
 
 `verify-entries.ts` runs after `build` and asserts, per entry: no optional peer it does not own, in
 either the JS or the `.d.mts`; no `node:` builtin outside the `./runtimes/node` entry (FR-R1); no redeclared
@@ -201,7 +231,8 @@ rolling deploy, from several processes at once.
 
 **Identity brokering** is what oidcraft implements (FR-F*): it is the OP its clients see, and at
 the same time a relying party at one or more upstream OPs. Downstream clients never learn an
-upstream exists.
+upstream exists. The relying-party leg is `packages/core` — the same code a browser application
+would use against this OP, pointed the other way, and bundled in rather than depended on (§2.1).
 
 **OpenID Federation 1.0** — entity statements, trust chains, trust anchors, automatic registration
 across a multilateral trust fabric — is a different protocol solving a different problem

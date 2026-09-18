@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs'
 
 const ENTRIES = {
   index: { owns: [] as string[], runtime: undefined },
-  federation: { owns: ['openid-client'], runtime: undefined },
+  federation: { owns: [] as string[], runtime: undefined },
   interaction: { owns: [], runtime: undefined },
   'runtimes/node': { owns: [], runtime: 'node' },
   'runtimes/bun': { owns: [], runtime: 'bun' },
@@ -18,13 +18,33 @@ const ENTRIES = {
   'adapters/kysely': { owns: ['kysely'], runtime: undefined }
 } as const
 
-const OPTIONAL_PEERS = ['openid-client', 'drizzle-orm', 'kysely'] as const
+const OPTIONAL_PEERS = ['drizzle-orm', 'kysely'] as const
+
+/** Workspace packages that are never published. They must be compiled *into* whichever entry uses
+ * them: a surviving import resolves to nothing on a consumer's machine, and npm cannot even 404 it
+ * usefully because the name was never meant to exist (ARCHITECTURE.md §2.1). */
+const NEVER_PUBLISHED = ['@oidcraft/core'] as const
 
 const read = (name: string) => readFileSync(`dist/${name}`, 'utf8')
 const imports = (source: string) => [...source.matchAll(/^import\s.*?from\s*["']([^"']+)["']/gm)].map(m => m[1] ?? '')
 const importsPackage = (source: string, name: string) => imports(source).some(id => id === name || id.startsWith(`${name}/`))
 const declares = (source: string) =>
   [...source.matchAll(/^(?:declare\s+)?(?:type|interface|const|function|class)\s+([A-Za-z0-9_$]+)/gm)].map(m => m[1] ?? '')
+
+/**
+ * The names the root actually *exports*, which is narrower than what it declares: a bundle is full of
+ * private helpers, and two independent libraries are entitled to both have a `base64url`. Only an
+ * exported name can be imported, so only an exported name can have been inlined "instead of importing
+ * it" — matching an internal one reports a coincidence as a duplication.
+ */
+const exports_ = (source: string) => [
+  // `export { a, b as c }`, `export type { A, B }`, and the inline `export declare const d`
+  ...[...source.matchAll(/^export\s+(?:type\s+)?\{([^}]*)\}/gm)]
+    .flatMap(match => (match[1] ?? '').split(','))
+    .map(clause => (clause.split(/\s+as\s+/).pop() ?? '').replace(/^\s*type\s+/, '').trim())
+    .filter(Boolean),
+  ...[...source.matchAll(/^export\s+(?:declare\s+)?(?:type|interface|const|function|class)\s+([A-Za-z0-9_$]+)/gm)].map(m => m[1] ?? '')
+]
 
 // tsdown emits exactly this for an entry that is still types-only; its runtime invariants are vacuous
 // until it has code, and asserting them would fail the build for the wrong reason.
@@ -35,9 +55,15 @@ const check = (ok: boolean, failure: string) => {
   if (!ok) failures.push(failure)
 }
 
-const rootTypes = new Set(declares(read('index.d.mts')))
-const rootValues = new Set(declares(read('index.mjs')))
+const rootTypes = new Set(exports_(read('index.d.mts')))
+const rootValues = new Set(exports_(read('index.mjs')))
 let stubs = 0
+
+// A parse that silently found nothing would turn both redeclaration checks below into no-ops.
+check(
+  rootTypes.size > 0 && rootValues.size > 0,
+  'could not read the root entry\u2019s export list — the redeclaration checks would pass vacuously'
+)
 
 for (const [entry, { owns, runtime }] of Object.entries(ENTRIES)) {
   const js = read(`${entry}.mjs`)
@@ -69,6 +95,13 @@ for (const [entry, { owns, runtime }] of Object.entries(ENTRIES)) {
     check(
       !new RegExp(`(^|[^.\\w])${global}\\.`).test(js),
       `${entry} reaches for the ${global} global — only the /runtimes/${owner} entry may, or the package stops running anywhere else (FR-R1)`
+    )
+  }
+
+  for (const internal of NEVER_PUBLISHED) {
+    check(
+      !importsPackage(js, internal) && !importsPackage(dts, internal),
+      `${entry} imports ${internal}, which is never published — it must be bundled into the entry, or the entry resolves to nothing once installed`
     )
   }
 
@@ -114,4 +147,6 @@ if (failures.length) {
 }
 
 const note = stubs > 0 ? ` (${stubs} entries still types-only — their peer checks are pending)` : ''
-console.log(`✓ entry invariants hold: optional peers confined, no inlined core types, no node: outside /runtimes/node${note}`)
+console.log(
+  `✓ entry invariants hold: optional peers confined, unpublished workspace packages bundled, no inlined core types, no node: outside /runtimes/node${note}`
+)

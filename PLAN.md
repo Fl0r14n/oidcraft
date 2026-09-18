@@ -357,6 +357,14 @@ read `import.meta.env.VITE_*` through a destructure — the exact form §9.2 for
 substituted by `vite.config.ts`. Its `@/` alias is gone for the same reason. It also stopped carrying
 a `clientSecret` into a browser bundle, which the sample did and a public client must not.
 
+`apps/demo-angular` is in too, as a toolchain island outside the bun workspace — ARCHITECTURE.md §8.4
+has the why. It is the only app the root `verify` does not cover.
+
+Not carried over from the ngx-oauth sample: its `app.config.ts` had a **live Google OAuth client id
+and secret committed**, pointed at `accounts.google.com`. A browser app cannot keep a secret, so it
+was replaced with the same public-client-plus-PKCE config the other two demos use. That credential is
+still in the ngx-oauth repository's history and is worth rotating.
+
 ### Still open on the Vue move
 - **`@vue/compiler-sfc` cannot resolve an imported type under Bun** ("No fs option provided to
   compileScript in non-Node environment"), so the login component's props are written out literally

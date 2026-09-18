@@ -3,7 +3,8 @@
   "private": true,
   "workspaces": [
     "packages/*",
-    "apps/*"
+    "apps/*",
+    "!apps/demo-angular"
   ],
   "scripts": {
     "dev": "bun run --filter=@oidcraft/core --filter=oidcraft build && bun run --parallel --elide-lines=0 --filter=@oidcraft/server-app --filter=@oidcraft/demo-vue dev",
@@ -17,9 +18,16 @@
     "format": "biome check --write .",
     "db:up": "docker compose up -d postgres",
     "db:down": "docker compose down",
-    "verify": "./scripts/verify.sh"
+    "verify": "./scripts/verify.sh",
+    "demo:angular": "cd apps/demo-angular && bun install && bun run dev",
+    "build:angular": "cd apps/demo-angular && bun install && bun run build"
   },
   "devDependencies": {
+    "@angular/common": "^22.1.0",
+    "@angular/compiler": "^22.1.0",
+    "@angular/core": "^22.1.0",
+    "@angular/platform-browser": "^22.1.0",
+    "@angular/router": "^22.1.0",
     "@biomejs/biome": "latest",
     "@happy-dom/global-registrator": "latest",
     "@types/bun": "latest",

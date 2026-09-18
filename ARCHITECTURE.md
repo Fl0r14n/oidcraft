@@ -76,6 +76,7 @@ apps/
   server                    the reference OP: mounts the core, the login screens and the admin UI
   demo-vue                  demo relying party: Vue 3 + vue-oidc
   demo-react                demo relying party: React 19 + react-oauth-oidc, with SSR
+  demo-angular              demo relying party: Angular 22 + ngx-oauth. Outside the workspace (§8.4)
 ```
 
 ### 2.1 One published package, one private one
@@ -383,8 +384,33 @@ binding the Vue demo cannot reach: server rendering, where `useSyncExternalStore
 snapshot that matches the client's first paint, and where one instance per request is the difference
 between isolation and one user seeing another's token.
 
-`build` in every app is a typecheck, kept under that name so `bun run build` at the root still checks
-everything without running three bundlers. `bundle` is the real build where there is one.
+### 8.4 `apps/demo-angular` — the toolchain island
+
+Angular 22 + `ngx-oauth`, and **the one thing here that is not in the bun workspace**. Two facts force
+that, and they conflict with each other:
+
+- `@angular/compiler-cli` requires `typescript >=6.0 <6.1`. This workspace is on 7, and there is no
+  overlap, so the compiler must resolve a TypeScript nothing else here can see.
+- Angular requires exactly **one** copy of `@angular/core` across an app and every library linked into
+  it. Two copies fail as `Property '_desc' is protected but type 'InjectionToken<T>' is not a class
+  derived from 'InjectionToken<T>'`, which is a sentence worth recognising on sight.
+
+Inside one `bun install` those cannot both hold: bun hoists `@angular/compiler-cli` to the root, where
+it finds TypeScript 7. So the app has its own `bun install` containing **only** the compiler toolchain
+— `@angular/build`, `@angular/cli`, `@angular/compiler-cli` and TypeScript 6 — while every runtime
+package, `@angular/core` included, resolves upward to the workspace root. One copy of Angular, a
+compiler that cannot see TypeScript 7, and a `tsconfig.json` that does not extend the base because
+`erasableSyntaxOnly` forbids the decorators a component needs.
+
+`bun run build:angular` and `bun run demo:angular` reach it; `--filter` cannot, because it is not a
+workspace member. **The root `verify` therefore does not cover this app**, which is the price of the
+island and the reason `packages/angular` itself deliberately contains no decorators — that package
+builds with tsdown on TypeScript 7 like everything else, and is covered.
+
+It is written against the `OAUTH` token rather than `ngx-oauth/component`, which v9 does not ship.
+
+`build` in every workspace app is a typecheck, kept under that name so `bun run build` at the root
+still checks everything without running three bundlers. `bundle` is the real build where there is one.
 
 ## 9. Conventions
 

@@ -33,6 +33,8 @@ packages/react               published as react-oauth-oidc
 packages/server              the package, published as `oidcraft`
 apps/server                  reference OP: protocol + login screens + admin
 apps/demo-vue                demo relying party: Vue 3 + vue-oidc
+apps/demo-react              demo relying party: React 19 + react-oauth-oidc, with SSR
+apps/demo-angular            demo relying party: Angular 22 + ngx-oauth (own install, ARCHITECTURE.md §8.4)
 ```
 
 **Three root files carry the current state:** `ARCHITECTURE.md` (how it is built),

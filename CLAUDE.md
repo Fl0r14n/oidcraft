@@ -96,6 +96,12 @@ bun run conformance      # OpenID Foundation suite against apps/server
   one at `../<pkg>/src` makes tsdown's declaration emit write `.d.ts` files beside that package's
   sources. Each package type-checks against the built `.d.mts`, which is what a consumer resolves
   anyway; `bun run --filter` builds siblings first.
+- **`apps/demo-angular` is not a workspace member and must not become one.** `@angular/compiler-cli`
+  needs TypeScript 6 and this workspace is on 7, and bun would hoist the compiler to the root where it
+  finds 7. Its own `bun install` holds **only** the compiler toolchain; every runtime package,
+  `@angular/core` above all, resolves up to the root, because Angular breaks on two copies
+  (`_desc is protected …`). Do not add `@angular/core`, `@angular/common`, `@angular/router` or
+  `ngx-oauth` to that app's `package.json` (ARCHITECTURE.md §8.4).
 - **There is no build step for the apps.** `bun index.html` is the client — Bun bundles Vue, compiles Tailwind
   and inlines `OIDCRAFT_PUBLIC_*` itself. The server runs from source. Do not add a bundler or a
   `dist/`; `build` scripts are typechecks.

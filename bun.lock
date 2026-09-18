@@ -5,6 +5,11 @@
     "": {
       "name": "oidcraft-monorepo",
       "devDependencies": {
+        "@angular/common": "^22.1.0",
+        "@angular/compiler": "^22.1.0",
+        "@angular/core": "^22.1.0",
+        "@angular/platform-browser": "^22.1.0",
+        "@angular/router": "^22.1.0",
         "@biomejs/biome": "latest",
         "@happy-dom/global-registrator": "latest",
         "@types/bun": "latest",
@@ -186,7 +191,15 @@
     },
   },
   "packages": {
+    "@angular/common": ["@angular/common@22.1.7", "", { "dependencies": { "tslib": "^2.3.0" }, "peerDependencies": { "@angular/core": "22.1.7", "rxjs": "^6.5.3 || ^7.4.0" } }, "sha512-SLW4AdH2Y8G9SM/iFRNpCQtkmvq55RcIQWsADT9ypZ7FxxcnJRsr4Q/WnbUBbuCslsCkrgzU1i9WDiW0m7gcnw=="],
+
+    "@angular/compiler": ["@angular/compiler@22.1.7", "", { "dependencies": { "tslib": "^2.3.0" } }, "sha512-qhoHAByh805nT4Xy4Wd2kE5FvkTc7wcg8Qps+EH6+z4KRfwGiL5cwdgooGWjTAldFCeqTgJ0BO/0dB6GHZjdkQ=="],
+
     "@angular/core": ["@angular/core@22.1.7", "", { "dependencies": { "tslib": "^2.3.0" }, "peerDependencies": { "@angular/compiler": "22.1.7", "rxjs": "^6.5.3 || ^7.4.0", "zone.js": "~0.15.0 || ~0.16.0" }, "optionalPeers": ["@angular/compiler", "zone.js"] }, "sha512-T9bt1PIgoN7n+TxGHTUgu0EsomlGMQ84YMXbMB+N6HhD8C1qZxn0uCbnAtCUjcecg1am8ioKxNTO0eII9ouioQ=="],
+
+    "@angular/platform-browser": ["@angular/platform-browser@22.1.7", "", { "dependencies": { "tslib": "^2.3.0" }, "peerDependencies": { "@angular/animations": "22.1.7", "@angular/common": "22.1.7", "@angular/core": "22.1.7" }, "optionalPeers": ["@angular/animations"] }, "sha512-4dT3qGw3ZHVQUcHKALzMx9MTo+pxAMzHIPxc8HUESklqXfq6GRaIIfFMvE0RsquI9iqu6admD6lOAEzLWS8DxA=="],
+
+    "@angular/router": ["@angular/router@22.1.7", "", { "dependencies": { "tslib": "^2.3.0" }, "peerDependencies": { "@angular/common": "22.1.7", "@angular/core": "22.1.7", "@angular/platform-browser": "22.1.7", "rxjs": "^6.5.3 || ^7.4.0" } }, "sha512-CxYa2Ym5L0WmqToHU2I0Z4VEpocdryLlvx5svLfo9M3uOaP3/9icB/gjS/vXPbbQxV8/GZ59E/7/LF14anIoRg=="],
 
     "@babel/code-frame": ["@babel/code-frame@7.29.7", "", { "dependencies": { "@babel/helper-validator-identifier": "^7.29.7", "js-tokens": "^4.0.0", "picocolors": "^1.1.1" } }, "sha512-Aup7aUOfpbAUg2ROOJN6Iw5f9DMBlzu0mIkm/malLQFN/YQgO48wCj0Kxa3sEHJvPVFg7siR+qRInwXd2qhQKw=="],
 

@@ -21,6 +21,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "latest",
+    "@happy-dom/global-registrator": "latest",
     "@types/bun": "latest",
     "tsdown": "latest",
     "typescript": "^7.0.2"

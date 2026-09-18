@@ -88,6 +88,7 @@
     "@oidcraft/core": "workspace:*",
     "@testing-library/react": "latest",
     "@types/react": "latest",
+    "@types/react-dom": "latest",
     "axios": "latest",
     "react": "latest",
     "react-dom": "latest"

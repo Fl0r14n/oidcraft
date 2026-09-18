@@ -271,6 +271,8 @@ workspace-private package leaks into a published bundle.
 
 - **`@oidcraft/client`** — the shared runtime, 137 tests. See the commit for which of the three
   implementations won on each file.
+- **`packages/react` → `react-oauth-oidc@2`**, on that runtime. Almost nothing changed: its binding
+  already went through `react-oauth-oidc/core`, now a re-export of the two shared packages.
 - **`packages/vue` → `vue-oidc@7`**, on that runtime. Four entries, `./core` kept as a re-export
   because dropping an entry v6 published would break its consumers. The Vue-specific code is two
   functions in `refs.ts`; everything else is shared.
@@ -299,6 +301,22 @@ What was *not* a real argument against it, and should not be reused: the §2.1 v
 pain is specific to **peer** dependencies, where the consumer reconciles two versions. As an
 ordinary dependency there is nothing to reconcile. If it is published, `NFR-D4` needs one word —
 zero *third-party* runtime dependencies beyond `jose` — because the core's own tree is `jose` alone.
+
+### The test DOM, and why it is global
+
+`scripts/test-dom.ts` is preloaded for every test file, because `@testing-library` binds `screen` to
+`document.body` when its module is evaluated and one process runs every file — a per-file import
+loses that race.
+
+Registering happy-dom globally is safe **only** because that file puts Bun's own globals back
+afterwards, and the list is not obvious. `fetch`, because happy-dom's routes through `node:http` and
+mis-parses a `Bun.serve` response ("Parse Error: Duplicate Content-Length"). The body types, because
+Bun's fetch does not recognise happy-dom's. And `AbortController`/`AbortSignal`, because `jose` gives
+its JWKS request a timeout signal and Bun's fetch rejects a foreign one — which surfaces as "invalid
+token" on every verification that has to fetch a key set, pointing at everything except the cause.
+
+`crypto` is deliberately **not** in that list: happy-dom leaves `crypto.subtle` alone, and restoring
+it would be cargo cult.
 
 ### Still open on the Vue move
 

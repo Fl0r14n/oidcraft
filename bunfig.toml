@@ -11,4 +11,7 @@ exact = false
 # `bun test` does not inherit the top-level `preload`.
 [test]
 root = "."
-preload = ["bun-plugin-vue3"]
+preload = ["bun-plugin-vue3", "./scripts/test-dom.ts"]
+# test-dom.ts is global rather than imported per file because @testing-library binds `screen` to
+# `document.body` when its module is evaluated, and every test file shares one process — a per-file
+# import loses that race. It puts Bun's fetch back after registering happy-dom; see the file.

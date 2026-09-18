@@ -237,16 +237,26 @@ Three vocabularies for one idea, which is what makes the shared layer possible r
 
 ```
 packages/
-  core/          . protocol   discovery, PKCE, flow, jwt, redirect, types   (server + clients)
-                 ./client     storage, token lifecycle, refresh, authed fetch  (clients only)
-  oidcraft/      published: oidcraft
-  vue-oidc/      published: vue-oidc              peer: vue
-  ngx-oauth/     published: ngx-oauth             peer: @angular/core
-  react-oauth/   published: react-oauth-oidc      peer: react
+  core/        not published   . protocol   discovery, PKCE, flow, jwt, redirect, types
+                               ./client     storage, token lifecycle, refresh, authed fetch
+  oidcraft/    oidcraft            the OP
+  vue/         vue-oidc            peer: vue
+  angular/     ngx-oauth           peer: @angular/core
+  react/       react-oauth-oidc    peer: react
 apps/
-  server/        reference OP, conformance target
+  server/      reference OP, conformance target
   demo-vue/  demo-react/  demo-angular/     the three existing sample apps
 ```
+
+**A client's directory is its framework; its package name is whatever is already on npm.** The three
+published names follow three different conventions — `vue-oidc`, `ngx-oauth`, `react-oauth-oidc` —
+because they were named years apart, and they cannot be changed without abandoning their users. A
+directory tree that mirrored them would sort badly and say nothing the framework name does not say
+better. `bun run --filter` matches package names rather than directories, so nothing in the build
+depends on the two agreeing.
+
+The cost is that the folder no longer names the artifact, so each package's README opens with the
+name it publishes under, and the table above is the one place the mapping lives.
 
 Two entries because the server must not bundle `localStorage`. `.` exists and is tested; `./client`
 is the layer the table above collapses into, written once against a signal interface narrow enough

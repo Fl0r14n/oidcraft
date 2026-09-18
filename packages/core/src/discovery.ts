@@ -71,7 +71,10 @@ export const createDiscovery = ({ functions }: { functions?: Partial<OAuthFuncti
     const key = `${(config as OpenIdConfig)?.issuerPath}|${config?.clientId || ''}`
     let discovered = cache.get(key)
     if (!discovered) {
-      discovered = resolveOAuthFunctions(functions).openIdConfiguration(config)
+      // wrapped, not assumed: `functions` is a user-supplied partial, and one whose
+      // `openIdConfiguration` returns a bare value rather than a promise would otherwise crash the
+      // cache rather than simply not discover anything
+      discovered = Promise.resolve(resolveOAuthFunctions(functions).openIdConfiguration(config))
       cache.set(key, discovered)
     }
     const result = await discovered.catch(() => undefined)

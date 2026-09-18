@@ -1,4 +1,4 @@
-import { createRemoteJWKSet, jwtVerify } from 'jose'
+import { createRemoteJWKSet, customFetch, jwtVerify } from 'jose'
 import { assertSecure, TENANT_TEMPLATE } from './secure'
 
 export type IdTokenClaims = Record<string, any>
@@ -60,7 +60,10 @@ export const createIdTokenVerifier = ({
   // Keys fetched over http are keys an attacker on the path chooses, which makes every signature
   // check below decorative.
   assertSecure(jwksUri, allowInsecure)
-  const jwksSet = jwksUri && strict ? createRemoteJWKSet(new URL(jwksUri)) : undefined
+  // jose is handed the platform fetch: left to itself it reaches for `node:http`, which drags a Node
+  // shim into Bun, Deno, workers and the browser for what is one GET of a JSON document.
+  const jwksSet =
+    jwksUri && strict ? createRemoteJWKSet(new URL(jwksUri), { [customFetch]: (url, init) => fetch(url, init as RequestInit) }) : undefined
   const literal = literalIssuer(issuer)
   return async idToken => {
     if (!idToken) return {}

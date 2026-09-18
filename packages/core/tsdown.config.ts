@@ -1,10 +1,10 @@
 import { defineConfig } from 'tsdown'
 
-// One entry, one dependency. This package is the relying-party side of the protocol and is consumed
-// by `oidcraft/federation` as an optional peer, so nothing it pulls in may become a transitive tax on
-// a consumer who only wanted the OP (NFR-D4).
+// Two entries in one build, so the protocol code they share becomes a chunk rather than two copies.
+// `.` is universal and is what `oidcraft/federation` uses; `./client` is stateful and browser-facing,
+// and the server must never pull it in (ARCHITECTURE.md §2.1).
 export default defineConfig({
-  entry: { index: 'src/index.ts' },
+  entry: { index: 'src/index.ts', client: 'src/client/index.ts' },
   outDir: 'dist',
   format: 'esm',
   deps: { neverBundle: ['jose'] },

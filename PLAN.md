@@ -287,7 +287,7 @@ workspace-private package leaks into a published bundle.
 - **`ngx-oauth`'s service layer drops `ng-packagr`** — done, see above. The Angular *sample* still
   needs the Angular CLI, which is a deliberate exception to §1.1's no-bundler rule for apps.
 
-### Open: `ngx-oauth/component`
+### Closed: `ngx-oauth/component` → `oauthForm()`
 
 **This was assessed wrongly earlier and is worth stating plainly.** "The library has no decorators"
 was checked against `projects/ngx-oauth/oauth/` and is true there. But `ngx-oauth/component` is a
@@ -298,15 +298,19 @@ That entry cannot ship from tsdown. `erasableSyntaxOnly` forbids the decorator, 
 not be enough: an Angular component published without `ngc` reaches consumers as JIT, which breaks
 under a production build. Partial compilation is what `ng-packagr` exists to do.
 
-So `ngx-oauth@9` currently publishes `.` and `./core` and **not** `./component`, which is a breaking
-change for anyone importing the login form. Three ways out, none yet chosen:
+Resolved by not shipping a component at all. `oauthForm()` in the root entry carries what the
+Material form was worth — validation, the submit lifecycle, when an error may show, keeping the
+username and clearing the password on a rejection — as signals, with the markup left to the host.
+`react-oauth-oidc` already shipped the same thing as `useOAuthForm`, so the two bindings now agree.
 
-1. **Drop the entry.** The form is a convenience; every other binding's UI entry is optional too.
-   Cheapest, and loses something v8 users have.
-2. **Keep `ng-packagr` for that entry alone.** Two toolchains in one package, but only the component
-   pays for it.
-3. **Keep `ng-packagr` for the whole Angular package.** One toolchain per package rather than per
-   workspace, at the cost of this package no longer building like the others.
+That keeps `packages/angular` on tsdown and TypeScript 7, inside the workspace and inside `verify`,
+with no second island in a published package. The rejected alternatives were a nested `ng-packagr`
+install building only `./component`, and moving the whole package out of the workspace; both put a
+published entry outside the gate that checks everything else.
+
+`oauthForm()` drives the resource-owner password grant, which OAuth 2.1 removed — so `apps/server`
+does not advertise it and `apps/demo-angular` cannot demonstrate it. It is there for the IdPs that
+still accept it, which is what v8's component was for too.
 
 The same question will arrive for `vue-oidc/component` if `@vue/compiler-sfc` ever stops resolving
 what it currently does — that entry already needed two workarounds to ship at all.

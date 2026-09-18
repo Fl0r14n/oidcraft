@@ -1,5 +1,5 @@
 {
-  "name": "@oidcraft/client-app",
+  "name": "@oidcraft/demo-vue",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -12,7 +12,7 @@
   "dependencies": {
     "pinia": "^4.0.3",
     "vue": "^3.5.42",
-    "vue-oidc": "^5.3.0",
+    "vue-oidc": "workspace:*",
     "vue-router": "^5.3.1"
   },
   "devDependencies": {

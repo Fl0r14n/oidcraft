@@ -18,12 +18,20 @@ How oidcraft is built. `REQUIREMENTS.md` says what it must do; every section her
 | **tsdown** | 0.23.x | Library build: seven ESM entries with `.d.mts` types (§2.2). |
 | **Drizzle / Kysely** | 0.45 / 0.28 | First-party adapters (FR-A4). Optional peers, never bundled (§2.2). |
 
-### 1.1 No bundler, no build step
+### 1.1 No bundler, no build step — with one measured exception
 
-Neither app has one. `bun index.html` **is** the client: Bun's dev server bundles the Vue SFCs,
-compiles Tailwind, inlines `OIDCRAFT_PUBLIC_*` and serves the page with HMR. The server app runs
-from source, because Bun executes TypeScript. There is no Vite, no `Bun.build` script, no `dist/`,
-and nothing to keep in sync between a dev path and a build path.
+`bun index.html` **is** the client: Bun's dev server bundles the Vue SFCs, compiles Tailwind, inlines
+`OIDCRAFT_PUBLIC_*` and serves the page with HMR. The server app runs from source, because Bun
+executes TypeScript. No `Bun.build` script, no `dist/`, and nothing to keep in sync between a dev
+path and a build path.
+
+`apps/demo-react` is the exception and states its reason: it demonstrates SSR, and it does that as a
+`Bun.serve` host with **Vite in middleware mode** for the module transform and HMR. Vite is
+load-bearing there rather than incidental — removing it would mean removing the SSR demo, which is
+the part of that app worth having, because `useSyncExternalStore`'s server snapshot is exactly the
+thing a relying-party binding gets wrong. It reads the same root `.env` and the same
+`OIDCRAFT_PUBLIC_*` names as everything else (§9.1); `vite.config.ts` substitutes them as whole
+`process.env.X` literals, so §9.2's rule against `import.meta.env` holds there too.
 
 Two sharp edges, both measured here rather than assumed:
 
@@ -66,7 +74,8 @@ packages/server/            one published package, ten entries — publishes as 
   src/adapters/kysely/      ./adapters/kysely     Postgres, SQLite, MySQL
 apps/
   server                    the reference OP: mounts the core, the login screens and the admin UI
-  client                    the demo relying party: Vue 3 + vue-oidc
+  demo-vue                  demo relying party: Vue 3 + vue-oidc
+  demo-react                demo relying party: React 19 + react-oauth-oidc, with SSR
 ```
 
 ### 2.1 One published package, one private one
@@ -355,17 +364,27 @@ and easy to get wrong for accessibility. `DataTable`, `Dialog`/`AlertDialog`, `C
 and `Form` + `createValidation` cover it. It is headless, so Tailwind still does all the styling and
 nothing imposes a look on an operator who replaces these screens.
 
-### 8.2 `apps/client` — the demo relying party
+### 8.2 `apps/demo-vue` — the demo relying party
 
-Vue 3 + `vue-oidc`, ported from that library's own sample app. It proves the OP against a real,
-independently written client rather than against a test harness that shares its assumptions.
+Vue 3 + `vue-oidc`, ported from that library's own sample app, and now resolving it from the
+workspace rather than from npm. That trade is deliberate: until `vue-oidc@7` publishes from here,
+npm was the more honest dependency — it proved the OP against an independently released client. From
+here on the same file proves something else, that the binding in `packages/vue` actually works, and
+nothing else in the repository does.
 
 Run with `bun index.html` and nothing else (§1.1). It uses `vue-oidc`'s composables (`useOAuth`,
 `useOAuthUser`) rather than its Vuetify component, so the demo carries no UI framework at all — a
 login button and a claims list do not need one. `BUN_PORT` sets the port.
 
-`build` in both apps is a typecheck, kept under that name so `bun run build` at the root still
-checks everything.
+### 8.3 `apps/demo-react` — the second relying party
+
+React 19 + `react-oauth-oidc`, ported from that library's own sample. It exists for the half of the
+binding the Vue demo cannot reach: server rendering, where `useSyncExternalStore` must hand React a
+snapshot that matches the client's first paint, and where one instance per request is the difference
+between isolation and one user seeing another's token.
+
+`build` in every app is a typecheck, kept under that name so `bun run build` at the root still checks
+everything without running three bundlers. `bundle` is the real build where there is one.
 
 ## 9. Conventions
 

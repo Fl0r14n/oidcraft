@@ -21,10 +21,13 @@
       "path": "./packages/angular"
     },
     {
-      "path": "./apps/client"
+      "path": "./apps/server"
     },
     {
-      "path": "./apps/server"
+      "path": "./apps/demo-vue"
+    },
+    {
+      "path": "./apps/demo-react"
     }
   ]
 }

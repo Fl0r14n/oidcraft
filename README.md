@@ -32,7 +32,7 @@ packages/vue                 published as vue-oidc
 packages/react               published as react-oauth-oidc
 packages/server              the package, published as `oidcraft`
 apps/server                  reference OP: protocol + login screens + admin
-apps/client                  demo relying party: Vue 3 + vue-oidc
+apps/demo-vue                demo relying party: Vue 3 + vue-oidc
 ```
 
 **Three root files carry the current state:** `ARCHITECTURE.md` (how it is built),

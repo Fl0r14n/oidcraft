@@ -15,7 +15,7 @@ export const demoAccounts: AccountStore = {
   }
 }
 
-/** The demo relying party in apps/client. A real deployment registers clients through the admin API. */
+/** The demo relying party in apps/demo-vue. A real deployment registers clients through the admin API. */
 export const seedDemoClient = async (adapter: Adapter) => {
   const clientId = withDefault('OIDCRAFT_PUBLIC_CLIENT_ID', 'demo-client')
   const origin = withDefault('OIDCRAFT_PUBLIC_ORIGIN', 'http://localhost:3000')

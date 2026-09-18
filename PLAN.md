@@ -345,11 +345,19 @@ token" on every verification that has to fetch a key set, pointing at everything
 `crypto` is deliberately **not** in that list: happy-dom leaves `crypto.subtle` alone, and restoring
 it would be cargo cult.
 
-### Still open on the Vue move
+### Demo apps
 
-- **No demo app yet.** `apps/client` still resolves `vue-oidc` from npm rather than `workspace:*`,
-  which for the moment is a feature — it tests the OP against an independently published client, as
-  §8.2 argues it should. That stops being true the day vue-oidc@7 publishes from here.
+`apps/demo-vue` (was `apps/client`) now resolves `vue-oidc` from the workspace, and `apps/demo-react`
+is imported from that library's own sample. Between them the Vue and React bindings are exercised by
+something other than their unit tests, which nothing did before.
+
+Both were brought onto this workspace's conventions rather than kept as they arrived: the React app
+read `import.meta.env.VITE_*` through a destructure — the exact form §9.2 forbids — and now reads
+`OIDCRAFT_PUBLIC_*` as whole `process.env.X` literals from the same root `.env` as everything else,
+substituted by `vite.config.ts`. Its `@/` alias is gone for the same reason. It also stopped carrying
+a `clientSecret` into a browser bundle, which the sample did and a public client must not.
+
+### Still open on the Vue move
 - **`@vue/compiler-sfc` cannot resolve an imported type under Bun** ("No fs option provided to
   compileScript in non-Node environment"), so the login component's props are written out literally
   in the SFC and pinned to the protocol by two assignments in `component/props.ts`. Not a version

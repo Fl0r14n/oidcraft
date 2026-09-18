@@ -9,7 +9,7 @@ export default defineConfig([
     entry: { index: 'src/index.ts', core: 'src/core.ts' },
     outDir: 'dist',
     format: 'esm',
-    deps: { neverBundle: ['vue'] },
+    deps: { neverBundle: ['jose', 'vue'] },
     dts: true,
     clean: true
   },
@@ -18,7 +18,7 @@ export default defineConfig([
     entry: { axios: 'src/axios/index.ts' },
     outDir: 'dist',
     format: 'esm',
-    deps: { neverBundle: ['vue-oidc', 'vue', 'axios'] },
+    deps: { neverBundle: ['jose', 'vue-oidc', 'vue', 'axios'] },
     dts: true,
     clean: false
   },
@@ -27,7 +27,7 @@ export default defineConfig([
     entry: { component: 'src/component/index.ts' },
     outDir: 'dist',
     format: 'esm',
-    deps: { neverBundle: ['vue-oidc', 'vue', 'vuetify', /^vuetify\//, '@mdi/js'] },
+    deps: { neverBundle: ['jose', 'vue-oidc', 'vue', 'vuetify', /^vuetify\//, '@mdi/js'] },
     plugins: [vue()],
     css: { fileName: 'component.css' },
     dts: true,

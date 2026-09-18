@@ -271,6 +271,11 @@ workspace-private package leaks into a published bundle.
 
 - **`@oidcraft/client`** — the shared runtime, 137 tests. See the commit for which of the three
   implementations won on each file.
+- **`packages/angular` → `ngx-oauth@9`**, on that runtime, and building with tsdown like every other
+  package here — the binding is `InjectionToken` factories and `inject()`, so no decorator reaches
+  the output and `verify-entries.ts` asserts that. Its instance is now per-injector: v8 kept the
+  config, the token and the JWKS in module-level signals, which cannot be answered correctly under
+  concurrent SSR.
 - **`packages/react` → `react-oauth-oidc@2`**, on that runtime. Almost nothing changed: its binding
   already went through `react-oauth-oidc/core`, now a re-export of the two shared packages.
 - **`packages/vue` → `vue-oidc@7`**, on that runtime. Four entries, `./core` kept as a re-export
@@ -279,10 +284,32 @@ workspace-private package leaks into a published bundle.
 
 ### Decided
 
-- **`ngx-oauth` drops `ng-packagr`.** Its library has no decorators — `@Injectable`, `@NgModule` and
-  `@Component` appear only in the sample app and the optional login component — so it satisfies
-  `erasableSyntaxOnly` and builds with tsdown like every other package here. The Angular *sample*
-  still needs the Angular CLI, which is a deliberate exception to §1.1's no-bundler rule for apps.
+- **`ngx-oauth`'s service layer drops `ng-packagr`** — done, see above. The Angular *sample* still
+  needs the Angular CLI, which is a deliberate exception to §1.1's no-bundler rule for apps.
+
+### Open: `ngx-oauth/component`
+
+**This was assessed wrongly earlier and is worth stating plainly.** "The library has no decorators"
+was checked against `projects/ngx-oauth/oauth/` and is true there. But `ngx-oauth/component` is a
+**published secondary entry point** with its own `ng-package.json` and a real `@Component` — a
+standalone Material login form with an inline template.
+
+That entry cannot ship from tsdown. `erasableSyntaxOnly` forbids the decorator, and relaxing it would
+not be enough: an Angular component published without `ngc` reaches consumers as JIT, which breaks
+under a production build. Partial compilation is what `ng-packagr` exists to do.
+
+So `ngx-oauth@9` currently publishes `.` and `./core` and **not** `./component`, which is a breaking
+change for anyone importing the login form. Three ways out, none yet chosen:
+
+1. **Drop the entry.** The form is a convenience; every other binding's UI entry is optional too.
+   Cheapest, and loses something v8 users have.
+2. **Keep `ng-packagr` for that entry alone.** Two toolchains in one package, but only the component
+   pays for it.
+3. **Keep `ng-packagr` for the whole Angular package.** One toolchain per package rather than per
+   workspace, at the cost of this package no longer building like the others.
+
+The same question will arrive for `vue-oidc/component` if `@vue/compiler-sfc` ever stops resolving
+what it currently does — that entry already needed two workarounds to ship at all.
 - **Order: vue-oidc, then React, then Angular.** vue-oidc is the reference implementation, React is
   the closest in shape and already on tsdown, and Angular goes last so the signal abstraction has
   been validated against two frameworks before it meets the one with its own toolchain.

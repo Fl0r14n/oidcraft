@@ -20,7 +20,7 @@ export default defineConfig([
     entry: { core: 'src/core.ts' },
     outDir: 'dist',
     format: 'esm',
-    deps: { neverBundle: ['axios'] },
+    deps: { neverBundle: ['jose', 'axios'] },
     dts: true,
     clean: true
   },
@@ -28,7 +28,7 @@ export default defineConfig([
     entry: ['src/index.ts'],
     outDir: 'dist',
     format: 'esm',
-    deps: { neverBundle: ['react-oauth-oidc/core', 'react', 'react-dom', 'axios'] },
+    deps: { neverBundle: ['jose', 'react-oauth-oidc/core', 'react', 'react-dom', 'axios'] },
     outputOptions: USE_CLIENT,
     dts: true,
     clean: false
@@ -38,7 +38,7 @@ export default defineConfig([
     entry: { axios: 'src/axios/index.ts' },
     outDir: 'dist',
     format: 'esm',
-    deps: { neverBundle: ['react-oauth-oidc/core', 'axios'] },
+    deps: { neverBundle: ['jose', 'react-oauth-oidc/core', 'axios'] },
     dts: true,
     clean: false
   },
@@ -47,7 +47,17 @@ export default defineConfig([
     outDir: 'dist',
     format: 'esm',
     deps: {
-      neverBundle: ['react-oauth-oidc', 'react-oauth-oidc/core', 'react', 'react-dom', 'axios', '@mui/material', /^@mui\//, /^@emotion\//]
+      neverBundle: [
+        'jose',
+        'react-oauth-oidc',
+        'react-oauth-oidc/core',
+        'react',
+        'react-dom',
+        'axios',
+        '@mui/material',
+        /^@mui\//,
+        /^@emotion\//
+      ]
     },
     outputOptions: USE_CLIENT,
     dts: true,

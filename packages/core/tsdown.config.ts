@@ -1,10 +1,10 @@
 import { defineConfig } from 'tsdown'
 
-// Two entries in one build, so the protocol code they share becomes a chunk rather than two copies.
-// `.` is universal and is what `oidcraft/federation` uses; `./client` is stateful and browser-facing,
-// and the server must never pull it in (ARCHITECTURE.md §2.1).
+// One entry, one dependency. This is the protocol and nothing else: it runs in any runtime, holds no
+// state, and is what `oidcraft`'s federation leg compiles in. The stateful browser-facing half is
+// `@oidcraft/client`, which builds on this (ARCHITECTURE.md §2.1).
 export default defineConfig({
-  entry: { index: 'src/index.ts', client: 'src/client/index.ts' },
+  entry: { index: 'src/index.ts' },
   outDir: 'dist',
   format: 'esm',
   deps: { neverBundle: ['jose'] },

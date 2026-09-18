@@ -1,4 +1,4 @@
-import type { OAuthTypeConfig } from '../types'
+import type { OAuthTypeConfig } from '@oidcraft/core'
 import { createStore } from './store'
 import type { OAuthConfig } from './types'
 

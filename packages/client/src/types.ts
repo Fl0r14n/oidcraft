@@ -1,4 +1,4 @@
-import type { Discovery, OAuthFunctions, OAuthTypeConfig } from '../types'
+import type { Discovery, OAuthFunctions, OAuthTypeConfig } from '@oidcraft/core'
 
 export type OAuthConfig<TExtra = unknown> = {
   config?: Partial<OAuthTypeConfig>

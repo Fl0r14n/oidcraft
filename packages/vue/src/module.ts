@@ -1,3 +1,5 @@
+import type { RedirectOptions } from '@oidcraft/client'
+import { createOAuth as createCoreOAuth, isExpiredToken, type OAuthConfig, tokenState } from '@oidcraft/client'
 import type {
   OAuthFetch,
   OAuthFunctions,
@@ -8,8 +10,6 @@ import type {
   OAuthTypeConfig,
   UserInfo
 } from '@oidcraft/core'
-import type { RedirectOptions } from '@oidcraft/core/client'
-import { createOAuth as createCoreOAuth, isExpiredToken, type OAuthConfig, tokenState } from '@oidcraft/core/client'
 import {
   type App,
   type ComputedRef,

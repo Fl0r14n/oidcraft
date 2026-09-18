@@ -1,9 +1,9 @@
-import type { Subscribable } from '@oidcraft/core/client'
-import { watchStore } from '@oidcraft/core/client'
+import type { Subscribable } from '@oidcraft/client'
+import { watchStore } from '@oidcraft/client'
 import { computed, onScopeDispose, type Ref, shallowRef, type WritableComputedRef } from 'vue'
 
 /**
- * The whole Vue binding, in two functions. `@oidcraft/core/client` holds the state and publishes a
+ * The whole Vue binding, in two functions. `@oidcraft/client` holds the state and publishes a
  * `Subscribable`; everything below turns one into a ref and stops following it when the scope ends.
  *
  * Seeded synchronously rather than on the first subscription callback, because `watchStore` fires on

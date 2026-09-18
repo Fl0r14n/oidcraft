@@ -41,8 +41,9 @@ importing the root relatively would inline a second `oauthKey` and quietly resol
 ## Where the code lives
 
 Everything above the framework — storage, the token lifecycle, refresh, the authorized fetch, the
-derived profile — is `@oidcraft/core/client`, shared with `ngx-oauth`, `react-oauth-oidc` and the
-`oidcraft` provider's federation leg. It is compiled in rather than depended on, so installing this
+derived profile — is `@oidcraft/client`, and the protocol under it is `@oidcraft/core`. Both are
+shared with `ngx-oauth` and `react-oauth-oidc`, and the protocol half is shared with the `oidcraft`
+provider's federation leg as well. Both are compiled in rather than depended on, so installing this
 package pulls `vue` and nothing else.
 
 What is Vue's here is `refs.ts`: two functions turning the core's `Subscribable` into a `Ref`. That

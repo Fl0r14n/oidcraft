@@ -1,5 +1,14 @@
-import { applyDiscovery, createDiscovery, needsDiscovery } from '../discovery'
-import { type Discovery, type OAuthFunctions, OAuthStatus, type OAuthToken, type OAuthType, type OpenIdConfig } from '../types'
+import {
+  applyDiscovery,
+  createDiscovery,
+  type Discovery,
+  needsDiscovery,
+  type OAuthFunctions,
+  OAuthStatus,
+  type OAuthToken,
+  type OAuthType,
+  type OpenIdConfig
+} from '@oidcraft/core'
 import type { ConfigContext } from './config'
 import { createStorageStore } from './storage'
 import { watchStore } from './store'

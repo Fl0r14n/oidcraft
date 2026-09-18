@@ -1,4 +1,4 @@
-import type { OAuthFunctions, UserInfo } from '../types'
+import type { OAuthFunctions, UserInfo } from '@oidcraft/core'
 import type { ConfigContext } from './config'
 import type { FetchContext } from './fetch'
 import type { Jwt } from './jwt'

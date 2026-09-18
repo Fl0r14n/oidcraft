@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'bun:test'
-import { OAuthType } from '../types'
+import { OAuthType } from '@oidcraft/core'
 import { createOAuth, flush, idToken, installStorage, mockOAuthFunctions, registerOAuthCleanup } from './test-utils'
 
 const local = installStorage()

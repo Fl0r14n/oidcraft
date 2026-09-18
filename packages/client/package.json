@@ -1,8 +1,8 @@
 {
-  "name": "@oidcraft/core",
+  "name": "@oidcraft/client",
   "version": "0.1.0",
   "private": true,
-  "description": "Internal: the OpenID Connect protocol layer, shared by the oidcraft provider and the framework client bindings. Bundled into each of them; never published.",
+  "description": "Internal: the stateful client runtime shared by the framework bindings. Bundled into each of them; never published.",
   "license": "MIT",
   "author": "Fl0r14n <florian.chis@gmail.com>",
   "type": "module",
@@ -20,8 +20,8 @@
     "test": "bun test",
     "typecheck": "tsc --noEmit"
   },
-  "dependencies": {
-    "jose": "^6.2.12"
+  "devDependencies": {
+    "@oidcraft/core": "workspace:*"
   },
   "engines": {
     "node": ">=22"

@@ -1,4 +1,4 @@
-import { defaultOAuthFunctions } from '../functions'
+import { defaultOAuthFunctions } from '@oidcraft/core'
 import { createConfig } from './config'
 import { createFetch } from './fetch'
 import { createFlows } from './flows'

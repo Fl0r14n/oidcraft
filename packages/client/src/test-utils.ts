@@ -1,5 +1,5 @@
 import { afterEach, jest } from 'bun:test'
-import type { OAuthFunctions } from '../types'
+import type { OAuthFunctions } from '@oidcraft/core'
 import { createOAuth as create, type OAuth } from './module'
 import type { OAuthConfig } from './types'
 

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'bun:test'
-import { type AuthorizationCodePKCEConfig, OAuthStatus, OAuthType } from '../types'
+import { type AuthorizationCodePKCEConfig, OAuthStatus, OAuthType } from '@oidcraft/core'
 import type { OAuth } from './module'
 import { createOAuth, flush, installStorage, mockOAuthFunctions, registerOAuthCleanup } from './test-utils'
 import { isExpiredToken } from './token'

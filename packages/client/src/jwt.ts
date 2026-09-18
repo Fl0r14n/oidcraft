@@ -1,5 +1,5 @@
-import { createIdTokenVerifier, type IdTokenVerifier } from '../jwt'
-import type { OpenIdConfig } from '../types'
+import type { OpenIdConfig } from '@oidcraft/core'
+import { createIdTokenVerifier, type IdTokenVerifier } from '@oidcraft/core'
 import type { ConfigContext } from './config'
 
 /**

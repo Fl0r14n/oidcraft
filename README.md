@@ -26,8 +26,11 @@ Only Node needs an HTTP bridge; the rest are small context providers for what `R
 carry (client IP, verified TLS client certificate).
 
 ```
-packages/core                the relying-party core. Private; bundled into whoever uses it
-packages/oidcraft            the package
+packages/core                the protocol. Private; compiled into whoever uses it
+packages/client              the client runtime. Private; the framework bindings only
+packages/vue                 published as vue-oidc
+packages/react               published as react-oauth-oidc
+packages/server              the package, published as `oidcraft`
 apps/server                  reference OP: protocol + login screens + admin
 apps/client                  demo relying party: Vue 3 + vue-oidc
 ```

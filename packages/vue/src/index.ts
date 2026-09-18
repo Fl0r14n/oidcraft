@@ -1,5 +1,5 @@
+export { isExpiredToken, type OAuthConfig, type TokenState, tokenState } from '@oidcraft/client'
 export * from '@oidcraft/core'
-export { isExpiredToken, type OAuthConfig, type TokenState, tokenState } from '@oidcraft/core/client'
 export {
   createOAuth,
   disposeOAuth,

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test'
-import { OAuthType } from '../types'
+import { OAuthType } from '@oidcraft/core'
 import type { OAuth } from './module'
 import { createOAuth, installStorage, mockOAuthFunctions as mocked, registerOAuthCleanup } from './test-utils'
 import type { OAuthConfig } from './types'

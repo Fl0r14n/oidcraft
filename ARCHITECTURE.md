@@ -13,7 +13,8 @@ How oidcraft is built. `REQUIREMENTS.md` says what it must do; every section her
 | **@vuetify/v0** | 1.2.x | Headless Vue primitives, in the **admin surface only** (§8.1). Vue 3.5 is its only dependency. |
 | **Biome** | 2.5.x | Lint and format. `biome.json` settles formatting; it is not a matter of preference. |
 | **jose** | ^6 | The only runtime dependency. WebCrypto-backed, runtime-agnostic (NFR-D4). |
-| **@oidcraft/core** | workspace | This workspace's shared protocol core (§2.1). Not published; bundled into the `./federation` entry. |
+| **@oidcraft/core** | workspace | The protocol, shared by the provider and every client binding (§2.1). Not published; compiled in. |
+| **@oidcraft/client** | workspace | The stateful client runtime, shared by the client bindings only (§2.1). Not published; compiled in. |
 | **tsdown** | 0.23.x | Library build: seven ESM entries with `.d.mts` types (§2.2). |
 | **Drizzle / Kysely** | 0.45 / 0.28 | First-party adapters (FR-A4). Optional peers, never bundled (§2.2). |
 
@@ -48,8 +49,11 @@ binary, which is still on a `7.0.0-dev` tag and is not what the `typescript` pac
 ## 2. Workspace
 
 ```
-packages/core/              the relying-party core. Private, bundled into its consumers (§2.1)
-packages/oidcraft/          one published package, ten entries
+packages/core/              the protocol.       private, compiled into its consumers (§2.1)
+packages/client/            client runtime.     private, the bindings only
+packages/vue/               vue-oidc
+packages/react/             react-oauth-oidc
+packages/server/            one published package, ten entries — publishes as `oidcraft`
   src/index.ts              .                     the OP. fetch in, fetch out, no I/O
   src/federation/           ./federation          the relying-party leg — upstream brokering
   src/interaction/          ./interaction         login/consent policy types
@@ -83,18 +87,35 @@ bootstrap a *new* package — the configuration only exists once a version is pu
 extra package is another manual first publish and another `npm trust github` run behind a browser
 OTP.
 
-**`packages/core` is a package this workspace does not publish.** It is the relying-party leg —
-discovery, PKCE, the authorization round trip, ID token verification — and it has two kinds of
-consumer that have nothing else in common:
+**Two packages this workspace does not publish.** `@oidcraft/core` is the protocol — discovery,
+PKCE, the authorization round trip, ID token verification — and `@oidcraft/client` is the stateful
+half built on it: storage, the token lifecycle, refresh, the authorized fetch, the derived profile.
+
+The split is the consumer list. `@oidcraft/core` has two kinds of consumer that share nothing else:
 
 - `oidcraft/federation`, because brokering *is* being a relying party at the upstream (§5);
-- the framework client libraries moving into this workspace — `vue-oidc`, and the Angular and React
-  ones — which publish under their own names and whose users have no OP at all.
+- the framework client libraries — `vue-oidc`, `react-oauth-oidc`, `ngx-oauth` — which publish under
+  their own names and whose users have no OP at all.
 
-It is compiled *into* each of them rather than published beside them. That is what makes it free:
-no npm name to own, no trusted-publishing bootstrap, and NFR-D4 stays literally true —
-`dist/federation.mjs` imports `oidcraft` and `jose` and nothing else. A consumer never learns this
+Only the second kind wants `@oidcraft/client`, and a server that accidentally reached `localStorage`
+would be a bug rather than a nuisance. Keeping them apart is what makes that impossible rather than
+merely discouraged.
+
+**Directories name the role; `package.json` names the artifact.** `packages/server` publishes as
+`oidcraft`, `packages/vue` as `vue-oidc`. The published names follow three different conventions
+because they were chosen years apart and cannot change without abandoning their users; the tree does
+not have to inherit that. `bun run --filter` matches package names, so nothing in the build depends
+on the two agreeing.
+
+They are compiled *into* each publisher rather than published beside them. That is what makes them
+free: no npm names to own, no trusted-publishing bootstrap, and NFR-D4 stays literally true —
+`dist/federation.mjs` imports `oidcraft` and `jose` and nothing else. A consumer never learns either
 package exists.
+
+Between themselves the two stay *external*: `@oidcraft/client` does not bundle `@oidcraft/core`.
+Bundling would put a second copy of every protocol type in its declarations, and a binding that
+imported `OAuthFunctions` from one and was handed the other fails its own dts emit with "cannot be
+named". Only the published package compiles both in.
 
 This is deliberately the reversible direction. Not-published to published is additive; the reverse
 breaks anyone who found it. `PLAN.md` records what would flip it, and the client libraries landing
@@ -103,7 +124,7 @@ here are the thing most likely to.
 An entry inside `oidcraft` could not have done the same job: a Vue application would be installing
 an OpenID Provider to get a login button.
 
-The one cost is duplication in the large. Both halves carry their own four-line `base64url`, because
+The one cost is duplication in the large. The provider and the protocol each carry their own four-line `base64url`, because
 the alternative is the relying-party core depending on the provider, which is the coupling this
 shape exists to avoid. `verify-entries.ts` tolerates it deliberately and says why (§2.2).
 
@@ -188,7 +209,7 @@ property that makes horizontal scaling and serverless hosting the same thing.
 
 ## 4. The adapter layer
 
-`packages/oidcraft/src/adapter.ts` is the contract. Storage is **a set of narrow capability stores**,
+`packages/server/src/adapter.ts` is the contract. Storage is **a set of narrow capability stores**,
 not one table keyed by a model-name string:
 
 | Store | Holds |

@@ -4,14 +4,17 @@
 outside this workspace may depend on it (ARCHITECTURE.md §2.1). Publishing it is a deferred
 decision, not a closed one — `PLAN.md` records what would reopen it.
 
-The relying-party half of OpenID Connect: discovery, PKCE, the authorization round trip and ID token
+The OpenID Connect protocol: discovery, PKCE, the authorization round trip and ID token
 verification. `jose` is its only dependency, it touches no framework, and it performs no redirect and
 writes to no storage — where the handoff lives is the caller's decision, and that decision is the one
 thing that differs between a browser app and a confidential client.
 
 Its consumers are `oidcraft/federation`, which is a relying party at every upstream it brokers to,
-and this workspace's framework client libraries — `vue-oidc`, and the Angular and React ones to come
-— which publish under their own names. One implementation of the client leg, not four.
+and this workspace's framework client libraries — `vue-oidc`, `react-oauth-oidc` and `ngx-oauth`,
+which publish under their own names. One implementation of the protocol, not four.
+
+**This package holds no state.** Storage, the token lifecycle, refresh and the derived profile are
+`@oidcraft/client`, which builds on this and which the server never sees.
 
 ## The round trip
 

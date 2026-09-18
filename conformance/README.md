@@ -34,7 +34,7 @@ actually uses.
 
 ## What runs today instead
 
-`packages/oidcraft/src/metadata.test.ts` checks the published discovery document against the
+`packages/server/src/metadata.test.ts` checks the published discovery document against the
 requirements in OIDC Discovery 1.0 §3 and RFC 8414 §2, and cross-checks it against what the provider
 actually does — every advertised endpoint answers, every advertised signing algorithm has a key,
 nothing is advertised that the configuration disabled. That catches drift between metadata and

@@ -1,4 +1,4 @@
-import type { OAuthFetch } from '../types'
+import type { OAuthFetch } from '@oidcraft/core'
 import type { ConfigContext } from './config'
 import type { TokenContext } from './token'
 

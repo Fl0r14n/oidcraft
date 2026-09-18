@@ -142,7 +142,7 @@ export type OAuthStatus = (typeof OAuthStatus)[keyof typeof OAuthStatus]
 
 /** The well-known document as a client reads it: everything optional, because every member of it is
  * optional to some provider, and open, because a provider may publish anything else alongside. An OP
- * writing one wants the opposite shape — see `packages/oidcraft`'s `metadata`, which is pinned to this
+ * writing one wants the opposite shape — see `packages/server`'s `metadata`, which is pinned to this
  * type by `metadata.contract.test.ts` so the two cannot drift apart silently. */
 export type OpenIdConfiguration = {
   issuer?: string

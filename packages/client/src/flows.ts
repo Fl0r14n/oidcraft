@@ -1,5 +1,3 @@
-import { beginAuthorization, completeAuthorization } from '../flow'
-import { parseRedirectParameters } from '../redirect'
 import type {
   AuthorizationCodeParameters,
   ClientCredentialConfig,
@@ -8,7 +6,8 @@ import type {
   OpenIdConfig,
   ResourceOwnerConfig,
   ResourceOwnerParameters
-} from '../types'
+} from '@oidcraft/core'
+import { beginAuthorization, completeAuthorization, parseRedirectParameters } from '@oidcraft/core'
 import type { ConfigContext } from './config'
 import type { Jwt } from './jwt'
 import { createStore } from './store'

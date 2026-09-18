@@ -1,13 +1,12 @@
 {
-  "name": "vue-oidc",
-  "version": "7.0.0",
+  "name": "react-oauth-oidc",
+  "version": "2.0.0",
   "author": "Fl0r14n <florian.chis@gmail.com>",
-  "homepage": "https://github.com/Fl0r14n/oidcraft/tree/main/packages/vue",
-  "description": "A fully OAuth2.1 compliant vue library",
+  "homepage": "https://github.com/Fl0r14n/oidcraft/tree/main/packages/react",
+  "description": "A fully OAuth2.1 compliant react library",
   "license": "MIT",
   "keywords": [
-    "vue",
-    "vue3",
+    "react",
     "oauth",
     "oauth2",
     "oidc",
@@ -19,7 +18,7 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/Fl0r14n/oidcraft",
-    "directory": "packages/vue"
+    "directory": "packages/react"
   },
   "type": "module",
   "files": [
@@ -44,42 +43,54 @@
       "types": "./dist/component.d.mts",
       "import": "./dist/component.mjs"
     },
-    "./component.css": "./dist/component.css",
     "./package.json": "./package.json"
   },
   "scripts": {
     "build": "tsdown && bun run verify:entries",
     "prepublishOnly": "bun run build",
     "test": "bun test",
-    "typecheck": "vue-tsgo --noEmit",
+    "typecheck": "tsc --noEmit",
     "verify:entries": "bun run verify-entries.ts"
   },
   "peerDependencies": {
-    "@mdi/js": "^7",
+    "@emotion/react": "^11",
+    "@emotion/styled": "^11",
+    "@mui/icons-material": ">=6",
+    "@mui/material": ">=6",
     "axios": "^1",
-    "vue": "^3",
-    "vuetify": ">=3"
+    "react": ">=19",
+    "react-dom": ">=19"
   },
   "peerDependenciesMeta": {
-    "@mdi/js": {
+    "@emotion/react": {
+      "optional": true
+    },
+    "@emotion/styled": {
+      "optional": true
+    },
+    "@mui/icons-material": {
+      "optional": true
+    },
+    "@mui/material": {
       "optional": true
     },
     "axios": {
       "optional": true
-    },
-    "vuetify": {
-      "optional": true
     }
   },
   "devDependencies": {
+    "@emotion/react": "^11",
+    "@emotion/styled": "^11",
+    "@happy-dom/global-registrator": "latest",
+    "@mui/icons-material": "latest",
+    "@mui/material": "latest",
     "@oidcraft/client": "workspace:*",
     "@oidcraft/core": "workspace:*",
-    "@tsdown/css": "latest",
+    "@testing-library/react": "latest",
+    "@types/react": "latest",
     "axios": "latest",
-    "unplugin-vue": "^8.0.0",
-    "vue": "latest",
-    "vue-tsgo": "^0.3.0",
-    "vuetify": "latest"
+    "react": "latest",
+    "react-dom": "latest"
   },
   "publishConfig": {
     "access": "public"

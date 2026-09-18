@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, jest } from 'bun:test'
-import { defaultOAuthFunctions } from '../functions'
+import { defaultOAuthFunctions } from '@oidcraft/core'
 import { createOAuth, installStorage, mockOAuthFunctions, registerOAuthCleanup } from './test-utils'
 
 const local = installStorage()

@@ -2,10 +2,26 @@
   "extends": "./tsconfig.base.json",
   "files": [],
   "references": [
-    { "path": "./packages/core" },
-    { "path": "./packages/oidcraft" },
-    { "path": "./packages/vue" },
-    { "path": "./apps/client" },
-    { "path": "./apps/server" }
+    {
+      "path": "./packages/core"
+    },
+    {
+      "path": "./packages/client"
+    },
+    {
+      "path": "./packages/server"
+    },
+    {
+      "path": "./packages/vue"
+    },
+    {
+      "path": "./packages/react"
+    },
+    {
+      "path": "./apps/client"
+    },
+    {
+      "path": "./apps/server"
+    }
   ]
 }

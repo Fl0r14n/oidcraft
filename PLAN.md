@@ -269,7 +269,7 @@ workspace-private package leaks into a published bundle.
 
 ### Landed
 
-- **`@oidcraft/core/client`** — the shared runtime, 137 tests. See the commit for which of the three
+- **`@oidcraft/client`** — the shared runtime, 137 tests. See the commit for which of the three
   implementations won on each file.
 - **`packages/vue` → `vue-oidc@7`**, on that runtime. Four entries, `./core` kept as a re-export
   because dropping an entry v6 published would break its consumers. The Vue-specific code is two

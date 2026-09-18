@@ -75,19 +75,27 @@ bun run conformance      # OpenID Foundation suite against apps/server
 
 ## Gotchas
 
-- **One package, ten subpath entries** (`packages/oidcraft`). An optional peer belongs to exactly
+- **Directories name the role, `package.json` names the artifact.** `packages/server` publishes as
+  `oidcraft`, `packages/vue` as `vue-oidc`, `packages/react` as `react-oauth-oidc`. `bun run --filter`
+  matches package names, not directories.
+- **One package, ten subpath entries** (`packages/server`). An optional peer belongs to exactly
   one entry; `bun run --filter=oidcraft build` runs `verify-entries.ts`, which fails the build if
   one leaks, if a core type is inlined, or if `node:` appears outside the `./runtimes/node` entry
   (ARCHITECTURE.md §2.1–2.2). Do not split this into several packages without reading §2.1.
-- **`packages/core` is the other half and is never published**: the relying-party core, used by
-  `oidcraft/federation` and by the client libraries moving into this workspace (`vue-oidc`, then the
-  Angular and React ones, each published under its own name). It is **bundled into** every consumer,
-  not depended on — `verify-entries.ts` fails the build if an entry still imports it, because that
-  name resolves to nothing once installed. Do not add it to `peerDependencies` (ARCHITECTURE.md §2.1).
-- **Do not add a `paths` alias in `packages/oidcraft/tsconfig.json` for `@oidcraft/core`.** Pointing
-  it at `../oidc/src` makes tsdown's declaration emit write `.d.ts` files beside that package's
-  sources. oidcraft type-checks against the built `.d.mts`, which is what a consumer resolves
-  anyway; `bun run --filter` builds the sibling first.
+- **`@oidcraft/core` and `@oidcraft/client` are never published.** `core` is the protocol, used by
+  `oidcraft/federation` *and* by every client binding; `client` is the stateful browser-facing half
+  and is for the bindings only — that split is what keeps `localStorage` structurally out of the
+  server. Both are **compiled into** each publisher, never depended on; each `verify-entries.ts`
+  fails the build if a published bundle still imports one, because that name resolves to nothing
+  once installed. Do not add either to `peerDependencies` (ARCHITECTURE.md §2.1).
+- **`@oidcraft/client` must keep `@oidcraft/core` external.** Bundling it puts a second copy of every
+  protocol type in `client`'s declarations, and a binding that imports `OAuthFunctions` from one and
+  is handed the other fails its own dts emit with TS4023 "cannot be named". Only the published
+  package compiles both in.
+- **Do not add a `paths` alias in `packages/server/tsconfig.json` for a sibling package.** Pointing
+  one at `../<pkg>/src` makes tsdown's declaration emit write `.d.ts` files beside that package's
+  sources. Each package type-checks against the built `.d.mts`, which is what a consumer resolves
+  anyway; `bun run --filter` builds siblings first.
 - **There is no build step for the apps.** `bun index.html` is the client — Bun bundles Vue, compiles Tailwind
   and inlines `OIDCRAFT_PUBLIC_*` itself. The server runs from source. Do not add a bundler or a
   `dist/`; `build` scripts are typechecks.

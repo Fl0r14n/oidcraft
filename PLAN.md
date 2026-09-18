@@ -267,6 +267,14 @@ that `ref`, `signal` and `useSyncExternalStore` each satisfy it. Each binding is
 keeps four publishers out of a version matrix, and `verify-entries.ts` already fails the build if a
 workspace-private package leaks into a published bundle.
 
+### Landed
+
+- **`@oidcraft/core/client`** — the shared runtime, 137 tests. See the commit for which of the three
+  implementations won on each file.
+- **`packages/vue` → `vue-oidc@7`**, on that runtime. Four entries, `./core` kept as a re-export
+  because dropping an entry v6 published would break its consumers. The Vue-specific code is two
+  functions in `refs.ts`; everything else is shared.
+
 ### Decided
 
 - **`ngx-oauth` drops `ng-packagr`.** Its library has no decorators — `@Injectable`, `@NgModule` and
@@ -291,6 +299,20 @@ What was *not* a real argument against it, and should not be reused: the §2.1 v
 pain is specific to **peer** dependencies, where the consumer reconciles two versions. As an
 ordinary dependency there is nothing to reconcile. If it is published, `NFR-D4` needs one word —
 zero *third-party* runtime dependencies beyond `jose` — because the core's own tree is `jose` alone.
+
+### Still open on the Vue move
+
+- **No demo app yet.** `apps/client` still resolves `vue-oidc` from npm rather than `workspace:*`,
+  which for the moment is a feature — it tests the OP against an independently published client, as
+  §8.2 argues it should. That stops being true the day vue-oidc@7 publishes from here.
+- **`@vue/compiler-sfc` cannot resolve an imported type under Bun** ("No fs option provided to
+  compileScript in non-Node environment"), so the login component's props are written out literally
+  in the SFC and pinned to the protocol by two assignments in `component/props.ts`. Not a version
+  problem: `unplugin-vue` 8.0.0 is the latest there is, and it fails the same way.
+- **The declaration build cannot use the Vue language plugin**, because `rolldown-plugin-dts` refuses
+  TypeScript 7 for SFCs. The entry is typed through an ambient `*.vue` shim and a cast instead, which
+  is why `component/index.ts` casts through `unknown` — `vue-tsgo` and the dts build genuinely see
+  that module differently.
 
 ### Still open
 

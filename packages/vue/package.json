@@ -1,0 +1,89 @@
+{
+  "name": "vue-oidc",
+  "version": "7.0.0",
+  "author": "Fl0r14n <florian.chis@gmail.com>",
+  "homepage": "https://github.com/Fl0r14n/oidcraft/tree/main/packages/vue",
+  "description": "A fully OAuth2.1 compliant vue library",
+  "license": "MIT",
+  "keywords": [
+    "vue",
+    "vue3",
+    "oauth",
+    "oauth2",
+    "oidc",
+    "pkce",
+    "authorization",
+    "openid",
+    "openid connect"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Fl0r14n/oidcraft",
+    "directory": "packages/vue"
+  },
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "main": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    },
+    "./core": {
+      "types": "./dist/core.d.mts",
+      "import": "./dist/core.mjs"
+    },
+    "./axios": {
+      "types": "./dist/axios.d.mts",
+      "import": "./dist/axios.mjs"
+    },
+    "./component": {
+      "types": "./dist/component.d.mts",
+      "import": "./dist/component.mjs"
+    },
+    "./component.css": "./dist/component.css",
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "tsdown && bun run verify:entries",
+    "prepublishOnly": "bun run build",
+    "test": "bun test",
+    "typecheck": "vue-tsgo --noEmit",
+    "verify:entries": "bun run verify-entries.ts"
+  },
+  "peerDependencies": {
+    "@mdi/js": "^7",
+    "axios": "^1",
+    "vue": "^3",
+    "vuetify": ">=3"
+  },
+  "peerDependenciesMeta": {
+    "@mdi/js": {
+      "optional": true
+    },
+    "axios": {
+      "optional": true
+    },
+    "vuetify": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@oidcraft/core": "workspace:*",
+    "@tsdown/css": "latest",
+    "axios": "latest",
+    "unplugin-vue": "^8.0.0",
+    "vue": "latest",
+    "vue-tsgo": "^0.3.0",
+    "vuetify": "latest"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

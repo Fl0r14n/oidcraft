@@ -1,3 +1,4 @@
+import { oauthFieldError } from 'oidcraft/interaction'
 import { provider } from '../provider'
 import {
   consentScreen,
@@ -38,8 +39,17 @@ export const interactionRoutes = async (request: Request, url: URL) => {
     if (request.method === 'POST' && action === 'login') {
       const form = new URLSearchParams(await request.text())
       const username = form.get('username')
-      if (!username) return html(loginScreen(view), 400)
-      const login = authenticate(username)
+      // The account picker posts a username and no password field at all, so the password is only
+      // validated when the form that sent it actually had one (see selectAccountScreen).
+      const errors = {
+        username: oauthFieldError(username),
+        password: form.has('password') ? oauthFieldError(form.get('password')) : undefined
+      }
+      if (errors.username || errors.password) {
+        // re-rendered with what was typed: losing it and saying nothing is how the old branch failed
+        return html(loginScreen(view, { username: username ?? '', errors }), 400)
+      }
+      const login = authenticate(username as string)
       // FR-F9 / FR-C16: the client asked for an acr, and claiming to meet it would be a lie the
       // ID token then carries. This demo can only do a password.
       const { redirectTo, setCookie } = await provider.interactions.complete(id, {

@@ -96,6 +96,12 @@ bun run conformance      # OpenID Foundation suite against apps/server
   one at `../<pkg>/src` makes tsdown's declaration emit write `.d.ts` files beside that package's
   sources. Each package type-checks against the built `.d.mts`, which is what a consumer resolves
   anyway; `bun run --filter` builds siblings first.
+- **`bun install` honours a `!` exclusion in `workspaces`; `bun run --filter` does not.** The filter
+  globs directories, so an excluded directory's scripts still run under `bun run --filter='*'` — with
+  no dependency ordering, because there is no workspace edge. That is why `apps/demo-angular`'s real
+  build is named `bundle`: as `build` it raced `packages/angular`'s tsdown `clean` and failed about
+  one root build in three. Its `typecheck` keeps the plain name because that step runs after the
+  build. Do not rename it back.
 - **`apps/demo-angular` is not a workspace member and must not become one.** `@angular/compiler-cli`
   needs TypeScript 6 and this workspace is on 7, and bun would hoist the compiler to the root where it
   finds 7. Its own `bun install` holds **only** the compiler toolchain; every runtime package,
@@ -111,5 +117,10 @@ bun run conformance      # OpenID Foundation suite against apps/server
 - **`vue-tsc` does not run on TypeScript 7.** Packages containing `.vue` files type-check with
   `vue-tsgo`; everything else uses `tsc`. Not `tsgo` — that is the older
   `@typescript/native-preview` binary and is not what `typescript@7` installs.
+- **The credential form is split by purity, not by consumer.** `@oidcraft/core` holds the rules and
+  the view — pure, so the OP's server-rendered login screen validates with the same
+  `oauthFieldError` a browser binding does, and `oidcraft/interaction` re-exports them for a host
+  replacing those screens. `@oidcraft/client` holds only the stateful controller. A binding is a
+  reactive wrapper over one `view` and nothing more; do not re-explode it into a property per field.
 - **Components: Tailwind everywhere; `@vuetify/v0` in `apps/server/src/admin` only.** The login and
   consent screens stay dependency-free on purpose (ARCHITECTURE.md §8.1).

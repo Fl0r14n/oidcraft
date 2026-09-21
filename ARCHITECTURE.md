@@ -402,10 +402,22 @@ package, `@angular/core` included, resolves upward to the workspace root. One co
 compiler that cannot see TypeScript 7, and a `tsconfig.json` that does not extend the base because
 `erasableSyntaxOnly` forbids the decorators a component needs.
 
-`bun run build:angular` and `bun run demo:angular` reach it; `--filter` cannot, because it is not a
-workspace member. **The root `verify` therefore does not cover this app**, which is the price of the
-island and the reason `packages/angular` itself deliberately contains no decorators — that package
-builds with tsdown on TypeScript 7 like everything else, and is covered.
+The exclusion is only half honoured. `bun install` respects it — `bun.lock` has no entry for this
+app — so its TypeScript 6 never reaches the root. `bun run --filter='*'` does **not**: it globs
+directories rather than reading the `workspaces` list, and so reaches every script this app defines.
+
+That is why its real build is named `bundle` rather than `build`. As `build` it ran in the root's
+*parallel* build alongside `packages/angular`, whose tsdown config cleans `dist/` before rewriting
+it — and the Angular compiler reads that same `dist/` for its `ngx-oauth` types. Bun has no
+dependency edge to order them, because the app is not a workspace member, so the root build failed
+roughly one run in three. Measured, not theorised.
+
+`typecheck` keeps the plain name, because the typecheck step runs after the build has finished and
+the race is gone by then. So `verify` does cover this app's types; what it does not run is the
+Angular compiler's template checking, which is `bun run build:angular`.
+
+`packages/angular` still deliberately contains no decorators, so that package builds with tsdown on
+TypeScript 7 like everything else and does not depend on any of this.
 
 It is written against the `OAUTH` token rather than `ngx-oauth/component`, which v9 does not ship.
 

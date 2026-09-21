@@ -148,10 +148,10 @@ export const OAuth = ({ labels, renderUserInfo, logoutRedirectUri, username, pas
                 </ListItem>
               </List>
             )
-          ) : form.error ? (
+          ) : form.view.error ? (
             <CardContent>
               <Alert severity="error" variant="outlined" onClose={form.dismissError}>
-                {form.error}
+                {form.view.error}
               </Alert>
             </CardContent>
           ) : isRedirectFlow ? (
@@ -174,13 +174,14 @@ export const OAuth = ({ labels, renderUserInfo, logoutRedirectUri, username, pas
                   required
                   autoComplete="username"
                   label={t.username}
-                  value={form.username.value}
-                  error={form.username.showError}
+                  value={form.view.username.value}
+                  error={form.view.username.showError}
                   helperText={
-                    (form.username.showError && messageFor(form.username.error, t.usernameRequired, t.usernameLength, form.maxLength)) ||
+                    (form.view.username.showError &&
+                      messageFor(form.view.username.error, t.usernameRequired, t.usernameLength, form.maxLength)) ||
                     ' '
                   }
-                  onChange={e => form.username.onChange(e.target.value)}
+                  onChange={e => form.setUsername(e.target.value)}
                   slotProps={{
                     input: {
                       startAdornment: (
@@ -196,15 +197,16 @@ export const OAuth = ({ labels, renderUserInfo, logoutRedirectUri, username, pas
                   size="small"
                   required
                   autoComplete="current-password"
-                  type={form.passwordVisible ? 'text' : 'password'}
+                  type={form.view.passwordVisible ? 'text' : 'password'}
                   label={t.password}
-                  value={form.password.value}
-                  error={form.password.showError}
+                  value={form.view.password.value}
+                  error={form.view.password.showError}
                   helperText={
-                    (form.password.showError && messageFor(form.password.error, t.passwordRequired, t.passwordLength, form.maxLength)) ||
+                    (form.view.password.showError &&
+                      messageFor(form.view.password.error, t.passwordRequired, t.passwordLength, form.maxLength)) ||
                     ' '
                   }
-                  onChange={e => form.password.onChange(e.target.value)}
+                  onChange={e => form.setPassword(e.target.value)}
                   slotProps={{
                     input: {
                       startAdornment: (
@@ -218,9 +220,9 @@ export const OAuth = ({ labels, renderUserInfo, logoutRedirectUri, username, pas
                             edge="end"
                             size="small"
                             tabIndex={-1}
-                            aria-label={form.passwordVisible ? 'hide password' : 'show password'}
+                            aria-label={form.view.passwordVisible ? 'hide password' : 'show password'}
                             onClick={form.togglePasswordVisible}>
-                            {form.passwordVisible ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                            {form.view.passwordVisible ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
                           </IconButton>
                         </InputAdornment>
                       )
@@ -229,7 +231,11 @@ export const OAuth = ({ labels, renderUserInfo, logoutRedirectUri, username, pas
                 />
               </CardContent>
               <CardActions sx={{ justifyContent: 'flex-end' }}>
-                <Button type="submit" color="inherit" startIcon={<Login />} disabled={(form.submitted && !form.valid) || form.submitting}>
+                <Button
+                  type="submit"
+                  color="inherit"
+                  startIcon={<Login />}
+                  disabled={(form.view.submitted && !form.view.valid) || form.view.submitting}>
                   {t.login}
                 </Button>
               </CardActions>

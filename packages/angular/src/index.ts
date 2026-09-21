@@ -1,5 +1,5 @@
 export * from './core'
-export type { OAuthForm, OAuthFormField } from './form'
+export type { OAuthForm } from './form'
 export { oauthForm } from './form'
 export type { NgxOAuth } from './oauth'
 export { createNgxOAuth, OAUTH, OAUTH_CONFIG, OAUTH_FETCH, OAUTH_USER, provideOAuthConfig } from './oauth'

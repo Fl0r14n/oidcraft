@@ -54,9 +54,9 @@ describe('useOAuthForm', () => {
   it('reports codes rather than sentences, so the markup owns the wording', () => {
     const form = inSetup(oauth, () => useOAuthForm())
 
-    expect(form.errors.value.username).toBe('required')
+    expect(form.view.value.username.error).toBe('required')
     form.username.value = 'ada'
-    expect(form.errors.value.username).toBeUndefined()
+    expect(form.view.value.username.error).toBeUndefined()
   })
 
   // `v-model="username"` after destructuring is the point of the flat shape
@@ -66,17 +66,17 @@ describe('useOAuthForm', () => {
     form.username.value = 'ada'
 
     expect(form.username.value).toBe('ada')
-    expect(form.valid.value).toBe(false) // password still empty
+    expect(form.view.value.valid).toBe(false) // password still empty
     form.password.value = 'secret'
-    expect(form.valid.value).toBe(true)
+    expect(form.view.value.valid).toBe(true)
   })
 
   it('hides errors until a submit has been attempted', async () => {
     const form = inSetup(oauth, () => useOAuthForm())
 
-    expect(form.showErrors.value.username).toBe(false)
+    expect(form.view.value.username.showError).toBe(false)
     await form.submit()
-    expect(form.showErrors.value.username).toBe(true)
+    expect(form.view.value.username.showError).toBe(true)
   })
 
   it('does not attempt a login while invalid', async () => {
@@ -95,8 +95,8 @@ describe('useOAuthForm', () => {
 
     expect(attempts[0]).toEqual({ username: 'ada', password: 'wrong' })
     expect(form.username.value).toBe('ada')
-    expect(form.password.value).toBe('')
-    expect(form.error.value).toBe('bad credentials')
+    expect(form.view.value.password.value).toBe('')
+    expect(form.view.value.error).toBe('bad credentials')
   })
 
   it('lets the error be dismissed', async () => {
@@ -105,14 +105,14 @@ describe('useOAuthForm', () => {
 
     form.dismissError()
 
-    expect(form.error.value).toBeUndefined()
+    expect(form.view.value.error).toBeUndefined()
   })
 
   it('toggles password visibility', () => {
     const form = inSetup(oauth, () => useOAuthForm())
 
-    expect(form.passwordVisible.value).toBe(false)
+    expect(form.view.value.passwordVisible).toBe(false)
     form.togglePasswordVisible()
-    expect(form.passwordVisible.value).toBe(true)
+    expect(form.view.value.passwordVisible).toBe(true)
   })
 })

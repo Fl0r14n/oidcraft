@@ -62,27 +62,27 @@ describe('oauthForm', () => {
   it('reports codes rather than sentences, so the markup owns the wording', () => {
     const form = build(harness.oauth)
 
-    expect(form.username.error()).toBe('required')
-    form.username.set('ada')
-    expect(form.username.error()).toBeUndefined()
+    expect(form.view().username.error).toBe('required')
+    form.setUsername('ada')
+    expect(form.view().username.error).toBeUndefined()
   })
 
   it('flags a value past maxLength', () => {
     const form = build(harness.oauth, { maxLength: 4 })
 
-    form.username.set('abcde')
+    form.setUsername('abcde')
 
-    expect(form.username.error()).toBe('tooLong')
-    expect(form.valid()).toBe(false)
+    expect(form.view().username.error).toBe('tooLong')
+    expect(form.view().valid).toBe(false)
   })
 
   // a pristine form should not shout about fields nobody has touched yet
   it('hides errors until a submit has been attempted', async () => {
     const form = build(harness.oauth)
 
-    expect(form.username.showError()).toBe(false)
+    expect(form.view().username.showError).toBe(false)
     await form.submit()
-    expect(form.username.showError()).toBe(true)
+    expect(form.view().username.showError).toBe(true)
   })
 
   it('does not attempt a login while invalid', async () => {
@@ -95,57 +95,57 @@ describe('oauthForm', () => {
 
   it('logs in with what was entered, and clears it once that worked', async () => {
     const form = build(harness.oauth)
-    form.username.set('ada')
-    form.password.set('secret')
+    form.setUsername('ada')
+    form.setPassword('secret')
     harness.succeed()
 
     await form.submit()
 
     expect(harness.calls[0]).toEqual({ username: 'ada', password: 'secret' })
-    expect(form.username.value()).toBe('')
-    expect(form.password.value()).toBe('')
+    expect(form.view().username.value).toBe('')
+    expect(form.view().password.value).toBe('')
   })
 
   // the password goes, the username stays: a rejection is usually a typo in one of the two, and
   // retyping the address every time is the wrong thing to make someone do
   it('keeps the username when the provider rejects the attempt', async () => {
     const form = build(harness.oauth)
-    form.username.set('ada')
-    form.password.set('wrong')
+    form.setUsername('ada')
+    form.setPassword('wrong')
     harness.fail('bad credentials')
 
     await form.submit()
 
-    expect(form.username.value()).toBe('ada')
-    expect(form.password.value()).toBe('')
-    expect(form.submitted()).toBe(false)
+    expect(form.view().username.value).toBe('ada')
+    expect(form.view().password.value).toBe('')
+    expect(form.view().submitted).toBe(false)
   })
 
   it('surfaces the flow error, lets it be dismissed, and shows a different one', async () => {
     const form = build(harness.oauth)
     harness.fail('bad credentials')
 
-    expect(form.error()).toBe('bad credentials')
+    expect(form.view().error).toBe('bad credentials')
     form.dismissError()
-    expect(form.error()).toBeUndefined()
+    expect(form.view().error).toBeUndefined()
 
     harness.fail('account locked')
-    expect(form.error()).toBe('account locked')
+    expect(form.view().error).toBe('account locked')
   })
 
   it('toggles password visibility', () => {
     const form = build(harness.oauth)
 
-    expect(form.passwordVisible()).toBe(false)
+    expect(form.view().passwordVisible).toBe(false)
     form.togglePasswordVisible()
-    expect(form.passwordVisible()).toBe(true)
+    expect(form.view().passwordVisible).toBe(true)
   })
 
   it('seeds from the options, for a prefilled or a test form', () => {
     const form = build(harness.oauth, { username: 'ada', password: 'x' })
 
-    expect(form.username.value()).toBe('ada')
-    expect(form.valid()).toBe(true)
+    expect(form.view().username.value).toBe('ada')
+    expect(form.view().valid).toBe(true)
   })
 
   it('prevents the default on a submit event, so a real form does not navigate', async () => {

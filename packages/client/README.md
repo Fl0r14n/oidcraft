@@ -38,9 +38,10 @@ markup: two fields, validation, the submit lifecycle, a dismissable flow error. 
 all three bindings had grown their own copy of the same rules — when a field may show an error, what
 survives a rejected attempt, when a dismissed error comes back.
 
-`oauthFormView(state, flowError, maxLength)` is its pure derivation, the way `tokenState` is. The flow
-error is *passed in* rather than read, because each binding has to observe it through its own reactive
-primitive for the view to update when it changes.
+Only the **stateful** half is here. The rules and the derivation — `oauthFieldError`,
+`oauthFieldErrors`, `oauthFormView` — are in `@oidcraft/core`, because they are pure and the
+provider's own server-rendered login screen validates against exactly the same ones. The split is by
+whether a thing needs a browser, not by who consumes it.
 
 Errors are codes — `'required'`, `'tooLong'` — never sentences. The wording belongs to whoever writes
 the markup, and to their locale.

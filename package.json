@@ -20,7 +20,7 @@
     "db:down": "docker compose down",
     "verify": "./scripts/verify.sh",
     "demo:angular": "cd apps/demo-angular && bun install && bun run dev",
-    "build:angular": "cd apps/demo-angular && bun install && bun run build"
+    "build:angular": "cd apps/demo-angular && bun install && bun run bundle"
   },
   "devDependencies": {
     "@angular/common": "^22.1.0",

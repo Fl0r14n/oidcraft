@@ -38,9 +38,9 @@
           </VCardActions>
         </template>
         <template v-else>
-          <template v-if="error">
+          <template v-if="view.error">
             <VCardText>
-              <VAlert type="error" closable :text="error" @click:close="dismissError()" />
+              <VAlert type="error" closable :text="view.error" @click:close="dismissError()" />
             </VCardText>
           </template>
           <template v-else>
@@ -70,8 +70,8 @@
                     required
                     autocomplete="current-password"
                     :prepend-inner-icon="mdiLockOutline"
-                    :append-inner-icon="passwordVisible ? mdiEyeOff : mdiEye"
-                    :type="passwordVisible ? 'text' : 'password'"
+                    :append-inner-icon="view.passwordVisible ? mdiEyeOff : mdiEye"
+                    :type="view.passwordVisible ? 'text' : 'password'"
                     :label="t('$vuetify.oauth.password')"
                     :counter="length"
                     v-model="password"
@@ -81,7 +81,7 @@
                 </VCardText>
                 <VCardActions>
                   <VSpacer />
-                  <VBtn type="submit" :disabled="!valid || submitting">
+                  <VBtn type="submit" :disabled="!view.valid || view.submitting">
                     {{ t("$vuetify.oauth.login") }}
                   </VBtn>
                 </VCardActions>
@@ -135,14 +135,17 @@ const props = defineProps<{
 }>()
 const menu = shallowRef(false)
 
-const { username, password, errors, showErrors, valid, submitting, error, dismissError, passwordVisible, togglePasswordVisible, submit } =
-  useOAuthForm({ username: props.username, password: props.password, maxLength: length })
+const { view, username, password, dismissError, togglePasswordVisible, submit } = useOAuthForm({
+  username: props.username,
+  password: props.password,
+  maxLength: length
+})
 
 // the composable reports a code; the wording is this component's, and its locale's
 const messagesFor = (field: 'username' | 'password') =>
   computed(() => {
-    if (!showErrors.value[field]) return []
-    const code = errors.value[field]
+    const { error: code, showError } = view.value[field]
+    if (!showError) return []
     if (code === 'required') return [t(`$vuetify.oauth.${field}Required`)]
     if (code === 'tooLong') return [t(`$vuetify.oauth.${field}Length`, [length])]
     return []

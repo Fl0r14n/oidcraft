@@ -389,6 +389,26 @@ shorter and now renders what the composable decides.
 Vue's shape is flat where the others nest, because Vue unwraps a ref in a template only at the top
 level; a nested `form.username.value` would render the ref rather than the string.
 
+### The form, split by purity
+
+The rules moved again, and this time to the right place. `@oidcraft/core` holds what is pure —
+`oauthFieldError`, `oauthFieldErrors`, `oauthFormView` and the view types — and `@oidcraft/client`
+keeps only the stateful controller. The split is not by consumer but by whether a thing needs a
+browser.
+
+That is what let the OP's own login screen join in. It had been the worst-validated form in the
+repository: `routes.ts` checked only that a username was non-empty, never read the password at all,
+and on failure re-rendered a blank screen with no message. It now validates with the same function
+the bindings do, keeps what was typed, and says which field is wrong. `oidcraft/interaction`
+re-exports the rules so a host replacing the reference screens validates the same things — pure, so
+no UI peer reaches that entry (§8.1), and no HTML reaches the core (FR-I1).
+
+The three bindings then collapsed from 74–82 lines each to 43–53. They had been restating the view
+property by property in each framework's primitive, which is most of what a "thin wrapper" was
+costing; one reactive `view` plus the controller's actions says the same thing. Vue keeps two
+writable refs beside it, because `v-model` needs somewhere to write and Vue unwraps a ref in a
+template only at the top level.
+
 ### Still open on the Vue move
 - **`@vue/compiler-sfc` cannot resolve an imported type under Bun** ("No fs option provided to
   compileScript in non-Node environment"), so the login component's props are written out literally

@@ -22,18 +22,18 @@ const Form = ({ maxLength }: { maxLength?: number } = {}) => {
   const form = useOAuthForm({ maxLength })
   return (
     <form onSubmit={event => void form.submit(event)}>
-      <input aria-label="username" value={form.username.value} onChange={e => form.username.onChange(e.target.value)} />
-      <input aria-label="password" value={form.password.value} onChange={e => form.password.onChange(e.target.value)} />
+      <input aria-label="username" value={form.view.username.value} onChange={e => form.setUsername(e.target.value)} />
+      <input aria-label="password" value={form.view.password.value} onChange={e => form.setPassword(e.target.value)} />
       <button type="submit">go</button>
       <span data-testid="state">
         {[
-          form.username.error ?? '-',
-          form.password.error ?? '-',
-          form.username.showError ? 'shown' : 'hidden',
-          form.valid ? 'valid' : 'invalid',
-          form.submitting ? 'submitting' : 'idle',
-          form.error ?? '-',
-          form.passwordVisible ? 'visible' : 'masked'
+          form.view.username.error ?? '-',
+          form.view.password.error ?? '-',
+          form.view.username.showError ? 'shown' : 'hidden',
+          form.view.valid ? 'valid' : 'invalid',
+          form.view.submitting ? 'submitting' : 'idle',
+          form.view.error ?? '-',
+          form.view.passwordVisible ? 'visible' : 'masked'
         ].join('|')}
       </span>
       <button type="button" data-testid="toggle" onClick={form.togglePasswordVisible}>
@@ -206,7 +206,7 @@ describe('useOAuthForm', () => {
   it('seeds from the options, for a prefilled or test form', () => {
     const Seeded = () => {
       const form = useOAuthForm({ username: 'preset', password: 'pw' })
-      return <span data-testid="seeded">{`${form.username.value}|${form.valid}`}</span>
+      return <span data-testid="seeded">{`${form.view.username.value}|${form.view.valid}`}</span>
     }
     mount(<Seeded />)
 

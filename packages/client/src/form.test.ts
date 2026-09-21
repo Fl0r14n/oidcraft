@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'bun:test'
-import { createOAuthForm, type OAuthFormHost, oauthFormView } from './form'
+import { createOAuthForm, type OAuthFormHost } from './form'
 
 /** A stand-in for an instance: the controller needs three things from one, and this is all three. */
 const host = () => {
@@ -24,33 +24,6 @@ const host = () => {
     }
   }
 }
-
-describe('oauthFormView', () => {
-  const state = { username: '', password: '', submitted: false, submitting: false, passwordVisible: false, dismissed: undefined }
-
-  it('reports codes rather than sentences, so the markup owns the wording', () => {
-    expect(oauthFormView(state, undefined).username.error).toBe('required')
-    expect(oauthFormView({ ...state, username: 'ada' }, undefined).username.error).toBeUndefined()
-  })
-
-  it('flags a value past maxLength', () => {
-    const view = oauthFormView({ ...state, username: 'abcde', password: 'x' }, undefined, 4)
-    expect(view.username.error).toBe('tooLong')
-    expect(view.valid).toBe(false)
-  })
-
-  // a pristine form should not shout about fields nobody has touched
-  it('withholds errors until a submit has been attempted', () => {
-    expect(oauthFormView(state, undefined).username.showError).toBe(false)
-    expect(oauthFormView({ ...state, submitted: true }, undefined).username.showError).toBe(true)
-  })
-
-  it('shows a flow error until it is dismissed, and a different one after', () => {
-    expect(oauthFormView(state, 'bad credentials').error).toBe('bad credentials')
-    expect(oauthFormView({ ...state, dismissed: 'bad credentials' }, 'bad credentials').error).toBeUndefined()
-    expect(oauthFormView({ ...state, dismissed: 'bad credentials' }, 'account locked').error).toBe('account locked')
-  })
-})
 
 describe('createOAuthForm', () => {
   let harness: ReturnType<typeof host>

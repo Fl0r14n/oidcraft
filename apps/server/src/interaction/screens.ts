@@ -1,4 +1,5 @@
 import type { InteractionView } from 'oidcraft'
+import { DEFAULT_MAX_LENGTH, type OAuthFieldError, type OAuthFieldErrors } from 'oidcraft/interaction'
 
 const layout = (title: string, body: string) => `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -15,25 +16,51 @@ ul{margin:0 0 1.5rem;padding-left:1.1rem;color:#444;font-size:.9rem}
 ul.choices{list-style:none;padding:0}
 ul.choices li{margin-bottom:.5rem}
 ul.choices button{width:100%;text-align:left;background:#fff;color:#111;border:1px solid #ccc}
+p.error,small.error{color:#b00020;font-size:.85rem;margin:-.75rem 0 1rem;display:block}
+input[aria-invalid=true]{border-color:#b00020}
 .row{display:flex;gap:.5rem}
 @media(prefers-color-scheme:dark){body{background:#111}main{background:#1a1a1a;border-color:#333}p.sub,ul{color:#aaa}
+p.error,small.error{color:#ff6b81}
 ul.choices button{background:#1a1a1a;color:#eee;border-color:#555}
 input{background:#111;border-color:#444;color:#eee}button.secondary{background:#1a1a1a;color:#eee;border-color:#555}}
 </style></head><body><main>${body}</main></body></html>`
 
+/** What a rejected POST hands back to the screen, so the attempt is not thrown away. */
+export type LoginAttempt = { username: string; errors: OAuthFieldErrors }
+
+/** Codes come from `oidcraft/interaction`; the wording is this screen's, and its locale's (FR-I6). */
+const MESSAGES: Record<'username' | 'password', Record<'required' | 'tooLong', string>> = {
+  username: { required: 'Enter your username', tooLong: `Use at most ${DEFAULT_MAX_LENGTH} characters` },
+  password: { required: 'Enter your password', tooLong: `Use at most ${DEFAULT_MAX_LENGTH} characters` }
+}
+
+const fieldError = (field: 'username' | 'password', error: OAuthFieldError) =>
+  (error && `<small class="error">${escapeHtml(MESSAGES[field][error])}</small>`) || ''
+
+const invalid = (error: OAuthFieldError) => (error && ' aria-invalid="true"') || ''
+
 /**
  * The reference screens: deliberately plain, no component library, meant to be replaced (FR-I3).
  * This is a demo credential check — a real deployment authenticates against its own directory.
+ *
+ * `required` and `maxlength` are the browser's copy of the same rules the POST re-checks with
+ * `oauthFieldErrors`. Both are needed: the attribute is the fast path, and it is absent the moment
+ * someone posts the form without a browser.
  */
-export const loginScreen = (view: InteractionView) =>
-  layout(
+export const loginScreen = (view: InteractionView, attempt?: LoginAttempt) => {
+  const errors = attempt?.errors ?? { username: undefined, password: undefined }
+  const username = attempt?.username ?? view.loginHint ?? ''
+  return layout(
     'Sign in',
     `<h1>Sign in</h1><p class="sub">to continue to <strong>${escapeHtml(view.clientId)}</strong></p>
 <form method="post" action="/interaction/${view.id}/login">
-<label for="u">Username</label><input id="u" name="username" autocomplete="username" required value="${escapeHtml(view.loginHint ?? '')}">
-<label for="p">Password</label><input id="p" name="password" type="password" autocomplete="current-password" required>
+<label for="u">Username</label><input id="u" name="username" autocomplete="username" required
+ maxlength="${DEFAULT_MAX_LENGTH}"${invalid(errors.username)} value="${escapeHtml(username)}">${fieldError('username', errors.username)}
+<label for="p">Password</label><input id="p" name="password" type="password" autocomplete="current-password" required
+ maxlength="${DEFAULT_MAX_LENGTH}"${invalid(errors.password)}>${fieldError('password', errors.password)}
 <button type="submit">Sign in</button></form>`
   )
+}
 
 export const consentScreen = (view: InteractionView) =>
   layout(

@@ -57,24 +57,24 @@ The resource-owner password form as refs, sharing its rules with the React and A
 <script setup lang="ts">
 import { useOAuthForm } from 'vue-oidc'
 
-const { username, password, errors, showErrors, valid, submit } = useOAuthForm()
+const { view, username, password, submit } = useOAuthForm()
 </script>
 
 <template>
   <form @submit.prevent="submit()">
     <input v-model="username" />
-    <small v-if="showErrors.username">{{ errors.username }}</small>
+    <small v-if="view.username.showError">{{ view.username.error }}</small>
     <input v-model="password" type="password" />
-    <button type="submit" :disabled="!valid">Sign in</button>
+    <button type="submit" :disabled="!view.valid">Sign in</button>
   </form>
 </template>
 ```
 
-The shape is **flat** where the React and Angular bindings nest a field object. Vue unwraps a ref in
-a template only when it is a top-level binding, so a nested `form.username.value` renders the ref
-rather than the string and `v-model` binds the wrong thing.
+`view` is the whole derived form in one ref; `username` and `password` are writable because
+`v-model` needs somewhere to write. They are separate deliberately — Vue unwraps a ref in a template
+only at the top level, so `view.username.value` would render the ref rather than the string.
 
-`errors.username` is a code — `'required'`, `'tooLong'` — not a sentence; the wording is yours.
+`view.username.error` is a code — `'required'`, `'tooLong'` — not a sentence; the wording is yours.
 `vue-oidc/component` is one way to render it, and the grant it drives is one OAuth 2.1 removed, so an
 `oidcraft` provider will not accept it.
 

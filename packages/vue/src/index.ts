@@ -1,5 +1,7 @@
 export { isExpiredToken, type OAuthConfig, type TokenState, tokenState } from '@oidcraft/client'
 export * from '@oidcraft/core'
+export type { OAuthFieldErrors, OAuthForm } from './form'
+export { useOAuthForm } from './form'
 export {
   createOAuth,
   disposeOAuth,

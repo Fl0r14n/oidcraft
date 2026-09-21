@@ -1,10 +1,7 @@
-import { useMemo, useState } from 'react'
-import { useOAuthActions, useOAuthError } from './hooks'
+import { useMemo, useRef } from 'react'
+import { createOAuthForm, type OAuthFieldError, type OAuthFormOptions, oauthFormView } from 'react-oauth-oidc/core'
+import { useOAuthError, useStoreValue } from './hooks'
 import { useOAuthInstance } from './provider'
-
-export const DEFAULT_MAX_LENGTH = 128
-
-export type OAuthFieldError = 'required' | 'tooLong' | undefined
 
 export interface OAuthFormField {
   value: string
@@ -29,82 +26,51 @@ export interface OAuthForm {
   maxLength: number
 }
 
-export interface UseOAuthFormOptions {
-  username?: string | undefined
-  password?: string | undefined
-  maxLength?: number | undefined
-}
+export type UseOAuthFormOptions = OAuthFormOptions
 
-const fieldError = (value: string, maxLength: number): OAuthFieldError =>
-  (!value && 'required') || (value.length > maxLength && 'tooLong') || undefined
+/**
+ * The resource-owner password form. The rules — when a field may show an error, what survives a
+ * rejected attempt, when a dismissed error comes back — are `@oidcraft/client`'s and are shared with
+ * the Vue and Angular bindings; this is the React wrapper and nothing else.
+ */
+export const useOAuthForm = (options: UseOAuthFormOptions = {}): OAuthForm => {
+  const oauth = useOAuthInstance()
 
-export const useOAuthForm = ({ username = '', password = '', maxLength = DEFAULT_MAX_LENGTH }: UseOAuthFormOptions = {}): OAuthForm => {
-  const { login } = useOAuthActions()
-  const { isAuthorized } = useOAuthInstance()
-  const flowError = useOAuthError()
+  // Held in a ref because the options *seed* the form rather than bind to it: they are an object
+  // literal at almost every call site, so depending on their identity would rebuild the controller
+  // every render and throw away whatever the user had typed. This is what `useState(username)` did
+  // before, said out loud.
+  const seed = useRef(options)
 
-  const [model, setModel] = useState({ username, password })
-  const [submitted, setSubmitted] = useState(false)
-  const [submitting, setSubmitting] = useState(false)
-  const [passwordVisible, setPasswordVisible] = useState(false)
-  const [dismissedError, setDismissedError] = useState<string | undefined>(undefined)
-
-  const errors = useMemo(
-    () => ({
-      username: fieldError(model.username, maxLength),
-      password: fieldError(model.password, maxLength)
-    }),
-    [model, maxLength]
+  const controller = useMemo(
+    () =>
+      createOAuthForm(
+        {
+          login: parameters => oauth.login(parameters),
+          isAuthorized: oauth.isAuthorized,
+          errorDescription: oauth.errorDescription
+        },
+        seed.current
+      ),
+    [oauth]
   )
 
-  const valid = !errors.username && !errors.password
-
-  const reset = () => {
-    setModel({ username: '', password: '' })
-    setSubmitted(false)
-  }
-
-  const submit = async (event?: { preventDefault?: () => void }) => {
-    event?.preventDefault?.()
-    setSubmitted(true)
-    setDismissedError(undefined)
-    if (!valid) return
-    setSubmitting(true)
-    try {
-      await login(model)
-    } finally {
-      setSubmitting(false)
-      if (isAuthorized()) {
-        reset()
-      } else {
-        setModel(m => ({ ...m, password: '' }))
-        setSubmitted(false)
-      }
-    }
-  }
+  const state = useStoreValue(controller.store, snapshot => snapshot)
+  const flowError = useOAuthError()
+  const view = oauthFormView(state, flowError, controller.maxLength)
 
   return {
-    username: {
-      value: model.username,
-      error: errors.username,
-      showError: submitted && !!errors.username,
-      onChange: value => setModel(m => ({ ...m, username: value }))
-    },
-    password: {
-      value: model.password,
-      error: errors.password,
-      showError: submitted && !!errors.password,
-      onChange: value => setModel(m => ({ ...m, password: value }))
-    },
-    valid,
-    submitted,
-    submitting,
-    error: (flowError !== dismissedError && flowError) || undefined,
-    dismissError: () => setDismissedError(flowError),
-    passwordVisible,
-    togglePasswordVisible: () => setPasswordVisible(visible => !visible),
-    submit,
-    reset,
-    maxLength
+    username: { ...view.username, onChange: controller.setUsername },
+    password: { ...view.password, onChange: controller.setPassword },
+    valid: view.valid,
+    submitted: view.submitted,
+    submitting: view.submitting,
+    error: view.error,
+    dismissError: controller.dismissError,
+    passwordVisible: view.passwordVisible,
+    togglePasswordVisible: controller.togglePasswordVisible,
+    submit: controller.submit,
+    reset: controller.reset,
+    maxLength: controller.maxLength
   }
 }

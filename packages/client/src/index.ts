@@ -8,6 +8,18 @@
 export { type ConfigContext, createConfig } from './config'
 export { createFetch, type FetchContext } from './fetch'
 export { createFlows, type FlowsContext } from './flows'
+export {
+  createOAuthForm,
+  DEFAULT_MAX_LENGTH,
+  type OAuthFieldError,
+  type OAuthFormController,
+  type OAuthFormFieldView,
+  type OAuthFormHost,
+  type OAuthFormOptions,
+  type OAuthFormState,
+  type OAuthFormView,
+  oauthFormView
+} from './form'
 export { createJwt, type Jwt } from './jwt'
 export { createOAuth, type OAuth } from './module'
 export { createStorageStore, type StorageStore } from './storage'

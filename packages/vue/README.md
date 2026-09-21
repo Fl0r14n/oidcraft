@@ -49,6 +49,35 @@ package pulls `vue` and nothing else.
 What is Vue's here is `refs.ts`: two functions turning the core's `Subscribable` into a `Ref`. That
 is the whole binding.
 
+## `useOAuthForm`
+
+The resource-owner password form as refs, sharing its rules with the React and Angular bindings.
+
+```vue
+<script setup lang="ts">
+import { useOAuthForm } from 'vue-oidc'
+
+const { username, password, errors, showErrors, valid, submit } = useOAuthForm()
+</script>
+
+<template>
+  <form @submit.prevent="submit()">
+    <input v-model="username" />
+    <small v-if="showErrors.username">{{ errors.username }}</small>
+    <input v-model="password" type="password" />
+    <button type="submit" :disabled="!valid">Sign in</button>
+  </form>
+</template>
+```
+
+The shape is **flat** where the React and Angular bindings nest a field object. Vue unwraps a ref in
+a template only when it is a top-level binding, so a nested `form.username.value` renders the ref
+rather than the string and `v-model` binds the wrong thing.
+
+`errors.username` is a code — `'required'`, `'tooLong'` — not a sentence; the wording is yours.
+`vue-oidc/component` is one way to render it, and the grant it drives is one OAuth 2.1 removed, so an
+`oidcraft` provider will not accept it.
+
 ## SSR
 
 `createOAuth()` opens a **detached** effect scope, so one instance per request stays isolated and a

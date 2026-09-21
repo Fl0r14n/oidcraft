@@ -38,14 +38,9 @@
           </VCardActions>
         </template>
         <template v-else>
-          <template v-if="showError">
+          <template v-if="error">
             <VCardText>
-              <VAlert
-                type="error"
-                closable
-                :text="errorDescription"
-                @click:close="showError = false"
-              />
+              <VAlert type="error" closable :text="error" @click:close="dismissError()" />
             </VCardText>
           </template>
           <template v-else>
@@ -58,14 +53,7 @@
               </VCardActions>
             </template>
             <template v-else>
-              <VForm
-                ref="formRef"
-                v-model="form.valid"
-                lazy-validation
-                autocomplete="on"
-                @submit.prevent="signIn()"
-                @keyup.enter="signIn()"
-              >
+              <VForm autocomplete="on" @submit.prevent="submit()" @keyup.enter="submit()">
                 <VCardText class="pb-0 oauth-form" style="min-width: 300px">
                   <VTextField
                     name="username"
@@ -74,26 +62,26 @@
                     :prepend-inner-icon="mdiEmailOutline"
                     :label="t('$vuetify.oauth.username')"
                     :counter="length"
-                    v-model="form.model.username"
-                    :rules="form.rules.username"
+                    v-model="username"
+                    :error-messages="usernameMessages"
                   />
                   <VTextField
                     name="password"
                     required
                     autocomplete="current-password"
                     :prepend-inner-icon="mdiLockOutline"
-                    :append-inner-icon="visible ? mdiEyeOff : mdiEye"
-                    :type="visible ? 'text' : 'password'"
+                    :append-inner-icon="passwordVisible ? mdiEyeOff : mdiEye"
+                    :type="passwordVisible ? 'text' : 'password'"
                     :label="t('$vuetify.oauth.password')"
                     :counter="length"
-                    v-model="form.model.password"
-                    :rules="form.rules.password"
-                    @click:append-inner="visible = !visible"
+                    v-model="password"
+                    :error-messages="passwordMessages"
+                    @click:append-inner="togglePasswordVisible()"
                   />
                 </VCardText>
                 <VCardActions>
                   <VSpacer />
-                  <VBtn type="submit" :disabled="!form.valid">
+                  <VBtn type="submit" :disabled="!valid || submitting">
                     {{ t("$vuetify.oauth.login") }}
                   </VBtn>
                 </VCardActions>
@@ -108,8 +96,8 @@
 <script setup lang="ts">
 import { mdiAccount, mdiAccountOutline, mdiEmailOutline, mdiEye, mdiEyeOff, mdiLockOutline } from '@mdi/js'
 import type { OAuthParameters } from '@oidcraft/core'
-import { shallowRef, useTemplateRef, watch } from 'vue'
-import { OAuthType, useOAuth, useOAuthUser } from 'vue-oidc'
+import { computed, shallowRef, watch } from 'vue'
+import { OAuthType, useOAuth, useOAuthForm, useOAuthUser } from 'vue-oidc'
 import { useLocale } from 'vuetify'
 import {
   VAlert,
@@ -130,7 +118,7 @@ import {
 
 const length = 128
 const { t } = useLocale()
-const { login, logout, isAuthorized, hasError, errorDescription } = useOAuth()
+const { login, logout, isAuthorized } = useOAuth()
 const user = useOAuthUser()
 // Repeated from ./props rather than imported: @vue/compiler-sfc cannot resolve an imported type
 // without filesystem access, which it refuses under Bun. ./props fails the typecheck if these drift.
@@ -145,35 +133,23 @@ const props = defineProps<{
   extras?: Record<string, string | undefined>
   logoutRedirectUri?: string
 }>()
-const visible = shallowRef(false)
-const showError = shallowRef(false)
-const formRef = useTemplateRef('formRef')
 const menu = shallowRef(false)
-const form = shallowRef({
-  valid: false,
-  model: {
-    username: props.username || '',
-    password: props.password || ''
-  },
-  rules: {
-    username: [
-      (v: string) => !!v || t('$vuetify.oauth.usernameRequired'),
-      (v: string) => (v && v.length <= length) || t('$vuetify.oauth.usernameLength', [length])
-    ],
-    password: [
-      (v: string) => !!v || t('$vuetify.oauth.passwordRequired'),
-      (v: string) => (v && v.length <= length) || t('$vuetify.oauth.passwordLength', [length])
-    ]
-  }
-})
 
-const signIn = async () => {
-  const { valid, model } = form.value
-  if (valid) {
-    await login(model)
-    formRef.value?.reset()
-  }
-}
+const { username, password, errors, showErrors, valid, submitting, error, dismissError, passwordVisible, togglePasswordVisible, submit } =
+  useOAuthForm({ username: props.username, password: props.password, maxLength: length })
+
+// the composable reports a code; the wording is this component's, and its locale's
+const messagesFor = (field: 'username' | 'password') =>
+  computed(() => {
+    if (!showErrors.value[field]) return []
+    const code = errors.value[field]
+    if (code === 'required') return [t(`$vuetify.oauth.${field}Required`)]
+    if (code === 'tooLong') return [t(`$vuetify.oauth.${field}Length`, [length])]
+    return []
+  })
+
+const usernameMessages = messagesFor('username')
+const passwordMessages = messagesFor('password')
 
 const signOut = async () => {
   menu.value = false
@@ -193,13 +169,5 @@ watch(
     }
   },
   { immediate: true }
-)
-
-watch(
-  hasError,
-  hasError => {
-    if (hasError) showError.value = true
-  },
-  { deep: true }
 )
 </script>

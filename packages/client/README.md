@@ -31,6 +31,23 @@ signal.
 
 Nothing in this package imports a framework, and nothing may.
 
+## The password form
+
+`createOAuthForm(oauth, options)` is the resource-owner password form with no framework and no
+markup: two fields, validation, the submit lifecycle, a dismissable flow error. It lives here because
+all three bindings had grown their own copy of the same rules — when a field may show an error, what
+survives a rejected attempt, when a dismissed error comes back.
+
+`oauthFormView(state, flowError, maxLength)` is its pure derivation, the way `tokenState` is. The flow
+error is *passed in* rather than read, because each binding has to observe it through its own reactive
+primitive for the view to update when it changes.
+
+Errors are codes — `'required'`, `'tooLong'` — never sentences. The wording belongs to whoever writes
+the markup, and to their locale.
+
+OAuth 2.1 removed the resource-owner password grant, so an `oidcraft` provider does not advertise it.
+This is for the providers that still accept it.
+
 ## Notes worth keeping
 
 - **A write is persisted before listeners run.** A listener commonly navigates — `authorize`,

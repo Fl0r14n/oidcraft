@@ -369,6 +369,26 @@ and secret committed**, pointed at `accounts.google.com`. A browser app cannot k
 was replaced with the same public-client-plus-PKCE config the other two demos use. That credential is
 still in the ngx-oauth repository's history and is worth rotating.
 
+### The password form, extracted
+
+`createOAuthForm` in `@oidcraft/client`, with each binding wrapping it: `useOAuthForm` in Vue and
+React, `oauthForm()` in Angular. Adding Angular's had quietly recreated the duplication this
+workspace exists to avoid — two near-identical copies of the same rules, about to become three.
+
+It is **not** a net reduction in lines, and it was predicted to be. The three wrappers are ~75 lines
+each rather than the ~25 estimated, because most of each file is the interface restated in that
+framework's reactive vocabulary — `Signal`, `ComputedRef`, plain values. The logic in each is about
+fifteen lines. What the extraction actually buys is that the *rules* exist once and are tested once:
+when a field may show an error, what survives a rejected attempt, when a dismissed error comes back.
+
+`vue-oidc/component` lost a fourth copy of those rules along the way — it had been validating through
+Vuetify's `VForm`, which meant its behaviour could differ from the other two and did (it never
+cleared the password after a rejection, and tracked its own error-dismissed flag). It is 32 lines
+shorter and now renders what the composable decides.
+
+Vue's shape is flat where the others nest, because Vue unwraps a ref in a template only at the top
+level; a nested `form.username.value` would render the ref rather than the string.
+
 ### Still open on the Vue move
 - **`@vue/compiler-sfc` cannot resolve an imported type under Bun** ("No fs option provided to
   compileScript in non-Node environment"), so the login component's props are written out literally

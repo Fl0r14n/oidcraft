@@ -1,6 +1,6 @@
 export * from './core'
-export type { OAuthFieldError, OAuthForm, OAuthFormField, OAuthFormOptions } from './form'
-export { DEFAULT_MAX_LENGTH, oauthForm } from './form'
+export type { OAuthForm, OAuthFormField } from './form'
+export { oauthForm } from './form'
 export type { NgxOAuth } from './oauth'
 export { createNgxOAuth, OAUTH, OAUTH_CONFIG, OAUTH_FETCH, OAUTH_USER, provideOAuthConfig } from './oauth'
 export { storeSignal, writableStoreSignal } from './signals'

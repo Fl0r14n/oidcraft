@@ -45,7 +45,7 @@ here, instead of needing `ng-packagr`.
   (ARCHITECTURE.md §8.4). What the Material form was actually worth — the validation, the submit
   lifecycle, the rule that a pristine field does not show an error, the decision to keep the username
   and clear the password on a rejection — is `oauthForm()`, as signals, with the markup left to you.
-  `react-oauth-oidc` ships the same thing as `useOAuthForm`.
+  Those rules live once in `@oidcraft/client`; `vue-oidc` and `react-oauth-oidc` wrap the same ones.
 
   Note that it drives the **resource-owner password grant**, which OAuth 2.1 removed: an `oidcraft`
   provider does not advertise it, and this is for the IdPs that still accept it.

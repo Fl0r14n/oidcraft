@@ -43,7 +43,13 @@ describe('keys', () => {
     expect(() => staticKeyStore([])).toThrow(ConfigurationError)
   })
 
+  // FR-T1, OIDC Core §15.1: RS256 is the one algorithm every OP must sign with.
+  test('a key set without RS256 is a configuration error', () => {
+    expect(() => staticKeyStore([es256])).toThrow(ConfigurationError)
+    expect(staticKeyStore([es256, rs256])).toBeTruthy()
+  })
+
   test('a key without an alg is rejected', () => {
-    expect(() => staticKeyStore([{ ...es256, alg: '' }])).toThrow(ConfigurationError)
+    expect(() => staticKeyStore([{ ...es256, alg: '' }, rs256])).toThrow(ConfigurationError)
   })
 })

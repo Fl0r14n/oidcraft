@@ -125,18 +125,12 @@ export const defaultOAuthFunctions: OAuthFunctions = {
     return (await request(userPath, { headers: { Accept: 'application/json' } }, oauthFetch)) || undefined
   },
 
-  // Left on Basic unconditionally: RFC 7662 §2.1 only requires *some* client authentication, this is
-  // what every provider tested accepts, and `tokenAuthMethod` was added for the token endpoint, where
-  // the choice actually varies. Changing it here would move an endpoint nothing asked about.
   introspect: async (token, config) => {
-    const { introspectionPath, clientId, clientSecret, allowInsecure } = config || {}
+    const { introspectionPath, clientId, tokenAuthMethod = 'client_secret_basic' } = config || {}
     const { access_token } = token || {}
     if (!introspectionPath || !access_token || !clientId) return undefined
-    assertSecure(introspectionPath, allowInsecure)
-    return (
-      (await post(introspectionPath, { token: access_token }, { Authorization: `Basic ${btoa(`${clientId}:${clientSecret}`)}` })) ||
-      undefined
-    )
+    // RFC 7662 §2.1 leaves the method open; Basic is the one RFC 6749 §2.3.1 obliges every server to accept.
+    return (await authenticatedPost(introspectionPath, { token: access_token }, { ...config, tokenAuthMethod })) || undefined
   }
 }
 

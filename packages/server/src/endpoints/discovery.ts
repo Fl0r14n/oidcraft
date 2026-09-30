@@ -52,7 +52,7 @@ export const metadata = (config: ResolvedConfig, algorithms: string[]) => {
     token_endpoint_auth_signing_alg_values_supported: algorithms,
     claims_supported: ['sub', 'iss', 'aud', 'exp', 'iat', 'auth_time', 'nonce', 'acr', 'amr', 'azp', ...claimsFrom(config)],
     claim_types_supported: ['normal'],
-    // FR-C3: mandatory for every client, and never `plain`.
+    // FR-C3: never `plain`.
     code_challenge_methods_supported: ['S256'],
     // FR-C14: unconditional.
     authorization_response_iss_parameter_supported: true,

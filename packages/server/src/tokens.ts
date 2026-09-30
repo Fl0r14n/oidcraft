@@ -24,10 +24,10 @@ const halfHash = async (value: string) => {
 
 export const mintIdToken = async (config: ResolvedConfig, input: IdTokenInput) => {
   const keys = await config.adapter.keys.active()
-  const alg = keys[0]?.alg
+  const alg = input.client.idTokenSignedResponseAlg ?? keys[0]?.alg
   const key = alg ? signingKey(keys, alg) : undefined
   if (!key || !alg) {
-    throw new OAuthError('server_error', { description: 'no signing key is available; the provider cannot issue an ID token' })
+    throw new OAuthError('server_error', { description: `no ${alg ?? ''} signing key is available; the provider cannot issue an ID token` })
   }
 
   const now = Math.floor(Date.now() / 1000)

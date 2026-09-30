@@ -21,6 +21,7 @@ export {
   DEFAULT_TTL,
   type Features,
   type ProviderConfig,
+  type RegistrationDecision,
   type ResolvedConfig,
   type Routes,
   resolveConfig,

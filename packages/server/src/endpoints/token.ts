@@ -144,7 +144,7 @@ const authorizationCodeGrant = async (config: ResolvedConfig, client: Client, fo
     })
   }
 
-  await verifyChallenge(form.get('code_verifier'), artifact.payload.codeChallenge as string)
+  await verifyChallenge(form.get('code_verifier'), artifact.payload.codeChallenge as string | undefined)
   await config.adapter.artifacts.consume('authorization_code', code)
 
   const { grant, session } = await loadGrantAndSession(config, artifact)

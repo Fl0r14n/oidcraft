@@ -14,7 +14,7 @@ export type AuthorizationRequest = {
   scopes: string[]
   state: string | undefined
   nonce: string | undefined
-  codeChallenge: string
+  codeChallenge: string | undefined
   prompt: string[]
   maxAge: number | undefined
   loginHint: string | undefined
@@ -37,6 +37,27 @@ const SUPPORTED_RESPONSE_TYPES = ['code']
 
 const list = (value: string | null) => (value ? value.split(' ').filter(Boolean) : [])
 
+const LOOPBACK_IPS = ['127.0.0.1', '[::1]']
+
+const withoutPort = (url: URL) => {
+  const copy = new URL(url)
+  copy.port = ''
+  return copy.href
+}
+
+/**
+ * NFR-S2: exact string match — except the port of a loopback IP literal, which a native app picks
+ * from the OS per request (RFC 8252 §7.3, RFC 9700 §2.1). The hostname `localhost` gets no exception.
+ */
+export const redirectMatches = (registered: string, presented: string) => {
+  if (registered === presented) return true
+  if (!URL.canParse(registered) || !URL.canParse(presented)) return false
+  const a = new URL(registered)
+  const b = new URL(presented)
+  if (a.protocol !== 'http:' || !LOOPBACK_IPS.includes(a.hostname)) return false
+  return withoutPort(a) === withoutPort(b)
+}
+
 /**
  * Everything before a redirect is safe. A bad `client_id` or an unregistered `redirect_uri` must NOT
  * redirect — that turns the provider into an open redirector for attacker-chosen URLs
@@ -52,8 +73,7 @@ export const parseAuthorizationRequest = async (config: ResolvedConfig, params: 
   const redirectUri = params.get('redirect_uri')
   if (!redirectUri) throw new OAuthError('invalid_request', { description: 'redirect_uri is required', spec: 'RFC 6749 §4.1.1' })
 
-  // NFR-S2: exact string match. No wildcards, no prefix matching, no port exception.
-  if (!client.redirectUris.includes(redirectUri)) {
+  if (!client.redirectUris.some(registered => redirectMatches(registered, redirectUri))) {
     throw new OAuthError('invalid_request', {
       description: `redirect_uri ${redirectUri} is not registered for ${clientId}`,
       spec: 'RFC 6749 §3.1.2.3, RFC 9700 §4.1.3'
@@ -111,7 +131,7 @@ export const validateAuthorizationRequest = (
     scopes,
     state: params.get('state') ?? undefined,
     nonce: params.get('nonce') ?? undefined,
-    codeChallenge: assertChallenge(params.get('code_challenge'), params.get('code_challenge_method')),
+    codeChallenge: assertChallenge(client, params.get('code_challenge'), params.get('code_challenge_method'), params.get('nonce')),
     prompt: list(params.get('prompt')),
     maxAge,
     loginHint: params.get('login_hint') ?? undefined,

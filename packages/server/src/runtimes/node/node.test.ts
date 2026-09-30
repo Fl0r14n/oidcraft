@@ -26,7 +26,7 @@ describe('node bridge', () => {
     const response = await fetch(`${base}/jwks`)
     expect(response.status).toBe(200)
     expect(response.headers.get('cache-control')).toContain('max-age')
-    expect((await response.json()).keys).toHaveLength(1)
+    expect((await response.json()).keys).toHaveLength(2)
   })
 
   test('carries a POST body through to the handler', async () => {

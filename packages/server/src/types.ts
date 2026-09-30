@@ -30,6 +30,8 @@ export type Client = {
   sectorIdentifierUri?: string
   /** RFC 9068. Opaque by default, because a revoked opaque token stops working at once (FR-T2). */
   accessTokenFormat?: 'opaque' | 'jwt'
+  /** OIDC DCR 1.0 §2. Unset, the provider's first key signs (FR-T1). */
+  idTokenSignedResponseAlg?: string
   /** OIDC Core §5.3.2: when set, UserInfo answers with a signed JWT rather than JSON (FR-C5). */
   userinfoSignedResponseAlg?: string
   userinfoEncryptedResponseAlg?: string

@@ -1,5 +1,6 @@
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
+import { signingAlgorithms } from '../keys'
 import { token } from '../random'
 import type { Client, ClientAuthMethod } from '../types'
 
@@ -35,6 +36,46 @@ const validateRedirectUris = (uris: unknown) => {
   return uris as string[]
 }
 
+/** FR-T1: `none` never, and never an algorithm the provider holds no key for. */
+const assertSignable = async (config: ResolvedConfig, client: Client) => {
+  const alg = client.idTokenSignedResponseAlg
+  if (!alg) return
+  if (!signingAlgorithms(await config.adapter.keys.active()).includes(alg)) {
+    throw invalid(`id_token_signed_response_alg ${alg} is not one this provider signs with`)
+  }
+}
+
+/** OIDC DCR 1.0 §5: every registered redirect_uri must be listed, or registration fails (FR-C18). */
+const assertSector = async (config: ResolvedConfig, client: Client) => {
+  const uri = client.sectorIdentifierUri
+  if (uri === undefined) {
+    if (client.subjectType === 'pairwise' && new Set(client.redirectUris.map(each => new URL(each).host)).size > 1) {
+      throw invalid('redirect_uris span several hosts, so a pairwise client must register a sector_identifier_uri (OIDC Core §8.1)')
+    }
+    return
+  }
+  if (!URL.canParse(uri) || new URL(uri).protocol !== 'https:') throw invalid('sector_identifier_uri must be an https URL')
+  if (!config.resolveSectorIdentifier) throw invalid('this provider cannot validate a sector_identifier_uri')
+  const listed = await config.resolveSectorIdentifier(uri).catch(() => {
+    throw invalid(`sector_identifier_uri ${uri} could not be retrieved`)
+  })
+  if (!Array.isArray(listed)) throw invalid('sector_identifier_uri must reference a JSON array of redirect URIs')
+  const missing = client.redirectUris.filter(each => !listed.includes(each))
+  if (missing.length) throw invalid(`sector_identifier_uri does not list ${missing.join(', ')}`)
+}
+
+const subjectTypeFrom = (config: ResolvedConfig, requested: unknown) => {
+  if (requested === undefined) return {}
+  if (requested !== 'public' && requested !== 'pairwise') throw invalid(`subject_type ${String(requested)} is not supported`)
+  if (requested === 'pairwise' && !config.pairwiseSalt) throw invalid('this provider does not issue pairwise subjects')
+  return { subjectType: requested } as const
+}
+
+const assertRegistrable = async (config: ResolvedConfig, client: Client) => {
+  await assertSignable(config, client)
+  await assertSector(config, client)
+}
+
 const metadataFrom = (config: ResolvedConfig, body: Record<string, unknown>): Client => {
   const redirectUris = validateRedirectUris(body.redirect_uris)
   const method = (body.token_endpoint_auth_method as ClientAuthMethod | undefined) ?? 'client_secret_basic'
@@ -60,10 +101,14 @@ const metadataFrom = (config: ResolvedConfig, body: Record<string, unknown>): Cl
     responseTypes,
     scopes,
     tokenEndpointAuthMethod: method,
+    ...(typeof body.sector_identifier_uri === 'string' && { sectorIdentifierUri: body.sector_identifier_uri }),
+    ...subjectTypeFrom(config, body.subject_type),
+    // OIDC DCR 1.0 §2: RS256 when omitted, whatever the provider's own default is (FR-T1).
+    idTokenSignedResponseAlg: (body.id_token_signed_response_alg as string | undefined) ?? 'RS256',
     ...(body.jwks ? { jwks: body.jwks as { keys: unknown[] } } : {}),
     ...(typeof body.jwks_uri === 'string' && { jwksUri: body.jwks_uri }),
     ...(typeof body.backchannel_logout_uri === 'string' && { backchannelLogoutUri: body.backchannel_logout_uri }),
-    // FR-C3: not negotiable, whoever registered it.
+    // FR-C3: registering itself gives no assurance; only the host's onRegister can exempt it.
     requirePkce: true,
     registrationAccessToken: token(),
     createdAt: now,
@@ -80,6 +125,9 @@ export const clientResponse = (config: ResolvedConfig, client: Client) => ({
   response_types: client.responseTypes,
   scope: client.scopes.join(' '),
   token_endpoint_auth_method: client.tokenEndpointAuthMethod,
+  ...(client.sectorIdentifierUri && { sector_identifier_uri: client.sectorIdentifierUri }),
+  ...(client.subjectType && { subject_type: client.subjectType }),
+  ...(client.idTokenSignedResponseAlg && { id_token_signed_response_alg: client.idTokenSignedResponseAlg }),
   client_id_issued_at: Math.floor(client.createdAt.getTime() / 1000),
   ...(client.registrationAccessToken && {
     registration_access_token: client.registrationAccessToken,
@@ -109,12 +157,17 @@ export const registrationEndpoint = async (config: ResolvedConfig, request: Requ
   const url = new URL(request.url)
 
   if (request.method === 'POST') {
-    if (config.onRegister) await config.onRegister(request)
+    const decision = config.onRegister ? await config.onRegister(request.clone()) : undefined
     const body = (await request.json().catch(() => {
       throw invalid('the registration request must be JSON')
     })) as Record<string, unknown>
 
     const client = metadataFrom(config, body)
+    await assertRegistrable(config, client)
+    if (decision?.requirePkce === false) {
+      if (client.tokenEndpointAuthMethod === 'none') throw invalid('a public client cannot be exempted from PKCE')
+      client.requirePkce = false
+    }
     if (!config.adapter.clients.create) throw new OAuthError('server_error', { description: 'this adapter cannot create clients' })
     await config.adapter.clients.create(client)
     await config.onAudit?.({ action: 'client.register', clientId: client.clientId, at: new Date() })
@@ -137,6 +190,7 @@ export const registrationEndpoint = async (config: ResolvedConfig, request: Requ
     throw invalid('the update must be JSON')
   })) as Record<string, unknown>
   const replacement = metadataFrom(config, body)
+  await assertRegistrable(config, replacement)
   // Identity and the token that grants access to it are the server's, not the client's to change.
   const updated: Client = {
     ...replacement,

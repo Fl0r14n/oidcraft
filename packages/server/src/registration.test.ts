@@ -52,7 +52,20 @@ describe('dynamic client registration', () => {
     expect((await adapter.clients.find(client_id))?.redirectUris).toEqual([REDIRECT])
   })
 
-  // FR-C3: not negotiable, whoever registered it.
+  // OIDC DCR 1.0 §2: RS256 when omitted, whatever the provider signs with by default (FR-T1).
+  test('a dynamic client gets RS256 ID tokens unless it asks otherwise', async () => {
+    const { client_id, id_token_signed_response_alg } = await (await register(valid)).json()
+    expect(id_token_signed_response_alg).toBe('RS256')
+    expect((await adapter.clients.find(client_id))?.idTokenSignedResponseAlg).toBe('RS256')
+    expect((await (await register({ ...valid, id_token_signed_response_alg: 'ES256' })).json()).id_token_signed_response_alg).toBe('ES256')
+  })
+
+  test('an ID token algorithm the provider holds no key for is refused, none included', async () => {
+    expect((await register({ ...valid, id_token_signed_response_alg: 'none' })).status).toBe(400)
+    expect((await register({ ...valid, id_token_signed_response_alg: 'PS512' })).status).toBe(400)
+  })
+
+  // FR-C3: a client registering itself cannot vouch for itself.
   test('PKCE is forced on regardless of what was asked for', async () => {
     const { client_id } = await (await register({ ...valid, require_pkce: false })).json()
     expect((await adapter.clients.find(client_id))?.requirePkce).toBe(true)
@@ -108,6 +121,91 @@ describe('dynamic client registration', () => {
     const off = createProvider({ issuer: ISSUER, adapter })
     const response = await off.handle(new Request(`${ISSUER}/register`, { method: 'POST', body: '{}' }))
     expect(response.status).toBe(404)
+  })
+
+  // OIDC DCR 1.0 §5, FR-C18.
+  describe('sector_identifier_uri', () => {
+    const SECTOR = 'https://rp.example.com/sector.json'
+    const OTHER = 'https://other.example.net/cb'
+    const withSectors = (listed: Record<string, unknown>) =>
+      createProvider({
+        issuer: ISSUER,
+        adapter,
+        pairwiseSalt: 'a-salt-long-enough-for-pairwise-subjects',
+        features: { dynamicRegistration: true },
+        resolveSectorIdentifier: async uri => {
+          if (!(uri in listed)) throw new Error('unreachable')
+          return listed[uri]
+        }
+      })
+    const registerWith = (op: Provider, body: Record<string, unknown>) =>
+      op.handle(new Request(`${ISSUER}/register`, { method: 'POST', body: JSON.stringify(body) }))
+
+    test('registers when the sector lists every redirect_uri', async () => {
+      const op = withSectors({ [SECTOR]: [REDIRECT, OTHER] })
+      const response = await registerWith(op, { ...valid, subject_type: 'pairwise', sector_identifier_uri: SECTOR })
+      expect(response.status).toBe(201)
+      const { client_id, sector_identifier_uri } = await response.json()
+      expect(sector_identifier_uri).toBe(SECTOR)
+      expect((await adapter.clients.find(client_id))?.subjectType).toBe('pairwise')
+    })
+
+    test('refuses a redirect_uri the sector does not list', async () => {
+      const op = withSectors({ [SECTOR]: [OTHER] })
+      expect((await registerWith(op, { ...valid, sector_identifier_uri: SECTOR })).status).toBe(400)
+    })
+
+    test('refuses a sector that is unreachable, not an array, or not https', async () => {
+      const op = withSectors({ [SECTOR]: { redirect_uris: [REDIRECT] } })
+      expect((await registerWith(op, { ...valid, sector_identifier_uri: 'https://rp.example.com/missing.json' })).status).toBe(400)
+      expect((await registerWith(op, { ...valid, sector_identifier_uri: SECTOR })).status).toBe(400)
+      expect((await registerWith(op, { ...valid, sector_identifier_uri: 'http://rp.example.com/sector.json' })).status).toBe(400)
+    })
+
+    test('refuses a sector the provider has no way to fetch', async () => {
+      expect((await register({ ...valid, sector_identifier_uri: SECTOR })).status).toBe(400)
+    })
+
+    // OIDC Core §8.1: otherwise the subject would depend on which redirect_uri was used.
+    test('a pairwise client on several hosts must name a sector', async () => {
+      const op = withSectors({})
+      expect((await registerWith(op, { ...valid, redirect_uris: [REDIRECT, OTHER], subject_type: 'pairwise' })).status).toBe(400)
+    })
+
+    test('pairwise is refused where the provider issues none', async () => {
+      expect((await register({ ...valid, subject_type: 'pairwise' })).status).toBe(400)
+    })
+  })
+
+  describe('onRegister exempting a client from PKCE (FR-C3)', () => {
+    const vouching = (decision: { requirePkce: boolean }) =>
+      createProvider({ issuer: ISSUER, adapter, features: { dynamicRegistration: true }, onRegister: () => decision })
+    const registerWith = (provider: ReturnType<typeof vouching>, body: Record<string, unknown>) =>
+      provider.handle(new Request(`${ISSUER}/register`, { method: 'POST', body: JSON.stringify(body) }))
+
+    test('exempts a confidential client the host vouched for', async () => {
+      const { client_id } = await (await registerWith(vouching({ requirePkce: false }), valid)).json()
+      expect((await adapter.clients.find(client_id))?.requirePkce).toBe(false)
+    })
+
+    test('refuses to exempt a public client', async () => {
+      const response = await registerWith(vouching({ requirePkce: false }), { ...valid, token_endpoint_auth_method: 'none' })
+      expect(response.status).toBe(400)
+    })
+
+    test('leaves the body readable for the hook and for registration', async () => {
+      let seen: unknown
+      const reading = createProvider({
+        issuer: ISSUER,
+        adapter,
+        features: { dynamicRegistration: true },
+        onRegister: async request => {
+          seen = await request.json()
+        }
+      })
+      expect((await registerWith(reading, valid)).status).toBe(201)
+      expect(seen).toEqual(valid)
+    })
   })
 
   test('onRegister can refuse an open registration', async () => {

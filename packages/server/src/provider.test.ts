@@ -68,7 +68,13 @@ describe('discovery', () => {
   test('signing algorithms come from the keys that exist', async () => {
     const { body } = await json('/.well-known/openid-configuration')
     const keys = await adapter.keys.active()
-    expect(body.id_token_signing_alg_values_supported).toEqual([keys[0]?.alg])
+    expect(body.id_token_signing_alg_values_supported).toEqual(keys.map(key => key.alg))
+  })
+
+  // FR-T1, OIDC Discovery 1.0 §3: "The algorithm RS256 MUST be included."
+  test('RS256 is always advertised', async () => {
+    const { body } = await json('/.well-known/openid-configuration')
+    expect(body.id_token_signing_alg_values_supported).toContain('RS256')
   })
 })
 
@@ -76,8 +82,8 @@ describe('jwks', () => {
   test('serves the public keys', async () => {
     const { status, body } = await json('/jwks')
     expect(status).toBe(200)
-    expect(body.keys).toHaveLength(1)
-    expect(body.keys[0].kid).toBeTruthy()
+    expect(body.keys).toHaveLength(2)
+    expect(body.keys.every((key: { kid?: string }) => key.kid)).toBe(true)
   })
 
   test('never leaks private key material', async () => {

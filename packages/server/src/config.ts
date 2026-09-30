@@ -38,6 +38,8 @@ export const DEFAULT_ROUTES: Routes = {
   backchannelAuthentication: '/backchannel'
 }
 
+export type RegistrationDecision = { requirePkce?: boolean }
+
 export type Ttl = {
   authorizationCode: Seconds
   accessToken: Seconds
@@ -156,11 +158,18 @@ export type ProviderConfig = {
    */
   resolveClientJwks?: (client: Client) => Promise<{ keys: unknown[] }>
   /**
+   * Fetches the JSON behind a registering client's `sector_identifier_uri`, which registration must
+   * check against its redirect URIs (OIDC DCR 1.0 §5). Without it, such a registration is refused:
+   * the core does not fetch a URL the client chose (FR-A1).
+   */
+  resolveSectorIdentifier?: (uri: string) => Promise<unknown>
+  /**
    * Gates open registration — an initial access token, a software statement, a rate limit. Throwing
    * an OAuthError refuses the registration. Without it, and with the feature on, anyone may
-   * register a client (FR-C9).
+   * register a client (FR-C9). Returning `{ requirePkce: false }` is the host vouching for a
+   * confidential client, the only way a dynamic one is exempted from PKCE (FR-C3).
    */
-  onRegister?: (request: Request) => void | Promise<void>
+  onRegister?: (request: Request) => void | RegistrationDecision | Promise<void | RegistrationDecision>
   /** Every write through registration or the management API. The host decides where these go (FR-M3). */
   onAudit?: (event: AuditEvent) => void | Promise<void>
 }
@@ -190,6 +199,7 @@ export type ResolvedConfig = {
   onLogout: ProviderConfig['onLogout']
   onFrontChannelLogout: ProviderConfig['onFrontChannelLogout']
   resolveClientJwks: ProviderConfig['resolveClientJwks']
+  resolveSectorIdentifier: ProviderConfig['resolveSectorIdentifier']
   onRegister: ProviderConfig['onRegister']
   onAudit: ProviderConfig['onAudit']
   upstreams: UpstreamDescriptor[]
@@ -295,6 +305,7 @@ export const resolveConfig = (config: ProviderConfig): ResolvedConfig => {
     onLogout: config.onLogout,
     onFrontChannelLogout: config.onFrontChannelLogout,
     resolveClientJwks: config.resolveClientJwks,
+    resolveSectorIdentifier: config.resolveSectorIdentifier,
     onRegister: config.onRegister,
     onAudit: config.onAudit,
     upstreams: config.upstreams ?? [],

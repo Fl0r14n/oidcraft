@@ -33,6 +33,9 @@ export const staticKeyStore = (keys: ActiveKey[]): KeyStore => {
     if (!key.alg)
       throw new ConfigurationError([`key ${key.kid} declares no alg; the signing key for an algorithm is chosen by it (FR-C10)`])
   }
+  if (!signingKey(keys, 'RS256')) {
+    throw new ConfigurationError(['the key set has no RS256 key; every OpenID Provider must sign with RS256 (FR-T1, OIDC Core §15.1)'])
+  }
   return { active: async () => keys }
 }
 
@@ -48,4 +51,11 @@ export const generateKey = async (alg = 'ES256'): Promise<ActiveKey> => {
   return { kid, alg, privateJwk: { ...priv, kid, alg }, publicJwk: { ...pub, kid, alg, use: 'sig' } }
 }
 
-export const generatedKeyStore = async (alg = 'ES256') => staticKeyStore([await generateKey(alg)])
+// One RSA key per process: generating one costs ~50ms, and development and tests build a store per provider.
+let generatedRsa: Promise<ActiveKey> | undefined
+
+/** `alg` signs by default; an RS256 key is added beside it, because the provider must always offer one (FR-T1). */
+export const generatedKeyStore = async (alg = 'ES256') => {
+  generatedRsa ??= generateKey('RS256')
+  return staticKeyStore(alg === 'RS256' ? [await generatedRsa] : [await generateKey(alg), await generatedRsa])
+}

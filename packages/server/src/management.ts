@@ -33,12 +33,14 @@ export const management = (config: ResolvedConfig) => {
 
       async create(input: ManagementClientInput) {
         if (!config.adapter.clients.create) throw new Error('this adapter cannot create clients')
+        if (input.requirePkce === false && input.tokenEndpointAuthMethod === 'none') {
+          throw new Error('a public client cannot opt out of PKCE (FR-C3)')
+        }
         const now = new Date()
         const client: Client = {
           ...input,
           clientId: input.clientId ?? token(16),
-          // FR-C3 holds however the client was created.
-          requirePkce: true,
+          requirePkce: input.requirePkce !== false,
           createdAt: now,
           updatedAt: now
         }

@@ -220,6 +220,36 @@ describe('defaultOAuthFunctions', () => {
       expect(info).toMatchObject({ active: true })
     })
 
+    // RFC 6749 §2.3.1: each half is form-urlencoded before the base64.
+    it('encodes the basic credentials', async () => {
+      fetchMock.mockResolvedValue(respond(200, { active: true }))
+      await defaultOAuthFunctions.introspect(
+        { access_token: 'at' },
+        { introspectionPath: '/introspect', clientId: 'c', clientSecret: 'a+b:c' }
+      )
+      expect(sent().headers.authorization).toBe(`Basic ${btoa('c:a%2Bb%3Ac')}`)
+    })
+
+    it('follows tokenAuthMethod when one is set', async () => {
+      fetchMock.mockResolvedValue(respond(200, { active: true }))
+      await defaultOAuthFunctions.introspect(
+        { access_token: 'at' },
+        { introspectionPath: '/introspect', clientId: 'c', clientSecret: 's', tokenAuthMethod: 'client_secret_post' }
+      )
+      expect(sent().headers.authorization).toBeUndefined()
+      expect(sent().body).toEqual({ client_id: 'c', client_secret: 's', token: 'at' })
+    })
+
+    it('refuses an insecure endpoint rather than sending the secret over it', async () => {
+      await expect(
+        defaultOAuthFunctions.introspect(
+          { access_token: 'at' },
+          { introspectionPath: 'http://auth.example.com/i', clientId: 'c', clientSecret: 's' }
+        )
+      ).rejects.toThrow()
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+
     it('is undefined without a token', async () => {
       expect(await defaultOAuthFunctions.introspect({}, { introspectionPath: '/introspect', clientId: 'c' })).toBeUndefined()
       expect(fetchMock).not.toHaveBeenCalled()

@@ -18,8 +18,8 @@ conformance suite, four runtime context providers, a management API and an admin
 
 **Nothing has been run against the OpenID Foundation conformance suite** (NFR-C1). Every compliance
 claim here rests on a reading of the specs and tests written by the same person who wrote the code,
-which is not the same thing as certification. The suite publishes no image; it needs a Maven build
-and an OP it can reach. `conformance/` holds the plan and a runner for whoever does that.
+which is not the same thing as certification. The suite now publishes images, so what it needs is an
+OP it can reach. `conformance/` holds the plan and a runner.
 
 **No deployment has run this in production**, against a real relying party that was not also written
 here, or under any load.
@@ -67,8 +67,12 @@ here, or under any load.
 - [x] `metadata.test.ts`: the discovery document against OIDC Discovery 1.0 §3 and RFC 8414 §2,
       cross-checked against behaviour. **Not certification** — see `conformance/README.md`
 - [x] `conformance/` harness: plan configuration and a runner, for a suite built from source
-- [ ] Actually run the OpenID Foundation suite: `basic`, `config`, `dynamic` (NFR-C1). It publishes
-      no image, so this needs a Maven build and an OP the suite can reach
+- [ ] Actually run the OpenID Foundation suite: `basic`, `config` (NFR-C1). Still missing:
+      `apps/server` seeding the plan's two confidential clients, an issuer both containers reach,
+      and a runner that drives the modules and gates on the result rather than only creating the plan
+- [x] Checked `REQUIREMENTS.md` against the specs before the run (2026-09-30). Fixed: FR-C3's PKCE
+      exemption, FR-T1's mandatory RS256, NFR-S2's loopback port, FR-C18's sector validation, and
+      NFR-C1 dropping `dynamic` — see `conformance/README.md` for why
 - [x] `oidcraft/runtimes/node` HTTP bridge, tested against a real node:http server (FR-R3)
 - [x] Capability gating: mTLS methods are refused at construction where no certificate can be
       supplied, and absent from discovery (FR-R5, `G-8`)
@@ -131,9 +135,9 @@ What is *not* claimed: see the status section. Implemented is not the same as ce
 
 1. **A manual in-depth review.** Nothing here has been read by anyone other than its author. 366
    passing tests say the code does what its tests say, which is a weaker statement than it looks.
-2. **The OpenID Foundation conformance suite** (NFR-C1) — `basic`, `config`, `dynamic`. See
-   `conformance/README.md`: no published image, so it needs a Maven build and an OP it can reach.
-   Until it is green, "RFC-compliant" stays an intention.
+2. **The OpenID Foundation conformance suite** (NFR-C1) — `basic`, `config`. See
+   `conformance/README.md`, including the one module refused on purpose. Until it is green,
+   "RFC-compliant" stays an intention.
 3. **The docs site**, once there is something certified to document.
 
 ## Docs site — requirements
@@ -214,7 +218,7 @@ The swap closed five things `openid-client` did that the ported core did not, ea
 
 ## The monorepo: four libraries, one protocol core
 
-Decided 2026-09-18, not started. `vue-oidc`, `ngx-oauth` and `react-oauth-oidc` move into this
+Decided 2026-09-18; the three bindings have landed (below). `vue-oidc`, `ngx-oauth` and `react-oauth-oidc` move into this
 workspace and their GitHub repositories are archived. The **npm packages keep their names and their
 users** — only the repositories are deprecated.
 
@@ -421,12 +425,7 @@ template only at the top level.
 
 ### Still open
 
-- **`vue-oidc` still has its own copy** of this code. It moves into `packages/` and onto
-  `packages/core` with the Angular and React bindings; until it does, the two copies can drift, and
-  the four fixes above exist only here.
 - **Both halves carry their own `base64url`.** Four lines, duplicated between the OP and the RP core
   because the alternative is the RP core depending on the provider. `verify-entries.ts` compares
   against the root's *exported* names for exactly this reason — two independent libraries are
   entitled to share a private helper's name.
-- **Introspection still authenticates with Basic unconditionally.** `tokenAuthMethod` covers the
-  token, refresh and revocation endpoints, where the choice actually varies between providers.

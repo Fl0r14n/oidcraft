@@ -60,9 +60,16 @@ describe('management', () => {
     expect(created.clientId).toBeTruthy()
   })
 
-  test('forces PKCE however the client was created', async () => {
-    const created = await provider.management.clients.create(input({ requirePkce: false }))
-    expect(created.requirePkce).toBe(true)
+  test('requires PKCE unless the host opts a confidential client out', async () => {
+    expect((await provider.management.clients.create(input())).requirePkce).toBe(true)
+    const confidential = await provider.management.clients.create(
+      input({ clientId: 'rp-2', tokenEndpointAuthMethod: 'client_secret_basic', requirePkce: false })
+    )
+    expect(confidential.requirePkce).toBe(false)
+  })
+
+  test('a public client cannot opt out of PKCE', async () => {
+    await expect(provider.management.clients.create(input({ requirePkce: false }))).rejects.toThrow('PKCE')
   })
 
   // "Revoked" has to mean the tokens stop working, not just that a row went away.
@@ -136,7 +143,7 @@ describe('management', () => {
   // An admin screen has no more business seeing a private key than anyone else does.
   test('keys are listed with public members only', async () => {
     const keys = await provider.management.keys.list()
-    expect(keys).toHaveLength(1)
+    expect(keys).toHaveLength(2)
     expect(JSON.stringify(keys)).not.toContain('"d"')
   })
 

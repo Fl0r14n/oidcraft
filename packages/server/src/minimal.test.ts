@@ -72,7 +72,7 @@ describe('the smallest usable provider', () => {
     expect((await discovery.json()).issuer).toBe('http://localhost:3001')
 
     const jwks = await provider.handle(new Request('http://localhost:3001/jwks'))
-    expect((await jwks.json()).keys).toHaveLength(1)
+    expect((await jwks.json()).keys).toHaveLength(2)
 
     // And it can actually start an authorization, which is the part that makes it a provider.
     const authorize = await provider.handle(

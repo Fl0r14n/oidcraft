@@ -1,20 +1,22 @@
 # Conformance
 
-`NFR-C1` requires the OpenID Foundation conformance suite to run in CI for the `basic`, `config` and
-`dynamic` OP profiles. **It does not yet.** Until it does, "RFC-compliant" is an intention rather
-than a measurement, and `PLAN.md` says so.
+`NFR-C1` requires the OpenID Foundation conformance suite to run in CI for the `basic` and `config`
+OP profiles. **It does not yet.** Until it does, "RFC-compliant" is an intention rather than a
+measurement, and `PLAN.md` says so.
 
-## Why this is not just a `docker pull`
+`dynamic` is not a target. It tests a Dynamic OpenID Provider (OIDC Core §15.2), which must offer
+the `id_token` and `id_token token` response types and `request_uri` — FR-C1 and FR-C12 rule out
+all three. Registration (FR-C9) is still offered; it just does not make that claim.
 
-The suite publishes no image. It is built from source (Java 17 + Maven, a MongoDB, and an httpd
-front end), and some plans need a browser to drive the authorization leg. That is why this directory
-holds the configuration and a runner rather than a workflow that pretends to gate on it.
+## Running the suite
+
+The suite publishes images now (`registry.gitlab.com/openid/conformance-suite`), so no Maven build
+is needed:
 
 ```sh
 git clone https://gitlab.com/openid/conformance-suite.git
 cd conformance-suite
-MAVEN_CACHE=./m2 docker compose -f builder-compose.yml run builder
-docker compose up -d          # suite on https://localhost:8443
+docker compose -f docker-compose-prebuilt.yml up -d   # suite on https://localhost.emobix.co.uk:8443
 ```
 
 Then, from this repository:
@@ -26,11 +28,19 @@ bun run conformance           # submits the plan below and reports
 
 ## What is under test
 
-`plan.json` configures the `oidcc-basic-certification-test-plan` against `apps/server` with the
-demo client. The suite needs to reach the OP: on one machine that means running it with
-`--network host`, or exposing the OP through a tunnel and setting `OIDCRAFT_ISSUER` to match — the
-issuer is configuration and is never derived from a header (NFR-S6), so it must be the URL the suite
-actually uses.
+`plan.json` configures the `oidcc-basic-certification-test-plan` against `apps/server`. The suite
+runs in a container, so `localhost` there is the container: the OP has to be reachable at a URL both
+sides agree on, and `OIDCRAFT_ISSUER` must be that URL — the issuer is configuration and is never
+derived from a header (NFR-S6).
+
+## Refused on purpose
+
+These modules fail because the requirement they test is one oidcraft declines, with the clause that
+obliges it to. Anything failing that is **not** here is a bug.
+
+| module | why it fails | requirement |
+| --- | --- | --- |
+| `oidcc-ensure-request-without-nonce-succeeds-for-code-flow` | sends neither PKCE nor a `nonce`, and a confidential client may skip PKCE only with a `nonce` on the request | FR-C3, NFR-S1, OAuth 2.1 §7.5.1.1 |
 
 ## What runs today instead
 

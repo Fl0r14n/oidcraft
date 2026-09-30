@@ -50,18 +50,32 @@ The core implements the following. Anything not listed is out of scope until it 
 **FR-C1 — Authorization endpoint.** The `code` response type only. `response_mode` of `query`,
 `fragment`, `form_post`.
 
-Implicit (`token`, `code token`) and hybrid (`id_token`, `code id_token`) are **not** implemented
-and are not advertised: OAuth 2.1 removes them, RFC 9700 §2.1.2 forbids the token-bearing ones, and
-anything returning an ID token through the front channel hands it to the browser's history and
-`Referer`. This was listed as supported for a while and advertised in discovery while the code
+Implicit (`token`, `id_token`, `id_token token`) and hybrid (`code token`, `code id_token`,
+`code id_token token`) are **not** implemented and are not advertised: OAuth 2.1 removes them,
+RFC 9700 §2.1.2 says clients SHOULD NOT use the token-bearing ones, and anything returning an ID
+token through the front channel hands it to the browser's history and `Referer`. The cost is that
+oidcraft is not a Dynamic OpenID Provider in the sense of OIDC Core §15.2, which must support
+`id_token` and `id_token token` (NFR-C1). This was listed as supported for a while and advertised in discovery while the code
 refused it — see `metadata.test.ts`, which now tries every advertised value rather than reading it.
 
 **FR-C2 — Token endpoint.** `authorization_code`, `refresh_token`, `client_credentials`,
 `urn:ietf:params:oauth:grant-type:device_code`, `urn:ietf:params:oauth:grant-type:token-exchange`
 (RFC 8693). `password` is **not** implemented, for the same reason as implicit.
 
-**FR-C3 — PKCE (RFC 7636) is mandatory** for every client on the code grant, public or
-confidential. `plain` is rejected; only `S256`. A client cannot opt out.
+**FR-C3 — PKCE (RFC 7636) is required on the code grant**, with exactly the one exemption OAuth 2.1
+§7.5.1.1 and RFC 9700 §2.1.1 allow. `plain` is rejected; only `S256`.
+
+- A **public** client never goes without it.
+- A **confidential** client goes without it only when the host registered it with
+  `requirePkce: false` **and** the request carries a `nonce`. The "reasonable assurance, in the
+  specific deployment" OAuth 2.1 asks for is a registration decision the host makes; the `nonce`
+  is the per-request half. A request without one is refused as if the client had never opted out.
+- **Required is the default** on every path that creates a client. A dynamically registered
+  client cannot opt itself out (FR-C9) — registering is no assurance of anything — but the host's
+  `onRegister` may exempt a confidential one, which is the host vouching for it.
+- A `code_challenge`, once sent, is enforced whether or not the client could have omitted it
+  (RFC 9700 §2.1.1), and a `code_verifier` for a code issued without a challenge is refused — the
+  PKCE downgrade defence (RFC 9700 §4.8.2, OAuth 2.1 §4.1.3).
 
 **FR-C4 — Client authentication.** All of `none`, `client_secret_basic`, `client_secret_post`,
 `client_secret_jwt`, `private_key_jwt` (RFC 7523), `tls_client_auth` and
@@ -92,6 +106,7 @@ caller may not see.
 
 **FR-C9 — Dynamic client registration** (OIDC DCR 1.0) with registration access tokens, gated by
 an explicit policy: open, software-statement-gated, or disabled. **Disabled is the default.**
+Offering it does not make oidcraft a Dynamic OpenID Provider (OIDC Core §15.2; FR-C1, FR-C12).
 
 **FR-C10 — JWKS endpoint and key rotation.** Multiple active keys; the first signing-capable key
 of an algorithm signs, the rest only verify, so a rotation never invalidates live tokens (NFR-S7).
@@ -128,12 +143,17 @@ browser, so who to reach is entirely the provider's decision, and a library gues
 `login_hint` means which account would be inventing an authentication decision. `resolveCibaUser`
 is required, and CIBA is refused without it.
 
-**FR-C18 — Pairwise subject identifiers** (`sector_identifier_uri`), alongside public ones.
+**FR-C18 — Pairwise subject identifiers** (`sector_identifier_uri`), alongside public ones. A
+registered `sector_identifier_uri` is fetched through a host-supplied resolver (FR-A1) and
+registration fails unless it lists every `redirect_uri` (OIDC DCR 1.0 §5); a pairwise client whose
+redirect URIs span several hosts must register one (OIDC Core §8.1).
 
 ## 4. Tokens — `FR-T*`
 
-**FR-T1** — ID tokens are always JWS. Default `ES256`; `RS256` supported for legacy clients;
-`none` never.
+**FR-T1** — ID tokens are always JWS; `none` never. An `RS256` key is mandatory in every key set
+and `RS256` is always advertised (OIDC Core §15.1, Discovery 1.0 §3). A client's registered
+`id_token_signed_response_alg` is honoured; without one, a configured client gets the provider's
+first key (`ES256` by default) and a dynamically registered one `RS256` (OIDC DCR 1.0 §2).
 
 **FR-T2** — Access tokens are opaque by default and JWT (RFC 9068) when a client or resource
 server is configured for it. Opaque is the default because a revoked opaque token stops working
@@ -289,13 +309,19 @@ where no provider can supply one, advertising them in discovery would be a lie (
 ### Security — `NFR-S*`
 
 **NFR-S1** — RFC 9700 (BCP 240) is the baseline, not a later hardening pass. Where it and OIDC
-Core disagree, RFC 9700 wins and the deviation is documented here.
+Core disagree, RFC 9700 wins and the deviation is documented here. OAuth 2.1
+(`draft-ietf-oauth-v2-1`, read at -16) binds the server too, although still a draft, and wins over
+OIDC Core the same way. The one deviation that costs anything: a confidential client sending neither
+PKCE nor a `nonce` is refused (FR-C3, OAuth 2.1 §7.5.1.1), which OIDC Core would allow.
 
-**NFR-S2** — Redirect URIs match exactly. No wildcards, no prefix matching, no `localhost` port
-exception in production configuration.
+**NFR-S2** — Redirect URIs match by exact string comparison. No wildcards, no prefix matching. The
+one exception is the port of an `http` loopback IP literal (`127.0.0.1`, `[::1]`), which a native app
+chooses per request (RFC 8252 §7.3, RFC 9700 §2.1). The hostname `localhost` gets no exception.
 
 **NFR-S3** — Every token, code and identifier is generated with `crypto.getRandomValues` at ≥ 256
-bits of entropy and compared in constant time where compared at all.
+bits of entropy and compared in constant time where compared at all — except a code a person types
+(the device `user_code`, FR-C7), which follows RFC 8628 §6.1 and is protected by rate limiting and a
+short lifetime instead (RFC 8628 §5.1).
 
 **NFR-S4** — Replay of a single-use artifact revokes its grant (FR-T3, FR-T4).
 
@@ -319,7 +345,9 @@ encrypted at rest by the adapter, and are never returned to a downstream client 
 ### Conformance — `NFR-C*`
 
 **NFR-C1** — The OpenID Foundation conformance suite runs in CI against the reference deployment,
-for the `basic`, `config` and `dynamic` OP profiles. A red suite is a failed build.
+for the `basic` and `config` OP profiles. A red suite is a failed build, except for the modules
+`conformance/README.md` lists as refused on purpose, each with the clause that requires the refusal.
+`dynamic` is not a target: it tests a Dynamic OpenID Provider, which FR-C1 rules out.
 
 **NFR-C2** — FAPI 2.0 Security Profile is a target for a later milestone, not for 1.0 (`G-3`).
 

@@ -1,5 +1,6 @@
 import { OAuthError } from './errors'
 import { base64url, sha256 } from './random'
+import type { Client } from './types'
 
 /** FR-C3: `plain` is not accepted, from anyone, ever. */
 export const CODE_CHALLENGE_METHODS = ['S256'] as const
@@ -7,11 +8,19 @@ export const CODE_CHALLENGE_METHODS = ['S256'] as const
 const MIN = 43
 const MAX = 128
 
-export const assertChallenge = (challenge: string | null, method: string | null) => {
+/** FR-C3: the one exemption OAuth 2.1 §7.5.1.1 allows — confidential, opted out by the host, and a nonce on this request. */
+const exempt = (client: Client, nonce: string | null) =>
+  client.requirePkce === false && client.tokenEndpointAuthMethod !== 'none' && Boolean(nonce)
+
+export const assertChallenge = (client: Client, challenge: string | null, method: string | null, nonce: string | null) => {
   if (!challenge) {
+    if (exempt(client, nonce)) return undefined
     throw new OAuthError('invalid_request', {
-      description: 'code_challenge is required: PKCE is mandatory for every client, public or confidential',
-      spec: 'RFC 7636 §4.3, RFC 9700 §2.1.1'
+      description:
+        client.requirePkce === false && client.tokenEndpointAuthMethod !== 'none'
+          ? 'code_challenge is required: without PKCE this client must send a nonce'
+          : 'code_challenge is required',
+      spec: 'OAuth 2.1 §7.5.1.1, RFC 9700 §2.1.1'
     })
   }
   if (method !== 'S256') {
@@ -23,7 +32,16 @@ export const assertChallenge = (challenge: string | null, method: string | null)
   return challenge
 }
 
-export const verifyChallenge = async (verifier: string | null, challenge: string) => {
+export const verifyChallenge = async (verifier: string | null, challenge: string | undefined) => {
+  if (challenge === undefined) {
+    if (verifier) {
+      throw new OAuthError('invalid_grant', {
+        description: 'code_verifier was sent for a code issued without a code_challenge',
+        spec: 'RFC 9700 §4.8.2, OAuth 2.1 §4.1.3'
+      })
+    }
+    return
+  }
   if (!verifier) {
     throw new OAuthError('invalid_grant', { description: 'code_verifier is required', spec: 'RFC 7636 §4.5' })
   }

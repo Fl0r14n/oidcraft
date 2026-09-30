@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
-import { createLocalJWKSet, jwtVerify } from 'jose'
+import { createLocalJWKSet, decodeProtectedHeader, jwtVerify } from 'jose'
 import { memoryAdapter } from './adapters/memory'
 import type { Adapter, Client } from './index'
 import { createProvider, type Provider } from './provider'
@@ -108,12 +108,38 @@ describe('authorization endpoint', () => {
     expect(response.status).toBe(400)
   })
 
-  // FR-C3: mandatory for every client.
+  // FR-C3: required unless the host opted the client out, which this one is not — the nonce alone is not enough.
   test('a missing code_challenge is refused', async () => {
     const url = new URL(authorizeUrl())
     url.searchParams.delete('code_challenge')
     const response = await go(url.toString())
     expect(new URL(response.headers.get('location') as string).searchParams.get('error')).toBe('invalid_request')
+  })
+
+  // RFC 8252 §7.3: a native app picks its loopback port from the OS at request time.
+  describe('loopback redirect URIs', () => {
+    const native = (redirectUri: string) =>
+      adapter.clients.create?.(client({ clientId: 'cli', tokenEndpointAuthMethod: 'none', redirectUris: [redirectUri] }))
+    const status = async (redirectUri: string) => (await go(authorizeUrl({ client_id: 'cli', redirect_uri: redirectUri }))).status
+
+    test('any port is accepted on a loopback IP literal', async () => {
+      await native('http://127.0.0.1/cb')
+      expect(await status('http://127.0.0.1:51234/cb')).toBe(303)
+      await adapter.clients.update?.('cli', { redirectUris: ['http://[::1]/cb'] })
+      expect(await status('http://[::1]:8123/cb')).toBe(303)
+    })
+
+    test('only the port may differ', async () => {
+      await native('http://127.0.0.1/cb')
+      expect(await status('http://127.0.0.1:51234/other')).toBe(400)
+      expect(await status('http://127.0.0.1:51234/cb?extra=1')).toBe(400)
+      expect(await status('https://127.0.0.1:51234/cb')).toBe(400)
+    })
+
+    test('the hostname localhost gets no exception', async () => {
+      await native('http://localhost/cb')
+      expect(await status('http://localhost:51234/cb')).toBe(400)
+    })
   })
 
   test('code_challenge_method=plain is refused', async () => {
@@ -209,6 +235,14 @@ describe('token endpoint', () => {
     expect(payload.auth_time).toBeNumber()
   })
 
+  // OIDC DCR 1.0 §2: the client's registered algorithm, not the provider's default.
+  test('an ID token is signed with the algorithm the client registered', async () => {
+    await adapter.clients.update?.('rp', { idTokenSignedResponseAlg: 'RS256' })
+    const { location } = await loginAndConsent()
+    const body = await (await exchange(location.searchParams.get('code') as string)).json()
+    expect(decodeProtectedHeader(body.id_token).alg).toBe('RS256')
+  })
+
   test('a wrong code_verifier is refused', async () => {
     const { location } = await loginAndConsent()
     const response = await exchange(location.searchParams.get('code') as string, { code_verifier: token(32) + token(32) })
@@ -295,6 +329,51 @@ describe('token endpoint', () => {
   test('an unknown grant_type is refused', async () => {
     const response = await post('/token', { grant_type: 'password', username: 'a', password: 'b' }, { authorization: basic() })
     expect((await response.json()).error).toBe('unauthorized_client')
+  })
+})
+
+describe('PKCE exemption (FR-C3)', () => {
+  const withoutPkce = (over: Partial<Client> = {}) =>
+    adapter.clients.create?.(client({ clientId: 'rp-nonce', requirePkce: false, ...over }))
+  const noChallenge = { client_id: 'rp-nonce', code_challenge: '', code_challenge_method: '' }
+  const exchange = (code: string, over: Record<string, string> = {}) =>
+    post('/token', { grant_type: 'authorization_code', code, redirect_uri: REDIRECT, ...over }, { authorization: basic('rp-nonce') })
+  const errorOf = async (over: Record<string, string>) =>
+    new URL((await go(authorizeUrl(over))).headers.get('location') as string).searchParams.get('error')
+
+  test('an opted-out confidential client with a nonce completes the flow without PKCE', async () => {
+    await withoutPkce()
+    const { location } = await loginAndConsent(noChallenge)
+    const response = await exchange(location.searchParams.get('code') as string)
+    expect(response.status).toBe(200)
+    expect((await response.json()).id_token).toBeTruthy()
+  })
+
+  test('an opted-out client without a nonce is refused', async () => {
+    await withoutPkce()
+    expect(await errorOf({ ...noChallenge, nonce: '' })).toBe('invalid_request')
+  })
+
+  test('a public client cannot be exempted, even with a nonce', async () => {
+    await withoutPkce({ tokenEndpointAuthMethod: 'none' })
+    expect(await errorOf(noChallenge)).toBe('invalid_request')
+  })
+
+  // RFC 9700 §4.8.2: the downgrade is a verifier arriving for a code that was issued without a challenge.
+  test('a code_verifier for a code issued without a challenge is refused', async () => {
+    await withoutPkce()
+    const { location } = await loginAndConsent(noChallenge)
+    const response = await exchange(location.searchParams.get('code') as string, { code_verifier: verifier })
+    expect(response.status).toBe(400)
+    expect((await response.json()).error).toBe('invalid_grant')
+  })
+
+  test('a challenge an opted-out client did send is still enforced', async () => {
+    await withoutPkce()
+    const { location } = await loginAndConsent({ client_id: 'rp-nonce' })
+    const response = await exchange(location.searchParams.get('code') as string)
+    expect(response.status).toBe(400)
+    expect((await response.json()).error).toBe('invalid_grant')
   })
 })
 

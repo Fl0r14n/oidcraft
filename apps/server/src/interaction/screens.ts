@@ -157,3 +157,11 @@ export const logoutConfirmScreen = (clientName: string | undefined, returnTo: st
 <button type="submit" name="decision" value="yes">Sign out</button>
 <button type="submit" name="decision" value="no" class="secondary">Stay signed in</button></form>`
   )
+
+/** OIDC Core §3.1.2.6: an error that cannot go back to the client is shown to the user instead. */
+export const errorScreen = (error: string, description: string | undefined) =>
+  layout(
+    'Sign-in error',
+    `<h1>This sign-in cannot continue</h1><p class="sub">The application sent an invalid request.</p>
+<p class="error" id="error">${escapeHtml(error)}${description ? `: ${escapeHtml(description)}` : ''}</p>`
+  )

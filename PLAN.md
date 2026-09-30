@@ -16,10 +16,9 @@ conformance suite, four runtime context providers, a management API and an admin
 
 ### What is NOT done, and will not be silently forgotten
 
-**Nothing has been run against the OpenID Foundation conformance suite** (NFR-C1). Every compliance
-claim here rests on a reading of the specs and tests written by the same person who wrote the code,
-which is not the same thing as certification. The suite now publishes images, so what it needs is an
-OP it can reach. `conformance/` holds the plan and a runner.
+**The OpenID Foundation suite's `basic` and `config` plans pass locally** (NFR-C1), with the
+refusals `conformance/README.md` lists. That is a run on one machine, not certification, and it
+does not yet gate CI.
 
 **No deployment has run this in production**, against a real relying party that was not also written
 here, or under any load.
@@ -67,9 +66,12 @@ here, or under any load.
 - [x] `metadata.test.ts`: the discovery document against OIDC Discovery 1.0 §3 and RFC 8414 §2,
       cross-checked against behaviour. **Not certification** — see `conformance/README.md`
 - [x] `conformance/` harness: plan configuration and a runner, for a suite built from source
-- [ ] Actually run the OpenID Foundation suite: `basic`, `config` (NFR-C1). Still missing:
-      `apps/server` seeding the plan's two confidential clients, an issuer both containers reach,
-      and a runner that drives the modules and gates on the result rather than only creating the plan
+- [x] Run the OpenID Foundation suite locally: `basic` and `config` green (2026-09-30), with the
+      deliberate refusals listed in `conformance/README.md`. The first run found six real bugs —
+      the `acr_values` login loop, a non-URI `error_uri`, scope claims in the ID token, the broker
+      ignoring UserInfo, JSON shown to the browser on an unredirectable error, and an http issuer
+- [ ] Run it in CI (NFR-C1): the suite's images, the forwarder in `conformance/compose.override.yml`,
+      and `bun run conformance` as a job that fails the build
 - [x] Checked `REQUIREMENTS.md` against the specs before the run (2026-09-30). Fixed: FR-C3's PKCE
       exemption, FR-T1's mandatory RS256, NFR-S2's loopback port, FR-C18's sector validation, and
       NFR-C1 dropping `dynamic` — see `conformance/README.md` for why
@@ -135,9 +137,8 @@ What is *not* claimed: see the status section. Implemented is not the same as ce
 
 1. **A manual in-depth review.** Nothing here has been read by anyone other than its author. 366
    passing tests say the code does what its tests say, which is a weaker statement than it looks.
-2. **The OpenID Foundation conformance suite** (NFR-C1) — `basic`, `config`. See
-   `conformance/README.md`, including the one module refused on purpose. Until it is green,
-   "RFC-compliant" stays an intention.
+2. **The conformance suite in CI** (NFR-C1). `basic` and `config` are green locally; until they
+   gate the build, a regression can still land unnoticed.
 3. **The docs site**, once there is something certified to document.
 
 ## Docs site — requirements

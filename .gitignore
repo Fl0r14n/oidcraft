@@ -10,3 +10,7 @@ coverage/
 .idea/
 .codegraph/
 .angular/
+
+# conformance suite exports
+conformance/results/
+conformance/tls/

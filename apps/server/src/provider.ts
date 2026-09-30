@@ -3,7 +3,7 @@
 import { createProvider, staticKeyStore } from 'oidcraft'
 import { memoryAdapter } from 'oidcraft/adapters/memory'
 import { issuer, optional } from './env'
-import { demoAccounts, seedDemoClient } from './seed'
+import { demoAccounts, seedConformanceClients, seedDemoClient } from './seed'
 
 /**
  * Development generates a key per process, so every restart signs everyone out. Production supplies
@@ -23,6 +23,7 @@ const keyStore = keys()
 const adapter = await memoryAdapter({ accounts: demoAccounts, ...(keyStore && { keys: keyStore }) })
 
 await seedDemoClient(adapter)
+await seedConformanceClients(adapter)
 
 export const provider = createProvider({
   issuer: issuer(),

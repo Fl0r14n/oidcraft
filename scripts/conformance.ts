@@ -1,35 +1,62 @@
 /// <reference types="bun" />
 /**
- * Submits `conformance/plan.json` to a locally running OpenID Foundation conformance suite and
- * reports the result. The suite is not bundled: see conformance/README.md for why, and how to build
- * it. Exits non-zero when the suite is absent, so this can never be mistaken for a passing gate.
+ * Runs the `basic` and `config` plans (NFR-C1) through the suite's own `run-test-plan.py`, which
+ * drives every module and fails on anything not listed in `conformance/expected-failures.json`.
+ * Exits non-zero when the suite is absent, so this can never be mistaken for a passing gate.
  */
-const SUITE = Bun.env.CONFORMANCE_SUITE ?? 'https://localhost:8443'
-const PLAN = Bun.env.CONFORMANCE_PLAN ?? 'oidcc-basic-certification-test-plan'
-const TOKEN = Bun.env.CONFORMANCE_TOKEN
+const SUITE = Bun.env.CONFORMANCE_SERVER ?? 'https://localhost.emobix.co.uk:8443/'
+const SUITE_DIR = Bun.env.CONFORMANCE_SUITE_DIR
 
-const reachable = await fetch(`${SUITE}/api/runner/available`, { tls: { rejectUnauthorized: false } })
+const reachable = await fetch(`${SUITE}api/runner/available`, { tls: { rejectUnauthorized: false } })
   .then(response => response.ok)
   .catch(() => false)
 
-if (!reachable) {
-  console.error(`No conformance suite at ${SUITE}. See conformance/README.md — it has to be built from source.`)
+if (!reachable || !SUITE_DIR) {
+  console.error(
+    reachable
+      ? 'CONFORMANCE_SUITE_DIR must point at a conformance-suite checkout; its runner is used as is.'
+      : `No conformance suite at ${SUITE}. See conformance/README.md.`
+  )
   process.exit(2)
 }
 
-const headers: Record<string, string> = {
-  'content-type': 'application/json',
-  ...(TOKEN && { authorization: `Bearer ${TOKEN}` })
-}
-const config = await Bun.file(new URL('../conformance/plan.json', import.meta.url)).json()
-const variant = encodeURIComponent(JSON.stringify({ client_auth_type: 'client_secret_basic' }))
+const here = new URL('../conformance/', import.meta.url).pathname
+await Bun.write(`${here}results/.keep`, '')
+const plan = `${here}plan.json`
+const plans = [
+  ['oidcc-basic-certification-test-plan[server_metadata=discovery][client_registration=static_client]', plan],
+  ['oidcc-config-certification-test-plan', plan]
+].flat()
 
-const created = await fetch(`${SUITE}/api/plan?planName=${PLAN}&variant=${variant}`, {
-  method: 'POST',
-  headers,
-  body: JSON.stringify(config),
-  tls: { rejectUnauthorized: false }
-}).then(response => response.json())
+const run = Bun.spawn(
+  [
+    'uv',
+    'run',
+    '--with',
+    'httpx',
+    '--with',
+    'pyparsing',
+    'python',
+    `${SUITE_DIR}/scripts/run-test-plan.py`,
+    '--verbose',
+    '--expected-failures-file',
+    `${here}expected-failures.json`,
+    '--expected-skips-file',
+    `${here}expected-skips.json`,
+    '--export-dir',
+    `${here}results`,
+    ...plans
+  ],
+  {
+    env: {
+      ...Bun.env,
+      CONFORMANCE_SERVER: SUITE,
+      CONFORMANCE_SERVER_MTLS: Bun.env.CONFORMANCE_SERVER_MTLS ?? SUITE.replace(':8443', ':8444'),
+      CONFORMANCE_DEV_MODE: '1'
+    },
+    stdout: 'inherit',
+    stderr: 'inherit'
+  }
+)
 
-console.log(`plan ${created.id}: ${SUITE}/plan-detail.html?plan=${created.id}`)
-console.log(`${created.modules?.length ?? 0} modules queued — drive them from that page or the suite's runner.`)
+process.exit(await run.exited)

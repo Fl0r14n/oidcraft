@@ -98,8 +98,8 @@ const issueTokens = async (
     session,
     subject,
     nonce,
-    accessToken,
-    claims: await config.adapter.accounts.claims(session.accountId, scopes, [])
+    // OIDC Core §5.4: an access token is always issued here, so scope claims are UserInfo's to release.
+    accessToken
   })
 
   return {

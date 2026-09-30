@@ -51,12 +51,23 @@ export class OAuthError extends Error {
   }
 
   get body() {
+    const uri = this.spec && specUri(this.spec)
     return {
       error: this.code,
-      ...(this.description && { error_description: this.description }),
-      ...(this.spec && { error_uri: this.spec })
+      ...(this.description && { error_description: this.description.replace(OUTSIDE_ERROR_TEXT, '?') }),
+      ...(uri && { error_uri: uri })
     }
   }
+}
+
+// RFC 6749 §5.2: error_description is printable ASCII without `"` or `\`, and it carries client-supplied values.
+const OUTSIDE_ERROR_TEXT = /[^\x20\x21\x23-\x5B\x5D-\x7E]/g
+
+/** RFC 6749 §5.2: error_uri must be a URI, so a citation becomes one only when it names an RFC. */
+const specUri = (spec: string) => {
+  const cited = /RFC (\d{4})(?: §([\d.]+))?/.exec(spec)
+  if (!cited) return undefined
+  return `https://www.rfc-editor.org/rfc/rfc${cited[1]}${cited[2] ? `#section-${cited[2].replace(/\.$/, '')}` : ''}`
 }
 
 const STATUS: Record<OAuthErrorCode, number> = {

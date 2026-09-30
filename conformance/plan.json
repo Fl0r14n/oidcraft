@@ -1,8 +1,8 @@
 {
   "alias": "oidcraft",
-  "description": "oidcraft OP, basic certification profile",
+  "description": "oidcraft OP, basic and config certification profiles",
   "server": {
-    "discoveryUrl": "http://localhost:3001/.well-known/openid-configuration"
+    "discoveryUrl": "https://localhost:3001/.well-known/openid-configuration"
   },
   "client": {
     "client_id": "conformance-client",
@@ -12,29 +12,160 @@
   "client2": {
     "client_id": "conformance-client-2",
     "client_secret": "another-secret-long-enough-for-it",
+    "scope": "openid profile email offline_access"
+  },
+  "client_secret_post": {
+    "client_id": "conformance-client-post",
+    "client_secret": "a-third-secret-long-enough-for-it",
     "scope": "openid profile email"
   },
   "consent": {},
   "browser": [
     {
-      "match": "http://localhost:3001/interaction/*",
+      "match": "https://localhost:3001/authorize*",
       "tasks": [
         {
-          "task": "Sign in",
-          "match": "http://localhost:3001/interaction/*",
+          "task": "Sign in, or pick the signed-in account",
+          "optional": true,
+          "match": "https://localhost:3001/interaction/*",
           "commands": [
-            ["text", "name", "username", "conformance-user"],
-            ["text", "name", "password", "x"],
+            ["text", "id", "u", "conformance-user", "optional"],
+            ["text", "id", "p", "conformance-password", "optional"],
             ["click", "css", "button[type=submit]"]
           ]
         },
         {
-          "task": "Authorize",
-          "match": "http://localhost:3001/interaction/*",
+          "task": "Consent",
           "optional": true,
+          "match": "https://localhost:3001/interaction/*",
           "commands": [["click", "css", "button[value=allow]"]]
+        },
+        {
+          "task": "Verify Complete",
+          "match": "*/test/*/callback*",
+          "commands": [["wait", "id", "submission_complete", 10]]
         }
       ]
     }
-  ]
+  ],
+  "override": {
+    "oidcc-prompt-login": {
+      "browser": [
+        {
+          "match": "https://localhost:3001/authorize*",
+          "tasks": [
+            {
+              "task": "Sign in, or pick the signed-in account",
+              "optional": true,
+              "match": "https://localhost:3001/interaction/*",
+              "commands": [
+                ["wait", "xpath", "//*", 10, "Sign in|Choose an account", "update-image-placeholder-optional"],
+                ["text", "id", "u", "conformance-user", "optional"],
+                ["text", "id", "p", "conformance-password", "optional"],
+                ["click", "css", "button[type=submit]"]
+              ]
+            },
+            {
+              "task": "Consent",
+              "optional": true,
+              "match": "https://localhost:3001/interaction/*",
+              "commands": [["click", "css", "button[value=allow]"]]
+            },
+            {
+              "task": "Verify Complete",
+              "match": "*/test/*/callback*",
+              "commands": [["wait", "id", "submission_complete", 10]]
+            }
+          ]
+        }
+      ]
+    },
+    "oidcc-max-age-1": {
+      "browser": [
+        {
+          "match": "https://localhost:3001/authorize*",
+          "tasks": [
+            {
+              "task": "Sign in, or pick the signed-in account",
+              "optional": true,
+              "match": "https://localhost:3001/interaction/*",
+              "commands": [
+                ["wait", "xpath", "//*", 10, "Sign in|Choose an account", "update-image-placeholder-optional"],
+                ["text", "id", "u", "conformance-user", "optional"],
+                ["text", "id", "p", "conformance-password", "optional"],
+                ["click", "css", "button[type=submit]"]
+              ]
+            },
+            {
+              "task": "Consent",
+              "optional": true,
+              "match": "https://localhost:3001/interaction/*",
+              "commands": [["click", "css", "button[value=allow]"]]
+            },
+            {
+              "task": "Verify Complete",
+              "match": "*/test/*/callback*",
+              "commands": [["wait", "id", "submission_complete", 10]]
+            }
+          ]
+        }
+      ]
+    },
+    "oidcc-ensure-registered-redirect-uri": {
+      "browser": [
+        {
+          "match": "https://localhost:3001/authorize*",
+          "tasks": [
+            {
+              "task": "Expect the error page",
+              "match": "https://localhost:3001/authorize*",
+              "commands": [["wait", "xpath", "//*", 10, "cannot continue", "update-image-placeholder"]]
+            }
+          ]
+        }
+      ]
+    },
+    "oidcc-ensure-redirect-uri-in-authorization-request": {
+      "browser": [
+        {
+          "match": "https://localhost:3001/authorize*",
+          "tasks": [
+            {
+              "task": "Expect the error page",
+              "match": "https://localhost:3001/authorize*",
+              "commands": [["wait", "xpath", "//*", 10, "cannot continue", "update-image-placeholder"]]
+            }
+          ]
+        }
+      ]
+    },
+    "oidcc-redirect-uri-query-added": {
+      "browser": [
+        {
+          "match": "https://localhost:3001/authorize*",
+          "tasks": [
+            {
+              "task": "Expect the error page",
+              "match": "https://localhost:3001/authorize*",
+              "commands": [["wait", "xpath", "//*", 10, "cannot continue", "update-image-placeholder"]]
+            }
+          ]
+        }
+      ]
+    },
+    "oidcc-redirect-uri-query-mismatch": {
+      "browser": [
+        {
+          "match": "https://localhost:3001/authorize*",
+          "tasks": [
+            {
+              "task": "Expect the error page",
+              "match": "https://localhost:3001/authorize*",
+              "commands": [["wait", "xpath", "//*", 10, "cannot continue", "update-image-placeholder"]]
+            }
+          ]
+        }
+      ]
+    }
+  }
 }

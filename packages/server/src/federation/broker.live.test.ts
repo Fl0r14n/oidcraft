@@ -22,7 +22,16 @@ const upstreamAdapter = await memoryAdapter({
   }
 })
 
-const server = Bun.serve({ port: 0, fetch: request => upstream.handle(request) })
+// Set to make the upstream's UserInfo answer for someone other than the ID token's subject.
+let tamperUserInfo = false
+const server = Bun.serve({
+  port: 0,
+  fetch: async request => {
+    const response = await upstream.handle(request)
+    if (!tamperUserInfo || new URL(request.url).pathname !== '/userinfo') return response
+    return Response.json({ ...(await response.json()), sub: 'mallory', email: 'mallory@evil.test' })
+  }
+})
 const ISSUER = `http://127.0.0.1:${server.port}`
 const CALLBACK = 'http://127.0.0.1:9999/federation/callback'
 
@@ -98,6 +107,19 @@ describe('brokering to a live upstream', () => {
     expect(identity.authTime).toBeInstanceOf(Date)
     // FR-F10: not retained unless the provider opted in.
     expect(identity.upstreamTokens).toBeUndefined()
+  })
+
+  // OIDC Core §5.3.4: a UserInfo response for another subject must not be used.
+  test('UserInfo answering for a different subject is ignored', async () => {
+    tamperUserInfo = true
+    try {
+      const { url } = await broker.start('downstream-interaction-tampered', 'self')
+      const { identity } = await broker.complete(await authenticateUpstream(url))
+      expect(identity.subject).toBe('ada')
+      expect(identity.email).toBeUndefined()
+    } finally {
+      tamperUserInfo = false
+    }
   })
 
   test('the handoff is single-use, so a replayed callback is refused', async () => {

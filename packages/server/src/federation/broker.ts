@@ -4,6 +4,7 @@ import {
   completeAuthorization,
   createDiscovery,
   createIdTokenVerifier,
+  defaultOAuthFunctions,
   type IdTokenVerifier,
   type OAuthToken,
   type OpenIdConfig
@@ -12,6 +13,18 @@ import type { Adapter } from 'oidcraft'
 import { OAuthError, type SelectionHints, selectUpstream } from 'oidcraft'
 import { pickClaims } from './claims'
 import type { BrokeredIdentity, FederationCallback, Handoff, UpstreamProvider } from './types'
+
+/**
+ * OIDC Core §5.4: with an access token issued, scope claims come from UserInfo, not the ID token.
+ * A response whose `sub` differs from the ID token's must not be used (§5.3.4).
+ */
+const userInfoOf = async (resolved: OpenIdConfig, token: OAuthToken | undefined, subject: string) => {
+  if (!resolved.userPath || !token?.access_token) return {}
+  const bearer = (input: string | URL | Request, init?: RequestInit) =>
+    fetch(input, { ...init, headers: { ...init?.headers, Authorization: `Bearer ${token.access_token}` } })
+  const info = await defaultOAuthFunctions.userInfo(resolved, bearer).catch(() => undefined)
+  return info?.sub === subject ? info : {}
+}
 
 export type BrokerConfig = {
   adapter: Adapter
@@ -249,7 +262,7 @@ export const createBroker = (config: BrokerConfig) => {
         throw new OAuthError('server_error', { description: `the ID token from ${provider.id} carried no subject`, spec: 'FR-F7' })
 
       const mapper = provider.claimMapper ?? pickClaims()
-      const mapped = mapper(claims as Record<string, unknown>)
+      const mapped = mapper({ ...(await userInfoOf(resolved, token, claims.sub as string)), ...claims } as Record<string, unknown>)
       const email = typeof mapped.email === 'string' ? mapped.email : undefined
 
       const identity: BrokeredIdentity = {

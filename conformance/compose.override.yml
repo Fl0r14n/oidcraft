@@ -1,0 +1,13 @@
+# Layered over the suite's docker-compose-prebuilt.yml. The suite's server, and the browser it
+# drives, see localhost:3001 forwarded to the OP on the host, so the issuer is https://localhost:3001
+# on both sides. TLS passes through untouched; see conformance/README.md for the certificate.
+services:
+  server:
+    extra_hosts:
+      - host.docker.internal:host-gateway
+  op-forward:
+    image: alpine/socat
+    network_mode: service:server
+    command: TCP-LISTEN:3001,fork,reuseaddr TCP:host.docker.internal:3001
+    depends_on:
+      - server

@@ -194,6 +194,12 @@ describe('authorization endpoint', () => {
   })
 
   // FR-I4: the second visit is silent.
+  // OIDC Core §3.1.2.1: acr_values is a request. After one login, what it achieved is the answer.
+  test('an acr the login cannot meet is asked for once, not forever', async () => {
+    const { location } = await loginAndConsent({ acr_values: 'mfa' })
+    expect(location.searchParams.get('code')).toBeTruthy()
+  })
+
   test('a remembered grant skips consent on the next authorization', async () => {
     const { cookie } = await loginAndConsent()
     const again = await go(authorizeUrl(), cookie)
@@ -232,6 +238,8 @@ describe('token endpoint', () => {
     expect(payload.sub).toBe('ada')
     expect(payload.nonce).toBe('n-0S6_WzA2Mj')
     expect(payload.at_hash).toBeTruthy()
+    // OIDC Core §5.4: an access token was issued, so profile claims are UserInfo's to release.
+    expect(payload).not.toHaveProperty('name')
     expect(payload.auth_time).toBeNumber()
   })
 

@@ -1,10 +1,15 @@
 /// <reference types="bun" />
 import { serve } from 'bun'
 import { adminApi } from './src/admin/api'
+import { optional } from './src/env'
 import { deviceRoutes, interactionRoutes, logoutRoutes } from './src/interaction/routes'
+import { errorScreen, html } from './src/interaction/screens'
 import { provider } from './src/provider'
 
 const port = Number(Bun.env.SERVER_PORT ?? 3001)
+// Discovery 1.0 §3 and RFC 8414 §2 require an https issuer even on loopback.
+const cert = optional('SERVER_TLS_CERT')
+const key = optional('SERVER_TLS_KEY')
 
 // A route, not a file read: only the bundler substitutes the script and style tags.
 const admin = (await import('./src/admin/index.html')).default
@@ -13,6 +18,7 @@ const admin = (await import('./src/admin/index.html')).default
 // provider for what Request does not carry (ARCHITECTURE.md §3.1).
 const server = serve({
   port,
+  ...(cert && key && { tls: { cert: Bun.file(cert), key: Bun.file(key) } }),
   routes: {
     // More specific than '/admin/*', so the API is not swallowed by the SPA shell.
     '/admin/api/*': request =>
@@ -34,7 +40,12 @@ const server = serve({
       const response = await deviceRoutes(request, url)
       if (response) return response
     }
-    return provider.handle(request)
+    const response = await provider.handle(request)
+    if (url.pathname === '/authorize' && response.status >= 400 && response.headers.get('content-type')?.includes('json')) {
+      const { error, error_description } = await response.json()
+      return html(errorScreen(error, error_description), response.status)
+    }
+    return response
   }
 })
 

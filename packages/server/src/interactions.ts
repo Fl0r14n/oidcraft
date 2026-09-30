@@ -120,15 +120,18 @@ export const interactions = (config: ResolvedConfig) => ({
     // Single-use: the authorization endpoint suspends again if it still cannot decide (FR-I2).
     await config.adapter.artifacts.destroy('interaction', id)
 
-    return { redirectTo: authorizationUrl(config, request), setCookie }
+    return { redirectTo: authorizationUrl(config, request, Boolean(outcome.login)), setCookie }
   }
 })
 
-const authorizationUrl = (config: ResolvedConfig, request: AuthorizationRequest) => {
+const authorizationUrl = (config: ResolvedConfig, request: AuthorizationRequest, loggedIn: boolean) => {
   const url = new URL(config.routes.authorization, config.issuer)
   const params = new URLSearchParams(request.raw)
-  // prompt is the one parameter dropped: it has just been satisfied, and replaying it loops forever.
+  // prompt has just been satisfied, and replaying it loops forever.
   params.delete('prompt')
+  // acr_values was put to the login that just ran; what it achieved is the answer, and the ID token
+  // reports it (OIDC Core §3.1.2.1, FR-C16). Replaying an unmeetable one loops forever too.
+  if (loggedIn) params.delete('acr_values')
   // A pushed or signed request was already resolved into these parameters; replaying the reference
   // would consume it a second time (RFC 9126 §4).
   params.delete('request_uri')

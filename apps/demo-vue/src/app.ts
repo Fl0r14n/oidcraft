@@ -1,6 +1,6 @@
 import { createPinia } from 'pinia'
 import { type AppContext, type Component, createApp as createVueApp, getCurrentInstance } from 'vue'
-import { createRouter, createWebHistory, type Router, routerKey } from 'vue-router'
+import { createRouter, createWebHistory, type RouteRecordRaw, type Router, routerKey } from 'vue-router'
 
 declare module 'vue' {
   interface App {
@@ -14,10 +14,11 @@ const _getComponent = (ctx: AppContext, name: string, uid?: string) =>
   ctx.components[name] ||
   console.warn(`Component identified by name: ${name} and/or uid: ${uid} was not found`)
 
-export const bootstrapApp = (comp: Component, ctx?: Record<string, unknown> | null) => {
+/** Installing the router starts its first navigation, so the routes must exist by then. */
+export const bootstrapApp = (comp: Component, routes: RouteRecordRaw[], ctx?: Record<string, unknown> | null) => {
   const app = createVueApp(comp, ctx)
   app.use(createPinia())
-  const router = createRouter({ history: createWebHistory('/'), routes: [] })
+  const router = createRouter({ history: createWebHistory('/'), routes })
   app.use(router)
   app.getComponent = (name, id) => _getComponent(app._context, name, id) as Component
   app.getRouter = () => app._context.provides[routerKey as any] as Router

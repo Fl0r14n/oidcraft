@@ -1,5 +1,5 @@
+import { base64url } from '@oidcraft/core'
 import type { ClientCertificate } from './context'
-import { base64url } from './random'
 import type { Client } from './types'
 
 /** RFC 8705 §3.1: the SHA-256 thumbprint of the DER certificate, base64url. */

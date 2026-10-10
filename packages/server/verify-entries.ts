@@ -33,9 +33,10 @@ const declares = (source: string) =>
 
 /**
  * The names the root actually *exports*, which is narrower than what it declares: a bundle is full of
- * private helpers, and two independent libraries are entitled to both have a `base64url`. Only an
- * exported name can be imported, so only an exported name can have been inlined "instead of importing
- * it" — matching an internal one reports a coincidence as a duplication.
+ * private helpers, and the root and an entry each compile in their own copy of a `@oidcraft/core`
+ * helper such as `base64url`. Only an exported name can be imported, so only an exported name can
+ * have been inlined "instead of importing it" — matching an internal one reports a coincidence as a
+ * duplication.
  */
 const exports_ = (source: string) => [
   // `export { a, b as c }`, `export type { A, B }`, and the inline `export declare const d`

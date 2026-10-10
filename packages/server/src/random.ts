@@ -1,23 +1,7 @@
-const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_'
+import { randomString, sha256 } from '@oidcraft/core'
 
-/** NFR-S3: each character carries 6 bits, so 256 bits takes 43 of them, not 32. */
-const LENGTH = 43
-
-export const token = () => {
-  const buffer = new Uint8Array(LENGTH)
-  crypto.getRandomValues(buffer)
-  let out = ''
-  for (const byte of buffer) out += ALPHABET[byte & 63]
-  return out
-}
-
-export const base64url = (bytes: Uint8Array) => {
-  let binary = ''
-  for (const byte of bytes) binary += String.fromCharCode(byte)
-  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
-}
-
-export const sha256 = async (value: string) => new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value)))
+/** NFR-S3: each base64url character carries 6 bits, so 256 bits takes 43 of them, not 32. */
+export const token = () => randomString(43)
 
 /**
  * Length-independent only once both sides are hashed, so the comparison itself leaks nothing about

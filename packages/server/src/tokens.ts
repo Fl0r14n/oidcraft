@@ -1,8 +1,8 @@
+import { base64url, sha256 } from '@oidcraft/core'
 import { importJWK, SignJWT } from 'jose'
 import type { ResolvedConfig } from './config'
 import { OAuthError } from './errors'
 import { signingKey } from './keys'
-import { base64url, sha256 } from './random'
 import type { Client, Session } from './types'
 
 export type IdTokenInput = {

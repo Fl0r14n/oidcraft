@@ -423,10 +423,3 @@ template only at the top level.
   TypeScript 7 for SFCs. The entry is typed through an ambient `*.vue` shim and a cast instead, which
   is why `component/index.ts` casts through `unknown` — `vue-tsgo` and the dts build genuinely see
   that module differently.
-
-### Still open
-
-- **Both halves carry their own `base64url`.** Four lines, duplicated between the OP and the RP core
-  because the alternative is the RP core depending on the provider. `verify-entries.ts` compares
-  against the root's *exported* names for exactly this reason — two independent libraries are
-  entitled to share a private helper's name.

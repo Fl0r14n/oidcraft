@@ -1,5 +1,5 @@
+import { base64url, sha256 } from '@oidcraft/core'
 import type { ResolvedConfig } from './config'
-import { base64url, sha256 } from './random'
 import type { Client } from './types'
 
 /**

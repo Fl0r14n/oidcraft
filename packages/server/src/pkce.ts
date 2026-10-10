@@ -1,5 +1,5 @@
+import { base64url, sha256 } from '@oidcraft/core'
 import { OAuthError } from './errors'
-import { base64url, sha256 } from './random'
 import type { Client } from './types'
 
 /** FR-C3: `plain` is not accepted, from anyone, ever. */

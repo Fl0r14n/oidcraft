@@ -2,7 +2,7 @@
 import { afterAll, describe, expect, test } from 'bun:test'
 import { memoryAdapter } from '../adapters/memory'
 import { createProvider } from '../provider'
-import { SESSION_COOKIE } from '../session'
+import { SESSION_COOKIE } from '../session/session'
 import { createBroker } from './broker'
 import { linkIdentity } from './link'
 

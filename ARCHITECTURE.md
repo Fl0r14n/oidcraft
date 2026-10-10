@@ -79,6 +79,24 @@ apps/
   demo-angular              demo relying party: Angular 22 + ngx-oauth. Outside the workspace (§8.4)
 ```
 
+Inside the root entry, code is grouped by feature, not by HTTP route: a folder holds a flow's
+endpoint, the grant the token endpoint dispatches to, and the host-facing functions together.
+
+```
+src/authorize/    authorization, PAR, request objects, PKCE, interactions, step-up, upstream
+                  selection, and the two flows that start without a redirect: device and CIBA
+src/token/        the token endpoint as a dispatcher, the code and refresh grants, client
+                  credentials, token exchange, and minting: ID token, JWT access token, subjects
+src/binding/      sender-constrained tokens — DPoP (RFC 9449) and mTLS (RFC 8705)
+src/clients/      client authentication, JWT client assertions, dynamic registration
+src/session/      the OP session cookie, RP-initiated logout, logout notifications
+src/resource/     what a resource server calls: UserInfo, introspection, revocation
+src/keys/         the key store and the JWKS endpoint
+```
+
+None of these folders has an `index.ts`: `exports.test.ts` treats a directory with one as a
+published entry, so an import names the file it means.
+
 ### 2.1 One published package, one private one
 
 `oidcraft` ships as a single package with subpath exports, and `drizzle-orm` and `kysely` are

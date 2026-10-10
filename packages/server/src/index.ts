@@ -1,4 +1,3 @@
-export { type AccessTokenInput, JWT_ACCESS_TOKEN_TYPE, mintJwtAccessToken, resolveAccessToken } from './access-token'
 export type {
   AccountStore,
   Adapter,
@@ -11,7 +10,22 @@ export type {
   ReplayGuard,
   SessionStore
 } from './adapter'
-export { ASSERTION_TYPE, verifyClientAssertion } from './client-assertion'
+export { type AuthorizationDetail, type AuthorizationRequest, redirectTo } from './authorize/authorization'
+export { CIBA_GRANT, type CibaDecision, type CibaPayload } from './authorize/ciba'
+export { type DeviceApproval, type DevicePayload, normalizeUserCode, userCode } from './authorize/device'
+export {
+  type InteractionCompletion,
+  type InteractionKind,
+  type InteractionOutcome,
+  type InteractionView,
+  interactions
+} from './authorize/interactions'
+export { authenticationOf, meetsRequirement, type StepUpRequirement, type StepUpVerdict } from './authorize/step-up'
+export { ACR_PREFIX, type SelectionHints, selectUpstream, type UpstreamDescriptor } from './authorize/upstream-selection'
+export { accessTokenHash, type DpopProof, htu, issueNonce, NONCE_NAMESPACE, type VerifyOptions, verifyDpopProof } from './binding/dpop'
+export { certificateThumbprint, matchesRegisteredCertificate, matchesSubjectDn } from './binding/mtls'
+export { ASSERTION_TYPE, verifyClientAssertion } from './clients/assertion'
+export { clientResponse } from './clients/registration'
 export {
   type AuditEvent,
   type Capabilities,
@@ -28,23 +42,8 @@ export {
   type Ttl
 } from './config'
 export type { ClientAuthenticationInput, ClientCertificate, ContextProvider, RequestContext } from './context'
-export { type CookieOptions, clearCookie, parseCookies, serializeCookie } from './cookies'
-export { accessTokenHash, type DpopProof, htu, issueNonce, NONCE_NAMESPACE, type VerifyOptions, verifyDpopProof } from './dpop'
-export { type AuthorizationDetail, type AuthorizationRequest, redirectTo } from './endpoints/authorization'
-export { CIBA_GRANT, type CibaDecision, type CibaPayload } from './endpoints/ciba'
-export { type DeviceApproval, type DevicePayload, normalizeUserCode, userCode } from './endpoints/device'
-export { metadata } from './endpoints/discovery'
-export { type FrontChannelLogout, frontChannelLogouts, type LogoutNotification, logoutTokens } from './endpoints/end-session'
-export { clientResponse } from './endpoints/registration'
-export { type ExchangeDecision, type ExchangePolicy, SUPPORTED_TOKEN_TYPES, TOKEN_EXCHANGE } from './endpoints/token-exchange'
+export { metadata } from './discovery'
 export { ConfigurationError, errorResponse, OAuthError, type OAuthErrorCode, type OAuthErrorInit } from './errors'
-export {
-  type InteractionCompletion,
-  type InteractionKind,
-  type InteractionOutcome,
-  type InteractionView,
-  interactions
-} from './interactions'
 export {
   type ActiveKey,
   generatedKeyStore,
@@ -54,13 +53,14 @@ export {
   signingAlgorithms,
   signingKey,
   staticKeyStore
-} from './keys'
+} from './keys/keys'
 export { type FromKvOptions, fromKv } from './kv'
 export { type Management, type ManagementClientInput, management } from './management'
-export { certificateThumbprint, matchesRegisteredCertificate, matchesSubjectDn } from './mtls'
 export { createProvider, type LogoutDelivery, type Provider } from './provider'
-export { isFresh, type LoginInput, readSession, SESSION_COOKIE, startSession } from './session'
-export { authenticationOf, meetsRequirement, type StepUpRequirement, type StepUpVerdict } from './step-up'
-export { pairwiseSubject, sectorOf, subjectFor } from './subjects'
+export { type CookieOptions, clearCookie, parseCookies, serializeCookie } from './session/cookies'
+export { type FrontChannelLogout, frontChannelLogouts, type LogoutNotification, logoutTokens } from './session/logout'
+export { isFresh, type LoginInput, readSession, SESSION_COOKIE, startSession } from './session/session'
+export { type AccessTokenInput, JWT_ACCESS_TOKEN_TYPE, mintJwtAccessToken, resolveAccessToken } from './token/access-token'
+export { type ExchangeDecision, type ExchangePolicy, SUPPORTED_TOKEN_TYPES, TOKEN_EXCHANGE } from './token/exchange'
+export { pairwiseSubject, sectorOf, subjectFor } from './token/subjects'
 export type { Account, Artifact, ArtifactKind, Client, ClientAuthMethod, FederatedIdentity, Grant, Seconds, Session } from './types'
-export { ACR_PREFIX, type SelectionHints, selectUpstream, type UpstreamDescriptor } from './upstreams'

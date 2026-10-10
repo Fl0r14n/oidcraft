@@ -4,7 +4,7 @@ import { base64url, createLocalJWKSet, decodeProtectedHeader, jwtVerify } from '
 import { memoryAdapter } from './adapters/memory'
 import type { Adapter, Client } from './index'
 import { createProvider, type Provider } from './provider'
-import { SESSION_COOKIE } from './session'
+import { SESSION_COOKIE } from './session/session'
 
 const ISSUER = 'https://op.example.com'
 const REDIRECT = 'https://rp.example.com/cb'

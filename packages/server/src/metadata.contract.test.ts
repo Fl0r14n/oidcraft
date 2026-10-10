@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { applyDiscovery, type OpenIdConfiguration } from '@oidcraft/core'
 import { memoryAdapter } from './adapters/memory'
 import { resolveConfig } from './config'
-import { metadata } from './endpoints/discovery'
+import { metadata } from './discovery'
 
 /**
  * The one place the OP half and the relying-party half of this workspace are pinned to each other.

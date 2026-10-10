@@ -4,7 +4,7 @@ import { Database } from 'bun:sqlite'
 import { describe, expect, test } from 'bun:test'
 import { sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/bun-sqlite'
-import { generatedKeyStore } from '../../keys'
+import { generatedKeyStore } from '../../keys/keys'
 import { adapterConformance } from '../conformance'
 import { type DrizzleDatabase, drizzleAdapter } from './index'
 

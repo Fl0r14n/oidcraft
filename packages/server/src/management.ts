@@ -1,8 +1,8 @@
 import { randomString } from '@oidcraft/core'
+import { clientResponse } from './clients/registration'
 import type { ResolvedConfig } from './config'
-import { logoutTokens } from './endpoints/end-session'
-import { clientResponse } from './endpoints/registration'
-import { jwksResponseBody } from './keys'
+import { jwksResponseBody } from './keys/keys'
+import { logoutTokens } from './session/logout'
 import type { Client } from './types'
 
 export type ManagementClientInput = Omit<Client, 'createdAt' | 'updatedAt' | 'registrationAccessToken'> & {

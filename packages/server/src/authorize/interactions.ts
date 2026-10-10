@@ -1,0 +1,141 @@
+import { randomString } from '@oidcraft/core'
+import type { ResolvedConfig } from '../config'
+import { OAuthError } from '../errors'
+import { startSession } from '../session/session'
+import type { Grant } from '../types'
+import type { AuthorizationRequest } from './authorization'
+import { redirectTo } from './authorization'
+
+export type InteractionKind = 'login' | 'consent'
+
+export type InteractionView = {
+  id: string
+  kind: InteractionKind
+  clientId: string
+  scopes: string[]
+  prompt: string[]
+  loginHint: string | undefined
+  acrValues: string[] | undefined
+  uiLocales: string[] | undefined
+  /**
+   * Seconds, when the client capped session age. Together with `prompt` this is what an upstream
+   * leg must pass through rather than satisfy from whatever session it already holds (FR-F9).
+   */
+  maxAge: number | undefined
+  /** Which upstreams this client may be brokered to, when it restricts them (FR-F2). */
+  upstreamProviders: string[] | undefined
+  /**
+   * Home-realm discovery's answer (FR-F4). `chosen` is set when one upstream is unambiguous;
+   * otherwise `candidates` is what the screen offers, because guessing would sign the user in
+   * somewhere they did not ask for.
+   */
+  upstream: { chosen: string | undefined; candidates: string[] } | undefined
+  expiresAt: Date
+}
+
+export type InteractionOutcome = {
+  login?: { accountId: string; acr?: string; amr?: string[]; idp?: string; upstreamSessionId?: string }
+  consent?: { scopes: string[] }
+  error?: { error: 'access_denied' | 'login_required' | 'consent_required'; description?: string }
+}
+
+export type InteractionCompletion = { redirectTo: string; setCookie: string | undefined }
+
+const load = async (config: ResolvedConfig, id: string) => {
+  const artifact = await config.adapter.artifacts.find('interaction', id)
+  if (!artifact) throw new OAuthError('invalid_request', { description: 'this interaction is unknown or has expired', status: 404 })
+  return {
+    artifact,
+    request: artifact.payload.request as unknown as AuthorizationRequest,
+    kind: artifact.payload.interactionKind as InteractionKind
+  }
+}
+
+export const interactions = (config: ResolvedConfig) => ({
+  async find(id: string): Promise<InteractionView> {
+    const { artifact, request, kind } = await load(config, id)
+    const client = await config.adapter.clients.find(request.clientId)
+    return {
+      id,
+      kind,
+      clientId: request.clientId,
+      scopes: request.scopes,
+      prompt: request.prompt,
+      loginHint: request.loginHint,
+      acrValues: request.acrValues,
+      uiLocales: request.uiLocales,
+      maxAge: request.maxAge,
+      upstreamProviders: client?.upstreamProviders,
+      upstream: artifact.payload.upstream as InteractionView['upstream'],
+      expiresAt: artifact.expiresAt
+    }
+  },
+
+  /**
+   * Applies the answer to durable state and sends the browser back to the authorization endpoint,
+   * which re-evaluates the original request against it and may demand another interaction (FR-I2).
+   * The result is never carried in the redirect: state that decides an authorization does not
+   * belong in a URL the user can edit.
+   */
+  async complete(id: string, outcome: InteractionOutcome): Promise<InteractionCompletion> {
+    const { artifact, request } = await load(config, id)
+
+    if (outcome.error) {
+      await config.adapter.artifacts.destroy('interaction', id)
+      return {
+        redirectTo: redirectTo(request, {
+          error: outcome.error.error,
+          ...(outcome.error.description && { error_description: outcome.error.description })
+        }),
+        setCookie: undefined
+      }
+    }
+
+    let setCookie: string | undefined
+    let accountId = artifact.accountId
+
+    if (outcome.login) {
+      const started = await startSession(config, outcome.login, request.clientId)
+      setCookie = started.cookie
+      accountId = started.session.accountId
+    }
+
+    if (outcome.consent) {
+      if (!accountId) throw new OAuthError('invalid_request', { description: 'consent was given without a logged-in account' })
+
+      const previous = await config.adapter.grants.findByAccountAndClient(accountId, request.clientId)
+      const grant: Grant = {
+        id: previous?.id ?? randomString(),
+        accountId,
+        clientId: request.clientId,
+        // FR-I4: consent accumulates, so a returning user is not re-asked for what they already allowed.
+        scopes: [...new Set([...(previous?.scopes ?? []), ...outcome.consent.scopes])],
+        claims: previous?.claims ?? [],
+        resources: previous?.resources ?? {},
+        createdAt: previous?.createdAt ?? new Date()
+      }
+      await config.adapter.grants.upsert(grant)
+    }
+
+    // Single-use: the authorization endpoint suspends again if it still cannot decide (FR-I2).
+    await config.adapter.artifacts.destroy('interaction', id)
+
+    return { redirectTo: authorizationUrl(config, request, Boolean(outcome.login)), setCookie }
+  }
+})
+
+const authorizationUrl = (config: ResolvedConfig, request: AuthorizationRequest, loggedIn: boolean) => {
+  const url = new URL(config.routes.authorization, config.issuer)
+  const params = new URLSearchParams(request.raw)
+  // prompt has just been satisfied, and replaying it loops forever.
+  params.delete('prompt')
+  // acr_values was put to the login that just ran; what it achieved is the answer, and the ID token
+  // reports it (OIDC Core §3.1.2.1, FR-C16). Replaying an unmeetable one loops forever too.
+  if (loggedIn) params.delete('acr_values')
+  // A pushed or signed request was already resolved into these parameters; replaying the reference
+  // would consume it a second time (RFC 9126 §4).
+  params.delete('request_uri')
+  params.delete('request')
+  url.search = params.toString()
+  return url.toString()
+}

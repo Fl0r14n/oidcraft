@@ -6,6 +6,7 @@ export type {
   FederatedIdentityStore,
   GrantStore,
   KeyStore,
+  KvEntry,
   KvStore,
   ReplayGuard,
   SessionStore

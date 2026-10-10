@@ -1,4 +1,13 @@
-import { type AccountStore, type Adapter, type FromKvOptions, fromKv, generatedKeyStore, type KeyStore, type KvStore } from 'oidcraft'
+import {
+  type AccountStore,
+  type Adapter,
+  type FromKvOptions,
+  fromKv,
+  generatedKeyStore,
+  type KeyStore,
+  type KvEntry,
+  type KvStore
+} from 'oidcraft'
 
 export type MemoryAdapterOptions = {
   keys?: KeyStore
@@ -20,16 +29,23 @@ export const memoryKv = (): KvStore & { size: () => number } => {
     return entry
   }
 
+  const write = ({ key, value, ttl }: KvEntry) =>
+    store.set(key, { value, ...(ttl !== undefined && { expiresAt: Date.now() + ttl * 1000 }) })
+
   return {
-    async get(key) {
-      return live(key)?.value
+    async find(key) {
+      const entry = live(key)
+      return entry ? { key, value: entry.value } : undefined
     },
-    async set(key, value, { ttl, ifAbsent } = {}) {
-      if (ifAbsent && live(key)) return false
-      store.set(key, { value, ...(ttl !== undefined && { expiresAt: Date.now() + ttl * 1000 }) })
+    async upsert(entry) {
+      write(entry)
+    },
+    async insert(entry) {
+      if (live(entry.key)) return false
+      write(entry)
       return true
     },
-    async delete(key) {
+    async destroy(key) {
       store.delete(key)
     },
     async *scan(prefix) {

@@ -152,7 +152,7 @@ In fix order; the first is the only one that changes the adapter contract.
       unconditionally; `replay.claim()` reads then writes. Two parallel redemptions of a code or
       refresh token both succeed and nothing is revoked (FR-T3, FR-T4, NFR-S4, NFR-S5). Covers
       codes, refresh tokens, PAR `request_uri`, device and CIBA approvals, assertion and DPoP `jti`.
-      Fixed: `consume` and `claim` return whether this caller won, `KvStore.set` takes `ifAbsent`,
+      Fixed: `consume` and `claim` return whether this caller won, `KvStore` gained an atomic `insert`,
       and an artifact upsert can no longer revive a consumed one — a second hole the fix found,
       reachable through a device or CIBA poll writing back a stale read. Interactions and the
       federation handoff are now consumed too.
@@ -229,7 +229,7 @@ Pages that do not exist yet and have to be written:
 
 - The interaction contract — every integrator implements login and consent, and it is currently only
   described in `FR-I*`. This is the page that decides whether someone succeeds.
-- Adapter authoring: `KvStore` in four methods (one atomic set-if-absent), or the full `Adapter`, and how to run the shared
+- Adapter authoring: `KvStore` in five methods (one atomic insert), or the full `Adapter`, and how to run the shared
   conformance suite against your own.
 - Configuration reference, generatable from the `.d.mts`.
 - Error reference: each OAuth error, what causes it, which clause.

@@ -79,16 +79,16 @@ export type FederatedIdentityStore = EntityStore<FederatedIdentity, [provider: s
   listForAccount(accountId: string): Promise<FederatedIdentity[]>
 }
 
+export type KvEntry = { key: string; value: string; ttl?: Seconds }
+
 /** The minimum a new backend has to implement; `fromKv` builds a full `Adapter` over it. */
-export type KvStore = {
-  get(key: string): Promise<string | undefined>
+export type KvStore = EntityStore<KvEntry, [key: string]> & {
   /**
-   * `ifAbsent` writes only when the key holds no live value, atomically — it is what single use is
-   * built on, so a store that cannot do it (an eventually consistent one) cannot back a provider.
-   * Resolves whether it wrote.
+   * Writes only when the key holds no live entry, atomically, and resolves whether it wrote. Single
+   * use is built on it, so a store that cannot do it (an eventually consistent one) cannot back a
+   * provider (FR-A3).
    */
-  set(key: string, value: string, options?: { ttl?: Seconds; ifAbsent?: boolean }): Promise<boolean>
-  delete(key: string): Promise<void>
+  insert(entry: KvEntry): Promise<boolean>
   /** Prefix scan. Required because grant revocation is a range delete, not a point delete. */
-  scan(prefix: string): AsyncIterable<{ key: string; value: string }>
+  scan(prefix: string): AsyncIterable<KvEntry>
 }

@@ -31,8 +31,8 @@ describe('jwt parse (no jwks)', () => {
     }
   })
 
-  it('returns {} for a malformed token rather than throwing', async () => {
-    expect(await jwt('not-a-jwt')).toEqual({})
+  it('reports a malformed token as invalid, as the verifying path does, rather than throwing', async () => {
+    expect(await jwt('not-a-jwt')).toEqual({ error: 'Invalid token' })
   })
 })
 

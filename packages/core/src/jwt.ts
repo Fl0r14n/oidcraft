@@ -58,21 +58,17 @@ export const createIdTokenVerifier = ({
   const literal = literalIssuer(issuer)
   return async idToken => {
     if (!idToken) return {}
-    if (!jwksSet) return parseIdToken(idToken)
     try {
+      if (!jwksSet) return decodeJwt<IdTokenClaims>(idToken)
       const { payload } = await jwtVerify(idToken, jwksSet, {
         ...(literal && { issuer: literal }),
         ...(audience && { audience })
       })
-      if (issuer && !literal && payload.iss !== resolveIssuer(issuer, payload)) {
-        return { error: 'Invalid token' }
-      }
+      const issuerMatches = !issuer || !!literal || payload.iss === resolveIssuer(issuer, payload)
       // OIDC Core 3.1.3.7: more than one audience requires azp, and an azp that is present must be us
       const azp = payload.azp as string | undefined
-      if ((Array.isArray(payload.aud) && payload.aud.length > 1 && !azp) || (azp && audience && azp !== audience)) {
-        return { error: 'Invalid token' }
-      }
-      return payload
+      const azpMatches = !(Array.isArray(payload.aud) && payload.aud.length > 1 && !azp) && !(azp && audience && azp !== audience)
+      return issuerMatches && azpMatches ? payload : { error: 'Invalid token' }
     } catch {
       return { error: 'Invalid token' }
     }

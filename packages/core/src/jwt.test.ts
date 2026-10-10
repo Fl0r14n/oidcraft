@@ -128,4 +128,13 @@ describe('createIdTokenVerifier', () => {
     expect(await verifier('https://provider.example')(undefined)).toEqual({})
     expect(parseIdToken(undefined)).toEqual({})
   })
+
+  it('reports a malformed token as invalid whether or not it verifies signatures', async () => {
+    for (const strict of [true, false]) {
+      expect(await createIdTokenVerifier({ jwksUri: JWKS_URI, issuer: ENTRA, audience: CLIENT_ID, strict })('not-a-jwt')).toEqual({
+        error: 'Invalid token'
+      })
+    }
+    expect(parseIdToken('not-a-jwt')).toEqual({})
+  })
 })

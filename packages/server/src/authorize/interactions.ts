@@ -5,7 +5,7 @@ import type { InteractionCompletion, InteractionKind, InteractionRequest, Intera
 import { startSession } from '../session/session'
 import type { Grant } from '../types'
 import type { AuthorizationRequest } from './authorization'
-import { redirectTo } from './authorization'
+import { detailsConsentId, redirectTo } from './authorization'
 
 const load = async (config: ResolvedConfig, id: string) => {
   const artifact = await config.adapter.artifacts.find('interaction', id)
@@ -33,6 +33,7 @@ export const interactions = (config: ResolvedConfig) => ({
       maxAge: request.maxAge,
       upstreamProviders: client?.upstreamProviders,
       upstream: artifact.payload.upstream as InteractionRequest['upstream'],
+      authorizationDetails: request.authorizationDetails,
       expiresAt: artifact.expiresAt
     }
   },
@@ -45,6 +46,16 @@ export const interactions = (config: ResolvedConfig) => ({
    */
   async complete(id: string, outcome: InteractionResult): Promise<InteractionCompletion> {
     const { artifact, request } = await load(config, id)
+    const requestedDetails = request.authorizationDetails
+    if (outcome.consent && requestedDetails) {
+      const approved = outcome.consent.authorizationDetails
+      if (!approved || JSON.stringify(approved) !== JSON.stringify(requestedDetails)) {
+        throw new OAuthError('invalid_request', {
+          description: 'consent must approve every authorization detail the request carried, or answer access_denied',
+          spec: 'RFC 9396 §7'
+        })
+      }
+    }
     // A double-submitted form must not start two sessions or write two grants (FR-I2).
     if (!(await config.adapter.artifacts.consume('interaction', id))) {
       throw new OAuthError('invalid_request', { description: 'this interaction was already completed', status: 404 })
@@ -85,6 +96,17 @@ export const interactions = (config: ResolvedConfig) => ({
         createdAt: previous?.createdAt ?? new Date()
       }
       await config.adapter.grants.upsert(grant)
+
+      if (requestedDetails) {
+        await config.adapter.artifacts.upsert({
+          id: await detailsConsentId(accountId, request.clientId, requestedDetails),
+          kind: 'authorization_details_consent',
+          clientId: request.clientId,
+          accountId,
+          payload: {},
+          expiresAt: new Date(Date.now() + config.ttl.interaction * 1000)
+        })
+      }
     }
 
     // Single-use: the authorization endpoint suspends again if it still cannot decide (FR-I2).

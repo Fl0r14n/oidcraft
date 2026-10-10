@@ -62,7 +62,7 @@ export const interactionRoutes = async (request: Request, url: URL) => {
       const form = new URLSearchParams(await request.text())
       const outcome =
         form.get('decision') === 'allow'
-          ? { consent: { scopes: view.scopes } }
+          ? { consent: { scopes: view.scopes, authorizationDetails: view.authorizationDetails } }
           : { error: { error: 'access_denied' as const, description: 'the user declined' } }
       const { redirectTo, setCookie } = await provider.interactions.complete(id, outcome)
       return seeOther(redirectTo, setCookie)

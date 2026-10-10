@@ -17,6 +17,9 @@ export {
 
 export type InteractionKind = 'login' | 'consent'
 
+/** One RFC 9396 detail. Its fields are the host's to define, under the types it declared. */
+export type InteractionAuthorizationDetail = { type: string } & Record<string, unknown>
+
 /** What the authorization endpoint could not decide on its own, handed to the interaction app (FR-I1). */
 export type InteractionRequest = {
   id: string
@@ -40,13 +43,19 @@ export type InteractionRequest = {
    * somewhere they did not ask for.
    */
   upstream: { chosen: string | undefined; candidates: string[] } | undefined
+  /** What the client asks to be allowed to do, for the consent screen to show (RFC 9396 §7, FR-C15). */
+  authorizationDetails: InteractionAuthorizationDetail[] | undefined
   expiresAt: Date
 }
 
 /** The interaction app's answer. The core re-runs the authorization request against it (FR-I2). */
 export type InteractionResult = {
   login?: { accountId: string; acr?: string; amr?: string[]; idp?: string; upstreamSessionId?: string }
-  consent?: { scopes: string[] }
+  /**
+   * `authorizationDetails` must repeat every detail the request carried: approving them is explicit,
+   * all or nothing, and covers this one authorization. Declining some is `access_denied`.
+   */
+  consent?: { scopes: string[]; authorizationDetails?: InteractionAuthorizationDetail[] | undefined }
   error?: { error: 'access_denied' | 'login_required' | 'consent_required'; description?: string }
 }
 

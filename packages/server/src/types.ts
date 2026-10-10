@@ -95,6 +95,7 @@ export type ArtifactKind =
   | 'pushed_authorization_request'
   | 'backchannel_authentication_request'
   | 'registration_access_token'
+  | 'authorization_details_consent'
 
 export type Artifact = {
   id: string

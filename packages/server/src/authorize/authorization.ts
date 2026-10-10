@@ -1,4 +1,5 @@
-import { randomString } from '@oidcraft/core'
+import { randomString, sha256 } from '@oidcraft/core'
+import { base64url } from 'jose'
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
 import { isFresh } from '../session/session'
@@ -185,6 +186,14 @@ export const redirectTo = (request: AuthorizationRequest, values: Record<string,
   return url.toString()
 }
 
+/**
+ * Where an approval of these exact details for this account and client is kept. Never remembered
+ * past one authorization: a payment approved once must not cover the next request that repeats it
+ * (RFC 9396 §7, FR-C15).
+ */
+export const detailsConsentId = async (accountId: string, clientId: string, details: AuthorizationDetail[]) =>
+  base64url.encode(await sha256(`${accountId}\n${clientId}\n${JSON.stringify(details)}`))
+
 const missingScopes = (request: AuthorizationRequest, grant: Grant | undefined) =>
   request.scopes.filter(scope => !grant?.scopes.includes(scope))
 
@@ -214,6 +223,12 @@ export const authorize = async (
 
   const grant = await config.adapter.grants.findByAccountAndClient(session.accountId, request.clientId)
   const outstanding = missingScopes(request, grant)
+  const detailsConsent = request.authorizationDetails
+    ? await detailsConsentId(session.accountId, request.clientId, request.authorizationDetails)
+    : undefined
+  if (detailsConsent && !(await config.adapter.artifacts.find('authorization_details_consent', detailsConsent))) {
+    outstanding.push('authorization_details')
+  }
 
   if (outstanding.length || request.prompt.includes('consent')) {
     if (request.prompt.includes('none')) {
@@ -222,6 +237,11 @@ export const authorize = async (
         spec: 'OIDC Core §3.1.2.6'
       })
     }
+    return { kind: 'interaction', id: await suspend(config, request, 'consent', session), reason: 'consent' }
+  }
+
+  // Spent here, atomically, so one approval yields one code however many replays race for it.
+  if (detailsConsent && !(await config.adapter.artifacts.consume('authorization_details_consent', detailsConsent))) {
     return { kind: 'interaction', id: await suspend(config, request, 'consent', session), reason: 'consent' }
   }
 

@@ -93,7 +93,9 @@ const tokensFor = async (provider: Provider, extra: Record<string, string> = {})
     const view = await provider.interactions.find(id)
     const done = await provider.interactions.complete(
       id,
-      view.kind === 'login' ? { login: { accountId: 'ada', acr: 'pwd' } } : { consent: { scopes: view.scopes } }
+      view.kind === 'login'
+        ? { login: { accountId: 'ada', acr: 'pwd' } }
+        : { consent: { scopes: view.scopes, authorizationDetails: view.authorizationDetails } }
     )
     if (done.setCookie) cookie = `${SESSION_COOKIE}=${done.setCookie.split('=')[1]?.split(';')[0]}`
     response = await provider.handle(new Request(done.redirectTo, { headers: cookie ? { cookie } : {} }))
@@ -252,6 +254,84 @@ describe('rich authorization requests', () => {
     )
     const params = new URL(response.headers.get('location') as string).searchParams
     expect(params.get('error')).toBe('invalid_authorization_details')
+  })
+
+  // RFC 9396 §7, FR-C15: the user approves the details, not just the scopes, and each time.
+  describe('consent', () => {
+    const authorizeUrl = (extra: Record<string, string> = {}) =>
+      `${ISSUER}/authorize?${new URLSearchParams({
+        client_id: 'rp',
+        redirect_uri: REDIRECT,
+        response_type: 'code',
+        scope: 'openid profile orders',
+        code_challenge: challenge,
+        code_challenge_method: 'S256',
+        authorization_details: detail,
+        ...extra
+      })}`
+    const interactionOf = (response: Response) => {
+      const location = new URL(response.headers.get('location') as string)
+      return location.pathname.startsWith('/interaction/') ? (location.pathname.split('/').pop() as string) : undefined
+    }
+
+    const loggedIn = async (provider: Provider) => {
+      const id = interactionOf(await provider.handle(new Request(authorizeUrl()))) as string
+      const done = await provider.interactions.complete(id, { login: { accountId: 'ada', acr: 'pwd' } })
+      const cookie = `${SESSION_COOKIE}=${done.setCookie?.split('=')[1]?.split(';')[0]}`
+      return { cookie, next: await provider.handle(new Request(done.redirectTo, { headers: { cookie } })) }
+    }
+
+    test('the consent screen is shown the details, and approving them yields a code', async () => {
+      const provider = build({ authorizationDetailTypes: ['payment'] })
+      const { cookie, next } = await loggedIn(provider)
+      const id = interactionOf(next) as string
+      const view = await provider.interactions.find(id)
+      expect(view.kind).toBe('consent')
+      expect(view.authorizationDetails).toEqual(JSON.parse(detail))
+
+      const done = await provider.interactions.complete(id, {
+        consent: { scopes: view.scopes, authorizationDetails: view.authorizationDetails }
+      })
+      const final = await provider.handle(new Request(done.redirectTo, { headers: { cookie } }))
+      expect(new URL(final.headers.get('location') as string).searchParams.get('code')).toBeTruthy()
+    })
+
+    test('a remembered grant for the scopes does not cover the details', async () => {
+      const provider = build({ authorizationDetailTypes: ['payment'] })
+      await tokensFor(provider, { scope: 'openid profile orders' })
+      const { next } = await loggedIn(provider)
+      expect(interactionOf(next)).toBeDefined()
+    })
+
+    test('an approval covers one authorization, not the next request repeating it', async () => {
+      const provider = build({ authorizationDetailTypes: ['payment'] })
+      const { cookie, next } = await loggedIn(provider)
+      const id = interactionOf(next) as string
+      const view = await provider.interactions.find(id)
+      const done = await provider.interactions.complete(id, {
+        consent: { scopes: view.scopes, authorizationDetails: view.authorizationDetails }
+      })
+      await provider.handle(new Request(done.redirectTo, { headers: { cookie } }))
+
+      const again = await provider.handle(new Request(authorizeUrl(), { headers: { cookie } }))
+      expect(interactionOf(again)).toBeDefined()
+    })
+
+    test('consent that does not approve every detail is refused', async () => {
+      const provider = build({ authorizationDetailTypes: ['payment'] })
+      const { next } = await loggedIn(provider)
+      const id = interactionOf(next) as string
+      const view = await provider.interactions.find(id)
+      await expect(provider.interactions.complete(id, { consent: { scopes: view.scopes } })).rejects.toThrow('every authorization detail')
+    })
+
+    test('prompt=none cannot skip it', async () => {
+      const provider = build({ authorizationDetailTypes: ['payment'] })
+      await tokensFor(provider, { scope: 'openid profile orders' })
+      const { cookie } = await loggedIn(provider)
+      const response = await provider.handle(new Request(authorizeUrl({ prompt: 'none' }), { headers: { cookie } }))
+      expect(new URL(response.headers.get('location') as string).searchParams.get('error')).toBe('consent_required')
+    })
   })
 
   test('a declared type flows through to the issued token', async () => {

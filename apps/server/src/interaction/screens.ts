@@ -66,6 +66,7 @@ export const consentScreen = (view: InteractionRequest) =>
     'Authorize',
     `<h1>Authorize ${escapeHtml(view.clientId)}</h1><p class="sub">It is asking to:</p>
 <ul>${view.scopes.map((scope: string) => `<li>${escapeHtml(describe(scope))}</li>`).join('')}</ul>
+${(view.authorizationDetails ?? []).map(detail => `<pre>${escapeHtml(JSON.stringify(detail, null, 2))}</pre>`).join('')}
 <form method="post" action="/interaction/${view.id}/consent" class="row">
 <button type="submit" name="decision" value="allow">Allow</button>
 <button type="submit" name="decision" value="deny" class="secondary">Deny</button></form>`

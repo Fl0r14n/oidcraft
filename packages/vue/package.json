@@ -75,9 +75,9 @@
     "@oidcraft/client": "workspace:*",
     "@oidcraft/core": "workspace:*",
     "@tsdown/css": "latest",
-    "axios": "latest",
+    "axios": "^1.20.0",
     "unplugin-vue": "^8.0.0",
-    "vue": "latest",
+    "vue": "^3.5.43",
     "vue-tsgo": "^0.3.0",
     "vuetify": "latest"
   },

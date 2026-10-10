@@ -98,9 +98,9 @@
   },
   "devDependencies": {
     "@oidcraft/core": "workspace:*",
-    "drizzle-orm": "^0.45.2",
-    "kysely": "^0.28.7",
-    "kysely-bun-sqlite": "^0.3.2"
+    "drizzle-orm": "^0.45.4",
+    "kysely": "^0.28.17",
+    "kysely-bun-sqlite": "^0.4.0"
   },
   "publishConfig": {
     "access": "public"

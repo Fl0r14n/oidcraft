@@ -323,6 +323,38 @@ describe('DPoP nonces', () => {
     expect(body.error_description).toContain('not one we issued')
   })
 
+  const tokenWithNonce = async (provider: Provider, clientId: string, nonce: string) =>
+    (
+      await provider.handle(
+        new Request(`${ISSUER}/token`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/x-www-form-urlencoded', dpop: await nonced('POST', `${ISSUER}/token`, nonce) },
+          body: new URLSearchParams({ grant_type: 'authorization_code', code: 'x', client_id: clientId }).toString()
+        })
+      )
+    ).json()
+
+  // RFC 9449 §8: refusing a nonce must not record it, or the client has just chosen its own.
+  test('an invented nonce stays refused on every later proof', async () => {
+    const provider = withNonces()
+    expect((await tokenWithNonce(provider, 'rp', 'invented')).error).toBe('use_dpop_nonce')
+    expect((await tokenWithNonce(provider, 'rp', 'invented')).error).toBe('use_dpop_nonce')
+  })
+
+  test('a nonce issued to one client is refused from another', async () => {
+    const provider = withNonces()
+    const handed = await provider.handle(
+      new Request(`${ISSUER}/token`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded', dpop: await proof('POST', `${ISSUER}/token`) },
+        body: new URLSearchParams({ grant_type: 'authorization_code', code: 'x', client_id: 'strict' }).toString()
+      })
+    )
+    const nonce = handed.headers.get('dpop-nonce') as string
+    expect((await tokenWithNonce(provider, 'rp', nonce)).error).toBe('use_dpop_nonce')
+    expect((await tokenWithNonce(provider, 'strict', nonce)).error).not.toBe('use_dpop_nonce')
+  })
+
   test('an issued nonce is accepted, and stays usable until it expires', async () => {
     const provider = withNonces()
     const first = await provider.handle(

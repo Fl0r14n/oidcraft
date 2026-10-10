@@ -82,7 +82,7 @@ export const userinfoEndpoint = async (config: ResolvedConfig, request: Request,
     await verifyDpopProof(config, request, {
       accessToken: presented.token,
       expectedJkt: confirmation.jkt,
-      requireNonce: config.features.dpopNonces
+      requireNonceFor: config.features.dpopNonces ? artifact.clientId : undefined
     })
   }
 

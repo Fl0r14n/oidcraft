@@ -84,6 +84,8 @@ const consumeDeviceCode = async (config: ResolvedConfig, deviceCode: string, cli
   const artifact = await config.adapter.artifacts.find('device_code', deviceCode)
   if (!artifact) throw new OAuthError('expired_token', { description: 'the device code is unknown or expired', spec: 'RFC 8628 §3.5' })
   if (artifact.clientId !== clientId) throw new OAuthError('invalid_grant', { description: 'this device code belongs to another client' })
+  if (artifact.consumedAt)
+    throw new OAuthError('invalid_grant', { description: 'this device code was already redeemed', spec: 'RFC 8628 §3.5' })
 
   const payload = payloadOf(artifact)
   const now = Date.now()
@@ -103,7 +105,10 @@ const consumeDeviceCode = async (config: ResolvedConfig, deviceCode: string, cli
   if (payload.status === 'pending')
     throw new OAuthError('authorization_pending', { description: 'the user has not finished yet', spec: 'RFC 8628 §3.5' })
 
-  // Single-use: approval redeems once, however many times the device polls.
+  // Single-use: approval redeems once, however many times the device polls (NFR-S4).
+  if (!(await config.adapter.artifacts.consume('device_code', deviceCode))) {
+    throw new OAuthError('invalid_grant', { description: 'this device code was already redeemed', spec: 'RFC 8628 §3.5' })
+  }
   await config.adapter.artifacts.destroy('device_code', deviceCode)
   return { artifact, payload }
 }

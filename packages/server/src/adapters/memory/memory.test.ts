@@ -7,9 +7,9 @@ describe('memory adapter', () => {
 
   test('an entry expires by its ttl without a sweep', async () => {
     const kv = memoryKv()
-    await kv.set('k', 'v', 1)
+    await kv.set('k', 'v', { ttl: 1 })
     expect(await kv.get('k')).toBe('v')
-    await kv.set('k', 'v', -1 as never)
+    await kv.set('k', 'v', { ttl: -1 })
     expect(await kv.get('k')).toBeUndefined()
   })
 

@@ -179,7 +179,9 @@ survives a request, so two processes behind a load balancer behave identically t
 `FederatedIdentityStore`) — not one stringly-typed blob table keyed by model name.
 
 **FR-A3** — A `KvStore` implementation (`get`/`set`/`delete`/`scan`) is sufficient to derive a
-complete `Adapter`, so a new backend is a day's work rather than a week's.
+complete `Adapter`, so a new backend is a day's work rather than a week's. `set` must be able to
+write only if the key is absent, atomically: single use (FR-T3, FR-T4, NFR-S4) cannot be built from
+a read followed by a write, so an eventually consistent store cannot back a provider.
 
 **FR-A4** — First-party adapters ship for **Drizzle** (Postgres and SQLite) and **Kysely**
 (Postgres, SQLite, MySQL), plus an in-memory one for tests. Each ships its schema as migrations

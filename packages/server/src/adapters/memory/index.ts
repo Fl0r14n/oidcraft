@@ -24,8 +24,10 @@ export const memoryKv = (): KvStore & { size: () => number } => {
     async get(key) {
       return live(key)?.value
     },
-    async set(key, value, ttl) {
+    async set(key, value, { ttl, ifAbsent } = {}) {
+      if (ifAbsent && live(key)) return false
       store.set(key, { value, ...(ttl !== undefined && { expiresAt: Date.now() + ttl * 1000 }) })
+      return true
     },
     async delete(key) {
       store.delete(key)

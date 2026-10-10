@@ -225,6 +225,7 @@ export const createBroker = (config: BrokerConfig) => {
       const stored = await config.adapter.artifacts.find('federation_handoff', state)
       if (!stored) throw new Error('this sign-in did not start here, or it expired')
       // Single-use: a replayed callback must not mint a second identity.
+      if (!(await config.adapter.artifacts.consume('federation_handoff', state))) throw new Error('this sign-in was already completed')
       await config.adapter.artifacts.destroy('federation_handoff', state)
 
       const handoff = stored.payload as unknown as Handoff

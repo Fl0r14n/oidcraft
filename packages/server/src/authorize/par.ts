@@ -62,6 +62,8 @@ export const resolvePushedRequest = async (config: ResolvedConfig, requestUri: s
   if (clientId && clientId !== artifact.clientId) {
     throw new OAuthError('invalid_request', { description: 'this request_uri belongs to a different client', spec: 'RFC 9126 §4' })
   }
-  await config.adapter.artifacts.consume('pushed_authorization_request', id)
+  if (!(await config.adapter.artifacts.consume('pushed_authorization_request', id))) {
+    throw new OAuthError('invalid_request', { description: 'this request_uri was already used', spec: 'RFC 9126 §4' })
+  }
   return new URLSearchParams(artifact.payload.params as string)
 }

@@ -40,27 +40,36 @@ const collect = async <T>(kv: KvStore, prefix: string, revived: (raw: string) =>
 }
 
 /**
- * A complete `Adapter` over four key-value methods (FR-A3).
+ * A complete `Adapter` over four key-value methods (FR-A3), one of them able to write only if absent.
  *
  * Correct, not fast: revocation and the by-account lookups are prefix scans, because a key-value
  * store has no secondary index. A relational adapter must use real columns instead (FR-A5).
  */
 export const fromKv = (kv: KvStore, options: FromKvOptions): Adapter => {
   const artifactKey = (kind: string, id: string) => `artifact/${kind}/${id}`
+  // Kept apart from the artifact so an upsert cannot overwrite it (FR-T3, NFR-S4).
+  const consumedKey = (kind: string, id: string) => `consumed/${kind}/${id}`
+  const withConsumption = async (artifact: Artifact) => {
+    const consumedAt = await kv.get(consumedKey(artifact.kind, artifact.id))
+    const { consumedAt: _, ...rest } = revive(artifact, ['expiresAt'])
+    return consumedAt ? { ...rest, consumedAt: new Date(consumedAt) } : rest
+  }
 
   const artifacts: ArtifactStore = {
     async upsert(artifact) {
-      await kv.set(artifactKey(artifact.kind, artifact.id), enc(artifact), ttlFrom(artifact.expiresAt))
-      if (artifact.grantId) await kv.set(`grant-index/${artifact.grantId}/${artifact.kind}/${artifact.id}`, '', ttlFrom(artifact.expiresAt))
+      const { consumedAt: _, ...stored } = artifact
+      const ttl = ttlFrom(artifact.expiresAt)
+      await kv.set(artifactKey(artifact.kind, artifact.id), enc(stored), { ttl })
+      if (artifact.grantId) await kv.set(`grant-index/${artifact.grantId}/${artifact.kind}/${artifact.id}`, '', { ttl })
       if (typeof artifact.payload.userCode === 'string') {
-        await kv.set(`user-code/${artifact.payload.userCode}`, artifactKey(artifact.kind, artifact.id), ttlFrom(artifact.expiresAt))
+        await kv.set(`user-code/${artifact.payload.userCode}`, artifactKey(artifact.kind, artifact.id), { ttl })
       }
     },
 
     async find(kind, id) {
       const artifact = dec<Artifact>(await kv.get(artifactKey(kind, id)))
       if (!artifact) return undefined
-      const live = revive(artifact, ['expiresAt', 'consumedAt'])
+      const live = await withConsumption(artifact)
       // FR-T5: an expiry the store missed must still not be served.
       return live.expiresAt.getTime() > Date.now() ? live : undefined
     },
@@ -69,14 +78,15 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): Adapter => {
       const pointer = await kv.get(`user-code/${userCode}`)
       if (!pointer) return undefined
       const artifact = dec<Artifact>(await kv.get(pointer))
-      return artifact ? revive(artifact, ['expiresAt', 'consumedAt']) : undefined
+      return artifact ? withConsumption(artifact) : undefined
     },
 
     async consume(kind, id) {
       const artifact = dec<Artifact>(await kv.get(artifactKey(kind, id)))
-      if (!artifact) return
-      artifact.consumedAt = new Date()
-      await kv.set(artifactKey(kind, id), enc(artifact), ttlFrom(new Date(artifact.expiresAt)))
+      if (!artifact) return false
+      const expiresAt = new Date(artifact.expiresAt)
+      if (expiresAt.getTime() <= Date.now()) return false
+      return kv.set(consumedKey(kind, id), new Date().toISOString(), { ttl: ttlFrom(expiresAt), ifAbsent: true })
     },
 
     async destroy(kind, id) {
@@ -129,7 +139,7 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): Adapter => {
       return all.filter(session => session.idp === provider && session.upstreamSessionId === upstreamSessionId)
     },
     async upsert(session) {
-      await kv.set(`session/${session.id}`, enc(session), ttlFrom(session.expiresAt))
+      await kv.set(`session/${session.id}`, enc(session), { ttl: ttlFrom(session.expiresAt) })
     },
     async destroy(id) {
       await kv.delete(`session/${id}`)
@@ -150,7 +160,7 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): Adapter => {
       return all.filter(grant => grant.accountId === accountId)
     },
     async upsert(grant) {
-      await kv.set(`grant/${grant.id}`, enc(grant), grant.expiresAt ? ttlFrom(grant.expiresAt) : undefined)
+      await kv.set(`grant/${grant.id}`, enc(grant), grant.expiresAt ? { ttl: ttlFrom(grant.expiresAt) } : {})
     },
     async destroy(id) {
       await kv.delete(`grant/${id}`)
@@ -159,10 +169,7 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): Adapter => {
 
   const replay: ReplayGuard = {
     async claim(namespace, value, ttl) {
-      const key = `replay/${namespace}/${value}`
-      if ((await kv.get(key)) !== undefined) return false
-      await kv.set(key, '1', ttl)
-      return true
+      return kv.set(`replay/${namespace}/${value}`, '1', { ttl, ifAbsent: true })
     }
   }
 

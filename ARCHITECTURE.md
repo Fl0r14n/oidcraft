@@ -274,7 +274,16 @@ an index, and the payload's type is `any` at every call site.
 
 Splitting by capability makes each method's payload a real type, lets a relational adapter use
 real columns and indexes (FR-A5), and lets a deployment implement only what it uses. `KvStore`
-(FR-A3) keeps the simple case simple: implement four methods and `fromKv` derives the rest.
+(FR-A3) keeps the simple case simple: implement four methods and `fromKv` derives the rest. One of
+them carries the only hard requirement — `set` with `ifAbsent` must be atomic — because every
+single-use rule (a code, a refresh token, a `jti`) is that one write. Redis `SET NX`, a Durable
+Object or a single-process `Map` qualify; Workers KV does not.
+
+`consume` and `claim` are atomic in every adapter for the same reason: each returns whether *this*
+caller won, and the protocol trusts that answer rather than an earlier read. The SQL adapters use a
+conditional `UPDATE … WHERE consumed_at IS NULL` and an upsert that takes over only a lapsed row,
+both with `RETURNING`; an artifact upsert never writes `consumed_at`, so a stale read written back
+cannot revive a consumed code. The shared conformance suite races eight callers against each.
 
 ### 4.2 Schema ownership
 

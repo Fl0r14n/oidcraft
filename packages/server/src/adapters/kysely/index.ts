@@ -80,7 +80,7 @@ export const kyselyAdapter = (options: KyselyAdapterOptions): Adapter => {
       await db
         .insertInto('oidc_artifacts')
         .values(row)
-        .onConflict(conflict => conflict.columns(['kind', 'id']).doUpdateSet(row))
+        .onConflict(conflict => conflict.columns(['kind', 'id']).doUpdateSet({ ...row, consumed_at: undefined }))
         .execute()
     },
 
@@ -107,7 +107,16 @@ export const kyselyAdapter = (options: KyselyAdapterOptions): Adapter => {
     },
 
     async consume(kind: ArtifactKind, id: string) {
-      await db.updateTable('oidc_artifacts').set({ consumed_at: now() }).where('kind', '=', kind).where('id', '=', id).execute()
+      const result = await db
+        .updateTable('oidc_artifacts')
+        .set({ consumed_at: now() })
+        .where('kind', '=', kind)
+        .where('id', '=', id)
+        .where('consumed_at', 'is', null)
+        .where('expires_at', '>', now())
+        .returning('id')
+        .executeTakeFirst()
+      return result !== undefined
     },
 
     async destroy(kind: ArtifactKind, id: string) {
@@ -265,21 +274,17 @@ export const kyselyAdapter = (options: KyselyAdapterOptions): Adapter => {
 
     replay: {
       async claim(namespace, value, ttl) {
-        const existing = await db
-          .selectFrom('oidc_replay')
-          .selectAll()
-          .where('namespace', '=', namespace)
-          .where('value', '=', value)
-          .where('expires_at', '>', now())
-          .executeTakeFirst()
-        if (existing) return false
         const expires_at = now() + ttl * 1000
-        await db
+        // One statement: a fresh row is inserted, a lapsed one is taken over, a live one is left alone.
+        const result = await db
           .insertInto('oidc_replay')
           .values({ namespace, value, expires_at })
-          .onConflict(conflict => conflict.columns(['namespace', 'value']).doUpdateSet({ expires_at }))
-          .execute()
-        return true
+          .onConflict(conflict =>
+            conflict.columns(['namespace', 'value']).doUpdateSet({ expires_at }).where('oidc_replay.expires_at', '<=', now())
+          )
+          .returning('value')
+          .executeTakeFirst()
+        return result !== undefined
       }
     },
 

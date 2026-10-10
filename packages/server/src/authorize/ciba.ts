@@ -105,6 +105,8 @@ const consumeAuthReqId = async (config: ResolvedConfig, authReqId: string, clien
   const artifact = await config.adapter.artifacts.find('backchannel_authentication_request', authReqId)
   if (!artifact) throw new OAuthError('expired_token', { description: 'that auth_req_id is unknown or expired', spec: 'OIDC CIBA 1.0 §11' })
   if (artifact.clientId !== clientId) throw new OAuthError('invalid_grant', { description: 'that auth_req_id belongs to another client' })
+  if (artifact.consumedAt)
+    throw new OAuthError('invalid_grant', { description: 'that auth_req_id was already redeemed', spec: 'OIDC CIBA 1.0 §11' })
 
   const payload = payloadOf(artifact)
   if (payload.mode !== 'poll') {
@@ -130,6 +132,9 @@ const consumeAuthReqId = async (config: ResolvedConfig, authReqId: string, clien
   if (payload.status === 'pending')
     throw new OAuthError('authorization_pending', { description: 'the user has not answered yet', spec: 'OIDC CIBA 1.0 §11' })
 
+  if (!(await config.adapter.artifacts.consume('backchannel_authentication_request', authReqId))) {
+    throw new OAuthError('invalid_grant', { description: 'that auth_req_id was already redeemed', spec: 'OIDC CIBA 1.0 §11' })
+  }
   await config.adapter.artifacts.destroy('backchannel_authentication_request', authReqId)
   return { artifact, payload }
 }

@@ -45,6 +45,10 @@ export const interactions = (config: ResolvedConfig) => ({
    */
   async complete(id: string, outcome: InteractionResult): Promise<InteractionCompletion> {
     const { artifact, request } = await load(config, id)
+    // A double-submitted form must not start two sessions or write two grants (FR-I2).
+    if (!(await config.adapter.artifacts.consume('interaction', id))) {
+      throw new OAuthError('invalid_request', { description: 'this interaction was already completed', status: 404 })
+    }
 
     if (outcome.error) {
       await config.adapter.artifacts.destroy('interaction', id)

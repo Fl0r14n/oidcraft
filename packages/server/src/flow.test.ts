@@ -278,6 +278,26 @@ describe('token endpoint', () => {
     expect((await refresh.json()).error).toBe('invalid_grant')
   })
 
+  // NFR-S4: two redemptions in flight at once — one wins, the other is a replay and revokes the grant.
+  test('parallel redemptions of one code yield one token set and revoke the grant', async () => {
+    const { location } = await loginAndConsent()
+    const code = location.searchParams.get('code') as string
+    const responses = await Promise.all([exchange(code), exchange(code)])
+    expect(responses.map(response => response.status).sort()).toEqual([200, 400])
+
+    const winner = await (responses.find(response => response.status === 200) as Response).json()
+    const refresh = await post('/token', { grant_type: 'refresh_token', refresh_token: winner.refresh_token }, { authorization: basic() })
+    expect((await refresh.json()).error).toBe('invalid_grant')
+  })
+
+  test('parallel refreshes of one token cannot fork the family', async () => {
+    const { location } = await loginAndConsent()
+    const first = await (await exchange(location.searchParams.get('code') as string)).json()
+    const refresh = () => post('/token', { grant_type: 'refresh_token', refresh_token: first.refresh_token }, { authorization: basic() })
+    const responses = await Promise.all([refresh(), refresh()])
+    expect(responses.map(response => response.status).sort()).toEqual([200, 400])
+  })
+
   // FR-T3: rotation is unconditional.
   test('a refresh rotates the token and replaying the old one revokes the grant', async () => {
     const { location } = await loginAndConsent()

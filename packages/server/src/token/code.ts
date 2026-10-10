@@ -41,7 +41,8 @@ export const authorizationCodeGrant = async (config: ResolvedConfig, client: Cli
   }
 
   await verifyChallenge(form.get('code_verifier'), artifact.payload.codeChallenge as string | undefined)
-  await config.adapter.artifacts.consume('authorization_code', code)
+  // The read above can be stale by now; only the atomic consume decides who redeemed it (NFR-S4).
+  if (!(await config.adapter.artifacts.consume('authorization_code', code))) await revokeOnReplay(config, artifact, 'authorization code')
 
   const { grant, session } = await loadGrantAndSession(config, artifact)
   return issueTokens(
@@ -79,7 +80,7 @@ export const refreshTokenGrant = async (config: ResolvedConfig, client: Client, 
   }
 
   // FR-T3: rotation is unconditional, which is what makes the replay rule above meaningful.
-  await config.adapter.artifacts.consume('refresh_token', presented)
+  if (!(await config.adapter.artifacts.consume('refresh_token', presented))) await revokeOnReplay(config, artifact, 'refresh token')
 
   const { grant, session } = await loadGrantAndSession(config, artifact)
   return issueTokens(config, client, grant, session, requested?.length ? requested : granted, undefined, boundTo ?? jkt)

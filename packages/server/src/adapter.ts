@@ -25,12 +25,17 @@ export type ClientStore = {
 }
 
 export type ArtifactStore = {
+  /** Never clears a consumption: a poll that read the artifact before it was redeemed would revive it. */
   upsert(artifact: Artifact): Promise<void>
   find(kind: ArtifactKind, id: string): Promise<Artifact | undefined>
   /** Device flow pairs a user code with a device code (FR-C7). */
   findByUserCode?(userCode: string): Promise<Artifact | undefined>
-  /** Single-use marking. A second consume of the same code must revoke the grant (NFR-S4). */
-  consume(kind: ArtifactKind, id: string): Promise<void>
+  /**
+   * Marks a live artifact used, atomically: `true` for exactly one caller, `false` when it was
+   * already consumed, is unknown or has expired. A check-then-write lets two parallel redemptions
+   * both win (FR-T3, FR-T4, NFR-S4).
+   */
+  consume(kind: ArtifactKind, id: string): Promise<boolean>
   destroy(kind: ArtifactKind, id: string): Promise<void>
   revokeByGrantId(grantId: string): Promise<void>
   /** Bounded sweep of expired rows; the runtime calls it, storage does not schedule (NFR-P3). */
@@ -67,7 +72,7 @@ export type KeyStore = {
 
 /** Replay protection for one-time values: `jti`, DPoP proofs, upstream nonces (NFR-S5). */
 export type ReplayGuard = {
-  /** True when the value was unseen and is now recorded; false means a replay. */
+  /** True for exactly one caller while the value is live; false means a replay. Atomic (NFR-S5). */
   claim(namespace: string, value: string, ttl: Seconds): Promise<boolean>
 }
 
@@ -81,7 +86,12 @@ export type FederatedIdentityStore = {
 /** The minimum a new backend has to implement; `fromKv` builds a full `Adapter` over it. */
 export type KvStore = {
   get(key: string): Promise<string | undefined>
-  set(key: string, value: string, ttl?: Seconds): Promise<void>
+  /**
+   * `ifAbsent` writes only when the key holds no live value, atomically — it is what single use is
+   * built on, so a store that cannot do it (an eventually consistent one) cannot back a provider.
+   * Resolves whether it wrote.
+   */
+  set(key: string, value: string, options?: { ttl?: Seconds; ifAbsent?: boolean }): Promise<boolean>
   delete(key: string): Promise<void>
   /** Prefix scan. Required because grant revocation is a range delete, not a point delete. */
   scan(prefix: string): AsyncIterable<{ key: string; value: string }>

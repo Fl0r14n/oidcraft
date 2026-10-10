@@ -1,4 +1,4 @@
-import { and, eq, gt, lte } from 'drizzle-orm'
+import { and, eq, gt, isNull, lte } from 'drizzle-orm'
 import type { BaseSQLiteDatabase } from 'drizzle-orm/sqlite-core'
 import type { AccountStore, Adapter, Artifact, ArtifactKind, Client, FederatedIdentity, Grant, KeyStore, Session } from 'oidcraft'
 import { artifacts, clients, grants, identities, replay, sessions } from './schema'
@@ -104,7 +104,7 @@ export const drizzleAdapter = (options: DrizzleAdapterOptions): Adapter => {
         await db
           .insert(artifacts)
           .values(row)
-          .onConflictDoUpdate({ target: [artifacts.kind, artifacts.id], set: row })
+          .onConflictDoUpdate({ target: [artifacts.kind, artifacts.id], set: { ...row, consumedAt: undefined } })
       },
       async find(kind, id) {
         const [row] = await db
@@ -123,10 +123,12 @@ export const drizzleAdapter = (options: DrizzleAdapterOptions): Adapter => {
         return row ? toArtifact(row) : undefined
       },
       async consume(kind, id) {
-        await db
+        const won = await db
           .update(artifacts)
           .set({ consumedAt: now() })
-          .where(and(eq(artifacts.kind, kind), eq(artifacts.id, id)))
+          .where(and(eq(artifacts.kind, kind), eq(artifacts.id, id), isNull(artifacts.consumedAt), live(artifacts.expiresAt)))
+          .returning({ id: artifacts.id })
+        return won.length === 1
       },
       async destroy(kind, id) {
         await db.delete(artifacts).where(and(eq(artifacts.kind, kind), eq(artifacts.id, id)))
@@ -227,17 +229,14 @@ export const drizzleAdapter = (options: DrizzleAdapterOptions): Adapter => {
 
     replay: {
       async claim(namespace, value, ttl) {
-        const [existing] = await db
-          .select()
-          .from(replay)
-          .where(and(eq(replay.namespace, namespace), eq(replay.value, value), gt(replay.expiresAt, now())))
-          .limit(1)
-        if (existing) return false
-        await db
+        const expiresAt = new Date(Date.now() + ttl * 1000)
+        // One statement: a fresh row is inserted, a lapsed one is taken over, a live one is left alone.
+        const won = await db
           .insert(replay)
-          .values({ namespace, value, expiresAt: new Date(Date.now() + ttl * 1000) })
-          .onConflictDoUpdate({ target: [replay.namespace, replay.value], set: { expiresAt: new Date(Date.now() + ttl * 1000) } })
-        return true
+          .values({ namespace, value, expiresAt })
+          .onConflictDoUpdate({ target: [replay.namespace, replay.value], set: { expiresAt }, setWhere: lte(replay.expiresAt, now()) })
+          .returning({ value: replay.value })
+        return won.length === 1
       }
     },
 

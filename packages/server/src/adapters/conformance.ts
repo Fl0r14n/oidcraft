@@ -105,6 +105,32 @@ export const adapterConformance = (name: string, create: () => Promise<Adapter>)
     expect((await adapter.artifacts.find('authorization_code', 'a1'))?.consumedAt).toBeInstanceOf(Date)
   })
 
+  // NFR-S4: the race a check-then-write loses — two redemptions in flight at once.
+  test(`${name}: of parallel consumes, exactly one wins`, async () => {
+    const adapter = await create()
+    await adapter.artifacts.upsert(artifact())
+    const results = await Promise.all(Array.from({ length: 8 }, () => adapter.artifacts.consume('authorization_code', 'a1')))
+    expect(results.filter(Boolean)).toHaveLength(1)
+  })
+
+  test(`${name}: consume refuses what is unknown or expired`, async () => {
+    const adapter = await create()
+    expect(await adapter.artifacts.consume('authorization_code', 'missing')).toBe(false)
+    await adapter.artifacts.upsert(artifact({ expiresAt: new Date(Date.now() - 1000) }))
+    expect(await adapter.artifacts.consume('authorization_code', 'a1')).toBe(false)
+  })
+
+  // A device poll reads, a redemption consumes, the poll writes back what it read.
+  test(`${name}: an upsert never revives a consumed artifact`, async () => {
+    const adapter = await create()
+    await adapter.artifacts.upsert(artifact())
+    const stale = await adapter.artifacts.find('authorization_code', 'a1')
+    expect(await adapter.artifacts.consume('authorization_code', 'a1')).toBe(true)
+    await adapter.artifacts.upsert({ ...(stale as Artifact), payload: { polled: true } })
+    expect((await adapter.artifacts.find('authorization_code', 'a1'))?.consumedAt).toBeInstanceOf(Date)
+    expect(await adapter.artifacts.consume('authorization_code', 'a1')).toBe(false)
+  })
+
   test(`${name}: destroy removes the artifact`, async () => {
     const adapter = await create()
     await adapter.artifacts.upsert(artifact())
@@ -167,6 +193,18 @@ export const adapterConformance = (name: string, create: () => Promise<Adapter>)
     expect(await adapter.replay.claim('jti', 'abc', 60)).toBe(true)
     expect(await adapter.replay.claim('jti', 'abc', 60)).toBe(false)
     expect(await adapter.replay.claim('dpop', 'abc', 60)).toBe(true)
+  })
+
+  test(`${name}: of parallel claims, exactly one wins`, async () => {
+    const adapter = await create()
+    const results = await Promise.all(Array.from({ length: 8 }, () => adapter.replay.claim('jti', 'race', 60)))
+    expect(results.filter(Boolean)).toHaveLength(1)
+  })
+
+  test(`${name}: a lapsed claim can be made again`, async () => {
+    const adapter = await create()
+    expect(await adapter.replay.claim('jti', 'short', 0)).toBe(true)
+    expect(await adapter.replay.claim('jti', 'short', 60)).toBe(true)
   })
 
   test(`${name}: keys are available and carry an algorithm`, async () => {

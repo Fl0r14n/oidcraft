@@ -92,7 +92,7 @@ const metadataFrom = (config: ResolvedConfig, body: Record<string, unknown>): Cl
 
   const now = new Date()
   return {
-    clientId: token(16),
+    clientId: token(),
     ...(method !== 'none' && { clientSecret: token() }),
     ...(typeof body.client_name === 'string' && { clientName: body.client_name }),
     redirectUris,

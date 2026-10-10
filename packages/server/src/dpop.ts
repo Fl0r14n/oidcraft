@@ -21,7 +21,7 @@ export type DpopProof = { jkt: string; jti: string }
 export const NONCE_NAMESPACE = 'dpop-nonce'
 
 export const issueNonce = async (config: ResolvedConfig) => {
-  const nonce = token(16)
+  const nonce = token()
   await config.adapter.replay.claim(NONCE_NAMESPACE, nonce, config.ttl.dpopNonce)
   return nonce
 }

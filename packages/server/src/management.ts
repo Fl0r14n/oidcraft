@@ -39,7 +39,7 @@ export const management = (config: ResolvedConfig) => {
         const now = new Date()
         const client: Client = {
           ...input,
-          clientId: input.clientId ?? token(16),
+          clientId: input.clientId ?? token(),
           requirePkce: input.requirePkce !== false,
           createdAt: now,
           updatedAt: now

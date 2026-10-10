@@ -40,7 +40,7 @@ beforeEach(async () => {
   adapter = await memoryAdapter({ accounts })
   await adapter.clients.create?.(client())
   provider = createProvider({ issuer: ISSUER, adapter, interactionUrl: `${ISSUER}/interaction` })
-  verifier = token(32) + token(32)
+  verifier = token() + token()
   challenge = base64url(await sha256(verifier))
 })
 
@@ -253,7 +253,7 @@ describe('token endpoint', () => {
 
   test('a wrong code_verifier is refused', async () => {
     const { location } = await loginAndConsent()
-    const response = await exchange(location.searchParams.get('code') as string, { code_verifier: token(32) + token(32) })
+    const response = await exchange(location.searchParams.get('code') as string, { code_verifier: token() + token() })
     expect(response.status).toBe(400)
     expect((await response.json()).error).toBe('invalid_grant')
   })

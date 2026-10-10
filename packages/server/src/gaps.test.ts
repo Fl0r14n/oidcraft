@@ -42,7 +42,7 @@ const basic = (id = 'rp', secret = SECRET) => `Basic ${btoa(`${id}:${secret}`)}`
 
 beforeEach(async () => {
   adapter = await memoryAdapter({ accounts })
-  verifier = token(32) + token(32)
+  verifier = token() + token()
   challenge = base64url(await sha256(verifier))
 })
 

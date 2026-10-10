@@ -41,7 +41,7 @@ beforeEach(async () => {
     interactionUrl: `${ISSUER}/interaction`,
     features: { pushedAuthorizationRequests: true }
   })
-  challenge = base64url(await sha256(token(32) + token(32)))
+  challenge = base64url(await sha256(token() + token()))
 })
 
 const requestParams = (over: Record<string, string> = {}) => ({

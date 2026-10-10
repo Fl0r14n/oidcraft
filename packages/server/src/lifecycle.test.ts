@@ -54,7 +54,7 @@ beforeEach(async () => {
       delivered = notifications
     }
   })
-  verifier = token(32) + token(32)
+  verifier = token() + token()
   challenge = base64url(await sha256(verifier))
 })
 

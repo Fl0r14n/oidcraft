@@ -42,7 +42,7 @@ beforeEach(async () => {
   await adapter.clients.create?.(client())
   await adapter.clients.create?.(client({ clientId: 'strict', dpopBoundAccessTokens: true }))
   provider = createProvider({ issuer: ISSUER, adapter, interactionUrl: `${ISSUER}/interaction`, features: { dpop: true } })
-  verifier = token(32) + token(32)
+  verifier = token() + token()
   challenge = base64url(await sha256(verifier))
   keyPair = await generateKeyPair('ES256', { extractable: true })
 })
@@ -56,7 +56,7 @@ const proof = async (
   const key = over.key ?? keyPair
   const jwk = await exportJWK(key.publicKey)
   const builder = new SignJWT({
-    jti: over.jti ?? token(16),
+    jti: over.jti ?? token(),
     htm: method,
     htu: uri,
     ...(over.accessToken && { ath: await accessTokenHash(over.accessToken) })
@@ -284,7 +284,7 @@ describe('DPoP nonces', () => {
   const nonced = async (method: string, uri: string, nonce: string, over: { accessToken?: string } = {}) => {
     const jwk = await exportJWK(keyPair.publicKey)
     return new SignJWT({
-      jti: token(16),
+      jti: token(),
       htm: method,
       htu: uri,
       nonce,

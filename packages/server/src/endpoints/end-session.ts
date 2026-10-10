@@ -57,7 +57,7 @@ export const logoutTokens = async (config: ResolvedConfig, session: Session): Pr
       sid: session.id,
       // The marker that makes this a logout token and not a re-usable ID token (§2.4).
       events: { 'http://schemas.openid.net/event/backchannel-logout': {} },
-      jti: token(16)
+      jti: token()
     })
       .setProtectedHeader({ alg, kid: key.kid, typ: 'logout+jwt' })
       .setIssuer(config.issuer)

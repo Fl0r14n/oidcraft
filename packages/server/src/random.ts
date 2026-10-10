@@ -1,8 +1,10 @@
 const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_'
 
-/** 256 bits from the platform CSPRNG, base64url-shaped (NFR-S3). WebCrypto, so it runs anywhere (FR-R2). */
-export const token = (bytes = 32) => {
-  const buffer = new Uint8Array(bytes)
+/** NFR-S3: each character carries 6 bits, so 256 bits takes 43 of them, not 32. */
+const LENGTH = 43
+
+export const token = () => {
+  const buffer = new Uint8Array(LENGTH)
   crypto.getRandomValues(buffer)
   let out = ''
   for (const byte of buffer) out += ALPHABET[byte & 63]

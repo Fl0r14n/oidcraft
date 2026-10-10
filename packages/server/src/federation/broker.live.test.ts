@@ -86,14 +86,17 @@ const authenticateUpstream = async (authorizationUrl: string) => {
   throw new Error('the upstream kept asking for interactions')
 }
 
+/** What a browser sends back: the name and value of the cookie, without its attributes. */
+const cookieOf = (setCookie: string) => setCookie.split(';')[0] as string
+
 describe('brokering to a live upstream', () => {
   test('completes both legs and yields a mapped identity', async () => {
-    const { url } = await broker.start('downstream-interaction-1', 'self')
+    const { url, setCookie } = await broker.start('downstream-interaction-1', 'self')
     expect(url).toStartWith(`${ISSUER}/authorize`)
     expect(new URL(url).searchParams.get('code_challenge_method')).toBe('S256')
 
     const callback = await authenticateUpstream(url)
-    const { interactionId, identity } = await broker.complete(callback)
+    const { interactionId, identity } = await broker.complete(callback, cookieOf(setCookie))
 
     // FR-F3: the handoff is what makes this a resume of one downstream request.
     expect(interactionId).toBe('downstream-interaction-1')
@@ -113,8 +116,8 @@ describe('brokering to a live upstream', () => {
   test('UserInfo answering for a different subject is ignored', async () => {
     tamperUserInfo = true
     try {
-      const { url } = await broker.start('downstream-interaction-tampered', 'self')
-      const { identity } = await broker.complete(await authenticateUpstream(url))
+      const { url, setCookie } = await broker.start('downstream-interaction-tampered', 'self')
+      const { identity } = await broker.complete(await authenticateUpstream(url), cookieOf(setCookie))
       expect(identity.subject).toBe('ada')
       expect(identity.email).toBeUndefined()
     } finally {
@@ -123,31 +126,58 @@ describe('brokering to a live upstream', () => {
   })
 
   test('the handoff is single-use, so a replayed callback is refused', async () => {
-    const { url } = await broker.start('downstream-interaction-2', 'self')
+    const { url, setCookie } = await broker.start('downstream-interaction-2', 'self')
     const callback = await authenticateUpstream(url)
-    await broker.complete(callback)
-    expect(broker.complete(callback)).rejects.toThrow(/did not start here/)
+    await broker.complete(callback, cookieOf(setCookie))
+    expect(broker.complete(callback, cookieOf(setCookie))).rejects.toThrow(/did not start here/)
+  })
+
+  // FR-F3: login CSRF — the attacker's callback URL, opened in the victim's browser.
+  test('a callback completed without the cookie of the browser that started it is refused', async () => {
+    const { url, setCookie } = await broker.start('downstream-interaction-csrf', 'self')
+    const callback = await authenticateUpstream(url)
+    expect(broker.complete(callback, undefined)).rejects.toThrow(/did not start in this browser/)
+    expect(broker.complete(callback, `${cookieOf(setCookie).split('=')[0]}=someone-elses`)).rejects.toThrow(/this browser/)
+    // Refusing it did not spend it: the browser that did start it can still finish.
+    const { interactionId, setCookie: cleared } = await broker.complete(callback, cookieOf(setCookie))
+    expect(interactionId).toBe('downstream-interaction-csrf')
+    expect(cleared).toContain('Max-Age=0')
+  })
+
+  test('two sign-ins in one browser keep separate bindings', async () => {
+    const first = await broker.start('downstream-interaction-tab-1', 'self')
+    const second = await broker.start('downstream-interaction-tab-2', 'self')
+    const jar = `${cookieOf(first.setCookie)}; ${cookieOf(second.setCookie)}`
+    expect((await broker.complete(await authenticateUpstream(second.url), jar)).interactionId).toBe('downstream-interaction-tab-2')
+    expect((await broker.complete(await authenticateUpstream(first.url), jar)).interactionId).toBe('downstream-interaction-tab-1')
+  })
+
+  test('the binding cookie is HttpOnly, Lax and scoped to the callback', async () => {
+    const { setCookie } = await broker.start('downstream-interaction-flags', 'self')
+    expect(setCookie).toContain('HttpOnly')
+    expect(setCookie).toContain('SameSite=Lax')
+    expect(setCookie).toContain(`Path=${new URL(CALLBACK).pathname}`)
   })
 
   test('a callback whose state was never issued is refused', async () => {
     const forged = new URL(`${CALLBACK}?code=whatever&state=never-issued`)
-    expect(broker.complete(forged)).rejects.toThrow(/did not start here/)
+    expect(broker.complete(forged, undefined)).rejects.toThrow(/did not start here/)
   })
 
   test('a callback with no state at all is refused', async () => {
-    expect(broker.complete(new URL(`${CALLBACK}?code=whatever`))).rejects.toThrow(/no state/)
+    expect(broker.complete(new URL(`${CALLBACK}?code=whatever`), undefined)).rejects.toThrow(/no state/)
   })
 
   test('the brokered identity links to a local account', async () => {
-    const { url } = await broker.start('downstream-interaction-3', 'self')
-    const { identity } = await broker.complete(await authenticateUpstream(url))
+    const { url, setCookie } = await broker.start('downstream-interaction-3', 'self')
+    const { identity } = await broker.complete(await authenticateUpstream(url), cookieOf(setCookie))
 
     const first = await linkIdentity(downstream, identity, { createAccount: async () => 'local-1' })
     expect(first).toEqual({ accountId: 'local-1', created: true })
 
     // The second time the same upstream subject arrives it must resolve to the same local account.
-    const { url: again } = await broker.start('downstream-interaction-4', 'self')
-    const { identity: repeat } = await broker.complete(await authenticateUpstream(again))
+    const { url: again, setCookie: againCookie } = await broker.start('downstream-interaction-4', 'self')
+    const { identity: repeat } = await broker.complete(await authenticateUpstream(again), cookieOf(againCookie))
     expect(await linkIdentity(downstream, repeat, { createAccount: async () => 'local-2' })).toEqual({
       accountId: 'local-1',
       created: false
@@ -170,15 +200,15 @@ describe('brokering to a live upstream', () => {
         }
       ]
     })
-    const { url } = await keeping.start('downstream-interaction-5', 'self')
-    const { identity } = await keeping.complete(await authenticateUpstream(url))
+    const { url, setCookie } = await keeping.start('downstream-interaction-5', 'self')
+    const { identity } = await keeping.complete(await authenticateUpstream(url), cookieOf(setCookie))
     expect(identity.upstreamTokens?.accessToken).toBeTruthy()
   })
 
   // FR-F9: the downstream client asked for these; satisfying them from whatever session the
   // upstream already holds would answer a question nobody asked.
   test('prompt, max_age and acr_values reach the upstream authorization request', async () => {
-    const { url } = await broker.start('downstream-interaction-6', 'self', {
+    const { url, setCookie } = await broker.start('downstream-interaction-6', 'self', {
       prompt: ['login'],
       maxAge: 60,
       acrValues: ['mfa'],
@@ -233,27 +263,27 @@ describe('an upstream that fails produces an OAuth error', () => {
   // RFC 9207 §2.4: with more than one upstream configured, a code minted elsewhere is otherwise
   // indistinguishable from one minted here, and gets exchanged here.
   test('a callback carrying someone else’s iss is refused before the code is exchanged', async () => {
-    const { url } = await broker.start('downstream-interaction-9', 'self')
+    const { url, setCookie } = await broker.start('downstream-interaction-9', 'self')
     const callback = await authenticateUpstream(url)
     callback.searchParams.set('iss', 'https://evil.example')
 
-    expect(broker.complete(callback)).rejects.toThrow(/different authorization server/)
+    expect(broker.complete(callback, cookieOf(setCookie))).rejects.toThrow(/different authorization server/)
   })
 
   test('the upstream’s own refusal reaches the downstream client as access_denied', async () => {
-    const { state } = await broker.start('downstream-interaction-10', 'self')
+    const { state, setCookie } = await broker.start('downstream-interaction-10', 'self')
     const refused = new URL(
       `${CALLBACK}?state=${state}&error=access_denied&error_description=user+said+no&iss=${encodeURIComponent(ISSUER)}`
     )
 
-    expect(broker.complete(refused)).rejects.toThrow(/refused the request with access_denied: user said no/)
+    expect(broker.complete(refused, cookieOf(setCookie))).rejects.toThrow(/refused the request with access_denied: user said no/)
   })
 
   test('a replayed handoff is refused whatever the callback carries', async () => {
-    const { state } = await broker.start('downstream-interaction-11', 'self')
+    const { state, setCookie } = await broker.start('downstream-interaction-11', 'self')
     const callback = new URL(`${CALLBACK}?state=${state}&code=whatever&iss=${encodeURIComponent(ISSUER)}`)
-    await broker.complete(callback).catch(() => undefined)
+    await broker.complete(callback, cookieOf(setCookie)).catch(() => undefined)
 
-    expect(broker.complete(callback)).rejects.toThrow(/did not start here/)
+    expect(broker.complete(callback, cookieOf(setCookie))).rejects.toThrow(/did not start here/)
   })
 })

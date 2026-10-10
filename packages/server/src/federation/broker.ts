@@ -2,13 +2,17 @@ import {
   applyDiscovery,
   beginAuthorization,
   completeAuthorization,
+  constantTimeEquals,
   createDiscovery,
   createIdTokenVerifier,
   defaultOAuthFunctions,
   type IdTokenVerifier,
   type OAuthToken,
-  type OpenIdConfig
+  type OpenIdConfig,
+  randomString,
+  sha256
 } from '@oidcraft/core'
+import { base64url } from 'jose'
 import type { Adapter } from 'oidcraft'
 import { OAuthError, type SelectionHints, selectUpstream } from 'oidcraft'
 import { pickClaims } from './claims'
@@ -86,7 +90,37 @@ const upstreamFailure = (provider: string, token: OAuthToken | undefined) => {
   return new OAuthError('access_denied', { description: `${provider} refused the request with ${error}${described}`, spec: 'FR-F11' })
 }
 
+/**
+ * FR-F3: the handoff is bound to the browser that started it. Without this, a callback URL is a
+ * bearer credential — an attacker starts a sign-in, authenticates upstream as themselves, and sends
+ * the callback to a victim, whose browser then finishes signing in as the attacker. One cookie per
+ * state, so two tabs signing in at once do not overwrite each other.
+ */
+const bindingCookie = (state: string) => `oidcraft.fed.${state}`
+
+const cookieValue = (header: string | null | undefined, name: string) => {
+  for (const pair of header?.split(';') ?? []) {
+    const separator = pair.indexOf('=')
+    if (separator > 0 && pair.slice(0, separator).trim() === name) return pair.slice(separator + 1).trim()
+  }
+  return undefined
+}
+
+const hashOf = async (value: string) => base64url.encode(await sha256(value))
+
 export const createBroker = (config: BrokerConfig) => {
+  const callback = new URL(config.callbackUri)
+  const cookieFor = (state: string, value: string, maxAge: number) =>
+    [
+      `${bindingCookie(state)}=${value}`,
+      `Path=${callback.pathname}`,
+      'HttpOnly',
+      // Lax, not Strict: the upstream's redirect back is a cross-site top-level navigation.
+      'SameSite=Lax',
+      ...(callback.protocol === 'https:' ? ['Secure'] : []),
+      `Max-Age=${maxAge}`
+    ].join('; ')
+
   // FR-F6/FR-F7 read `sub`, `acr`, `amr` and `auth_time` off the upstream ID token, so a provider
   // configured without `openid` could never produce a brokered identity. Failing here rather than at
   // the callback (NFR-D2).
@@ -197,13 +231,16 @@ export const createBroker = (config: BrokerConfig) => {
         })
       }
 
+      const ttl = config.handoffTtl ?? DEFAULT_HANDOFF_TTL
+      const binding = randomString()
       const handoff: Handoff = {
         provider: provider.id,
         state,
         nonce,
         codeVerifier: code_verifier,
         interactionId,
-        expiresAt: new Date(Date.now() + (config.handoffTtl ?? DEFAULT_HANDOFF_TTL) * 1000)
+        browserBinding: await hashOf(binding),
+        expiresAt: new Date(Date.now() + ttl * 1000)
       }
 
       await config.adapter.artifacts.upsert({
@@ -214,16 +251,26 @@ export const createBroker = (config: BrokerConfig) => {
         expiresAt: handoff.expiresAt
       })
 
-      return { url: request.url, state: handoff.state }
+      /** `setCookie` must reach the browser with the redirect to `url`, or the callback is refused. */
+      return { url: request.url, state: handoff.state, setCookie: cookieFor(handoff.state, binding, ttl) }
     },
 
-    /** Completes the upstream leg and yields the identity plus the interaction to resume. */
-    async complete(currentUrl: URL): Promise<FederationCallback> {
+    /**
+     * Completes the upstream leg and yields the identity plus the interaction to resume. `cookieHeader`
+     * is the callback request's `Cookie` header: the handoff completes only in the browser it began in.
+     */
+    async complete(currentUrl: URL, cookieHeader: string | null | undefined): Promise<FederationCallback> {
       const state = currentUrl.searchParams.get('state')
       if (!state) throw new Error('the upstream returned no state; this sign-in did not start here')
 
       const stored = await config.adapter.artifacts.find('federation_handoff', state)
       if (!stored) throw new Error('this sign-in did not start here, or it expired')
+      // Checked before the handoff is spent, so a stranger holding the callback URL cannot burn it.
+      const presented = cookieValue(cookieHeader, bindingCookie(state))
+      const expected = (stored.payload as unknown as Handoff).browserBinding
+      if (!presented || !(await constantTimeEquals(await hashOf(presented), expected))) {
+        throw new Error('this sign-in did not start in this browser')
+      }
       // Single-use: a replayed callback must not mint a second identity.
       if (!(await config.adapter.artifacts.consume('federation_handoff', state))) throw new Error('this sign-in was already completed')
       await config.adapter.artifacts.destroy('federation_handoff', state)
@@ -287,7 +334,7 @@ export const createBroker = (config: BrokerConfig) => {
           })
       }
 
-      return { interactionId: handoff.interactionId, identity }
+      return { interactionId: handoff.interactionId, identity, setCookie: cookieFor(handoff.state, '', 0) }
     }
   }
 }

@@ -40,6 +40,8 @@ export type Handoff = {
   codeVerifier: string
   /** The downstream interaction this handoff resumes once the upstream returns (FR-F3). */
   interactionId: string
+  /** A hash of the cookie set on the browser that started it; the callback must carry the cookie (FR-F3). */
+  browserBinding: string
   expiresAt: Date
 }
 
@@ -47,6 +49,8 @@ export type Handoff = {
 export type FederationCallback = {
   interactionId: string
   identity: BrokeredIdentity
+  /** Clears the binding cookie `start` set; the host sends it with whatever response it makes. */
+  setCookie: string
 }
 
 export type BrokeredIdentity = Omit<FederatedIdentity, 'accountId' | 'linkedAt'> & {

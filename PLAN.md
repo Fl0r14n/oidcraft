@@ -135,11 +135,69 @@ What is *not* claimed: see the status section. Implemented is not the same as ce
 
 ## Next, in this order
 
-1. **A manual in-depth review.** Nothing here has been read by anyone other than its author. 366
-   passing tests say the code does what its tests say, which is a weaker statement than it looks.
+1. **Fix what the server review found** — below. The review was by agents reading the code
+   against REQUIREMENTS.md, not yet by a person, so it narrows the search rather than ending it.
 2. **The conformance suite in CI** (NFR-C1). `basic` and `config` are green locally; until they
    gate the build, a regression can still land unnoticed.
 3. **The docs site**, once there is something certified to document.
+
+## Server review — 2026-10-10
+
+Four parallel reviews of `packages/server`, every critical and high finding re-read against the code.
+In fix order; the first is the only one that changes the adapter contract.
+
+**Critical**
+
+- [ ] Single use is not atomic anywhere. `consume()` returns nothing and every adapter writes
+      unconditionally; `replay.claim()` reads then writes. Two parallel redemptions of a code or
+      refresh token both succeed and nothing is revoked (FR-T3, FR-T4, NFR-S4, NFR-S5). Covers
+      codes, refresh tokens, PAR `request_uri`, device and CIBA approvals, assertion and DPoP `jti`.
+
+**High — security**
+
+- [ ] JAR merges unsigned outer parameters into the signed request; PKCE can be injected (RFC 9101 §5)
+- [ ] `authorization_details` issued without consent, and absent from `InteractionRequest` (FR-C15)
+- [ ] DPoP nonce can be minted by the client: `claim` stores the unknown value it refuses (RFC 9449 §8)
+- [ ] Client assertion lifetime measured from the client's `iat`; jti remembered for 300 s only (FR-C4, NFR-S5)
+- [ ] Federation handoff not bound to the browser — login CSRF (FR-F3)
+- [ ] workerd hands over an empty certificate DER; every thumbprint is the same (FR-C13)
+- [ ] Open registration does not validate `grant_types` (FR-C9)
+
+**High — broken features**
+
+- [ ] CIBA ping can never redeem; `ciba.test.ts` asserts the bug (FR-C17)
+- [ ] A PAR-required client cannot finish an interaction: the replay drops `request_uri` (FR-C12)
+- [ ] Logout notifies only the first RP: `session.clients` is never appended (FR-C11)
+- [ ] JWT access tokens cannot be revoked or introspected (FR-C8, FR-T2)
+- [ ] mTLS: binding only on `authorization_code`, lost on refresh; client auth only at the token endpoint (FR-C4, FR-C13)
+
+**Medium**
+
+- [ ] Device/CIBA tokens carry requested, not approved, scopes; approvals not checked against the requested user
+- [ ] Refresh narrowing consumes the refresh token without reissuing; withdrawn grant scopes return
+- [ ] Pairwise `sub` leaks via logout token, introspection, exchange; UserInfo lets the account store override it (FR-C18)
+- [ ] Token exchange: drops sender binding, extends lifetime, mislabels token types (RFC 8693)
+- [ ] `form_post` advertised but answered in the query; error redirects ignore `response_mode`; `access_denied` lacks `iss` (FR-C14)
+- [ ] `max_age=0` loops; `prompt=select_account` ignored; `prompt=none` combined accepted (FR-I5)
+- [ ] No `user_code` rate limiting (NFR-S3); Node bridge takes the left-most `X-Forwarded-For`
+- [ ] DPoP `htu` from `request.url`, not the issuer (NFR-S6); an issuer with a path 404s every route
+- [ ] Upstream back-channel logout tokens: no jti replay, no `typ`, unchecked `events`
+- [ ] Construction accepts a missing `interactionUrl`, CIBA without its resolver, federation without its stores (NFR-D2)
+- [ ] No CORS, so a browser client on another origin cannot use the OP
+- [ ] End-session rejects an expired `id_token_hint`; a bare GET logs out without confirmation
+- [ ] Introspection has no resource-server authentication; `iat` equals `exp` (FR-C8)
+- [ ] A malformed cookie or Basic header is a 500
+- [ ] RFC 7592 update skips `onRegister`, resets `requirePkce`, compares the token with `!==`
+- [ ] Non-string request-object claims become `"[object Object]"`
+
+**Low and cleanup**
+
+- [ ] `at_hash` always SHA-256; no `sid` in the ID token; an ID token without `openid`
+- [ ] Refresh family has no absolute lifetime; offline access dies with the browser session
+- [ ] Registration: unvalidated logout and `jwks_uri` URIs (SSRF), http `localhost` (NFR-S2)
+- [ ] Discovery advertises the wrong algorithm lists
+- [ ] Claim mapping can pair one source's `email_verified` with another's `email`; `acr`/`amr`/`sid` unprotected
+- [ ] Access-token artifacts built in three places; `step-up.ts` belongs in `resource/`
 
 ## Docs site — requirements
 

@@ -157,6 +157,10 @@ In fix order; the first is the only one that changes the adapter contract.
       reachable through a device or CIBA poll writing back a stale read. Interactions and the
       federation handoff are now consumed too.
 
+- [ ] A Redis `KvStore` (Bun's built-in client), at least in tests: nothing exercises `fromKv` over a
+      distributed store, where `insert` being atomic is the whole point — the memory store is atomic
+      for free. Possibly an `oidcraft/adapters/redis` entry once it exists.
+
 **High — security**
 
 - [ ] JAR merges unsigned outer parameters into the signed request; PKCE can be injected (RFC 9101 §5)

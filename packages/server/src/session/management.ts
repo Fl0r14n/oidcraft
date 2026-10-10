@@ -4,7 +4,7 @@ import { logoutTokens } from './logout'
 
 export const sessionManagement = (config: ResolvedConfig) => ({
   async listForAccount(accountId: string) {
-    return config.adapter.sessions.findByAccount(accountId)
+    return config.adapter.sessions.listForAccount(accountId)
   },
 
   /** Ending a session yields the same back-channel notifications an RP-initiated logout would. */

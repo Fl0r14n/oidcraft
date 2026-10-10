@@ -17,7 +17,10 @@ export const identityManagement = (config: ResolvedConfig) => ({
     return config.adapter.identities?.listForAccount(accountId) ?? []
   },
   async unlink(accountId: string, provider: string) {
-    await config.adapter.identities?.unlink(accountId, provider)
+    const linked = (await config.adapter.identities?.listForAccount(accountId)) ?? []
+    for (const identity of linked) {
+      if (identity.provider === provider) await config.adapter.identities?.destroy(identity.provider, identity.subject)
+    }
     await audit(config, 'identity.unlink', { accountId, detail: { provider } })
   }
 })

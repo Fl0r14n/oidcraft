@@ -37,7 +37,7 @@ const CALLBACK = 'http://127.0.0.1:9999/federation/callback'
 
 const upstream = createProvider({ issuer: ISSUER, adapter: upstreamAdapter, interactionUrl: `${ISSUER}/interaction` })
 
-await upstreamAdapter.clients.create?.({
+await upstreamAdapter.clients.upsert?.({
   clientId: 'broker',
   clientSecret: 'a-long-enough-upstream-secret',
   redirectUris: [CALLBACK],

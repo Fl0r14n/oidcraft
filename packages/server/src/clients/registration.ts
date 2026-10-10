@@ -169,8 +169,8 @@ export const registrationEndpoint = async (config: ResolvedConfig, request: Requ
       if (client.tokenEndpointAuthMethod === 'none') throw invalid('a public client cannot be exempted from PKCE')
       client.requirePkce = false
     }
-    if (!config.adapter.clients.create) throw new OAuthError('server_error', { description: 'this adapter cannot create clients' })
-    await config.adapter.clients.create(client)
+    if (!config.adapter.clients.upsert) throw new OAuthError('server_error', { description: 'this adapter cannot create clients' })
+    await config.adapter.clients.upsert(client)
     await audit(config, 'client.register', { clientId: client.clientId })
     return Response.json(clientResponse(config, client), { status: 201, headers: { 'cache-control': 'no-store' } })
   }
@@ -201,7 +201,8 @@ export const registrationEndpoint = async (config: ResolvedConfig, request: Requ
     createdAt: client.createdAt,
     updatedAt: new Date()
   }
-  await config.adapter.clients.update?.(client.clientId, updated)
+  if (!config.adapter.clients.upsert) throw new OAuthError('server_error', { description: 'this adapter cannot update clients' })
+  await config.adapter.clients.upsert(updated)
   await audit(config, 'client.update', { clientId: client.clientId })
   return Response.json(clientResponse(config, updated), { headers: { 'cache-control': 'no-store' } })
 }

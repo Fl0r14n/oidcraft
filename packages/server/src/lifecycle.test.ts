@@ -44,8 +44,8 @@ const basic = (id = 'rp', secret = SECRET) => `Basic ${btoa(`${id}:${secret}`)}`
 beforeEach(async () => {
   delivered = []
   adapter = await memoryAdapter({ accounts })
-  await adapter.clients.create?.(client())
-  await adapter.clients.create?.(client({ clientId: 'other', clientSecret: SECRET }))
+  await adapter.clients.upsert?.(client())
+  await adapter.clients.upsert?.(client({ clientId: 'other', clientSecret: SECRET }))
   provider = createProvider({
     issuer: ISSUER,
     adapter,
@@ -229,7 +229,10 @@ describe('end session', () => {
 
   // FR-C11 / FR-A1: the core mints the tokens; the host delivers them.
   test('hands back-channel logout tokens to the host instead of posting them', async () => {
-    await adapter.clients.update?.('rp', { backchannelLogoutUri: 'https://rp.example.com/backchannel' })
+    await adapter.clients.upsert?.({
+      ...((await adapter.clients.find('rp')) as Client),
+      backchannelLogoutUri: 'https://rp.example.com/backchannel'
+    })
     const issued = await tokens()
     await provider.handle(new Request(`${ISSUER}/session/end`, { headers: { cookie: issued.cookie } }))
 

@@ -39,13 +39,13 @@ const basic = (id = 'api', secret = SECRET) => `Basic ${btoa(`${id}:${secret}`)}
 beforeEach(async () => {
   adapter = await memoryAdapter()
   signing = await generateKeyPair('ES256', { extractable: true })
-  await adapter.clients.create?.(client())
+  await adapter.clients.upsert?.(client())
   const { clientSecret: _omitted, ...publicClient } = client({ clientId: 'public-api', tokenEndpointAuthMethod: 'none' })
-  await adapter.clients.create?.(publicClient)
-  await adapter.clients.create?.(
+  await adapter.clients.upsert?.(publicClient)
+  await adapter.clients.upsert?.(
     client({ clientId: 'pkj', tokenEndpointAuthMethod: 'private_key_jwt', jwks: { keys: [await exportJWK(signing.publicKey)] } })
   )
-  await adapter.clients.create?.(client({ clientId: 'csj', tokenEndpointAuthMethod: 'client_secret_jwt' }))
+  await adapter.clients.upsert?.(client({ clientId: 'csj', tokenEndpointAuthMethod: 'client_secret_jwt' }))
   provider = createProvider({ issuer: ISSUER, adapter, scopes: ['openid', 'profile', 'orders'] })
 })
 

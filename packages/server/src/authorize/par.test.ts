@@ -32,9 +32,9 @@ const basic = (id = 'rp', secret = SECRET) => `Basic ${btoa(`${id}:${secret}`)}`
 beforeEach(async () => {
   adapter = await memoryAdapter()
   signing = await generateKeyPair('ES256', { extractable: true })
-  await adapter.clients.create?.(client())
-  await adapter.clients.create?.(client({ clientId: 'strict', requirePushedAuthorizationRequests: true }))
-  await adapter.clients.create?.(client({ clientId: 'signer', jwks: { keys: [await exportJWK(signing.publicKey)] } }))
+  await adapter.clients.upsert?.(client())
+  await adapter.clients.upsert?.(client({ clientId: 'strict', requirePushedAuthorizationRequests: true }))
+  await adapter.clients.upsert?.(client({ clientId: 'signer', jwks: { keys: [await exportJWK(signing.publicKey)] } }))
   provider = createProvider({
     issuer: ISSUER,
     adapter,
@@ -189,7 +189,7 @@ describe('request objects (JAR)', () => {
 
   // The core does not fetch a URL the client chose (FR-A1); the host supplies a resolver instead.
   test('a jwks_uri client needs a host-supplied resolver', async () => {
-    await adapter.clients.create?.(client({ clientId: 'remote', jwksUri: 'https://rp.example.com/jwks' }))
+    await adapter.clients.upsert?.(client({ clientId: 'remote', jwksUri: 'https://rp.example.com/jwks' }))
     const request = await objectFor({ ...requestParams({ client_id: 'remote' }) })
     const response = await authorize({ client_id: 'remote', request })
     expect((await response.json()).error_description).toContain('resolveClientJwks')

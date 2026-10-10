@@ -64,16 +64,11 @@ export const drizzleAdapter = (options: DrizzleAdapterOptions): Adapter => {
           ? ({ ...(row.data as Record<string, unknown>), createdAt: row.createdAt, updatedAt: row.updatedAt } as Client)
           : undefined
       },
-      async create(client) {
+      async upsert(client) {
         await db
           .insert(clients)
           .values({ clientId: client.clientId, data: client, createdAt: client.createdAt, updatedAt: client.updatedAt })
-      },
-      async update(clientId, patch) {
-        const [row] = await db.select().from(clients).where(eq(clients.clientId, clientId)).limit(1)
-        if (!row) return
-        const merged = { ...(row.data as Record<string, unknown>), ...patch }
-        await db.update(clients).set({ data: merged, updatedAt: now() }).where(eq(clients.clientId, clientId))
+          .onConflictDoUpdate({ target: clients.clientId, set: { data: client, updatedAt: client.updatedAt } })
       },
       async destroy(clientId) {
         await db.delete(clients).where(eq(clients.clientId, clientId))
@@ -157,7 +152,7 @@ export const drizzleAdapter = (options: DrizzleAdapterOptions): Adapter => {
           .limit(1)
         return row ? toSession(row) : undefined
       },
-      async findByAccount(accountId) {
+      async listForAccount(accountId) {
         const rows = await db
           .select()
           .from(sessions)
@@ -253,7 +248,7 @@ export const drizzleAdapter = (options: DrizzleAdapterOptions): Adapter => {
         async listForAccount(accountId: string) {
           return (await db.select().from(identities).where(eq(identities.accountId, accountId))).map(toIdentity)
         },
-        async link(identity: FederatedIdentity) {
+        async upsert(identity: FederatedIdentity) {
           const row = {
             provider: identity.provider,
             subject: identity.subject,
@@ -267,8 +262,8 @@ export const drizzleAdapter = (options: DrizzleAdapterOptions): Adapter => {
             .values(row)
             .onConflictDoUpdate({ target: [identities.provider, identities.subject], set: row })
         },
-        async unlink(accountId: string, provider: string) {
-          await db.delete(identities).where(and(eq(identities.accountId, accountId), eq(identities.provider, provider)))
+        async destroy(provider: string, subject: string) {
+          await db.delete(identities).where(and(eq(identities.provider, provider), eq(identities.subject, subject)))
         }
       }
     })

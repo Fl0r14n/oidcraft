@@ -55,8 +55,8 @@ const build = (over: Record<string, unknown> = {}) =>
 
 beforeEach(async () => {
   adapter = await memoryAdapter({ accounts })
-  await adapter.clients.create?.(client())
-  await adapter.clients.create?.(client({ clientId: 'pinger', backchannelTokenDeliveryMode: 'ping' }))
+  await adapter.clients.upsert?.(client())
+  await adapter.clients.upsert?.(client({ clientId: 'pinger', backchannelTokenDeliveryMode: 'ping' }))
   provider = build()
 })
 

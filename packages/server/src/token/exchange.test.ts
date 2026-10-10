@@ -40,7 +40,7 @@ const basic = (id = 'rp', secret = SECRET) => `Basic ${btoa(`${id}:${secret}`)}`
 
 beforeEach(async () => {
   adapter = await memoryAdapter({ accounts })
-  await adapter.clients.create?.(client())
+  await adapter.clients.upsert?.(client())
   verifier = randomString() + randomString()
   challenge = base64url.encode(await sha256(verifier))
 })
@@ -296,7 +296,7 @@ describe('step-up authentication', () => {
     const issued = await tokensFor(provider)
     expect(issued.access_token).toBeTruthy()
 
-    const session = (await adapter.sessions.findByAccount('ada'))[0]
+    const session = (await adapter.sessions.listForAccount('ada'))[0]
     const cookie = `${SESSION_COOKIE}=${session?.id}`
     const response = await provider.handle(
       new Request(
@@ -321,7 +321,7 @@ describe('step-up authentication', () => {
   test('an acr the session already meets does not', async () => {
     const provider = build()
     await tokensFor(provider)
-    const session = (await adapter.sessions.findByAccount('ada'))[0]
+    const session = (await adapter.sessions.listForAccount('ada'))[0]
     const response = await provider.handle(
       new Request(
         `${ISSUER}/authorize?${new URLSearchParams({
@@ -342,7 +342,7 @@ describe('step-up authentication', () => {
   test('prompt=none with an unmet acr is login_required, not a weaker token', async () => {
     const provider = build()
     await tokensFor(provider)
-    const session = (await adapter.sessions.findByAccount('ada'))[0]
+    const session = (await adapter.sessions.listForAccount('ada'))[0]
     const response = await provider.handle(
       new Request(
         `${ISSUER}/authorize?${new URLSearchParams({

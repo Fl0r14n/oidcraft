@@ -147,24 +147,13 @@ export const kyselyAdapter = (options: KyselyAdapterOptions): Adapter => {
         if (!row) return undefined
         return { ...parse<Client>(row.data), createdAt: new Date(row.created_at), updatedAt: new Date(row.updated_at) }
       },
-      async create(client) {
+      async upsert(client) {
+        const data = json(client)
+        const updated_at = client.updatedAt.getTime()
         await db
           .insertInto('oidc_clients')
-          .values({
-            client_id: client.clientId,
-            data: json(client),
-            created_at: client.createdAt.getTime(),
-            updated_at: client.updatedAt.getTime()
-          })
-          .execute()
-      },
-      async update(clientId, patch) {
-        const row = await db.selectFrom('oidc_clients').selectAll().where('client_id', '=', clientId).executeTakeFirst()
-        if (!row) return
-        await db
-          .updateTable('oidc_clients')
-          .set({ data: json({ ...parse<Client>(row.data), ...patch }), updated_at: now() })
-          .where('client_id', '=', clientId)
+          .values({ client_id: client.clientId, data, created_at: client.createdAt.getTime(), updated_at })
+          .onConflict(conflict => conflict.column('client_id').doUpdateSet({ data, updated_at }))
           .execute()
       },
       async destroy(clientId) {
@@ -189,7 +178,7 @@ export const kyselyAdapter = (options: KyselyAdapterOptions): Adapter => {
         const row = await db.selectFrom('oidc_sessions').selectAll().where('id', '=', id).where('expires_at', '>', now()).executeTakeFirst()
         return row ? toSession(row) : undefined
       },
-      async findByAccount(accountId) {
+      async listForAccount(accountId) {
         const rows = await db
           .selectFrom('oidc_sessions')
           .selectAll()
@@ -302,7 +291,7 @@ export const kyselyAdapter = (options: KyselyAdapterOptions): Adapter => {
         async listForAccount(accountId: string) {
           return (await db.selectFrom('oidc_identities').selectAll().where('account_id', '=', accountId).execute()).map(toIdentity)
         },
-        async link(identity: FederatedIdentity) {
+        async upsert(identity: FederatedIdentity) {
           const row = {
             provider: identity.provider,
             subject: identity.subject,
@@ -317,8 +306,8 @@ export const kyselyAdapter = (options: KyselyAdapterOptions): Adapter => {
             .onConflict(conflict => conflict.columns(['provider', 'subject']).doUpdateSet(row))
             .execute()
         },
-        async unlink(accountId: string, provider: string) {
-          await db.deleteFrom('oidc_identities').where('account_id', '=', accountId).where('provider', '=', provider).execute()
+        async destroy(provider: string, subject: string) {
+          await db.deleteFrom('oidc_identities').where('provider', '=', provider).where('subject', '=', subject).execute()
         }
       }
     })

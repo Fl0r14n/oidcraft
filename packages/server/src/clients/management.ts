@@ -19,7 +19,7 @@ export const clientManagement = (config: ResolvedConfig) => ({
   },
 
   async create(input: ManagementClientInput) {
-    if (!config.adapter.clients.create) throw new Error('this adapter cannot create clients')
+    if (!config.adapter.clients.upsert) throw new Error('this adapter cannot create clients')
     if (input.requirePkce === false && input.tokenEndpointAuthMethod === 'none') {
       throw new Error('a public client cannot opt out of PKCE (FR-C3)')
     }
@@ -31,14 +31,17 @@ export const clientManagement = (config: ResolvedConfig) => ({
       createdAt: now,
       updatedAt: now
     }
-    await config.adapter.clients.create(client)
+    if (await config.adapter.clients.find(client.clientId)) throw new Error(`client ${client.clientId} already exists`)
+    await config.adapter.clients.upsert(client)
     await audit(config, 'client.create', { clientId: client.clientId })
     return client
   },
 
   async update(clientId: string, patch: Partial<Client>) {
-    if (!config.adapter.clients.update) throw new Error('this adapter cannot update clients')
-    await config.adapter.clients.update(clientId, { ...patch, updatedAt: new Date() })
+    if (!config.adapter.clients.upsert) throw new Error('this adapter cannot update clients')
+    const existing = await config.adapter.clients.find(clientId)
+    if (!existing) throw new Error(`client ${clientId} does not exist`)
+    await config.adapter.clients.upsert({ ...existing, ...patch, clientId, updatedAt: new Date() })
     await audit(config, 'client.update', { clientId, detail: { fields: Object.keys(patch) } })
   },
 

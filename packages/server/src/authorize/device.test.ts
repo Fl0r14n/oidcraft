@@ -47,7 +47,7 @@ const post = (path: string, body: Record<string, string>, headers: Record<string
 
 beforeEach(async () => {
   adapter = await memoryAdapter({ accounts })
-  await adapter.clients.create?.(client())
+  await adapter.clients.upsert?.(client())
   provider = createProvider({ issuer: ISSUER, adapter, features: { deviceFlow: true } })
 })
 
@@ -110,7 +110,7 @@ describe('polling', () => {
   })
 
   test('another client cannot poll it', async () => {
-    await adapter.clients.create?.(client({ clientId: 'other' }))
+    await adapter.clients.upsert?.(client({ clientId: 'other' }))
     const { device_code } = await start()
     const response = await post(
       '/token',
@@ -185,8 +185,8 @@ describe('approval', () => {
 describe('pairwise subjects', () => {
   const pairwise = async () => {
     const paired = await memoryAdapter({ accounts })
-    await paired.clients.create?.(client({ subjectType: 'pairwise' }))
-    await paired.clients.create?.(client({ clientId: 'other', subjectType: 'pairwise', redirectUris: ['https://other.example.com/cb'] }))
+    await paired.clients.upsert?.(client({ subjectType: 'pairwise' }))
+    await paired.clients.upsert?.(client({ clientId: 'other', subjectType: 'pairwise', redirectUris: ['https://other.example.com/cb'] }))
     return createProvider({ issuer: ISSUER, adapter: paired, features: { deviceFlow: true }, pairwiseSalt: 'a-salt' })
   }
 

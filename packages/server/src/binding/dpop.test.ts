@@ -39,8 +39,8 @@ let keyPair: { privateKey: CryptoKey; publicKey: CryptoKey }
 
 beforeEach(async () => {
   adapter = await memoryAdapter({ accounts })
-  await adapter.clients.create?.(client())
-  await adapter.clients.create?.(client({ clientId: 'strict', dpopBoundAccessTokens: true }))
+  await adapter.clients.upsert?.(client())
+  await adapter.clients.upsert?.(client({ clientId: 'strict', dpopBoundAccessTokens: true }))
   provider = createProvider({ issuer: ISSUER, adapter, interactionUrl: `${ISSUER}/interaction`, features: { dpop: true } })
   verifier = randomString() + randomString()
   challenge = base64url.encode(await sha256(verifier))
@@ -127,7 +127,7 @@ describe('DPoP binding', () => {
 
   test('introspection reports the binding so a resource server can enforce it', async () => {
     const tokens = await (await exchange(await codeFor(), { dpop: await proof('POST', `${ISSUER}/token`) })).json()
-    await adapter.clients.update?.('rp', { tokenEndpointAuthMethod: 'none' })
+    await adapter.clients.upsert?.({ ...((await adapter.clients.find('rp')) as Client), tokenEndpointAuthMethod: 'none' })
     const artifact = await adapter.artifacts.find('access_token', tokens.access_token)
     expect(artifact?.payload.cnf).toHaveProperty('jkt')
   })

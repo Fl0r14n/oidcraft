@@ -259,6 +259,13 @@ not one table keyed by a model-name string:
 | `ReplayGuard` | One-shot values: `jti`, DPoP proofs, upstream nonces (NFR-S5). |
 | `FederatedIdentityStore` | `(provider, subject) → account` links. Optional; only brokering deployments need it. |
 
+The record-holding stores — clients, artifacts, sessions, grants, identities — share one shape,
+`EntityStore<T, Id>`: `find`, `upsert` and `destroy`, with a composite key passed as arguments
+(`artifacts.find(kind, id)`). Each adds only the lookups the protocol needs indexed, and those
+extras are the point of the split. Client writes are optional, so a fixed client list is a valid
+deployment. `AccountStore`, `KeyStore` and `ReplayGuard` are not record stores and keep their own
+shapes: the host's users read-only, signing keys newest first, and one atomic claim.
+
 The Drizzle adapter is the demonstration: `explain query plan` in its test suite asserts that
 revoking by grant and looking up a device's user code both hit an index rather than scanning, which
 is exactly what the blob shape below cannot do.

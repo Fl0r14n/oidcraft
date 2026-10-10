@@ -58,5 +58,5 @@ const link = async (adapter: Adapter, identity: BrokeredIdentity, accountId: str
     claims: identity.claims,
     linkedAt: new Date()
   }
-  await adapter.identities?.link(record)
+  await adapter.identities?.upsert(record)
 }

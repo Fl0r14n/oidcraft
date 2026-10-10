@@ -60,7 +60,7 @@ export const adapterConformance = (name: string, create: () => Promise<Adapter>)
 
   test(`${name}: a client round-trips`, async () => {
     const adapter = await create()
-    await adapter.clients.create?.(client('c1'))
+    await adapter.clients.upsert?.(client('c1'))
     const found = await adapter.clients.find('c1')
     expect(found?.clientId).toBe('c1')
     expect(found?.redirectUris).toEqual(['https://rp.example.com/c1'])
@@ -69,7 +69,7 @@ export const adapterConformance = (name: string, create: () => Promise<Adapter>)
 
   test(`${name}: destroying a client removes it`, async () => {
     const adapter = await create()
-    await adapter.clients.create?.(client('c1'))
+    await adapter.clients.upsert?.(client('c1'))
     await adapter.clients.destroy?.('c1')
     expect(await adapter.clients.find('c1')).toBeUndefined()
   })
@@ -161,7 +161,7 @@ export const adapterConformance = (name: string, create: () => Promise<Adapter>)
     await adapter.sessions.upsert(session())
     await adapter.sessions.upsert(session({ id: 's2' }))
     await adapter.sessions.upsert(session({ id: 's3', accountId: 'u2' }))
-    expect((await adapter.sessions.findByAccount('u1')).map(s => s.id).sort()).toEqual(['s1', 's2'])
+    expect((await adapter.sessions.listForAccount('u1')).map(s => s.id).sort()).toEqual(['s1', 's2'])
   })
 
   test(`${name}: an expired session is never served`, async () => {
@@ -216,13 +216,13 @@ export const adapterConformance = (name: string, create: () => Promise<Adapter>)
   })
 
   // FR-F5: linking is by (provider, subject) and nothing else.
-  test(`${name}: a federated identity links and unlinks by provider and subject`, async () => {
+  test(`${name}: a federated identity is kept and removed by provider and subject`, async () => {
     const adapter = await create()
     if (!adapter.identities) return
-    await adapter.identities.link({ accountId: 'u1', provider: 'google', subject: 'g-1', claims: {}, linkedAt: new Date() })
+    await adapter.identities.upsert({ accountId: 'u1', provider: 'google', subject: 'g-1', claims: {}, linkedAt: new Date() })
     expect((await adapter.identities.find('google', 'g-1'))?.accountId).toBe('u1')
     expect(await adapter.identities.find('entra', 'g-1')).toBeUndefined()
-    await adapter.identities.unlink('u1', 'google')
+    await adapter.identities.destroy('google', 'g-1')
     expect(await adapter.identities.find('google', 'g-1')).toBeUndefined()
   })
 }

@@ -94,13 +94,13 @@ const tokensFor = async (provider: Provider, clientId = 'rp', context?: Partial<
 
 describe('FR-T2: JWT access tokens', () => {
   test('opaque by default', async () => {
-    await adapter.clients.create?.(client())
+    await adapter.clients.upsert?.(client())
     const issued = await tokensFor(build())
     expect(issued.access_token.split('.')).toHaveLength(1)
   })
 
   test('a client can opt into RFC 9068 format', async () => {
-    await adapter.clients.create?.(client({ accessTokenFormat: 'jwt' }))
+    await adapter.clients.upsert?.(client({ accessTokenFormat: 'jwt' }))
     const provider = build()
     const issued = await tokensFor(provider)
 
@@ -115,7 +115,7 @@ describe('FR-T2: JWT access tokens', () => {
 
   // The whole argument for opaque-by-default is that revocation must still bite.
   test('a JWT access token is still revocable, because the jti is the stored record', async () => {
-    await adapter.clients.create?.(client({ accessTokenFormat: 'jwt' }))
+    await adapter.clients.upsert?.(client({ accessTokenFormat: 'jwt' }))
     const provider = build()
     const issued = await tokensFor(provider)
 
@@ -137,7 +137,7 @@ describe('FR-T2: JWT access tokens', () => {
   })
 
   test('a JWT this provider did not issue is not accepted', async () => {
-    await adapter.clients.create?.(client())
+    await adapter.clients.upsert?.(client())
     const provider = build()
     const foreign = await new (await import('jose')).SignJWT({ jti: 'made-up' })
       .setProtectedHeader({ alg: 'ES256', typ: 'at+jwt' })
@@ -151,7 +151,7 @@ describe('FR-T2: JWT access tokens', () => {
 
 describe('FR-C5: signed and encrypted UserInfo', () => {
   test('a signed response is a JWT the client can verify', async () => {
-    await adapter.clients.create?.(client({ userinfoSignedResponseAlg: 'ES256' }))
+    await adapter.clients.upsert?.(client({ userinfoSignedResponseAlg: 'ES256' }))
     const provider = build()
     const issued = await tokensFor(provider)
 
@@ -169,7 +169,7 @@ describe('FR-C5: signed and encrypted UserInfo', () => {
   test('an encrypted response is a JWE the client can decrypt', async () => {
     const encryption = await generateKeyPair('RSA-OAEP-256', { extractable: true })
     const publicJwk = { ...(await exportJWK(encryption.publicKey)), use: 'enc', alg: 'RSA-OAEP-256' }
-    await adapter.clients.create?.(
+    await adapter.clients.upsert?.(
       client({
         userinfoSignedResponseAlg: 'ES256',
         userinfoEncryptedResponseAlg: 'RSA-OAEP-256',
@@ -189,7 +189,7 @@ describe('FR-C5: signed and encrypted UserInfo', () => {
   })
 
   test('plain JSON when the client asked for neither', async () => {
-    await adapter.clients.create?.(client())
+    await adapter.clients.upsert?.(client())
     const provider = build()
     const issued = await tokensFor(provider)
     const response = await provider.handle(
@@ -202,14 +202,14 @@ describe('FR-C5: signed and encrypted UserInfo', () => {
 describe('FR-C11: front-channel logout', () => {
   test('yields the iframe URLs rather than rendering them', async () => {
     let targets: { clientId: string; uri: string }[] = []
-    await adapter.clients.create?.(client({ frontchannelLogoutUri: 'https://rp.example.com/fc' }))
+    await adapter.clients.upsert?.(client({ frontchannelLogoutUri: 'https://rp.example.com/fc' }))
     const provider = build({
       onFrontChannelLogout: (received: { clientId: string; uri: string }[]) => {
         targets = received
       }
     })
     const issued = await tokensFor(provider)
-    const session = (await adapter.sessions.findByAccount('ada'))[0]
+    const session = (await adapter.sessions.listForAccount('ada'))[0]
 
     await provider.handle(new Request(`${ISSUER}/session/end`, { headers: { cookie: `${SESSION_COOKIE}=${session?.id}` } }))
     expect(targets).toEqual([{ clientId: 'rp', uri: 'https://rp.example.com/fc' }])
@@ -219,14 +219,14 @@ describe('FR-C11: front-channel logout', () => {
   // §2 makes iss/sid opt-in: sending a session id to a client that never asked leaks it for nothing.
   test('iss and sid go only to a client that asked for them', async () => {
     let targets: { clientId: string; uri: string }[] = []
-    await adapter.clients.create?.(client({ frontchannelLogoutUri: 'https://rp.example.com/fc', frontchannelLogoutSessionRequired: true }))
+    await adapter.clients.upsert?.(client({ frontchannelLogoutUri: 'https://rp.example.com/fc', frontchannelLogoutSessionRequired: true }))
     const provider = build({
       onFrontChannelLogout: (received: { clientId: string; uri: string }[]) => {
         targets = received
       }
     })
     await tokensFor(provider)
-    const session = (await adapter.sessions.findByAccount('ada'))[0]
+    const session = (await adapter.sessions.listForAccount('ada'))[0]
     await provider.handle(new Request(`${ISSUER}/session/end`, { headers: { cookie: `${SESSION_COOKIE}=${session?.id}` } }))
 
     const url = new URL(targets[0]?.uri as string)
@@ -236,14 +236,14 @@ describe('FR-C11: front-channel logout', () => {
 
   test('a client with no front-channel URI is not contacted', async () => {
     let targets: unknown[] = []
-    await adapter.clients.create?.(client())
+    await adapter.clients.upsert?.(client())
     const provider = build({
       onFrontChannelLogout: (received: unknown[]) => {
         targets = received
       }
     })
     await tokensFor(provider)
-    const session = (await adapter.sessions.findByAccount('ada'))[0]
+    const session = (await adapter.sessions.listForAccount('ada'))[0]
     await provider.handle(new Request(`${ISSUER}/session/end`, { headers: { cookie: `${SESSION_COOKIE}=${session?.id}` } }))
     expect(targets).toEqual([])
   })
@@ -257,7 +257,7 @@ describe('FR-C4 and FR-C13: mTLS', () => {
     build({ capabilities: { clientCertificate: true }, clientAuthMethods: ['tls_client_auth', 'self_signed_tls_client_auth', 'none'] })
 
   test('tls_client_auth authenticates by the registered subject DN', async () => {
-    await adapter.clients.create?.(client({ tokenEndpointAuthMethod: 'tls_client_auth', tlsClientAuthSubjectDn: 'CN=rp,O=Example' }))
+    await adapter.clients.upsert?.(client({ tokenEndpointAuthMethod: 'tls_client_auth', tlsClientAuthSubjectDn: 'CN=rp,O=Example' }))
     const provider = mtlsProvider()
     const response = await provider.handle(
       new Request(`${ISSUER}/token`, {
@@ -272,7 +272,7 @@ describe('FR-C4 and FR-C13: mTLS', () => {
   })
 
   test('a different subject DN is refused', async () => {
-    await adapter.clients.create?.(client({ tokenEndpointAuthMethod: 'tls_client_auth', tlsClientAuthSubjectDn: 'CN=someone-else' }))
+    await adapter.clients.upsert?.(client({ tokenEndpointAuthMethod: 'tls_client_auth', tlsClientAuthSubjectDn: 'CN=someone-else' }))
     const provider = mtlsProvider()
     const response = await provider.handle(
       new Request(`${ISSUER}/token`, {
@@ -286,7 +286,7 @@ describe('FR-C4 and FR-C13: mTLS', () => {
   })
 
   test('no certificate at all is refused', async () => {
-    await adapter.clients.create?.(client({ tokenEndpointAuthMethod: 'tls_client_auth', tlsClientAuthSubjectDn: 'CN=rp,O=Example' }))
+    await adapter.clients.upsert?.(client({ tokenEndpointAuthMethod: 'tls_client_auth', tlsClientAuthSubjectDn: 'CN=rp,O=Example' }))
     const provider = mtlsProvider()
     const response = await provider.handle(
       new Request(`${ISSUER}/token`, {
@@ -300,7 +300,7 @@ describe('FR-C4 and FR-C13: mTLS', () => {
 
   test('self_signed_tls_client_auth matches the registered thumbprint', async () => {
     const thumbprint = await certificateThumbprint(DER)
-    await adapter.clients.create?.(
+    await adapter.clients.upsert?.(
       client({ tokenEndpointAuthMethod: 'self_signed_tls_client_auth', jwks: { keys: [{ 'x5t#S256': thumbprint }] } })
     )
     const provider = mtlsProvider()
@@ -317,7 +317,7 @@ describe('FR-C4 and FR-C13: mTLS', () => {
 
   // FR-R5 / G-8: a runtime that cannot supply a certificate must not advertise these.
   test('the methods are absent from discovery where no certificate can arrive', async () => {
-    await adapter.clients.create?.(client())
+    await adapter.clients.upsert?.(client())
     const metadata = await (await build().handle(new Request(`${ISSUER}/.well-known/openid-configuration`))).json()
     expect(metadata.token_endpoint_auth_methods_supported).not.toContain('tls_client_auth')
     expect(metadata).not.toHaveProperty('tls_client_certificate_bound_access_tokens')
@@ -327,7 +327,7 @@ describe('FR-C4 and FR-C13: mTLS', () => {
   })
 
   test('a certificate-bound token is refused without the certificate', async () => {
-    await adapter.clients.create?.(client({ certificateBoundAccessTokens: true }))
+    await adapter.clients.upsert?.(client({ certificateBoundAccessTokens: true }))
     const provider = build({ capabilities: { clientCertificate: true } })
     const issued = await tokensFor(provider, 'rp', { clientCertificate: certificate })
     const stored = await adapter.artifacts.find('access_token', issued.access_token)

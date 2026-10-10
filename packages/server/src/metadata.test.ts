@@ -21,7 +21,7 @@ const advertisedClient = async (provider: ReturnType<typeof createProvider>) => 
   >
   const clientId = 'advertised'
   if (!(await adapter.clients.find(clientId))) {
-    await adapter.clients.create?.({
+    await adapter.clients.upsert?.({
       clientId,
       clientSecret: SECRET,
       redirectUris: [REDIRECT],
@@ -192,7 +192,7 @@ describe('discovery metadata', () => {
 
     for (const method of metadata.token_endpoint_auth_methods_supported as string[]) {
       const clientId = `probe-${method}`
-      await adapter.clients.create?.({
+      await adapter.clients.upsert?.({
         clientId,
         ...(method === 'none' ? {} : { clientSecret: SECRET }),
         redirectUris: [REDIRECT],

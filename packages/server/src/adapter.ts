@@ -15,19 +15,25 @@ export type Adapter = {
   identities?: FederatedIdentityStore
 }
 
-export type ClientStore = {
-  find(clientId: string): Promise<Client | undefined>
-  /** Dynamic client registration (FR-C9); omit to refuse registration at runtime. */
-  create?(client: Client): Promise<void>
-  update?(clientId: string, client: Partial<Client>): Promise<void>
-  destroy?(clientId: string): Promise<void>
-  list?(cursor?: string, limit?: number): Promise<{ clients: Client[]; cursor?: string }>
+/**
+ * What every record-holding store shares. `Id` is a tuple so a composite key reads as arguments:
+ * `artifacts.find(kind, id)`, `identities.destroy(provider, subject)`. Each store adds only the
+ * lookups the protocol needs indexed, which is what keeps it from being one blob table (FR-A2).
+ */
+export type EntityStore<T, Id extends unknown[] = [id: string]> = {
+  find(...id: Id): Promise<T | undefined>
+  upsert(value: T): Promise<void>
+  destroy(...id: Id): Promise<void>
 }
 
-export type ArtifactStore = {
-  /** Never clears a consumption: a poll that read the artifact before it was redeemed would revive it. */
-  upsert(artifact: Artifact): Promise<void>
-  find(kind: ArtifactKind, id: string): Promise<Artifact | undefined>
+/** Writes are optional so a deployment can serve a fixed set of clients; registration then refuses (FR-C9). */
+export type ClientStore = Pick<EntityStore<Client>, 'find'> &
+  Partial<Omit<EntityStore<Client>, 'find'>> & {
+    list?(cursor?: string, limit?: number): Promise<{ clients: Client[]; cursor?: string }>
+  }
+
+/** `upsert` never clears a consumption: a poll that read the artifact before it was redeemed would revive it. */
+export type ArtifactStore = EntityStore<Artifact, [kind: ArtifactKind, id: string]> & {
   /** Device flow pairs a user code with a device code (FR-C7). */
   findByUserCode?(userCode: string): Promise<Artifact | undefined>
   /**
@@ -36,27 +42,20 @@ export type ArtifactStore = {
    * both win (FR-T3, FR-T4, NFR-S4).
    */
   consume(kind: ArtifactKind, id: string): Promise<boolean>
-  destroy(kind: ArtifactKind, id: string): Promise<void>
   revokeByGrantId(grantId: string): Promise<void>
   /** Bounded sweep of expired rows; the runtime calls it, storage does not schedule (NFR-P3). */
   prune?(before: Date, limit: number): Promise<number>
 }
 
-export type SessionStore = {
-  find(id: string): Promise<Session | undefined>
-  findByAccount(accountId: string): Promise<Session[]>
+export type SessionStore = EntityStore<Session> & {
+  listForAccount(accountId: string): Promise<Session[]>
   /** Upstream back-channel logout arrives keyed by the upstream session, not ours (FR-F8). */
   findByUpstreamSession?(provider: string, upstreamSessionId: string): Promise<Session[]>
-  upsert(session: Session): Promise<void>
-  destroy(id: string): Promise<void>
 }
 
-export type GrantStore = {
-  find(id: string): Promise<Grant | undefined>
+export type GrantStore = EntityStore<Grant> & {
   findByAccountAndClient(accountId: string, clientId: string): Promise<Grant | undefined>
   listForAccount(accountId: string): Promise<Grant[]>
-  upsert(grant: Grant): Promise<void>
-  destroy(id: string): Promise<void>
 }
 
 export type AccountStore = {
@@ -76,11 +75,8 @@ export type ReplayGuard = {
   claim(namespace: string, value: string, ttl: Seconds): Promise<boolean>
 }
 
-export type FederatedIdentityStore = {
-  find(provider: string, subject: string): Promise<FederatedIdentity | undefined>
+export type FederatedIdentityStore = EntityStore<FederatedIdentity, [provider: string, subject: string]> & {
   listForAccount(accountId: string): Promise<FederatedIdentity[]>
-  link(identity: FederatedIdentity): Promise<void>
-  unlink(accountId: string, provider: string): Promise<void>
 }
 
 /** The minimum a new backend has to implement; `fromKv` builds a full `Adapter` over it. */

@@ -92,7 +92,7 @@ describe('account linking', () => {
 
   test('an existing (provider, subject) link is reused', async () => {
     const adapter = await fresh()
-    await adapter.identities?.link({ accountId: 'u1', provider: 'entra', subject: 'up-1', claims: {}, linkedAt: new Date() })
+    await adapter.identities?.upsert({ accountId: 'u1', provider: 'entra', subject: 'up-1', claims: {}, linkedAt: new Date() })
     expect(await linkIdentity(adapter, identity())).toEqual({ accountId: 'u1', created: false })
   })
 
@@ -165,7 +165,7 @@ describe('the provider choosing an upstream', () => {
   const providerWith = async (over: Record<string, unknown> = {}) => {
     const { createProvider } = await import('../provider')
     const adapter = await memoryAdapter()
-    await adapter.clients.create?.({
+    await adapter.clients.upsert?.({
       clientId: 'rp',
       redirectUris: [REDIRECT],
       grantTypes: ['authorization_code'],
@@ -220,7 +220,7 @@ describe('the provider choosing an upstream', () => {
   test('no upstreams configured means no upstream decision at all', async () => {
     const { createProvider } = await import('../provider')
     const adapter = await memoryAdapter()
-    await adapter.clients.create?.({
+    await adapter.clients.upsert?.({
       clientId: 'rp',
       redirectUris: [REDIRECT],
       grantTypes: ['authorization_code'],

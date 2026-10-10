@@ -36,7 +36,7 @@ export const seedDemoClient = async (adapter: Adapter) => {
   const origin = withDefault('OIDCRAFT_PUBLIC_ORIGIN', 'http://localhost:3000')
   if (await adapter.clients.find(clientId)) return
 
-  await adapter.clients.create?.({
+  await adapter.clients.upsert?.({
     clientId,
     clientName: 'oidcraft demo client',
     redirectUris: [`${origin}/oauth_callback`],
@@ -72,7 +72,7 @@ export const seedConformanceClients = async (adapter: Adapter) => {
   ]
   for (const [entry, method] of clients) {
     if (await adapter.clients.find(entry.client_id)) continue
-    await adapter.clients.create?.({
+    await adapter.clients.upsert?.({
       clientId: entry.client_id,
       clientSecret: entry.client_secret,
       clientName: `conformance suite (${entry.client_id})`,

@@ -47,7 +47,7 @@ export const upstreamLogout = async (
 const sessionsForUpstreamSubject = async (adapter: Adapter, providerId: string, subject: string) => {
   const identity = await adapter.identities?.find(providerId, subject)
   if (!identity) return []
-  const sessions = await adapter.sessions.findByAccount(identity.accountId)
+  const sessions = await adapter.sessions.listForAccount(identity.accountId)
   return sessions.filter(session => session.idp === providerId)
 }
 

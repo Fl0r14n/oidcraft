@@ -16,7 +16,7 @@ const adapter = await memoryAdapter({
   }
 })
 
-await adapter.clients.create?.({
+await adapter.clients.upsert?.({
   clientId: 'demo',
   redirectUris: ['http://localhost:3000/callback'],
   grantTypes: ['authorization_code', 'refresh_token'],
@@ -50,7 +50,7 @@ describe('the smallest usable provider', () => {
       }
     })
 
-    await adapter.clients.create?.({
+    await adapter.clients.upsert?.({
       clientId: 'demo',
       redirectUris: ['http://localhost:3000/callback'],
       grantTypes: ['authorization_code', 'refresh_token'],

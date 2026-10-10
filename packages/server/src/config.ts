@@ -276,7 +276,7 @@ export const resolveConfig = (config: ProviderConfig): ResolvedConfig => {
     )
   }
 
-  if (features.dynamicRegistration && !config.adapter?.clients.create) {
+  if (features.dynamicRegistration && !config.adapter?.clients.upsert) {
     problems.push('features.dynamicRegistration needs an adapter whose clients store implements create (FR-C9)')
   }
 

@@ -107,13 +107,8 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): Adapter => {
       const client = dec<Record<string, unknown>>(await kv.get(`client/${clientId}`))
       return client ? (revive(client, ['createdAt', 'updatedAt']) as never) : undefined
     },
-    async create(client) {
+    async upsert(client) {
       await kv.set(`client/${client.clientId}`, enc(client))
-    },
-    async update(clientId, patch) {
-      const existing = dec<Record<string, unknown>>(await kv.get(`client/${clientId}`))
-      if (!existing) return
-      await kv.set(`client/${clientId}`, enc({ ...existing, ...patch, updatedAt: new Date() }))
     },
     async destroy(clientId) {
       await kv.delete(`client/${clientId}`)
@@ -130,7 +125,7 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): Adapter => {
       const live = revive(session, ['authTime', 'expiresAt'])
       return live.expiresAt.getTime() > Date.now() ? live : undefined
     },
-    async findByAccount(accountId) {
+    async listForAccount(accountId) {
       const all = await collect(kv, 'session/', raw => revive(JSON.parse(raw) as Session, ['authTime', 'expiresAt']))
       return all.filter(session => session.accountId === accountId && session.expiresAt.getTime() > Date.now())
     },
@@ -182,13 +177,11 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): Adapter => {
       const all = await collect(kv, 'identity/', raw => revive(JSON.parse(raw) as FederatedIdentity, ['linkedAt']))
       return all.filter(identity => identity.accountId === accountId)
     },
-    async link(identity) {
+    async upsert(identity) {
       await kv.set(`identity/${identity.provider}/${identity.subject}`, enc(identity))
     },
-    async unlink(accountId, provider) {
-      for await (const { key, value } of kv.scan(`identity/${provider}/`)) {
-        if ((JSON.parse(value) as FederatedIdentity).accountId === accountId) await kv.delete(key)
-      }
+    async destroy(provider, subject) {
+      await kv.delete(`identity/${provider}/${subject}`)
     }
   }
 

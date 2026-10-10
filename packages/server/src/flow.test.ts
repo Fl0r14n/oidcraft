@@ -38,7 +38,7 @@ let challenge: string
 
 beforeEach(async () => {
   adapter = await memoryAdapter({ accounts })
-  await adapter.clients.create?.(client())
+  await adapter.clients.upsert?.(client())
   provider = createProvider({ issuer: ISSUER, adapter, interactionUrl: `${ISSUER}/interaction` })
   verifier = randomString() + randomString()
   challenge = base64url.encode(await sha256(verifier))
@@ -119,13 +119,13 @@ describe('authorization endpoint', () => {
   // RFC 8252 §7.3: a native app picks its loopback port from the OS at request time.
   describe('loopback redirect URIs', () => {
     const native = (redirectUri: string) =>
-      adapter.clients.create?.(client({ clientId: 'cli', tokenEndpointAuthMethod: 'none', redirectUris: [redirectUri] }))
+      adapter.clients.upsert?.(client({ clientId: 'cli', tokenEndpointAuthMethod: 'none', redirectUris: [redirectUri] }))
     const status = async (redirectUri: string) => (await go(authorizeUrl({ client_id: 'cli', redirect_uri: redirectUri }))).status
 
     test('any port is accepted on a loopback IP literal', async () => {
       await native('http://127.0.0.1/cb')
       expect(await status('http://127.0.0.1:51234/cb')).toBe(303)
-      await adapter.clients.update?.('cli', { redirectUris: ['http://[::1]/cb'] })
+      await adapter.clients.upsert?.({ ...((await adapter.clients.find('cli')) as Client), redirectUris: ['http://[::1]/cb'] })
       expect(await status('http://[::1]:8123/cb')).toBe(303)
     })
 
@@ -245,7 +245,7 @@ describe('token endpoint', () => {
 
   // OIDC DCR 1.0 §2: the client's registered algorithm, not the provider's default.
   test('an ID token is signed with the algorithm the client registered', async () => {
-    await adapter.clients.update?.('rp', { idTokenSignedResponseAlg: 'RS256' })
+    await adapter.clients.upsert?.({ ...((await adapter.clients.find('rp')) as Client), idTokenSignedResponseAlg: 'RS256' })
     const { location } = await loginAndConsent()
     const body = await (await exchange(location.searchParams.get('code') as string)).json()
     expect(decodeProtectedHeader(body.id_token).alg).toBe('RS256')
@@ -362,7 +362,7 @@ describe('token endpoint', () => {
 
 describe('PKCE exemption (FR-C3)', () => {
   const withoutPkce = (over: Partial<Client> = {}) =>
-    adapter.clients.create?.(client({ clientId: 'rp-nonce', requirePkce: false, ...over }))
+    adapter.clients.upsert?.(client({ clientId: 'rp-nonce', requirePkce: false, ...over }))
   const noChallenge = { client_id: 'rp-nonce', code_challenge: '', code_challenge_method: '' }
   const exchange = (code: string, over: Record<string, string> = {}) =>
     post('/token', { grant_type: 'authorization_code', code, redirect_uri: REDIRECT, ...over }, { authorization: basic('rp-nonce') })

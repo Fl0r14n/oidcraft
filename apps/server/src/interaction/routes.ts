@@ -1,4 +1,5 @@
-import { oauthFieldError } from 'oidcraft/interaction'
+import { type InteractionRequest, oauthFieldError } from 'oidcraft/interaction'
+import { startUpstream, upstreamLabels } from '../federation'
 import { provider } from '../provider'
 import {
   consentScreen,
@@ -23,6 +24,9 @@ const recentAccounts = [
   { accountId: 'grace', label: 'grace' }
 ]
 
+const offeredUpstreams = (view: InteractionRequest) =>
+  upstreamLabels([...new Set([view.upstream?.chosen, ...(view.upstream?.candidates ?? [])].filter(id => id !== undefined))])
+
 export const interactionRoutes = async (request: Request, url: URL) => {
   const [, , id, action] = url.pathname.split('/')
   if (!id) return undefined
@@ -33,7 +37,11 @@ export const interactionRoutes = async (request: Request, url: URL) => {
     if (request.method === 'GET' && !action) {
       if (view.kind === 'consent') return html(consentScreen(view))
       // prompt=select_account asks which identity, not whether to sign in (OIDC Core §3.1.2.1).
-      return html(view.prompt.includes('select_account') ? selectAccountScreen(view, recentAccounts) : loginScreen(view))
+      return html(
+        view.prompt.includes('select_account')
+          ? selectAccountScreen(view, recentAccounts)
+          : loginScreen(view, undefined, offeredUpstreams(view))
+      )
     }
 
     if (request.method === 'POST' && action === 'login') {
@@ -47,7 +55,7 @@ export const interactionRoutes = async (request: Request, url: URL) => {
       }
       if (errors.username || errors.password) {
         // re-rendered with what was typed: losing it and saying nothing is how the old branch failed
-        return html(loginScreen(view, { username: username ?? '', errors }), 400)
+        return html(loginScreen(view, { username: username ?? '', errors }, offeredUpstreams(view)), 400)
       }
       const login = authenticate(username as string)
       // FR-F9 / FR-C16: the client asked for an acr, and claiming to meet it would be a lie the
@@ -56,6 +64,11 @@ export const interactionRoutes = async (request: Request, url: URL) => {
         login: { ...login, acr: 'pwd', amr: ['pwd'] }
       })
       return seeOther(redirectTo, setCookie)
+    }
+
+    if (request.method === 'POST' && action === 'upstream') {
+      const response = await startUpstream(id, request)
+      if (response) return response
     }
 
     if (request.method === 'POST' && action === 'consent') {

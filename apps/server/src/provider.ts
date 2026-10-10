@@ -4,6 +4,7 @@ import { createProvider, staticKeyStore } from 'oidcraft'
 import { memoryAdapter } from 'oidcraft/adapters/memory'
 import { issuer, optional } from './env'
 import { demoAccounts, seedConformanceClients, seedDemoClient } from './seed'
+import { upstreams } from './upstreams'
 
 /**
  * Development generates a key per process, so every restart signs everyone out. Production supplies
@@ -20,7 +21,11 @@ const keys = () => {
 }
 
 const keyStore = keys()
-const adapter = await memoryAdapter({ accounts: demoAccounts, ...(keyStore && { keys: keyStore }) })
+const adapter = await memoryAdapter({
+  accounts: demoAccounts(() => adapter.identities),
+  federation: upstreams.length > 0,
+  ...(keyStore && { keys: keyStore })
+})
 
 await seedDemoClient(adapter)
 await seedConformanceClients(adapter)
@@ -29,6 +34,8 @@ export const provider = createProvider({
   issuer: issuer(),
   adapter,
   interactionUrl: `${issuer()}/interaction`,
+  // Descriptors only: the admin API lists these, and an upstream's client secret is not for it.
+  upstreams: upstreams.map(({ id, label, domains }) => ({ id, ...(label && { label }), ...(domains && { domains }) })),
   // The reference deployment turns these on so the screens below have something to drive.
   features: { deviceFlow: true, pushedAuthorizationRequests: true, dpop: true }
 })

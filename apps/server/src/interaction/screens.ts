@@ -46,7 +46,7 @@ const invalid = (error: OAuthFieldError) => (error && ' aria-invalid="true"') ||
  * `oauthFieldErrors`. Both are needed: the attribute is the fast path, and it is absent the moment
  * someone posts the form without a browser.
  */
-export const loginScreen = (view: InteractionRequest, attempt?: LoginAttempt) => {
+export const loginScreen = (view: InteractionRequest, attempt?: LoginAttempt, upstreams: { id: string; label: string }[] = []) => {
   const errors = attempt?.errors ?? { username: undefined, password: undefined }
   const username = attempt?.username ?? view.loginHint ?? ''
   return layout(
@@ -57,9 +57,19 @@ export const loginScreen = (view: InteractionRequest, attempt?: LoginAttempt) =>
  maxlength="${DEFAULT_MAX_LENGTH}"${invalid(errors.username)} value="${escapeHtml(username)}">${fieldError('username', errors.username)}
 <label for="p">Password</label><input id="p" name="password" type="password" autocomplete="current-password" required
  maxlength="${DEFAULT_MAX_LENGTH}"${invalid(errors.password)}>${fieldError('password', errors.password)}
-<button type="submit">Sign in</button></form>`
+<button type="submit">Sign in</button></form>${upstreams.length ? upstreamChoices(view, upstreams) : ''}`
   )
 }
+
+/** The providers the authorization endpoint offered for this interaction (FR-F4); the host only labels them. */
+const upstreamChoices = (view: InteractionRequest, upstreams: { id: string; label: string }[]) =>
+  `<p class="sub">or</p><form method="post" action="/interaction/${view.id}/upstream">
+<ul class="choices">${upstreams
+    .map(
+      upstream =>
+        `<li><button type="submit" name="provider" value="${escapeHtml(upstream.id)}" class="secondary">Continue with ${escapeHtml(upstream.label)}</button></li>`
+    )
+    .join('')}</ul></form>`
 
 export const consentScreen = (view: InteractionRequest) =>
   layout(
@@ -100,19 +110,6 @@ export const selectAccountScreen = (view: InteractionRequest, accounts: { accoun
       .join('')}</ul></form>
 <form method="post" action="/interaction/${view.id}/login"><label for="u">Someone else</label>
 <input id="u" name="username" autocomplete="username" required><button type="submit">Sign in</button></form>`
-  )
-
-export const selectUpstreamScreen = (view: InteractionRequest, providers: { id: string; label: string }[]) =>
-  layout(
-    'Continue with',
-    `<h1>Continue with</h1><p class="sub">to continue to <strong>${escapeHtml(view.clientId)}</strong></p>
-<form method="post" action="/interaction/${view.id}/upstream">
-<ul class="choices">${providers
-      .map(
-        provider =>
-          `<li><button type="submit" name="provider" value="${escapeHtml(provider.id)}">${escapeHtml(provider.label)}</button></li>`
-      )
-      .join('')}</ul></form>`
   )
 
 /**

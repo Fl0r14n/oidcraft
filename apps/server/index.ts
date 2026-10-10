@@ -2,6 +2,7 @@
 import { serve } from 'bun'
 import { adminApi } from './src/admin/api'
 import { optional } from './src/env'
+import { federationCallback } from './src/federation'
 import { deviceRoutes, interactionRoutes, logoutRoutes } from './src/interaction/routes'
 import { errorScreen, html } from './src/interaction/screens'
 import { provider } from './src/provider'
@@ -34,6 +35,10 @@ const server = serve({
     }
     if (url.pathname.startsWith('/interaction/')) {
       const response = await interactionRoutes(request, url)
+      if (response) return response
+    }
+    if (url.pathname === '/federation/callback') {
+      const response = await federationCallback(request, url)
       if (response) return response
     }
     if (url.pathname === '/device' || url.pathname === '/device/decide') {

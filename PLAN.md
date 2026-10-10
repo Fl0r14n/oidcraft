@@ -167,7 +167,8 @@ In fix order; the first is the only one that changes the adapter contract.
 - [x] `authorization_details` issued without consent, and absent from `InteractionRequest` (FR-C15)
 - [x] DPoP nonce can be minted by the client: `claim` stores the unknown value it refuses (RFC 9449 §8)
 - [x] Client assertion lifetime measured from the client's `iat`; jti remembered for 300 s only (FR-C4, NFR-S5)
-- [x] Federation handoff not bound to the browser — login CSRF (FR-F3)
+- [x] Federation handoff not bound to the browser — login CSRF (FR-F3). `apps/server` now brokers
+      to Google when `UPSTREAM_GOOGLE_*` is set, so the round trip and its cookie run for real
 - [ ] workerd hands over an empty certificate DER; every thumbprint is the same (FR-C13)
 - [ ] Open registration does not validate `grant_types` (FR-C9)
 

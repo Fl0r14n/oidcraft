@@ -1,13 +1,30 @@
 /// <reference types="bun" />
-import type { AccountStore, Adapter } from 'oidcraft'
+import type { AccountStore, Adapter, FederatedIdentityStore } from 'oidcraft'
 import { optional, withDefault } from './env'
 
-/** Demo only: any account name works and the claims are synthetic (`G-2` — the host owns the directory). */
-export const demoAccounts: AccountStore = {
+const PROFILE = ['name', 'given_name', 'family_name', 'preferred_username', 'picture', 'locale']
+
+/**
+ * Demo only: any account name works and the claims are synthetic (`G-2` — the host owns the
+ * directory). An account created by brokering reports what its upstream said instead, which is the
+ * mapped claims linking recorded (FR-F7). Read lazily, because the store exists before the adapter.
+ */
+export const demoAccounts = (identities: () => FederatedIdentityStore | undefined): AccountStore => ({
   async find(accountId) {
     return { accountId, claims: {} }
   },
   async claims(accountId, scopes) {
+    const [linked] = (await identities()?.listForAccount(accountId)) ?? []
+    if (linked) {
+      const claims = linked.claims
+      return Object.fromEntries(
+        Object.entries(claims).filter(
+          ([name]) =>
+            (scopes.includes('profile') && PROFILE.includes(name)) ||
+            (scopes.includes('email') && ['email', 'email_verified'].includes(name))
+        )
+      )
+    }
     return {
       ...(scopes.includes('profile') && {
         name: accountId,
@@ -28,7 +45,7 @@ export const demoAccounts: AccountStore = {
       ...(scopes.includes('email') && { email: `${accountId}@example.invalid`, email_verified: false })
     }
   }
-}
+})
 
 /** The demo relying party in apps/demo-vue. A real deployment registers clients through the admin API. */
 export const seedDemoClient = async (adapter: Adapter) => {

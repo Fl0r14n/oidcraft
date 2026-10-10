@@ -1,4 +1,4 @@
-import { constantTimeEquals } from '@oidcraft/core'
+import { base64urlDecode, constantTimeEquals } from '@oidcraft/core'
 import { ASSERTION_TYPE, verifyClientAssertion } from './client-assertion'
 import type { ResolvedConfig } from './config'
 import type { ClientCertificate } from './context'
@@ -14,7 +14,7 @@ const subjectOf = (assertion: string | null) => {
   try {
     const payload = assertion.split('.')[1]
     if (!payload) return undefined
-    return (JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/'))) as { sub?: string }).sub
+    return (JSON.parse(new TextDecoder().decode(base64urlDecode(payload))) as { sub?: string }).sub
   } catch {
     return undefined
   }

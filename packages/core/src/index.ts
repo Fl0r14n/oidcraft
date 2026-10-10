@@ -16,6 +16,7 @@ export { defaultOAuthFunctions, resolveOAuthFunctions } from './functions'
 export { createIdTokenVerifier, type IdTokenClaims, type IdTokenVerifier, type IdTokenVerifierOptions, parseIdToken } from './jwt'
 export {
   base64url,
+  base64urlDecode,
   calculatePKCECodeChallenge,
   constantTimeEquals,
   randomNonce,

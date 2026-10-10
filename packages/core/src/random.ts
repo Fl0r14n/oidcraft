@@ -4,6 +4,17 @@ export const base64url = (bytes: Uint8Array) => {
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 }
 
+export const base64urlDecode = (value: string) =>
+  Uint8Array.from(
+    atob(
+      value
+        .replace(/-/g, '+')
+        .replace(/_/g, '/')
+        .padEnd(Math.ceil(value.length / 4) * 4, '=')
+    ),
+    c => c.charCodeAt(0)
+  )
+
 export const sha256 = async (value: string) => new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value)))
 
 export const randomString = (length: number = 48) => base64url(crypto.getRandomValues(new Uint8Array(length))).substring(0, length)

@@ -1,4 +1,5 @@
 import { createRemoteJWKSet, customFetch, jwtVerify } from 'jose'
+import { base64urlDecode } from './random'
 import { assertSecure, TENANT_TEMPLATE } from './secure'
 
 export type IdTokenClaims = Record<string, any>
@@ -33,18 +34,7 @@ const resolveIssuer = (issuer: ExpectedIssuer, claims: IdTokenClaims) => {
 export const parseIdToken = (idToken?: string): IdTokenClaims => {
   const payload = idToken?.split('.')[1]
   if (!payload) return {}
-  // JWT segments are base64url (RFC 7515) — atob only accepts base64: map -_ back and re-pad
-  const base64 = payload
-    .replace(/-/g, '+')
-    .replace(/_/g, '/')
-    .padEnd(Math.ceil(payload.length / 4) * 4, '=')
-  return JSON.parse(
-    decodeURIComponent(
-      Array.from(atob(base64))
-        .map(c => `%${(`00${c.charCodeAt(0).toString(16)}`).slice(-2)}`)
-        .join('')
-    )
-  )
+  return JSON.parse(new TextDecoder().decode(base64urlDecode(payload)))
 }
 
 /** Holds the remote JWKS for its lifetime, so build one per configuration and keep it — jose caches keys

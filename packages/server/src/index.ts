@@ -10,6 +10,7 @@ export type {
   ReplayGuard,
   SessionStore
 } from './adapter'
+export { type FromKvOptions, fromKv } from './adapters/kv'
 export type { AuthorizationDetail, AuthorizationRequest } from './authorize/authorization'
 export type { CibaDecision, CibaPayload } from './authorize/ciba'
 export type { DeviceApproval, DevicePayload } from './authorize/device'
@@ -29,7 +30,6 @@ export type {
 export type { ClientAuthenticationInput, ClientCertificate, ContextProvider, RequestContext } from './context'
 export { ConfigurationError, errorResponse, OAuthError, type OAuthErrorCode, type OAuthErrorInit } from './errors'
 export { type ActiveKey, generatedKeyStore, generateKey, staticKeyStore } from './keys/keys'
-export { type FromKvOptions, fromKv } from './kv'
 export type { Management, ManagementClientInput } from './management'
 export { createProvider, type LogoutDelivery, type Provider } from './provider'
 export type { FrontChannelLogout, LogoutNotification } from './session/logout'

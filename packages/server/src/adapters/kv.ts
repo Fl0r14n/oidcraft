@@ -9,8 +9,8 @@ import type {
   KvStore,
   ReplayGuard,
   SessionStore
-} from './adapter'
-import type { Artifact, FederatedIdentity, Grant, Seconds, Session } from './types'
+} from '../adapter'
+import type { Artifact, FederatedIdentity, Grant, Seconds, Session } from '../types'
 
 export type FromKvOptions = {
   keys: KeyStore

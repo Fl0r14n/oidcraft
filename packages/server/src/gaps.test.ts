@@ -1,11 +1,10 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
-import { base64url, sha256 } from '@oidcraft/core'
+import { base64url, randomString, sha256 } from '@oidcraft/core'
 import { compactDecrypt, createLocalJWKSet, decodeJwt, decodeProtectedHeader, exportJWK, generateKeyPair, jwtVerify } from 'jose'
 import { memoryAdapter } from './adapters/memory'
 import type { Adapter, Client, RequestContext } from './index'
 import { certificateThumbprint } from './mtls'
 import { createProvider, type Provider } from './provider'
-import { token } from './random'
 import { SESSION_COOKIE } from './session'
 import { meetsRequirement } from './step-up'
 
@@ -43,7 +42,7 @@ const basic = (id = 'rp', secret = SECRET) => `Basic ${btoa(`${id}:${secret}`)}`
 
 beforeEach(async () => {
   adapter = await memoryAdapter({ accounts })
-  verifier = token() + token()
+  verifier = randomString() + randomString()
   challenge = base64url(await sha256(verifier))
 })
 

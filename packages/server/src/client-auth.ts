@@ -1,9 +1,9 @@
+import { constantTimeEquals } from '@oidcraft/core'
 import { ASSERTION_TYPE, verifyClientAssertion } from './client-assertion'
 import type { ResolvedConfig } from './config'
 import type { ClientCertificate } from './context'
 import { OAuthError } from './errors'
 import { matchesRegisteredCertificate, matchesSubjectDn } from './mtls'
-import { equals } from './random'
 import type { Client } from './types'
 
 export type AuthenticatedClient = { client: Client; method: string }
@@ -101,7 +101,7 @@ export const authenticateClient = async (
     if (basic && method === 'client_secret_post') throw unauthorized(`client ${clientId} must authenticate with client_secret_post`)
     if (!basic && method === 'client_secret_basic') throw unauthorized(`client ${clientId} must authenticate with client_secret_basic`)
     if (!presented || !client.clientSecret) throw unauthorized('no client secret was presented')
-    if (!(await equals(presented, client.clientSecret))) throw unauthorized('the client secret does not match')
+    if (!(await constantTimeEquals(presented, client.clientSecret))) throw unauthorized('the client secret does not match')
     return { client, method }
   }
 

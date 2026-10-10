@@ -1,11 +1,10 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
-import { base64url, sha256 } from '@oidcraft/core'
+import { base64url, randomString, sha256 } from '@oidcraft/core'
 import { exportJWK, generateKeyPair, SignJWT } from 'jose'
 import { memoryAdapter } from './adapters/memory'
 import { accessTokenHash } from './dpop'
 import type { Adapter, Client } from './index'
 import { createProvider, type Provider } from './provider'
-import { token } from './random'
 import { SESSION_COOKIE } from './session'
 
 const ISSUER = 'https://op.example.com'
@@ -43,7 +42,7 @@ beforeEach(async () => {
   await adapter.clients.create?.(client())
   await adapter.clients.create?.(client({ clientId: 'strict', dpopBoundAccessTokens: true }))
   provider = createProvider({ issuer: ISSUER, adapter, interactionUrl: `${ISSUER}/interaction`, features: { dpop: true } })
-  verifier = token() + token()
+  verifier = randomString() + randomString()
   challenge = base64url(await sha256(verifier))
   keyPair = await generateKeyPair('ES256', { extractable: true })
 })
@@ -57,7 +56,7 @@ const proof = async (
   const key = over.key ?? keyPair
   const jwk = await exportJWK(key.publicKey)
   const builder = new SignJWT({
-    jti: over.jti ?? token(),
+    jti: over.jti ?? randomString(),
     htm: method,
     htu: uri,
     ...(over.accessToken && { ath: await accessTokenHash(over.accessToken) })
@@ -285,7 +284,7 @@ describe('DPoP nonces', () => {
   const nonced = async (method: string, uri: string, nonce: string, over: { accessToken?: string } = {}) => {
     const jwk = await exportJWK(keyPair.publicKey)
     return new SignJWT({
-      jti: token(),
+      jti: randomString(),
       htm: method,
       htu: uri,
       nonce,

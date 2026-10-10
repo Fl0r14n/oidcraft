@@ -1,6 +1,6 @@
+import { randomString } from '@oidcraft/core'
 import type { ResolvedConfig } from './config'
 import { parseCookies, serializeCookie } from './cookies'
-import { token } from './random'
 import type { Session } from './types'
 
 export const SESSION_COOKIE = 'oidcraft.sid'
@@ -20,7 +20,7 @@ export type LoginInput = {
 
 export const startSession = async (config: ResolvedConfig, login: LoginInput, clientId: string) => {
   const session: Session = {
-    id: token(),
+    id: randomString(),
     accountId: login.accountId,
     authTime: new Date(),
     ...(login.acr && { acr: login.acr }),

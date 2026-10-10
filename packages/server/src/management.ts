@@ -1,8 +1,8 @@
+import { randomString } from '@oidcraft/core'
 import type { ResolvedConfig } from './config'
 import { logoutTokens } from './endpoints/end-session'
 import { clientResponse } from './endpoints/registration'
 import { jwksResponseBody } from './keys'
-import { token } from './random'
 import type { Client } from './types'
 
 export type ManagementClientInput = Omit<Client, 'createdAt' | 'updatedAt' | 'registrationAccessToken'> & {
@@ -39,7 +39,7 @@ export const management = (config: ResolvedConfig) => {
         const now = new Date()
         const client: Client = {
           ...input,
-          clientId: input.clientId ?? token(),
+          clientId: input.clientId ?? randomString(),
           requirePkce: input.requirePkce !== false,
           createdAt: now,
           updatedAt: now

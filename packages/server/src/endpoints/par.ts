@@ -1,7 +1,7 @@
+import { randomString } from '@oidcraft/core'
 import { authenticateClient } from '../client-auth'
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
-import { token } from '../random'
 import { applyRequestObject } from '../request-object'
 import { parseAuthorizationRequest, validateAuthorizationRequest } from './authorization'
 
@@ -32,7 +32,7 @@ export const pushedAuthorizationRequestEndpoint = async (config: ResolvedConfig,
   const { redirectUri } = await parseAuthorizationRequest(config, params)
   validateAuthorizationRequest(config, client, redirectUri, params)
 
-  const id = token()
+  const id = randomString()
   const expiresIn = config.ttl.pushedAuthorizationRequest
   await config.adapter.artifacts.upsert({
     id,

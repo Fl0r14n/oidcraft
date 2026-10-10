@@ -1,7 +1,7 @@
+import { randomString } from '@oidcraft/core'
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
 import { signingAlgorithms } from '../keys'
-import { token } from '../random'
 import type { Client, ClientAuthMethod } from '../types'
 
 const DEFAULT_GRANTS = ['authorization_code']
@@ -92,8 +92,8 @@ const metadataFrom = (config: ResolvedConfig, body: Record<string, unknown>): Cl
 
   const now = new Date()
   return {
-    clientId: token(),
-    ...(method !== 'none' && { clientSecret: token() }),
+    clientId: randomString(),
+    ...(method !== 'none' && { clientSecret: randomString() }),
     ...(typeof body.client_name === 'string' && { clientName: body.client_name }),
     redirectUris,
     ...(Array.isArray(body.post_logout_redirect_uris) && { postLogoutRedirectUris: body.post_logout_redirect_uris as string[] }),
@@ -110,7 +110,7 @@ const metadataFrom = (config: ResolvedConfig, body: Record<string, unknown>): Cl
     ...(typeof body.backchannel_logout_uri === 'string' && { backchannelLogoutUri: body.backchannel_logout_uri }),
     // FR-C3: registering itself gives no assurance; only the host's onRegister can exempt it.
     requirePkce: true,
-    registrationAccessToken: token(),
+    registrationAccessToken: randomString(),
     createdAt: now,
     updatedAt: now
   }

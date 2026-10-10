@@ -1,8 +1,8 @@
+import { randomString } from '@oidcraft/core'
 import type { ResolvedConfig } from './config'
 import type { AuthorizationRequest } from './endpoints/authorization'
 import { redirectTo } from './endpoints/authorization'
 import { OAuthError } from './errors'
-import { token } from './random'
 import { startSession } from './session'
 import type { Grant } from './types'
 
@@ -105,7 +105,7 @@ export const interactions = (config: ResolvedConfig) => ({
 
       const previous = await config.adapter.grants.findByAccountAndClient(accountId, request.clientId)
       const grant: Grant = {
-        id: previous?.id ?? token(),
+        id: previous?.id ?? randomString(),
         accountId,
         clientId: request.clientId,
         // FR-I4: consent accumulates, so a returning user is not re-asked for what they already allowed.

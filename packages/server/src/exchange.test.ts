@@ -1,9 +1,8 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
-import { base64url, sha256 } from '@oidcraft/core'
+import { base64url, randomString, sha256 } from '@oidcraft/core'
 import { memoryAdapter } from './adapters/memory'
 import type { Adapter, Client, ExchangePolicy } from './index'
 import { createProvider, type Provider } from './provider'
-import { token } from './random'
 import { SESSION_COOKIE } from './session'
 
 const ISSUER = 'https://op.example.com'
@@ -41,7 +40,7 @@ const basic = (id = 'rp', secret = SECRET) => `Basic ${btoa(`${id}:${secret}`)}`
 beforeEach(async () => {
   adapter = await memoryAdapter({ accounts })
   await adapter.clients.create?.(client())
-  verifier = token() + token()
+  verifier = randomString() + randomString()
   challenge = base64url(await sha256(verifier))
 })
 

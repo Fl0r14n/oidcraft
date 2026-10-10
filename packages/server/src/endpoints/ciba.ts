@@ -1,7 +1,7 @@
+import { randomString } from '@oidcraft/core'
 import { authenticateClient } from '../client-auth'
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
-import { token } from '../random'
 import type { Artifact } from '../types'
 
 export const CIBA_GRANT = 'urn:openid:params:grant-type:ciba'
@@ -75,7 +75,7 @@ export const backchannelAuthenticationEndpoint = async (config: ResolvedConfig, 
   })
   if (!resolved) throw new OAuthError('unknown_user_id', { description: 'no user matches that hint', spec: 'OIDC CIBA 1.0 §13' })
 
-  const authReqId = token()
+  const authReqId = randomString()
   const expiresIn = config.ttl.backchannelRequest
   await config.adapter.artifacts.upsert({
     id: authReqId,
@@ -153,7 +153,7 @@ export const resolveBackchannelRequest = async (config: ResolvedConfig, authReqI
 
   const previous = await config.adapter.grants.findByAccountAndClient(outcome.accountId, artifact.clientId)
   const grant = {
-    id: previous?.id ?? token(),
+    id: previous?.id ?? randomString(),
     accountId: outcome.accountId,
     clientId: artifact.clientId,
     scopes: [...new Set([...(previous?.scopes ?? []), ...outcome.scopes])],

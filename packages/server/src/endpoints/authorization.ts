@@ -1,7 +1,7 @@
+import { randomString } from '@oidcraft/core'
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
 import { assertChallenge } from '../pkce'
-import { token } from '../random'
 import { isFresh } from '../session'
 import type { Artifact, Client, Grant, Session } from '../types'
 import { selectUpstream } from '../upstreams'
@@ -235,7 +235,7 @@ const suspend = async (
   session?: Session,
   client?: Client
 ) => {
-  const id = token()
+  const id = randomString()
   // FR-F4: which upstream to use is a decision, so the provider makes it here; performing the round
   // trip is I/O, so the host does that. When nothing decides it, the candidates go to the screen
   // rather than one being guessed.
@@ -268,7 +268,7 @@ const suspend = async (
 }
 
 const issueCode = async (config: ResolvedConfig, request: AuthorizationRequest, session: Session, grant: Grant) => {
-  const code = token()
+  const code = randomString()
   await config.adapter.artifacts.upsert({
     id: code,
     kind: 'authorization_code',

@@ -1,7 +1,7 @@
+import { randomString } from '@oidcraft/core'
 import { authenticateClient } from '../client-auth'
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
-import { token } from '../random'
 import type { Artifact } from '../types'
 
 /**
@@ -33,7 +33,7 @@ export const deviceAuthorizationEndpoint = async (config: ResolvedConfig, reques
   if (unallowed.length)
     throw new OAuthError('invalid_scope', { description: `client ${client.clientId} may not request: ${unallowed.join(', ')}` })
 
-  const deviceCode = token()
+  const deviceCode = randomString()
   const code = userCode()
   const expiresIn = config.ttl.deviceCode
   const expiresAt = new Date(Date.now() + expiresIn * 1000)
@@ -137,7 +137,7 @@ export const resolveDeviceCode = async (config: ResolvedConfig, typed: string, o
 
   const previous = await config.adapter.grants.findByAccountAndClient(outcome.accountId, found.artifact.clientId)
   const grant = {
-    id: previous?.id ?? token(),
+    id: previous?.id ?? randomString(),
     accountId: outcome.accountId,
     clientId: found.artifact.clientId,
     scopes: [...new Set([...(previous?.scopes ?? []), ...outcome.scopes])],

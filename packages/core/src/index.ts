@@ -14,7 +14,16 @@ export {
 } from './form'
 export { defaultOAuthFunctions, resolveOAuthFunctions } from './functions'
 export { createIdTokenVerifier, type IdTokenClaims, type IdTokenVerifier, type IdTokenVerifierOptions, parseIdToken } from './jwt'
-export { base64url, calculatePKCECodeChallenge, randomNonce, randomPKCECodeVerifier, randomState, randomString, sha256 } from './random'
+export {
+  base64url,
+  calculatePKCECodeChallenge,
+  constantTimeEquals,
+  randomNonce,
+  randomPKCECodeVerifier,
+  randomState,
+  randomString,
+  sha256
+} from './random'
 export { type ParsedRedirect, parseRedirectParameters, type RedirectFlow, type RedirectSource } from './redirect'
 export { assertSecure, InsecureEndpointError, isTenantTemplate, sameIssuer, TENANT_TEMPLATE } from './secure'
 export * from './types'

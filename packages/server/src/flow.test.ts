@@ -1,10 +1,9 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
-import { base64url, sha256 } from '@oidcraft/core'
+import { base64url, randomString, sha256 } from '@oidcraft/core'
 import { createLocalJWKSet, decodeProtectedHeader, jwtVerify } from 'jose'
 import { memoryAdapter } from './adapters/memory'
 import type { Adapter, Client } from './index'
 import { createProvider, type Provider } from './provider'
-import { token } from './random'
 import { SESSION_COOKIE } from './session'
 
 const ISSUER = 'https://op.example.com'
@@ -41,7 +40,7 @@ beforeEach(async () => {
   adapter = await memoryAdapter({ accounts })
   await adapter.clients.create?.(client())
   provider = createProvider({ issuer: ISSUER, adapter, interactionUrl: `${ISSUER}/interaction` })
-  verifier = token() + token()
+  verifier = randomString() + randomString()
   challenge = base64url(await sha256(verifier))
 })
 
@@ -254,7 +253,7 @@ describe('token endpoint', () => {
 
   test('a wrong code_verifier is refused', async () => {
     const { location } = await loginAndConsent()
-    const response = await exchange(location.searchParams.get('code') as string, { code_verifier: token() + token() })
+    const response = await exchange(location.searchParams.get('code') as string, { code_verifier: randomString() + randomString() })
     expect(response.status).toBe(400)
     expect((await response.json()).error).toBe('invalid_grant')
   })

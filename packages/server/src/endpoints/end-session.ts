@@ -1,9 +1,9 @@
+import { randomString } from '@oidcraft/core'
 import { createLocalJWKSet, decodeJwt, importJWK, jwtVerify, SignJWT } from 'jose'
 import type { ResolvedConfig } from '../config'
 import { clearCookie } from '../cookies'
 import { OAuthError } from '../errors'
 import { jwksResponseBody, signingKey } from '../keys'
-import { token } from '../random'
 import { SESSION_COOKIE } from '../session'
 import type { Client, Session } from '../types'
 
@@ -57,7 +57,7 @@ export const logoutTokens = async (config: ResolvedConfig, session: Session): Pr
       sid: session.id,
       // The marker that makes this a logout token and not a re-usable ID token (§2.4).
       events: { 'http://schemas.openid.net/event/backchannel-logout': {} },
-      jti: token()
+      jti: randomString()
     })
       .setProtectedHeader({ alg, kid: key.kid, typ: 'logout+jwt' })
       .setIssuer(config.issuer)

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import { calculatePKCECodeChallenge, randomNonce, randomPKCECodeVerifier, randomState, randomString } from './random'
+import { calculatePKCECodeChallenge, constantTimeEquals, randomNonce, randomPKCECodeVerifier, randomState, randomString } from './random'
 
 const BASE64URL = /^[A-Za-z0-9\-_]+$/
 
@@ -12,9 +12,20 @@ describe('random', () => {
   })
 
   it('does not repeat itself', () => {
-    const values = new Set(Array.from({ length: 50 }, () => randomString()))
+    const values = new Set(Array.from({ length: 1000 }, () => randomString()))
 
-    expect(values.size).toBe(50)
+    expect(values.size).toBe(1000)
+  })
+
+  it('carries at least 256 bits by default, which every server token relies on (NFR-S3)', () => {
+    expect(randomString().length * 6).toBeGreaterThanOrEqual(256)
+  })
+
+  it('compares secrets by value, whatever their lengths', async () => {
+    expect(await constantTimeEquals('secret', 'secret')).toBe(true)
+    expect(await constantTimeEquals('secret', 'secreT')).toBe(false)
+    expect(await constantTimeEquals('secret', 'secret-longer')).toBe(false)
+    expect(await constantTimeEquals('', '')).toBe(true)
   })
 
   it('gives state, nonce and verifier the same shape', () => {

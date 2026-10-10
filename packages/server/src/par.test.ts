@@ -1,10 +1,9 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
-import { base64url, sha256 } from '@oidcraft/core'
+import { base64url, randomString, sha256 } from '@oidcraft/core'
 import { exportJWK, generateKeyPair, SignJWT } from 'jose'
 import { memoryAdapter } from './adapters/memory'
 import type { Adapter, Client } from './index'
 import { createProvider, type Provider } from './provider'
-import { token } from './random'
 
 const ISSUER = 'https://op.example.com'
 const REDIRECT = 'https://rp.example.com/cb'
@@ -42,7 +41,7 @@ beforeEach(async () => {
     interactionUrl: `${ISSUER}/interaction`,
     features: { pushedAuthorizationRequests: true }
   })
-  challenge = base64url(await sha256(token() + token()))
+  challenge = base64url(await sha256(randomString() + randomString()))
 })
 
 const requestParams = (over: Record<string, string> = {}) => ({

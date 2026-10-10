@@ -1,3 +1,4 @@
+import { randomString } from '@oidcraft/core'
 import { mintJwtAccessToken } from '../access-token'
 import { authenticateClient } from '../client-auth'
 import type { ResolvedConfig } from '../config'
@@ -6,7 +7,6 @@ import { verifyDpopProof } from '../dpop'
 import { OAuthError } from '../errors'
 import { certificateThumbprint } from '../mtls'
 import { verifyChallenge } from '../pkce'
-import { token as randomToken } from '../random'
 import { subjectFor } from '../subjects'
 import { mintIdToken } from '../tokens'
 import type { Artifact, Client, Grant, Session } from '../types'
@@ -42,7 +42,7 @@ const issueTokens = async (
   authorizationDetails?: unknown[],
   x5t?: string
 ) => {
-  const accessTokenId = randomToken()
+  const accessTokenId = randomString()
   const expiresIn = config.ttl.accessToken
   const accessTokenExpiry = new Date(Date.now() + expiresIn * 1000)
   // FR-C18: what this client is told the user is called, which may not be the local account id.
@@ -80,7 +80,7 @@ const issueTokens = async (
   let refreshToken: string | undefined
   // Only when the client asked for it: a refresh token nobody requested is a credential nobody guards.
   if (scopes.includes('offline_access') && client.grantTypes.includes('refresh_token')) {
-    refreshToken = randomToken()
+    refreshToken = randomString()
     await config.adapter.artifacts.upsert({
       id: refreshToken,
       kind: 'refresh_token',
@@ -213,7 +213,7 @@ const clientCredentialsGrant = async (config: ResolvedConfig, client: Client, fo
     throw new OAuthError('invalid_scope', { description: `client ${client.clientId} may not request: ${unallowed.join(', ')}` })
 
   const scopes = requested.length ? requested : client.scopes.filter(scope => scope !== 'openid' && scope !== 'offline_access')
-  const accessToken = randomToken()
+  const accessToken = randomString()
   const expiresIn = config.ttl.accessToken
 
   await config.adapter.artifacts.upsert({
@@ -249,7 +249,7 @@ const cibaGrant = async (config: ResolvedConfig, client: Client, form: URLSearch
 const exchangeGrant = async (config: ResolvedConfig, client: Client, form: URLSearchParams, jkt?: string) => {
   const { decision, requestedType, subject } = await tokenExchange(config, client, form)
 
-  const accessToken = randomToken()
+  const accessToken = randomString()
   const expiresIn = config.ttl.accessToken
   await config.adapter.artifacts.upsert({
     id: accessToken,

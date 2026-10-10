@@ -1,8 +1,7 @@
-import { base64url, sha256 } from '@oidcraft/core'
+import { base64url, randomString, sha256 } from '@oidcraft/core'
 import { calculateJwkThumbprint, decodeProtectedHeader, importJWK, type JWK, jwtVerify } from 'jose'
 import type { ResolvedConfig } from './config'
 import { OAuthError } from './errors'
-import { token } from './random'
 
 /** RFC 9449 §4.2: asymmetric only. A symmetric alg would let anyone holding the proof mint another. */
 const ALLOWED_ALGS = ['ES256', 'ES384', 'ES512', 'PS256', 'PS384', 'PS512', 'RS256', 'RS384', 'RS512', 'EdDSA']
@@ -22,7 +21,7 @@ export type DpopProof = { jkt: string; jti: string }
 export const NONCE_NAMESPACE = 'dpop-nonce'
 
 export const issueNonce = async (config: ResolvedConfig) => {
-  const nonce = token()
+  const nonce = randomString()
   await config.adapter.replay.claim(NONCE_NAMESPACE, nonce, config.ttl.dpopNonce)
   return nonce
 }

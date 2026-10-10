@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { adapterConformance } from '../../adapter-conformance'
+import { adapterConformance } from '../conformance'
 import { memoryAdapter, memoryKv } from './index'
 
 describe('memory adapter', () => {

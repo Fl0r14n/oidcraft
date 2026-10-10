@@ -463,7 +463,7 @@ The gate is `.github/workflows/ci.yml` on every push and pull request: `biome ci
 the apps resolve `oidcraft` through its exports map into `dist/`, which does not exist on a fresh
 clone.
 
-- **Adapter conformance** — `adapterConformance(name, create)` in `src/adapter-conformance.ts` is one
+- **Adapter conformance** — `adapterConformance(name, create)` in `src/adapters/conformance.ts` is one
   suite every adapter runs, covering the queries the protocol actually needs: expiry enforced by
   storage, `kind` as part of an artifact's identity, `revokeByGrantId` removing that grant and
   nothing else, lookup by user code and by upstream session, and the replay guard admitting a value
@@ -471,13 +471,13 @@ clone.
 
 - **Unit** — `bun test` per package. Every `FR-C*` gets a test that exercises the wire format, not
   just the function behind it (NFR-C3).
-- **Protocol conformance** — the OpenID Foundation suite for the `basic`, `config` and `dynamic` OP
-  profiles. **It has not been run.** The suite publishes no image: it is built from source with
-  Maven and a JDK, and some plans drive the authorization leg through a browser. `conformance/`
-  holds the plan configuration and a runner for someone who has built it; the runner exits non-zero
-  when the suite is absent, so it can never be mistaken for a passing gate (NFR-C1).
+- **Protocol conformance** — the OpenID Foundation suite for the `basic` and `config` OP profiles
+  (NFR-C1). Both are green when run locally; they do not yet run in CI, so this is not a gate.
+  `conformance/` holds the plan configuration, the refusals with the clause behind each, and the
+  runner; the runner exits non-zero when the suite is absent, so it can never be mistaken for a
+  passing gate.
 
-- **Metadata conformance** — what runs today instead: `metadata.test.ts` checks the discovery
+- **Metadata conformance** — what runs on every push: `metadata.test.ts` checks the discovery
   document against OIDC Discovery 1.0 §3 and RFC 8414 §2 and cross-checks it against behaviour —
   every advertised endpoint answers, every advertised algorithm has a key, a disabled feature is
   neither advertised nor routed. It catches metadata drifting from behaviour, which is the failure

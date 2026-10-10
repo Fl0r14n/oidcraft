@@ -4,8 +4,8 @@ import { Database } from 'bun:sqlite'
 import { describe, expect, test } from 'bun:test'
 import { Kysely, sql } from 'kysely'
 import { BunSqliteDialect } from 'kysely-bun-sqlite'
-import { adapterConformance } from '../../adapter-conformance'
 import { generatedKeyStore } from '../../keys'
+import { adapterConformance } from '../conformance'
 import { kyselyAdapter, type OidcraftDatabase } from './index'
 
 const MIGRATION = `

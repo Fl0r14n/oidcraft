@@ -4,8 +4,8 @@ import { Database } from 'bun:sqlite'
 import { describe, expect, test } from 'bun:test'
 import { sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/bun-sqlite'
-import { adapterConformance } from '../../adapter-conformance'
 import { generatedKeyStore } from '../../keys'
+import { adapterConformance } from '../conformance'
 import { type DrizzleDatabase, drizzleAdapter } from './index'
 
 /** The schema the adapter owns. A deployment runs this as a migration; the library never applies it. */

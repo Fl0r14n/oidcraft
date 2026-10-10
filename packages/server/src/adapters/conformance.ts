@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
-import type { Adapter } from './adapter'
-import type { Artifact, Client, Grant, Session } from './types'
+import type { Adapter } from '../adapter'
+import type { Artifact, Client, Grant, Session } from '../types'
 
 /**
  * One suite every adapter runs, so memory, Drizzle and Kysely are provably interchangeable rather

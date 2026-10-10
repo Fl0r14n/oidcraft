@@ -134,10 +134,12 @@ here are the thing most likely to.
 An entry inside `oidcraft` could not have done the same job: a Vue application would be installing
 an OpenID Provider to get a login button.
 
-The provider compiles in what it uses of `@oidcraft/core` too — `base64url`, `sha256`, `randomString`,
+The provider compiles in what it uses of `@oidcraft/core` too — `sha256`, `randomString`,
 `constantTimeEquals` — so each primitive exists once, and the server has no `random.ts` of its own.
-That is the provider depending on the protocol, never the reverse. The cost is that the root and an entry such as `./federation` each carry their own bundled copy of
-a helper; `verify-entries.ts` tolerates that deliberately and says why (§2.2).
+Encoding is `jose`'s `base64url`, which both halves already depend on. That is the provider
+depending on the protocol, never the reverse. The cost is that the root and an entry such as
+`./federation` each carry their own bundled copy of a helper; `verify-entries.ts` tolerates that
+deliberately and says why (§2.2).
 
 What a package split was never buying is a hard wall stopping the core from importing its optional
 peers. `verify-entries.ts` does that (§2.2).

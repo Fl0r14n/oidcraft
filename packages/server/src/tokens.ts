@@ -1,5 +1,5 @@
-import { base64url, sha256 } from '@oidcraft/core'
-import { importJWK, SignJWT } from 'jose'
+import { sha256 } from '@oidcraft/core'
+import { base64url, importJWK, SignJWT } from 'jose'
 import type { ResolvedConfig } from './config'
 import { OAuthError } from './errors'
 import { signingKey } from './keys'
@@ -19,7 +19,7 @@ export type IdTokenInput = {
 /** Left-most half of the hash of the value, base64url — OIDC Core §3.3.2.11. */
 const halfHash = async (value: string) => {
   const digest = await sha256(value)
-  return base64url(digest.slice(0, digest.length / 2))
+  return base64url.encode(digest.slice(0, digest.length / 2))
 }
 
 export const mintIdToken = async (config: ResolvedConfig, input: IdTokenInput) => {

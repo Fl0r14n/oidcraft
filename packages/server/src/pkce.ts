@@ -1,4 +1,5 @@
-import { base64url, sha256 } from '@oidcraft/core'
+import { sha256 } from '@oidcraft/core'
+import { base64url } from 'jose'
 import { OAuthError } from './errors'
 import type { Client } from './types'
 
@@ -48,7 +49,7 @@ export const verifyChallenge = async (verifier: string | null, challenge: string
   if (verifier.length < MIN || verifier.length > MAX) {
     throw new OAuthError('invalid_grant', { description: `code_verifier must be ${MIN}-${MAX} characters`, spec: 'RFC 7636 §4.1' })
   }
-  if (base64url(await sha256(verifier)) !== challenge) {
+  if (base64url.encode(await sha256(verifier)) !== challenge) {
     throw new OAuthError('invalid_grant', { description: 'code_verifier does not match the code_challenge', spec: 'RFC 7636 §4.6' })
   }
 }

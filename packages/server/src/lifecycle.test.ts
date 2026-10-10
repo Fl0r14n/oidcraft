@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
-import { base64url, randomString, sha256 } from '@oidcraft/core'
-import { decodeJwt } from 'jose'
+import { randomString, sha256 } from '@oidcraft/core'
+import { base64url, decodeJwt } from 'jose'
 import { memoryAdapter } from './adapters/memory'
 import type { Adapter, Client, LogoutNotification } from './index'
 import { createProvider, type Provider } from './provider'
@@ -55,7 +55,7 @@ beforeEach(async () => {
     }
   })
   verifier = randomString() + randomString()
-  challenge = base64url(await sha256(verifier))
+  challenge = base64url.encode(await sha256(verifier))
 })
 
 const post = (path: string, body: Record<string, string>, headers: Record<string, string> = {}) =>

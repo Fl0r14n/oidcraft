@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
-import { base64url, randomString, sha256 } from '@oidcraft/core'
-import { exportJWK, generateKeyPair, SignJWT } from 'jose'
+import { randomString, sha256 } from '@oidcraft/core'
+import { base64url, exportJWK, generateKeyPair, SignJWT } from 'jose'
 import { memoryAdapter } from './adapters/memory'
 import type { Adapter, Client } from './index'
 import { createProvider, type Provider } from './provider'
@@ -41,7 +41,7 @@ beforeEach(async () => {
     interactionUrl: `${ISSUER}/interaction`,
     features: { pushedAuthorizationRequests: true }
   })
-  challenge = base64url(await sha256(randomString() + randomString()))
+  challenge = base64url.encode(await sha256(randomString() + randomString()))
 })
 
 const requestParams = (over: Record<string, string> = {}) => ({

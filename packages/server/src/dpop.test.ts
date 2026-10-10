@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
-import { base64url, randomString, sha256 } from '@oidcraft/core'
-import { exportJWK, generateKeyPair, SignJWT } from 'jose'
+import { randomString, sha256 } from '@oidcraft/core'
+import { base64url, exportJWK, generateKeyPair, SignJWT } from 'jose'
 import { memoryAdapter } from './adapters/memory'
 import { accessTokenHash } from './dpop'
 import type { Adapter, Client } from './index'
@@ -43,7 +43,7 @@ beforeEach(async () => {
   await adapter.clients.create?.(client({ clientId: 'strict', dpopBoundAccessTokens: true }))
   provider = createProvider({ issuer: ISSUER, adapter, interactionUrl: `${ISSUER}/interaction`, features: { dpop: true } })
   verifier = randomString() + randomString()
-  challenge = base64url(await sha256(verifier))
+  challenge = base64url.encode(await sha256(verifier))
   keyPair = await generateKeyPair('ES256', { extractable: true })
 })
 

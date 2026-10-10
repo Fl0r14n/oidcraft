@@ -1,5 +1,4 @@
-import { createRemoteJWKSet, customFetch, jwtVerify } from 'jose'
-import { base64urlDecode } from './random'
+import { createRemoteJWKSet, customFetch, decodeJwt, jwtVerify } from 'jose'
 import { assertSecure, TENANT_TEMPLATE } from './secure'
 
 export type IdTokenClaims = Record<string, any>
@@ -32,9 +31,11 @@ const resolveIssuer = (issuer: ExpectedIssuer, claims: IdTokenClaims) => {
 /** Decodes without verifying anything. The claims are the provider's word, unchecked — read them only
  * after `createIdTokenVerifier` has passed the token, or for a value nothing is decided on. */
 export const parseIdToken = (idToken?: string): IdTokenClaims => {
-  const payload = idToken?.split('.')[1]
-  if (!payload) return {}
-  return JSON.parse(new TextDecoder().decode(base64urlDecode(payload)))
+  try {
+    return idToken ? decodeJwt<IdTokenClaims>(idToken) : {}
+  } catch {
+    return {}
+  }
 }
 
 /** Holds the remote JWKS for its lifetime, so build one per configuration and keep it — jose caches keys

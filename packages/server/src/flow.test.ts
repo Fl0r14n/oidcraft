@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
-import { base64url, randomString, sha256 } from '@oidcraft/core'
-import { createLocalJWKSet, decodeProtectedHeader, jwtVerify } from 'jose'
+import { randomString, sha256 } from '@oidcraft/core'
+import { base64url, createLocalJWKSet, decodeProtectedHeader, jwtVerify } from 'jose'
 import { memoryAdapter } from './adapters/memory'
 import type { Adapter, Client } from './index'
 import { createProvider, type Provider } from './provider'
@@ -41,7 +41,7 @@ beforeEach(async () => {
   await adapter.clients.create?.(client())
   provider = createProvider({ issuer: ISSUER, adapter, interactionUrl: `${ISSUER}/interaction` })
   verifier = randomString() + randomString()
-  challenge = base64url(await sha256(verifier))
+  challenge = base64url.encode(await sha256(verifier))
 })
 
 const authorizeUrl = (over: Record<string, string> = {}) => {

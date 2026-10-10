@@ -1,10 +1,10 @@
-import { base64url } from '@oidcraft/core'
+import { base64url } from 'jose'
 import type { ClientCertificate } from './context'
 import type { Client } from './types'
 
 /** RFC 8705 §3.1: the SHA-256 thumbprint of the DER certificate, base64url. */
 export const certificateThumbprint = async (der: Uint8Array) =>
-  base64url(new Uint8Array(await crypto.subtle.digest('SHA-256', der as unknown as ArrayBuffer)))
+  base64url.encode(new Uint8Array(await crypto.subtle.digest('SHA-256', der as unknown as ArrayBuffer)))
 
 /**
  * `tls_client_auth` (RFC 8705 §2.1): the client is whoever holds a certificate whose subject the

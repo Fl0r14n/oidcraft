@@ -34,7 +34,7 @@ const declares = (source: string) =>
 /**
  * The names the root actually *exports*, which is narrower than what it declares: a bundle is full of
  * private helpers, and the root and an entry each compile in their own copy of a `@oidcraft/core`
- * helper such as `base64url`. Only an exported name can be imported, so only an exported name can
+ * helper such as `sha256`. Only an exported name can be imported, so only an exported name can
  * have been inlined "instead of importing it" — matching an internal one reports a coincidence as a
  * duplication.
  */

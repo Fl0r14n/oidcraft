@@ -1,5 +1,5 @@
-import { base64url, randomString, sha256 } from '@oidcraft/core'
-import { calculateJwkThumbprint, decodeProtectedHeader, importJWK, type JWK, jwtVerify } from 'jose'
+import { randomString, sha256 } from '@oidcraft/core'
+import { base64url, calculateJwkThumbprint, decodeProtectedHeader, importJWK, type JWK, jwtVerify } from 'jose'
 import type { ResolvedConfig } from './config'
 import { OAuthError } from './errors'
 
@@ -46,7 +46,7 @@ export const htu = (request: Request) => {
   return `${url.origin}${url.pathname}`
 }
 
-export const accessTokenHash = async (accessToken: string) => base64url(await sha256(accessToken))
+export const accessTokenHash = async (accessToken: string) => base64url.encode(await sha256(accessToken))
 
 export type VerifyOptions = {
   /** Demand a nonce this provider issued (RFC 9449 §8). */

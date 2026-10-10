@@ -1,4 +1,5 @@
-import { base64url, sha256 } from '@oidcraft/core'
+import { sha256 } from '@oidcraft/core'
+import { base64url } from 'jose'
 import type { ResolvedConfig } from './config'
 import type { Client } from './types'
 
@@ -26,7 +27,7 @@ export const sectorOf = (client: Client) => {
  * mapping is a pure function of the account and sector, which anyone can recompute.
  */
 export const pairwiseSubject = async (accountId: string, sector: string, salt: string) =>
-  base64url(await sha256(`${sector}.${accountId}.${salt}`))
+  base64url.encode(await sha256(`${sector}.${accountId}.${salt}`))
 
 export const subjectFor = async (config: ResolvedConfig, client: Client, accountId: string) => {
   if ((client.subjectType ?? config.subjectType) !== 'pairwise') return accountId

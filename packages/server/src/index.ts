@@ -14,7 +14,6 @@ export type { AuthorizationDetail, AuthorizationRequest } from './authorize/auth
 export type { CibaDecision, CibaPayload } from './authorize/ciba'
 export type { DeviceApproval, DevicePayload } from './authorize/device'
 export { authenticationOf, meetsRequirement, type StepUpRequirement, type StepUpVerdict } from './authorize/step-up'
-export { ACR_PREFIX, type SelectionHints, selectUpstream, type UpstreamDescriptor } from './authorize/upstream-selection'
 export { type DpopProof, type VerifyOptions, verifyDpopProof } from './binding/dpop'
 export { certificateThumbprint } from './binding/mtls'
 export type {
@@ -37,3 +36,4 @@ export type { FrontChannelLogout, LogoutNotification } from './session/logout'
 export { resolveAccessToken } from './token/access-token'
 export type { ExchangeDecision, ExchangePolicy } from './token/exchange'
 export type { Account, Artifact, ArtifactKind, Client, ClientAuthMethod, FederatedIdentity, Grant, Seconds, Session } from './types'
+export { ACR_PREFIX, type SelectionHints, selectUpstream, type UpstreamDescriptor } from './upstreams/selection'

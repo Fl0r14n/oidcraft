@@ -1,8 +1,8 @@
 import type { Adapter } from './adapter'
-import type { UpstreamDescriptor } from './authorize/upstream-selection'
 import { ConfigurationError } from './errors'
 import type { ExchangePolicy } from './token/exchange'
 import type { Client, ClientAuthMethod, Seconds } from './types'
+import type { UpstreamDescriptor } from './upstreams/selection'
 
 export type Routes = {
   discovery: string

@@ -3,8 +3,8 @@ import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
 import { isFresh } from '../session/session'
 import type { Artifact, Client, Grant, Session } from '../types'
+import { selectUpstream } from '../upstreams/selection'
 import { assertChallenge } from './pkce'
-import { selectUpstream } from './upstream-selection'
 
 export type AuthorizationRequest = {
   clientId: string

@@ -83,8 +83,8 @@ Inside the root entry, code is grouped by feature, not by HTTP route: a folder h
 endpoint, the grant the token endpoint dispatches to, and the host-facing functions together.
 
 ```
-src/authorize/    authorization, PAR, request objects, PKCE, interactions, step-up, upstream
-                  selection, and the two flows that start without a redirect: device and CIBA
+src/authorize/    authorization, PAR, request objects, PKCE, interactions, step-up, the grants
+                  consent produces, and the two flows that start without a redirect: device and CIBA
 src/token/        the token endpoint as a dispatcher, the code and refresh grants, client
                   credentials, token exchange, and minting: ID token, JWT access token, subjects
 src/binding/      sender-constrained tokens — DPoP (RFC 9449) and mTLS (RFC 8705)
@@ -92,7 +92,12 @@ src/clients/      client authentication, JWT client assertions, dynamic registra
 src/session/      the OP session cookie, RP-initiated logout, logout notifications
 src/resource/     what a resource server calls: UserInfo, introspection, revocation
 src/keys/         the key store and the JWKS endpoint
+src/upstreams/    upstream selection (FR-F4) and the linked identities — the root's side of
+                  brokering; the relying-party leg is the `./federation` entry
 ```
+
+The management API (FR-M1) follows the same split: each folder's `management.ts` holds its
+operator functions, and the root `management.ts` only assembles them into `provider.management`.
 
 None of these folders has an `index.ts`: `exports.test.ts` treats a directory with one as a
 published entry, so an import names the file it means.

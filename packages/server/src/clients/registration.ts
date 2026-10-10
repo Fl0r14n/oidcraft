@@ -1,4 +1,5 @@
 import { randomString } from '@oidcraft/core'
+import { audit } from '../audit'
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
 import { signingAlgorithms } from '../keys/keys'
@@ -170,7 +171,7 @@ export const registrationEndpoint = async (config: ResolvedConfig, request: Requ
     }
     if (!config.adapter.clients.create) throw new OAuthError('server_error', { description: 'this adapter cannot create clients' })
     await config.adapter.clients.create(client)
-    await config.onAudit?.({ action: 'client.register', clientId: client.clientId, at: new Date() })
+    await audit(config, 'client.register', { clientId: client.clientId })
     return Response.json(clientResponse(config, client), { status: 201, headers: { 'cache-control': 'no-store' } })
   }
 
@@ -182,7 +183,7 @@ export const registrationEndpoint = async (config: ResolvedConfig, request: Requ
 
   if (request.method === 'DELETE') {
     await config.adapter.clients.destroy?.(client.clientId)
-    await config.onAudit?.({ action: 'client.delete', clientId: client.clientId, at: new Date() })
+    await audit(config, 'client.delete', { clientId: client.clientId })
     return new Response(null, { status: 204, headers: { 'cache-control': 'no-store' } })
   }
 
@@ -201,6 +202,6 @@ export const registrationEndpoint = async (config: ResolvedConfig, request: Requ
     updatedAt: new Date()
   }
   await config.adapter.clients.update?.(client.clientId, updated)
-  await config.onAudit?.({ action: 'client.update', clientId: client.clientId, at: new Date() })
+  await audit(config, 'client.update', { clientId: client.clientId })
   return Response.json(clientResponse(config, updated), { headers: { 'cache-control': 'no-store' } })
 }

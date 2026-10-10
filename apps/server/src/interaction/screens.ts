@@ -1,5 +1,4 @@
-import type { InteractionView } from 'oidcraft'
-import { DEFAULT_MAX_LENGTH, type OAuthFieldError, type OAuthFieldErrors } from 'oidcraft/interaction'
+import { DEFAULT_MAX_LENGTH, type InteractionRequest, type OAuthFieldError, type OAuthFieldErrors } from 'oidcraft/interaction'
 
 const layout = (title: string, body: string) => `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -47,7 +46,7 @@ const invalid = (error: OAuthFieldError) => (error && ' aria-invalid="true"') ||
  * `oauthFieldErrors`. Both are needed: the attribute is the fast path, and it is absent the moment
  * someone posts the form without a browser.
  */
-export const loginScreen = (view: InteractionView, attempt?: LoginAttempt) => {
+export const loginScreen = (view: InteractionRequest, attempt?: LoginAttempt) => {
   const errors = attempt?.errors ?? { username: undefined, password: undefined }
   const username = attempt?.username ?? view.loginHint ?? ''
   return layout(
@@ -62,7 +61,7 @@ export const loginScreen = (view: InteractionView, attempt?: LoginAttempt) => {
   )
 }
 
-export const consentScreen = (view: InteractionView) =>
+export const consentScreen = (view: InteractionRequest) =>
   layout(
     'Authorize',
     `<h1>Authorize ${escapeHtml(view.clientId)}</h1><p class="sub">It is asking to:</p>
@@ -87,7 +86,7 @@ const escapeHtml = (value: string) =>
 export const html = (body: string, status = 200) =>
   new Response(body, { status, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } })
 
-export const selectAccountScreen = (view: InteractionView, accounts: { accountId: string; label: string }[]) =>
+export const selectAccountScreen = (view: InteractionRequest, accounts: { accountId: string; label: string }[]) =>
   layout(
     'Choose an account',
     `<h1>Choose an account</h1><p class="sub">to continue to <strong>${escapeHtml(view.clientId)}</strong></p>
@@ -102,7 +101,7 @@ export const selectAccountScreen = (view: InteractionView, accounts: { accountId
 <input id="u" name="username" autocomplete="username" required><button type="submit">Sign in</button></form>`
   )
 
-export const selectUpstreamScreen = (view: InteractionView, providers: { id: string; label: string }[]) =>
+export const selectUpstreamScreen = (view: InteractionRequest, providers: { id: string; label: string }[]) =>
   layout(
     'Continue with',
     `<h1>Continue with</h1><p class="sub">to continue to <strong>${escapeHtml(view.clientId)}</strong></p>

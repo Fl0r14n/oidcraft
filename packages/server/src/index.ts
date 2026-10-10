@@ -13,13 +13,7 @@ export type {
 export { type AuthorizationDetail, type AuthorizationRequest, redirectTo } from './authorize/authorization'
 export { CIBA_GRANT, type CibaDecision, type CibaPayload } from './authorize/ciba'
 export { type DeviceApproval, type DevicePayload, normalizeUserCode, userCode } from './authorize/device'
-export {
-  type InteractionCompletion,
-  type InteractionKind,
-  type InteractionOutcome,
-  type InteractionView,
-  interactions
-} from './authorize/interactions'
+export { interactions } from './authorize/interactions'
 export { authenticationOf, meetsRequirement, type StepUpRequirement, type StepUpVerdict } from './authorize/step-up'
 export { ACR_PREFIX, type SelectionHints, selectUpstream, type UpstreamDescriptor } from './authorize/upstream-selection'
 export { accessTokenHash, type DpopProof, htu, issueNonce, NONCE_NAMESPACE, type VerifyOptions, verifyDpopProof } from './binding/dpop'

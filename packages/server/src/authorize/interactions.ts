@@ -1,45 +1,11 @@
 import { randomString } from '@oidcraft/core'
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
+import type { InteractionCompletion, InteractionKind, InteractionRequest, InteractionResult } from '../interaction'
 import { startSession } from '../session/session'
 import type { Grant } from '../types'
 import type { AuthorizationRequest } from './authorization'
 import { redirectTo } from './authorization'
-
-export type InteractionKind = 'login' | 'consent'
-
-export type InteractionView = {
-  id: string
-  kind: InteractionKind
-  clientId: string
-  scopes: string[]
-  prompt: string[]
-  loginHint: string | undefined
-  acrValues: string[] | undefined
-  uiLocales: string[] | undefined
-  /**
-   * Seconds, when the client capped session age. Together with `prompt` this is what an upstream
-   * leg must pass through rather than satisfy from whatever session it already holds (FR-F9).
-   */
-  maxAge: number | undefined
-  /** Which upstreams this client may be brokered to, when it restricts them (FR-F2). */
-  upstreamProviders: string[] | undefined
-  /**
-   * Home-realm discovery's answer (FR-F4). `chosen` is set when one upstream is unambiguous;
-   * otherwise `candidates` is what the screen offers, because guessing would sign the user in
-   * somewhere they did not ask for.
-   */
-  upstream: { chosen: string | undefined; candidates: string[] } | undefined
-  expiresAt: Date
-}
-
-export type InteractionOutcome = {
-  login?: { accountId: string; acr?: string; amr?: string[]; idp?: string; upstreamSessionId?: string }
-  consent?: { scopes: string[] }
-  error?: { error: 'access_denied' | 'login_required' | 'consent_required'; description?: string }
-}
-
-export type InteractionCompletion = { redirectTo: string; setCookie: string | undefined }
 
 const load = async (config: ResolvedConfig, id: string) => {
   const artifact = await config.adapter.artifacts.find('interaction', id)
@@ -52,7 +18,7 @@ const load = async (config: ResolvedConfig, id: string) => {
 }
 
 export const interactions = (config: ResolvedConfig) => ({
-  async find(id: string): Promise<InteractionView> {
+  async find(id: string): Promise<InteractionRequest> {
     const { artifact, request, kind } = await load(config, id)
     const client = await config.adapter.clients.find(request.clientId)
     return {
@@ -66,7 +32,7 @@ export const interactions = (config: ResolvedConfig) => ({
       uiLocales: request.uiLocales,
       maxAge: request.maxAge,
       upstreamProviders: client?.upstreamProviders,
-      upstream: artifact.payload.upstream as InteractionView['upstream'],
+      upstream: artifact.payload.upstream as InteractionRequest['upstream'],
       expiresAt: artifact.expiresAt
     }
   },
@@ -77,7 +43,7 @@ export const interactions = (config: ResolvedConfig) => ({
    * The result is never carried in the redirect: state that decides an authorization does not
    * belong in a URL the user can edit.
    */
-  async complete(id: string, outcome: InteractionOutcome): Promise<InteractionCompletion> {
+  async complete(id: string, outcome: InteractionResult): Promise<InteractionCompletion> {
     const { artifact, request } = await load(config, id)
 
     if (outcome.error) {

@@ -5,8 +5,9 @@ import type { Client } from '../types'
 
 export const ASSERTION_TYPE = 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer'
 
-/** RFC 7523 §3: the assertion is a bearer credential, so its lifetime must be short. */
+/** RFC 7523 §3: the assertion is a bearer credential, so its lifetime must be short (FR-C4). */
 const MAX_LIFETIME = 300
+const SKEW = 5
 
 const unauthorized = (description: string, spec = 'RFC 7523 §3') =>
   new OAuthError('invalid_client', { description, spec, headers: { 'www-authenticate': 'Basic realm="oidcraft"' } })
@@ -46,7 +47,7 @@ export const verifyClientAssertion = async (config: ResolvedConfig, client: Clie
           })()
       : await keysFor(config, client)
 
-  const { payload, protectedHeader } = await jwtVerify(assertion, key as never, {
+  const { payload } = await jwtVerify(assertion, key as never, {
     issuer: client.clientId,
     subject: client.clientId,
     audience,
@@ -57,17 +58,18 @@ export const verifyClientAssertion = async (config: ResolvedConfig, client: Clie
     throw unauthorized('the client assertion does not verify')
   })
 
-  if (protectedHeader.alg === 'none') throw unauthorized('an unsigned client assertion proves nothing')
-
   const jti = payload.jti
   if (typeof jti !== 'string' || !jti) throw unauthorized('the client assertion has no jti', 'RFC 7523 §3')
   if (!payload.exp) throw unauthorized('the client assertion has no exp', 'RFC 7523 §3')
-  if (payload.exp - (payload.iat ?? Math.floor(Date.now() / 1000)) > MAX_LIFETIME) {
-    throw unauthorized(`a client assertion may not live longer than ${MAX_LIFETIME} seconds`)
-  }
+  // Measured from now, not from the client's own iat: an iat it chose a year ahead would otherwise
+  // make a year-long assertion look five minutes old.
+  const now = Math.floor(Date.now() / 1000)
+  if (payload.iat !== undefined && payload.iat > now + SKEW) throw unauthorized('the client assertion was issued in the future')
+  const remaining = payload.exp - now
+  if (remaining > MAX_LIFETIME + SKEW) throw unauthorized(`a client assertion may not live longer than ${MAX_LIFETIME} seconds`)
 
-  // NFR-S5: without this the assertion is reusable until it expires by anyone who captures it.
-  if (!(await config.adapter.replay.claim('client-assertion', jti, MAX_LIFETIME))) {
+  // NFR-S5: remembered for as long as the assertion verifies, or it is replayable once forgotten.
+  if (!(await config.adapter.replay.claim('client-assertion', jti, remaining + SKEW))) {
     throw unauthorized('this client assertion has already been used')
   }
 

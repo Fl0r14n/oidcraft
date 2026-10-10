@@ -166,7 +166,7 @@ In fix order; the first is the only one that changes the adapter contract.
 - [x] JAR merges unsigned outer parameters into the signed request; PKCE can be injected (RFC 9101 §5)
 - [x] `authorization_details` issued without consent, and absent from `InteractionRequest` (FR-C15)
 - [x] DPoP nonce can be minted by the client: `claim` stores the unknown value it refuses (RFC 9449 §8)
-- [ ] Client assertion lifetime measured from the client's `iat`; jti remembered for 300 s only (FR-C4, NFR-S5)
+- [x] Client assertion lifetime measured from the client's `iat`; jti remembered for 300 s only (FR-C4, NFR-S5)
 - [ ] Federation handoff not bound to the browser — login CSRF (FR-F3)
 - [ ] workerd hands over an empty certificate DER; every thumbprint is the same (FR-C13)
 - [ ] Open registration does not validate `grant_types` (FR-C9)

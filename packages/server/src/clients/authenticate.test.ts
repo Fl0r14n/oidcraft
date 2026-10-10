@@ -163,6 +163,40 @@ describe('private_key_jwt', () => {
     expect((await (await authenticate(long)).json()).error_description).toContain('longer than')
   })
 
+  const timed = (iat: number, exp: number) =>
+    new SignJWT({ jti: crypto.randomUUID(), iat, exp })
+      .setProtectedHeader({ alg: 'ES256' })
+      .setIssuer('pkj')
+      .setSubject('pkj')
+      .setAudience(`${ISSUER}/token`)
+      .sign(signing.privateKey)
+
+  // FR-C4: the lifetime is what is left from now, not what the client says it has.
+  test('an iat chosen to hide a long exp does not shorten the lifetime', async () => {
+    const now = Math.floor(Date.now() / 1000)
+    const disguised = await timed(now + 365 * 86400 - 100, now + 365 * 86400)
+    expect((await (await authenticate(disguised)).json()).error).toBe('invalid_client')
+  })
+
+  // NFR-S5: a jti forgotten before its assertion expires is a jti that can be replayed.
+  test('the jti is remembered for as long as the assertion verifies', async () => {
+    const ttls: number[] = []
+    const claim = adapter.replay.claim
+    adapter.replay.claim = (namespace, value, ttl) => {
+      if (namespace === 'client-assertion') ttls.push(ttl)
+      return claim(namespace, value, ttl)
+    }
+    const now = Math.floor(Date.now() / 1000)
+    expect((await authenticate(await timed(now, now + 290))).status).toBe(200)
+    expect(ttls[0]).toBeGreaterThanOrEqual(290)
+  })
+
+  test('an assertion issued in the future is refused', async () => {
+    const now = Math.floor(Date.now() / 1000)
+    const early = await timed(now + 120, now + 180)
+    expect((await (await authenticate(early)).json()).error_description).toContain('in the future')
+  })
+
   test('the wrong client_assertion_type is refused', async () => {
     const body = await (
       await post({

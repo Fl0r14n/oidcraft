@@ -63,7 +63,7 @@ describe('login — authorization redirect', () => {
   it('builds the authorize url with the standard parameters', async () => {
     const url = await build({ scope: 'basic' }).login({ redirectUri: 'https://app/cb', responseType: OAuthType.AUTHORIZATION_CODE })
 
-    const params = new URL(url!).searchParams
+    const params = new URL(url ?? '').searchParams
     expect(params.get('client_id')).toBe('c')
     expect(params.get('redirect_uri')).toBe('https://app/cb')
     expect(params.get('response_type')).toBe('code')
@@ -79,9 +79,9 @@ describe('login — authorization redirect', () => {
       responseType: OAuthType.AUTHORIZATION_CODE
     })
 
-    const nonce = new URL(url!).searchParams.get('nonce')
+    const nonce = new URL(url ?? '').searchParams.get('nonce')
     expect(nonce).toBeTruthy()
-    expect(oauth.token().nonce).toBe(nonce!)
+    expect(oauth.token().nonce).toBe(nonce ?? undefined)
   })
 
   it('adds an S256 challenge and keeps the verifier when pkce is on', async () => {
@@ -90,7 +90,7 @@ describe('login — authorization redirect', () => {
       responseType: OAuthType.AUTHORIZATION_CODE
     })
 
-    const params = new URL(url!).searchParams
+    const params = new URL(url ?? '').searchParams
     expect(params.get('code_challenge_method')).toBe('S256')
     expect(params.get('code_challenge')).toBeTruthy()
     // the verifier stays local — it is what proves ownership of the challenge at token exchange
@@ -132,7 +132,7 @@ describe('login — authorization redirect', () => {
       prompt: 'consent'
     })
 
-    const params = new URL(url!).searchParams
+    const params = new URL(url ?? '').searchParams
     expect(params.get('access_type')).toBe('offline')
     expect(params.get('prompt')).toBe('consent')
   })
@@ -332,7 +332,7 @@ describe('redirect: false', () => {
 
     const url = await oauth.login({ redirectUri: 'https://app/cb', responseType: OAuthType.AUTHORIZATION_CODE })
 
-    expect(replaced).toEqual([url!])
+    expect(replaced).toEqual([url ?? ''])
   })
 
   it('logout returns the end-session url without navigating, and still drops the session', async () => {
@@ -345,8 +345,8 @@ describe('redirect: false', () => {
     const url = await oauth.logout('https://app/', undefined, { redirect: false })
 
     expect(url).toContain('https://idp/logout?')
-    expect(new URL(url!).searchParams.get('post_logout_redirect_uri')).toBe('https://app/')
-    expect(new URL(url!).searchParams.get('id_token_hint')).toBe('idt')
+    expect(new URL(url ?? '').searchParams.get('post_logout_redirect_uri')).toBe('https://app/')
+    expect(new URL(url ?? '').searchParams.get('id_token_hint')).toBe('idt')
     expect(replaced).toEqual([])
     expect(oauth.token()).toEqual({})
   })

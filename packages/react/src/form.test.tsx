@@ -47,7 +47,7 @@ const Form = ({ maxLength }: { maxLength?: number } = {}) => {
 }
 
 const mount = (ui: React.ReactNode) => render(<OAuthProvider oauth={oauth}>{ui}</OAuthProvider>)
-const state = () => screen.getByTestId('state').textContent!.split('|')
+const state = () => screen.getByTestId('state').textContent?.split('|')
 // fireEvent, not a raw dispatch: React tracks the input's value internally and ignores an event whose
 // value it did not see being set
 const type = (label: string, value: string) => fireEvent.change(screen.getByLabelText(label), { target: { value } })

@@ -169,7 +169,7 @@ export type ProviderConfig = {
    * register a client (FR-C9). Returning `{ requirePkce: false }` is the host vouching for a
    * confidential client, the only way a dynamic one is exempted from PKCE (FR-C3).
    */
-  onRegister?: (request: Request) => void | RegistrationDecision | Promise<void | RegistrationDecision>
+  onRegister?: (request: Request) => RegistrationDecision | undefined | Promise<RegistrationDecision | undefined>
   /** Every write through registration or the management API. The host decides where these go (FR-M3). */
   onAudit?: (event: AuditEvent) => void | Promise<void>
 }

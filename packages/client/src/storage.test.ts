@@ -38,7 +38,7 @@ describe('createStorageStore', () => {
   it('persists synchronously on set', () => {
     const s = createStorageStore<{ a: number }>('k', { a: 1 })
     s.set({ a: 9 })
-    expect(JSON.parse(local.getItem('k')!)).toEqual({ a: 9 })
+    expect(JSON.parse(local.getItem('k') ?? 'null')).toEqual({ a: 9 })
   })
 
   it('treats an unparseable stored value as nothing stored', () => {
@@ -79,7 +79,7 @@ describe('createStorageStore', () => {
 
     expect(s.get()).toEqual({ token: 'b' })
     // the read must not stamp site-a's value onto site-b
-    expect(JSON.parse(local.getItem('site-b')!)).toEqual({ token: 'b' })
+    expect(JSON.parse(local.getItem('site-b') ?? 'null')).toEqual({ token: 'b' })
   })
 
   it('rekey to an empty key yields the initial value and leaves the old key intact', () => {
@@ -89,7 +89,7 @@ describe('createStorageStore', () => {
     s.rekey('site-new')
 
     expect(s.get()).toEqual({})
-    expect(JSON.parse(local.getItem('site-a')!)).toEqual({ token: 'a' })
+    expect(JSON.parse(local.getItem('site-a') ?? 'null')).toEqual({ token: 'a' })
   })
 
   it('writes go to the new key after rekey', () => {
@@ -97,7 +97,7 @@ describe('createStorageStore', () => {
     s.rekey('site-b')
     s.set({ token: 'fresh' })
 
-    expect(JSON.parse(local.getItem('site-b')!)).toEqual({ token: 'fresh' })
+    expect(JSON.parse(local.getItem('site-b') ?? 'null')).toEqual({ token: 'fresh' })
     expect(local.getItem('site-a')).toBeNull()
   })
 
@@ -201,7 +201,7 @@ describe('createStorageStore', () => {
     s.rekey('site-b')
 
     // suppressing persistence with a mutable flag for the duration of rekey dropped this write
-    expect(JSON.parse(local.getItem('site-b')!)).toEqual({ token: 'b', derived: 'computed-on-rekey' })
+    expect(JSON.parse(local.getItem('site-b') ?? 'null')).toEqual({ token: 'b', derived: 'computed-on-rekey' })
     expect(local.getItem('site-a')).toBeNull()
   })
 })

@@ -186,7 +186,7 @@ export interface OAuth {
   error: ComputedRef<string | undefined>
   hasError: ComputedRef<boolean>
   errorDescription: ComputedRef<string | undefined>
-  login: (parameters?: OAuthParameters, options?: RedirectOptions) => Promise<string | undefined | void>
+  login: (parameters?: OAuthParameters, options?: RedirectOptions) => Promise<string | undefined>
   logout: (logoutRedirectUri?: string, state?: string, options?: RedirectOptions) => Promise<string | undefined>
   oauthCallback: (url?: string | URL) => Promise<void>
   checkToken: () => Promise<void>

@@ -161,6 +161,29 @@ describe('request objects (JAR)', () => {
     expect(response.headers.get('location')).toContain(`${ISSUER}/interaction/`)
   })
 
+  // RFC 9101 §5: a parameter the client did not sign cannot be added from the query.
+  test('a parameter left out of the object is not taken from the query', async () => {
+    const { code_challenge: _, code_challenge_method: __, ...unsigned } = requestParams({ client_id: 'signer' })
+    const request = await objectFor(unsigned)
+    const response = await authorize({ client_id: 'signer', request, code_challenge: challenge, code_challenge_method: 'S256' })
+    const location = new URL(response.headers.get('location') as string)
+    expect(location.searchParams.get('error')).toBe('invalid_request')
+    expect(location.searchParams.get('error_description')).toContain('code_challenge')
+  })
+
+  test('the object wins over the query for a parameter in both', async () => {
+    const request = await objectFor({ ...requestParams({ client_id: 'signer', prompt: 'login' }) })
+    const response = await authorize({ client_id: 'signer', request, prompt: 'none' })
+    expect(response.headers.get('location')).toContain(`${ISSUER}/interaction/`)
+  })
+
+  test('a JSON-valued claim reaches the request as JSON', async () => {
+    const request = await objectFor({ ...requestParams({ client_id: 'signer' }), authorization_details: [{ type: 'payment' }] })
+    const response = await authorize({ client_id: 'signer', request })
+    const location = new URL(response.headers.get('location') as string)
+    expect(location.searchParams.get('error_description')).toContain('payment is not supported')
+  })
+
   test('an object signed by the wrong key is refused', async () => {
     const other = await generateKeyPair('ES256', { extractable: true })
     const request = await objectFor({ ...requestParams({ client_id: 'signer' }) }, other)

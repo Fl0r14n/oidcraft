@@ -6,8 +6,14 @@ import type { Client } from '../types'
 /** RFC 9101 §8.2: `none` would make the object unauthenticated, which is the whole point of it. */
 const FORBIDDEN_ALGS = ['none', 'HS256', 'HS384', 'HS512']
 
-/** Parameters that must agree with what was sent outside the object, when present (§6.1). */
+/**
+ * Parameters that must agree with what was sent outside the object, when present (§6.1). They are
+ * also the only ones taken from outside: OIDC Core §6.1 requires them in the query even when the
+ * object carries them, so an object that omits them still names its client and response type.
+ */
 const MUST_AGREE = ['client_id', 'response_type']
+
+const JWT_CLAIMS = ['iss', 'aud', 'exp', 'nbf', 'iat', 'jti']
 
 const invalid = (description: string, spec = 'RFC 9101 §6.1') => new OAuthError('invalid_request', { description, spec })
 
@@ -29,8 +35,9 @@ const keySetFor = async (config: ResolvedConfig, client: Client) => {
 /**
  * Verifies a JAR request object and folds its parameters into the request (RFC 9101).
  *
- * The object's parameters win: that is the point of signing them. Anything outside it is advisory,
- * and the few that must agree are checked rather than quietly overridden.
+ * Only the object's parameters are used (RFC 9101 §5): one left out of it is absent, not
+ * something the unsigned query may supply — otherwise an attacker adds a `code_challenge` or a
+ * `prompt` the client never signed. The two that must agree are checked rather than overridden.
  */
 export const applyRequestObject = async (config: ResolvedConfig, client: Client, params: URLSearchParams) => {
   const jwt = params.get('request')
@@ -57,11 +64,15 @@ export const applyRequestObject = async (config: ResolvedConfig, client: Client,
     }
   }
 
-  const merged = new URLSearchParams(params)
-  merged.delete('request')
-  for (const [name, value] of Object.entries(payload)) {
-    if (['iss', 'aud', 'exp', 'nbf', 'iat', 'jti'].includes(name)) continue
-    if (value !== undefined && value !== null) merged.set(name, String(value))
+  const resolved = new URLSearchParams()
+  for (const name of MUST_AGREE) {
+    const outside = params.get(name)
+    if (outside !== null) resolved.set(name, outside)
   }
-  return merged
+  for (const [name, value] of Object.entries(payload)) {
+    if (JWT_CLAIMS.includes(name) || value === undefined || value === null) continue
+    // A JSON claim such as authorization_details travels as JSON in the query form (RFC 9396 §3).
+    resolved.set(name, typeof value === 'string' ? value : JSON.stringify(value))
+  }
+  return resolved
 }

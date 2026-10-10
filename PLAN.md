@@ -163,7 +163,7 @@ In fix order; the first is the only one that changes the adapter contract.
 
 **High — security**
 
-- [ ] JAR merges unsigned outer parameters into the signed request; PKCE can be injected (RFC 9101 §5)
+- [x] JAR merges unsigned outer parameters into the signed request; PKCE can be injected (RFC 9101 §5)
 - [ ] `authorization_details` issued without consent, and absent from `InteractionRequest` (FR-C15)
 - [ ] DPoP nonce can be minted by the client: `claim` stores the unknown value it refuses (RFC 9449 §8)
 - [ ] Client assertion lifetime measured from the client's `iat`; jti remembered for 300 s only (FR-C4, NFR-S5)
@@ -196,7 +196,7 @@ In fix order; the first is the only one that changes the adapter contract.
 - [ ] Introspection has no resource-server authentication; `iat` equals `exp` (FR-C8)
 - [ ] A malformed cookie or Basic header is a 500
 - [ ] RFC 7592 update skips `onRegister`, resets `requirePkce`, compares the token with `!==`
-- [ ] Non-string request-object claims become `"[object Object]"`
+- [x] Non-string request-object claims become `"[object Object]"`
 
 **Low and cleanup**
 

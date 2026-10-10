@@ -6,12 +6,10 @@ export type {
   FederatedIdentityStore,
   GrantStore,
   KeyStore,
-  KvEntry,
-  KvStore,
   ReplayGuard,
   SessionStore
 } from './adapter'
-export { type FromKvOptions, fromKv } from './adapters/kv'
+export { type FromKvOptions, fromKv, type KvEntry, type KvStore } from './adapters/kv'
 export type { AuthorizationDetail, AuthorizationRequest } from './authorize/authorization'
 export type { CibaDecision, CibaPayload } from './authorize/ciba'
 export type { DeviceApproval, DevicePayload } from './authorize/device'

@@ -3,14 +3,28 @@ import type {
   Adapter,
   ArtifactStore,
   ClientStore,
+  EntityStore,
   FederatedIdentityStore,
   GrantStore,
   KeyStore,
-  KvStore,
   ReplayGuard,
   SessionStore
 } from '../adapter'
 import type { Artifact, FederatedIdentity, Grant, Seconds, Session } from '../types'
+
+export type KvEntry = { key: string; value: string; ttl?: Seconds }
+
+/** The minimum a new backend has to implement; `fromKv` builds a full `Adapter` over it. */
+export type KvStore = EntityStore<KvEntry, [key: string]> & {
+  /**
+   * Writes only when the key holds no live entry, atomically, and resolves whether it wrote. Single
+   * use is built on it, so a store that cannot do it (an eventually consistent one) cannot back a
+   * provider (FR-A3).
+   */
+  insert(entry: KvEntry): Promise<boolean>
+  /** Prefix scan. Required because grant revocation is a range delete, not a point delete. */
+  scan(prefix: string): AsyncIterable<KvEntry>
+}
 
 export type FromKvOptions = {
   keys: KeyStore

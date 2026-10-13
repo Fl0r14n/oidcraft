@@ -29,3 +29,61 @@ jobs:
       - run: bun run build
       - run: bun run typecheck
       - run: bun test
+
+  # NFR-C1: the OpenID Foundation suite's basic and config plans gate the build. Anything not listed
+  # in conformance/expected-failures.json or expected-skips.json fails the job.
+  conformance:
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # The checkout and the images move together; bump both by changing this one value.
+      SUITE_VERSION: release-v5.3.2
+      SUITE_DIR: ${{ github.workspace }}/../conformance-suite
+      # Discovery 1.0 §3 and RFC 8414 §2 require https even on loopback (conformance/README.md).
+      OIDCRAFT_ISSUER: https://localhost:3001
+      OIDCRAFT_CONFORMANCE_SUITE: https://localhost.emobix.co.uk:8443
+      SERVER_TLS_CERT: ../../conformance/tls/cert.pem
+      SERVER_TLS_KEY: ../../conformance/tls/key.pem
+    steps:
+      - uses: actions/checkout@v6
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      # apps/server runs oidcraft from its build, so the suite tests exactly what was just built.
+      - run: bun run --filter=@oidcraft/core --filter=oidcraft build
+      - run: pipx install uv
+      - run: git clone --quiet --depth 1 --branch "$SUITE_VERSION" https://gitlab.com/openid/conformance-suite.git "$SUITE_DIR"
+      - name: certificate for the https issuer
+        run: |
+          mkdir -p conformance/tls
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj /CN=localhost \
+            -addext subjectAltName=DNS:localhost,IP:127.0.0.1 \
+            -keyout conformance/tls/key.pem -out conformance/tls/cert.pem
+      - name: start the suite
+        run: IMAGE_TAG="$SUITE_VERSION" docker compose -f "$SUITE_DIR/docker-compose-prebuilt.yml" -f conformance/compose.override.yml up -d
+      - name: start the OP
+        working-directory: apps/server
+        run: nohup bun index.ts > "$RUNNER_TEMP/op.log" 2>&1 &
+      - name: wait for both
+        run: |
+          for attempt in $(seq 1 90); do
+            curl -skf "$OIDCRAFT_ISSUER/.well-known/openid-configuration" > /dev/null \
+              && curl -skf "$OIDCRAFT_CONFORMANCE_SUITE/api/runner/available" > /dev/null \
+              && exit 0
+            sleep 2
+          done
+          cat "$RUNNER_TEMP/op.log"
+          exit 1
+      - run: bun run conformance
+        env:
+          CONFORMANCE_SUITE_DIR: ${{ env.SUITE_DIR }}
+      - if: always()
+        run: cp "$RUNNER_TEMP/op.log" conformance/results/ || true
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: conformance-results
+          path: conformance/results/
+          if-no-files-found: ignore

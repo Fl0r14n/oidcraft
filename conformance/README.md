@@ -1,7 +1,8 @@
 # Conformance
 
 `NFR-C1` requires the OpenID Foundation conformance suite to run in CI for the `basic` and `config`
-OP profiles. **Both are green when run locally (last 2026-10-13); they do not yet run in CI.**
+OP profiles. **Both are green locally (last 2026-10-13), and the `conformance` job in
+`.github/workflows/ci.yml` runs them against every push, pinned to the suite's `SUITE_VERSION`.**
 
 `dynamic` is not a target. It tests a Dynamic OpenID Provider (OIDC Core §15.2), which must offer
 the `id_token` and `id_token token` response types and `request_uri` — FR-C1 and FR-C12 rule out

@@ -70,7 +70,7 @@ here, or under any load.
       deliberate refusals listed in `conformance/README.md`. The first run found six real bugs —
       the `acr_values` login loop, a non-URI `error_uri`, scope claims in the ID token, the broker
       ignoring UserInfo, JSON shown to the browser on an unredirectable error, and an http issuer
-- [ ] Run it in CI (NFR-C1): the suite's images, the forwarder in `conformance/compose.override.yml`,
+- [x] Run it in CI (NFR-C1): the suite's images, the forwarder in `conformance/compose.override.yml`,
       and `bun run conformance` as a job that fails the build
 - [x] Checked `REQUIREMENTS.md` against the specs before the run (2026-09-30). Fixed: FR-C3's PKCE
       exemption, FR-T1's mandatory RS256, NFR-S2's loopback port, FR-C18's sector validation, and

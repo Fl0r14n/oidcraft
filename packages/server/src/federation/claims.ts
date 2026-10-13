@@ -5,7 +5,30 @@ import type { ClaimMapper } from './types'
  * among them: it is the upstream's subject and is meaningful only within that upstream, so a local
  * subject is derived from `(provider, subject)` instead (ARCHITECTURE.md §5.4).
  */
-const NEVER_MAPPED = new Set(['sub', 'iss', 'aud', 'exp', 'iat', 'nbf', 'jti', 'azp', 'at_hash', 'c_hash', 'nonce'])
+const NEVER_MAPPED = new Set([
+  'sub',
+  'iss',
+  'aud',
+  'exp',
+  'iat',
+  'nbf',
+  'jti',
+  'azp',
+  'at_hash',
+  'c_hash',
+  'nonce',
+  // How and where the user signed in is the session's to record, from the upstream's token, never a
+  // profile claim an upstream or a mapper can set (FR-F6).
+  'acr',
+  'amr',
+  'auth_time',
+  'sid',
+  'idp',
+  'cnf'
+])
+
+/** A verification flag describes one value; paired with another, it vouches for an address nobody checked. */
+const VERIFIED_BY = { email: 'email_verified', phone_number: 'phone_number_verified' } as const
 
 export const standardClaims = ['name', 'given_name', 'family_name', 'preferred_username', 'email', 'email_verified', 'picture', 'locale']
 
@@ -23,6 +46,13 @@ export const renameClaims =
     for (const [from, to] of Object.entries(mapping)) {
       if (NEVER_MAPPED.has(to)) continue
       if (upstream[from] !== undefined) mapped[to] = upstream[from]
+    }
+    // FR-F5, NFR-S8: when a value came from another source, the upstream's flag for it does not
+    // apply — unless the mapping names where that value's own flag comes from.
+    for (const [claim, flag] of Object.entries(VERIFIED_BY)) {
+      const source = Object.entries(mapping).find(([, to]) => to === claim)?.[0]
+      const flagSource = Object.entries(mapping).find(([, to]) => to === flag)?.[0]
+      if (source !== undefined && source !== claim && flagSource === undefined) delete mapped[flag]
     }
     return mapped
   }

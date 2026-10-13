@@ -82,6 +82,25 @@ describe('claim mapping', () => {
     expect(renameClaims({ name: 'preferred_username' })(upstream).preferred_username).toBe('Ada')
   })
 
+  // FR-F5, NFR-S8: a flag vouches for one value; on another address it vouches for nothing checked.
+  test('email_verified does not follow an email taken from another claim', () => {
+    const withMail = { ...upstream, mail: 'someone@else.example' }
+    const renamed = renameClaims({ mail: 'email' })(withMail)
+    expect(renamed.email).toBe('someone@else.example')
+    expect(renamed).not.toHaveProperty('email_verified')
+    expect(renameClaims({ mail: 'email', mail_verified: 'email_verified' })({ ...withMail, mail_verified: false }).email_verified).toBe(
+      false
+    )
+    expect(renameClaims({ name: 'nickname' })(upstream).email_verified).toBe(true)
+  })
+
+  // FR-F6: how the user signed in is the session's record, not a profile claim.
+  test('acr, amr, sid and auth_time cannot be mapped', () => {
+    const claims = { ...upstream, acr: 'mfa', amr: ['otp'], sid: 's', auth_time: 1 }
+    const mapped = renameClaims({ name: 'acr' }, pickClaims(['acr', 'amr', 'sid', 'auth_time', 'name']))(claims)
+    expect(Object.keys(mapped)).toEqual(['name'])
+  })
+
   test('a local subject is namespaced by provider', () => {
     expect(localSubject('entra', 'up-1')).toBe('entra:up-1')
   })

@@ -223,7 +223,7 @@ In fix order; the first is the only one that changes the adapter contract.
 - [x] Registration: unvalidated logout and `jwks_uri` URIs (SSRF), http `localhost` (NFR-S2). A name that resolves to a
       private address is still the host's to refuse: only it resolves
 - [x] Discovery advertises the wrong algorithm lists. Fixed: `keys/algorithms.ts`, one list for verification and discovery
-- [ ] Claim mapping can pair one source's `email_verified` with another's `email`; `acr`/`amr`/`sid` unprotected
+- [x] Claim mapping can pair one source's `email_verified` with another's `email`; `acr`/`amr`/`sid` unprotected
 - [ ] Access-token artifacts built in three places; `step-up.ts` belongs in `resource/`
 
 **Follow-ups, not findings**

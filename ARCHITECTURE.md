@@ -7,8 +7,8 @@ How oidcraft is built. `REQUIREMENTS.md` says what it must do; every section her
 
 | Choice | Version | Why |
 | --- | --- | --- |
-| **Bun** | ≥ 1.4 | Workspaces, test runner, bundler and HTTP server in one tool. The *development* runtime; the published packages target no runtime in particular (FR-R1). |
-| **TypeScript** | 7.0.x | `tsc` for `.ts`, `vue-tsgo` for packages with SFCs. |
+| **Bun** | ≥ 1.4.3 | Workspaces, test runner, bundler and HTTP server in one tool. The *development* runtime; the published packages target no runtime in particular (FR-R1). |
+| **TypeScript** | 7.0.x | `bun check` for `.ts`, `vue-tsgo` for packages with SFCs; `typescript` stays for tsdown's declaration emit. |
 | **Tailwind** | 4.3.x | Styling for both apps, via `bun-plugin-tailwind`. No other CSS pipeline. |
 | **@vuetify/v0** | 1.2.x | Headless Vue primitives, in the **admin surface only** (§8.1). Vue 3.5 is its only dependency. |
 | **Biome** | 2.5.x | Lint and format. `biome.json` settles formatting; it is not a matter of preference. |
@@ -50,9 +50,11 @@ calling `Bun.build` directly. Nothing needs that today.
 ### 1.2 TypeScript 7 and Vue
 
 `vue-tsc` still requires `typescript/lib/tsc` and does not run against TypeScript 7, so any package
-containing `.vue` files type-checks with `vue-tsgo` instead. Packages without SFCs use `tsc` —
-TypeScript 7 ships its compiler under that name, and `tsgo` is the older `@typescript/native-preview`
-binary, which is still on a `7.0.0-dev` tag and is not what the `typescript` package installs.
+containing `.vue` files type-checks with `vue-tsgo` instead. Packages without SFCs use `bun check`,
+which reports TypeScript 7's errors from the same `tsconfig.json` and writes nothing. Not `tsgo` —
+that is the older `@typescript/native-preview` binary, still on a `7.0.0-dev` tag. The `typescript`
+package stays: tsdown emits the declarations with it, and `bun check` emits none. The Angular demo
+keeps `tsc` from TypeScript 6, which its compiler needs (§8.4).
 
 ## 2. Workspace
 

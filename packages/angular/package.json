@@ -41,7 +41,7 @@
     "build": "tsdown && bun run verify:entries",
     "prepublishOnly": "bun run build",
     "test": "bun test",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "bun check",
     "verify:entries": "bun run verify-entries.ts"
   },
   "peerDependencies": {

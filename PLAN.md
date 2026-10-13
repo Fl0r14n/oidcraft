@@ -222,9 +222,8 @@ In fix order; the first is the only one that changes the adapter contract.
       distributed store, where `insert` being atomic is the whole point — the memory store is atomic
       for free. Possibly an `oidcraft/adapters/redis` entry once it exists.
 
-- [ ] `bun check` for the six `tsc --noEmit` typecheck scripts once Bun 1.4.3 reaches Arch (it matched
-      `tsc`'s errors and ran ~3× faster in a trial); not for SFC packages (`vue-tsgo`) or the Angular
-      island (TypeScript 6). Raise `engines.bun` to `>=1.4.3` with it.
+- [x] `bun check` for the six `tsc --noEmit` typecheck scripts; not for SFC packages (`vue-tsgo`) or
+      the Angular island (TypeScript 6). `engines.bun` is `>=1.4.3`
 
 ## Docs site — requirements
 

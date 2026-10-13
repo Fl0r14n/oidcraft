@@ -8,8 +8,8 @@
     "ssr": "bun run index.ts",
     "preview": "vite preview",
     "bundle": "vite build && vite build --ssr src/entry-server.tsx --outDir dist/server",
-    "build": "tsc --noEmit",
-    "typecheck": "tsc --noEmit"
+    "build": "bun check",
+    "typecheck": "bun check"
   },
   "dependencies": {
     "@emotion/react": "latest",

@@ -68,7 +68,7 @@ bun install
 bun run dev              # server (3001) + client (3000)
 bun run dev:server
 bun run dev:client
-bun run typecheck        # tsc, or vue-tsgo where there are SFCs
+bun run typecheck        # bun check, or vue-tsgo where there are SFCs
 bun run test
 bun run lint             # biome check .
 bun run format           # biome check --write .
@@ -117,8 +117,9 @@ bun run conformance      # OpenID Foundation suite against apps/server
   served entrypoint, so the root one does not reach `apps/*`. Missing, it does not error — a `.vue`
   import resolves to a path string and the page renders blank.
 - **`vue-tsc` does not run on TypeScript 7.** Packages containing `.vue` files type-check with
-  `vue-tsgo`; everything else uses `tsc`. Not `tsgo` — that is the older
-  `@typescript/native-preview` binary and is not what `typescript@7` installs.
+  `vue-tsgo`; everything else uses `bun check` (Bun ≥ 1.4.3), except the Angular demo's TypeScript 6
+  `tsc`. Not `tsgo` — that is the older `@typescript/native-preview` binary. Do not drop `typescript`:
+  tsdown emits declarations with it.
 - **The credential form is split by purity, not by consumer.** `@oidcraft/core` holds the rules and
   the view — pure, so the OP's server-rendered login screen validates with the same
   `oauthFieldError` a browser binding does, and `oidcraft/interaction` re-exports them for a host

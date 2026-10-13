@@ -18,7 +18,7 @@
   "scripts": {
     "build": "tsdown",
     "test": "bun test",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "bun check"
   },
   "dependencies": {
     "jose": "^6.2.12"

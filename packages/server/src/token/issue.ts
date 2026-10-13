@@ -17,6 +17,12 @@ export const issueTokens = async (
   authorizationDetails?: unknown[],
   x5t?: string
 ) => {
+  // FR-C11: logout notifies the session's clients, so every client it signs in to must be on the list.
+  if (!session.clients.includes(client.clientId)) {
+    const current = (await config.adapter.sessions.find(session.id)) ?? session
+    await config.adapter.sessions.upsert({ ...current, clients: [...new Set([...current.clients, client.clientId])] })
+  }
+
   const accessTokenId = randomString()
   const expiresIn = config.ttl.accessToken
   const accessTokenExpiry = new Date(Date.now() + expiresIn * 1000)

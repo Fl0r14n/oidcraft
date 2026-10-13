@@ -49,7 +49,7 @@ beforeEach(async () => {
 const build = (over: Record<string, unknown> = {}) =>
   createProvider({ issuer: ISSUER, adapter, interactionUrl: `${ISSUER}/interaction`, ...over } as Parameters<typeof createProvider>[0])
 
-const tokensFor = async (provider: Provider, clientId = 'rp', context?: Partial<RequestContext>) => {
+const tokensFor = async (provider: Provider, clientId = 'rp', context?: Partial<RequestContext>, session?: string) => {
   const params = new URLSearchParams({
     client_id: clientId,
     redirect_uri: REDIRECT,
@@ -58,8 +58,8 @@ const tokensFor = async (provider: Provider, clientId = 'rp', context?: Partial<
     code_challenge: challenge,
     code_challenge_method: 'S256'
   })
-  let response = await provider.handle(new Request(`${ISSUER}/authorize?${params}`))
-  let cookie = ''
+  let cookie = session ? `${SESSION_COOKIE}=${session}` : ''
+  let response = await provider.handle(new Request(`${ISSUER}/authorize?${params}`, { headers: cookie ? { cookie } : {} }))
   for (let leg = 0; leg < 4; leg++) {
     const location = new URL(response.headers.get('location') as string)
     if (!location.pathname.startsWith('/interaction/')) {
@@ -232,6 +232,24 @@ describe('FR-C11: front-channel logout', () => {
     const url = new URL(targets[0]?.uri as string)
     expect(url.searchParams.get('iss')).toBe(ISSUER)
     expect(url.searchParams.get('sid')).toBe(session?.id ?? null)
+  })
+
+  test('every client the session signed in to is notified, not only the first', async () => {
+    let targets: { clientId: string; uri: string }[] = []
+    await adapter.clients.upsert?.(client({ frontchannelLogoutUri: 'https://rp.example.com/fc' }))
+    await adapter.clients.upsert?.(client({ clientId: 'rp2', frontchannelLogoutUri: 'https://rp2.example.com/fc' }))
+    const provider = build({
+      onFrontChannelLogout: (received: { clientId: string; uri: string }[]) => {
+        targets = received
+      }
+    })
+    await tokensFor(provider)
+    const session = (await adapter.sessions.listForAccount('ada'))[0]
+    await tokensFor(provider, 'rp2', undefined, session?.id)
+    expect(await adapter.sessions.listForAccount('ada')).toHaveLength(1)
+
+    await provider.handle(new Request(`${ISSUER}/session/end`, { headers: { cookie: `${SESSION_COOKIE}=${session?.id}` } }))
+    expect(targets.map(target => target.clientId).sort()).toEqual(['rp', 'rp2'])
   })
 
   test('a client with no front-channel URI is not contacted', async () => {

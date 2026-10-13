@@ -178,7 +178,10 @@ In fix order; the first is the only one that changes the adapter contract.
       `Client` has no `backchannel_client_notification_endpoint`, and registration cannot set ping mode
 - [x] A PAR-required client cannot finish an interaction: the replay drops `request_uri` (FR-C12).
       Fixed: a pushed request resumes through a fresh pushed reference, never the front channel
-- [ ] Logout notifies only the first RP: `session.clients` is never appended (FR-C11)
+- [x] Logout notifies only the first RP: `session.clients` is never appended (FR-C11). Fixed in
+      `issueTokens`, so code, device and CIBA all record the client. The append is a read-then-upsert:
+      two clients signing in on one session at the same instant can still lose one. Atomic would be a
+      `SessionStore.addClient` across every adapter
 - [ ] JWT access tokens cannot be revoked or introspected (FR-C8, FR-T2)
 - [ ] mTLS: binding only on `authorization_code`, lost on refresh; client auth only at the token endpoint (FR-C4, FR-C13)
 

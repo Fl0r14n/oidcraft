@@ -17,9 +17,9 @@ const jwks = { keys: [await exportJWK(signing.publicKey)] }
 
 const LOGOUT_EVENT = 'http://schemas.openid.net/event/backchannel-logout'
 
-const logoutToken = (claims: Record<string, unknown>, over: { issuer?: string; audience?: string } = {}) =>
-  new SignJWT({ events: { [LOGOUT_EVENT]: {} }, ...claims })
-    .setProtectedHeader({ alg: 'ES256', typ: 'logout+jwt' })
+const logoutToken = (claims: Record<string, unknown>, over: { issuer?: string; audience?: string; typ?: string } = {}) =>
+  new SignJWT({ events: { [LOGOUT_EVENT]: {} }, jti: crypto.randomUUID(), ...claims })
+    .setProtectedHeader({ alg: 'ES256', typ: over.typ ?? 'logout+jwt' })
     .setIssuer(over.issuer ?? provider.issuer)
     .setAudience(over.audience ?? provider.clientId)
     .setIssuedAt()
@@ -67,7 +67,7 @@ describe('upstream back-channel logout', () => {
   // Accepting one without the events claim would let a replayed ID token end sessions.
   test('a token without the logout event is refused', async () => {
     const adapter = await withSessions()
-    const notALogout = await new SignJWT({ sid: 'up-1' })
+    const notALogout = await new SignJWT({ sid: 'up-1', jti: crypto.randomUUID() })
       .setProtectedHeader({ alg: 'ES256' })
       .setIssuer(provider.issuer)
       .setAudience(provider.clientId)
@@ -75,6 +75,25 @@ describe('upstream back-channel logout', () => {
       .setExpirationTime('2m')
       .sign(signing.privateKey)
     expect(upstreamLogout(adapter, provider, notALogout, jwks)).rejects.toThrow(/not a logout token/)
+  })
+
+  // §2.6: accepted once, or a captured token could end the sessions of every later sign-in.
+  test('a replayed logout token is refused', async () => {
+    const adapter = await withSessions()
+    const token = await logoutToken({ sid: 'up-1' })
+    await upstreamLogout(adapter, provider, token, jwks)
+    await expect(upstreamLogout(adapter, provider, token, jwks)).rejects.toThrow(/already used/)
+  })
+
+  test('a token without jti, typed as something else, or with a non-object event is refused', async () => {
+    const adapter = await withSessions()
+    await expect(upstreamLogout(adapter, provider, await logoutToken({ sid: 'up-1', jti: undefined }), jwks)).rejects.toThrow(/jti/)
+    await expect(upstreamLogout(adapter, provider, await logoutToken({ sid: 'up-1' }, { typ: 'JWT' }), jwks)).rejects.toThrow(
+      /typed logout\+jwt/
+    )
+    await expect(
+      upstreamLogout(adapter, provider, await logoutToken({ sid: 'up-1', events: { [LOGOUT_EVENT]: true } }), jwks)
+    ).rejects.toThrow(/not a logout token/)
   })
 
   test('a logout token carrying a nonce is refused', async () => {

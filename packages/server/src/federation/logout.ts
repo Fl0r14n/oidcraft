@@ -2,6 +2,9 @@ import { createLocalJWKSet, decodeJwt, type JSONWebKeySet, jwtVerify } from 'jos
 import type { Adapter, Session } from 'oidcraft'
 import type { UpstreamProvider } from './types'
 
+/** How old a logout token may be, and so how long its jti is remembered. */
+const LOGOUT_TOKEN_MAX_AGE = 300
+
 export type UpstreamLogout = {
   provider: string
   /** Sessions this OP issued off the back of the upstream one that just ended. */
@@ -20,22 +23,35 @@ export const upstreamLogout = async (
   logoutToken: string,
   jwks: JSONWebKeySet
 ): Promise<UpstreamLogout> => {
-  const { payload } = await jwtVerify(logoutToken, createLocalJWKSet(jwks), {
+  const { payload, protectedHeader } = await jwtVerify(logoutToken, createLocalJWKSet(jwks), {
     issuer: provider.issuer,
-    audience: provider.clientId
+    audience: provider.clientId,
+    requiredClaims: ['iat', 'jti'],
+    maxTokenAge: LOGOUT_TOKEN_MAX_AGE
   })
+
+  // §2.4: an explicitly typed token of any other type is not a logout token, whatever it carries.
+  if (protectedHeader.typ !== undefined && protectedHeader.typ.toLowerCase() !== 'logout+jwt') {
+    throw new Error(`a logout token must be typed logout+jwt, not ${protectedHeader.typ}`)
+  }
 
   // OIDC Back-Channel Logout 1.0 §2.4: the events claim is what distinguishes a logout token from
   // an ID token, and accepting one without it would let a replayed ID token end sessions.
   const events = payload.events as Record<string, unknown> | undefined
-  if (!events || !('http://schemas.openid.net/event/backchannel-logout' in events)) {
-    throw new Error('this is not a logout token: it carries no back-channel logout event')
+  const event = events?.['http://schemas.openid.net/event/backchannel-logout']
+  if (typeof event !== 'object' || event === null || Array.isArray(event)) {
+    throw new Error('this is not a logout token: it carries no back-channel logout event object')
   }
   if ('nonce' in payload) throw new Error('a logout token must not carry a nonce (OIDC Back-Channel Logout 1.0 §2.4)')
 
   const sid = typeof payload.sid === 'string' ? payload.sid : undefined
   const sub = typeof payload.sub === 'string' ? payload.sub : undefined
   if (!sid && !sub) throw new Error('a logout token needs sid or sub')
+
+  // §2.6: a logout token is accepted once; a replay must not end the sessions of a later sign-in.
+  if (!(await adapter.replay.claim(`upstream-logout:${provider.id}`, payload.jti as string, LOGOUT_TOKEN_MAX_AGE))) {
+    throw new Error('this logout token was already used')
+  }
 
   const sessions = sid
     ? ((await adapter.sessions.findByUpstreamSession?.(provider.id, sid)) ?? [])

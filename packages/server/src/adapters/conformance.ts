@@ -164,6 +164,27 @@ export const adapterConformance = (name: string, create: () => Promise<Adapter>)
     expect((await adapter.sessions.listForAccount('u1')).map(s => s.id).sort()).toEqual(['s1', 's2'])
   })
 
+  // FR-C11: logout notifies every client on this list, so a sign-in racing another must not drop one.
+  test(`${name}: of parallel addClient calls, every client is recorded`, async () => {
+    const adapter = await create()
+    await adapter.sessions.upsert(session())
+    const added = Array.from({ length: 12 }, (_, index) => `rp-${index}`)
+    await Promise.all(added.map(clientId => adapter.sessions.addClient('s1', clientId)))
+    const stored = await adapter.sessions.find('s1')
+    expect(stored?.clients.sort()).toEqual(['c1', ...added].sort())
+    expect((await adapter.sessions.listForAccount('u1'))[0]?.clients).toHaveLength(13)
+  })
+
+  test(`${name}: addClient leaves a missing session missing`, async () => {
+    const adapter = await create()
+    await adapter.sessions.addClient('nope', 'rp')
+    expect(await adapter.sessions.find('nope')).toBeUndefined()
+    await adapter.sessions.upsert(session())
+    await adapter.sessions.destroy('s1')
+    await adapter.sessions.addClient('s1', 'rp-2')
+    expect(await adapter.sessions.find('s1')).toBeUndefined()
+  })
+
   test(`${name}: an expired session is never served`, async () => {
     const adapter = await create()
     await adapter.sessions.upsert(session({ expiresAt: new Date(Date.now() - 1000) }))

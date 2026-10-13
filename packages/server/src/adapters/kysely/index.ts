@@ -214,6 +214,25 @@ export const kyselyAdapter = (options: KyselyAdapterOptions): Adapter => {
           .onConflict(conflict => conflict.column('id').doUpdateSet(row))
           .execute()
       },
+      // Compare-and-swap on the list just read, retried when another writer won: two clients
+      // signing in at once must both be recorded (FR-C11). A lost round means another writer won
+      // it, so each round makes progress; the bound only stops a pathological loop.
+      async addClient(id, clientId) {
+        for (let attempt = 0; attempt < 64; attempt++) {
+          const row = await db.selectFrom('oidc_sessions').select('clients').where('id', '=', id).executeTakeFirst()
+          if (!row) return
+          const current = JSON.parse(row.clients) as string[]
+          if (current.includes(clientId)) return
+          const result = await db
+            .updateTable('oidc_sessions')
+            .set({ clients: json([...current, clientId]) })
+            .where('id', '=', id)
+            .where('clients', '=', row.clients)
+            .executeTakeFirst()
+          if (Number(result.numUpdatedRows) > 0) return
+        }
+        throw new Error(`session ${id} kept changing; its client list could not be updated`)
+      },
       async destroy(id) {
         await db.deleteFrom('oidc_sessions').where('id', '=', id).execute()
       }

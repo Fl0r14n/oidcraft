@@ -49,6 +49,11 @@ export type ArtifactStore = EntityStore<Artifact, [kind: ArtifactKind, id: strin
 
 export type SessionStore = EntityStore<Session> & {
   listForAccount(accountId: string): Promise<Session[]>
+  /**
+   * Records that a client signed in through this session, atomically: two clients signing in at
+   * once must both be on the list logout notifies (FR-C11). A session that is gone stays gone.
+   */
+  addClient(id: string, clientId: string): Promise<void>
   /** Upstream back-channel logout arrives keyed by the upstream session, not ours (FR-F8). */
   findByUpstreamSession?(provider: string, upstreamSessionId: string): Promise<Session[]>
 }

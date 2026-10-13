@@ -133,26 +133,43 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): Adapter => {
     }
   }
 
+  // Each added client is its own key: an upsert of a key nobody else writes cannot lose a race,
+  // where rewriting the session's list could (FR-C11).
+  const sessionClientPrefix = (id: string) => `session-client/${id}/`
+  const withClients = async (session: Session) => {
+    const added: string[] = []
+    for await (const { key } of kv.scan(sessionClientPrefix(session.id))) added.push(key.slice(sessionClientPrefix(session.id).length))
+    return { ...session, clients: [...new Set([...session.clients, ...added])] }
+  }
+  const allSessions = () => collect(kv, 'session/', raw => revive(JSON.parse(raw) as Session, ['authTime', 'expiresAt']))
+
   const sessions: SessionStore = {
     async find(id) {
       const session = dec<Session>(await read(`session/${id}`))
       if (!session) return undefined
       const live = revive(session, ['authTime', 'expiresAt'])
-      return live.expiresAt.getTime() > Date.now() ? live : undefined
+      return live.expiresAt.getTime() > Date.now() ? withClients(live) : undefined
     },
     async listForAccount(accountId) {
-      const all = await collect(kv, 'session/', raw => revive(JSON.parse(raw) as Session, ['authTime', 'expiresAt']))
-      return all.filter(session => session.accountId === accountId && session.expiresAt.getTime() > Date.now())
+      const live = (await allSessions()).filter(session => session.accountId === accountId && session.expiresAt.getTime() > Date.now())
+      return Promise.all(live.map(withClients))
     },
     async findByUpstreamSession(provider, upstreamSessionId) {
-      const all = await collect(kv, 'session/', raw => revive(JSON.parse(raw) as Session, ['authTime', 'expiresAt']))
-      return all.filter(session => session.idp === provider && session.upstreamSessionId === upstreamSessionId)
+      const matching = (await allSessions()).filter(session => session.idp === provider && session.upstreamSessionId === upstreamSessionId)
+      return Promise.all(matching.map(withClients))
+    },
+    async addClient(id, clientId) {
+      const session = dec<Session>(await read(`session/${id}`))
+      if (!session) return
+      const ttl = ttlFrom(new Date(session.expiresAt))
+      await kv.upsert({ key: `${sessionClientPrefix(id)}${clientId}`, value: '', ttl })
     },
     async upsert(session) {
       await kv.upsert({ key: `session/${session.id}`, value: enc(session), ttl: ttlFrom(session.expiresAt) })
     },
     async destroy(id) {
       await kv.destroy(`session/${id}`)
+      for await (const { key } of kv.scan(sessionClientPrefix(id))) await kv.destroy(key)
     }
   }
 

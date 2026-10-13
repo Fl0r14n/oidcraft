@@ -180,6 +180,24 @@ export const drizzleAdapter = (options: DrizzleAdapterOptions): Adapter => {
         }
         await db.insert(sessions).values(row).onConflictDoUpdate({ target: sessions.id, set: row })
       },
+      // Compare-and-swap on the list just read, retried when another writer won: two clients
+      // signing in at once must both be recorded (FR-C11). A lost round means another writer won
+      // it, so each round makes progress; the bound only stops a pathological loop.
+      async addClient(id, clientId) {
+        for (let attempt = 0; attempt < 64; attempt++) {
+          const [row] = await db.select({ clients: sessions.clients }).from(sessions).where(eq(sessions.id, id)).limit(1)
+          if (!row) return
+          const current = row.clients as string[]
+          if (current.includes(clientId)) return
+          const updated = await db
+            .update(sessions)
+            .set({ clients: [...current, clientId] })
+            .where(and(eq(sessions.id, id), eq(sessions.clients, current)))
+            .returning({ id: sessions.id })
+          if (updated.length) return
+        }
+        throw new Error(`session ${id} kept changing; its client list could not be updated`)
+      },
       async destroy(id) {
         await db.delete(sessions).where(eq(sessions.id, id))
       }

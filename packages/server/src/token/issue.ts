@@ -32,11 +32,8 @@ export const issueTokens = async (
 ) => {
   const { jkt } = binding
   // FR-C11: logout notifies the session's clients, so every client it signs in to must be on the list.
-  // An offline refresh may outlive the session; one that has ended is not brought back.
-  if (!session.clients.includes(client.clientId)) {
-    const current = await config.adapter.sessions.find(session.id)
-    if (current) await config.adapter.sessions.upsert({ ...current, clients: [...new Set([...current.clients, client.clientId])] })
-  }
+  // An offline refresh may outlive the session; addClient does not bring an ended one back.
+  if (!session.clients.includes(client.clientId)) await config.adapter.sessions.addClient(session.id, client.clientId)
 
   // FR-C18: what this client is told the user is called, which may not be the local account id.
   const subject = await subjectFor(config, client, session.accountId)

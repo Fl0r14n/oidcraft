@@ -178,9 +178,8 @@ In fix order; the first is the only one that changes the adapter contract.
 - [x] A PAR-required client cannot finish an interaction: the replay drops `request_uri` (FR-C12).
       Fixed: a pushed request resumes through a fresh pushed reference, never the front channel
 - [x] Logout notifies only the first RP: `session.clients` is never appended (FR-C11). Fixed in
-      `issueTokens`, so code, device and CIBA all record the client. The append is a read-then-upsert:
-      two clients signing in on one session at the same instant can still lose one. Atomic would be a
-      `SessionStore.addClient` across every adapter
+      `issueTokens`, so code, device and CIBA all record the client, through `SessionStore.addClient`,
+      which every adapter makes atomic (a key per client over a `KvStore`, compare-and-swap in SQL)
 - [x] JWT access tokens cannot be revoked or introspected (FR-C8, FR-T2). Fixed: both resolve by `jti`
 - [x] mTLS: binding only on `authorization_code`, lost on refresh; client auth only at the token endpoint (FR-C4, FR-C13).
       Fixed: every grant takes one `Binding` (DPoP key and certificate); a refresh rebinds to the

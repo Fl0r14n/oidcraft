@@ -195,7 +195,8 @@ In fix order; the first is the only one that changes the adapter contract.
 - [x] Refresh narrowing consumes the refresh token without reissuing; withdrawn grant scopes return.
       Fixed: the rotated refresh token keeps its own scope (RFC 6749 §6), intersected with the grant
 - [x] Pairwise `sub` leaks via logout token, introspection, exchange; UserInfo lets the account store override it (FR-C18)
-- [ ] Token exchange: drops sender binding, extends lifetime, mislabels token types (RFC 8693)
+- [x] Token exchange: drops sender binding, extends lifetime, mislabels token types (RFC 8693). Fixed, and only
+      access and refresh tokens are exchanged or issued: an ID token is not stored
 - [ ] `form_post` advertised but answered in the query; error redirects ignore `response_mode`; `access_denied` lacks `iss` (FR-C14)
 - [ ] `max_age=0` loops; `prompt=select_account` ignored; `prompt=none` combined accepted (FR-I5)
 - [ ] No `user_code` rate limiting (NFR-S3); Node bridge takes the left-most `X-Forwarded-For`

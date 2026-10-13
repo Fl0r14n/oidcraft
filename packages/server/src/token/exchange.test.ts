@@ -475,3 +475,55 @@ describe('resuming an interaction', () => {
     expect(resumed.get('prompt')).toBeNull()
   })
 })
+
+describe('what an exchanged token inherits', () => {
+  const allowing: ExchangePolicy = ({ subjectToken }) => ({
+    accountId: subjectToken.accountId as string,
+    scopes: (subjectToken.payload.scopes as string[]) ?? []
+  })
+  const exchange = (provider: Provider, subjectToken: string, over: Record<string, string> = {}) =>
+    post(
+      provider,
+      '/token',
+      { grant_type: 'urn:ietf:params:oauth:grant-type:token-exchange', subject_token: subjectToken, subject_token_type: ACCESS, ...over },
+      { authorization: basic() }
+    )
+
+  test('never outlives the subject token', async () => {
+    const provider = build({ exchangePolicy: allowing })
+    const issued = await tokensFor(provider)
+    const stored = await adapter.artifacts.find('access_token', issued.access_token)
+    await adapter.artifacts.upsert({ ...(stored as NonNullable<typeof stored>), expiresAt: new Date(Date.now() + 30_000) })
+
+    const body = await (await exchange(provider, issued.access_token)).json()
+    expect(body.expires_in).toBeLessThanOrEqual(30)
+  })
+
+  // A bound token exchanged without its key would come back as a bearer token anyone can use.
+  test('a sender-constrained subject token needs its key', async () => {
+    const provider = build({ exchangePolicy: allowing })
+    const issued = await tokensFor(provider)
+    const stored = await adapter.artifacts.find('access_token', issued.access_token)
+    await adapter.artifacts.upsert({ ...(stored as NonNullable<typeof stored>), payload: { ...stored?.payload, cnf: { jkt: 'someone' } } })
+    expect((await (await exchange(provider, issued.access_token)).json()).error).toBe('invalid_grant')
+  })
+
+  // An ID token is not stored, so asking for one, or declaring one, cannot be honoured truthfully.
+  test('ID token types are refused rather than mislabelled', async () => {
+    const provider = build({ exchangePolicy: allowing })
+    const issued = await tokensFor(provider)
+    const ID = 'urn:ietf:params:oauth:token-type:id_token'
+    expect((await (await exchange(provider, issued.access_token, { requested_token_type: ID })).json()).error).toBe('invalid_request')
+    expect((await (await exchange(provider, issued.access_token, { subject_token_type: ID })).json()).error).toBe('invalid_request')
+  })
+
+  test('a pairwise client receives its own subject, not the account id', async () => {
+    await adapter.clients.upsert?.(client({ subjectType: 'pairwise' }))
+    const provider = build({ exchangePolicy: allowing, pairwiseSalt: 'a-long-enough-salt' })
+    const issued = await tokensFor(provider)
+    const body = await (await exchange(provider, issued.access_token)).json()
+    const stored = await adapter.artifacts.find('access_token', body.access_token)
+    expect(stored?.payload.subject).toBeTruthy()
+    expect(stored?.payload.subject).not.toBe('ada')
+  })
+})

@@ -2,15 +2,19 @@ import { randomString } from '@oidcraft/core'
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
 import type { Artifact, ArtifactKind, Client } from '../types'
+import { findPresented } from './access-token'
 import { type Binding, confirmationOf } from './issue'
+import { subjectFor } from './subjects'
 
 export const TOKEN_EXCHANGE = 'urn:ietf:params:oauth:grant-type:token-exchange'
 
 const ACCESS_TOKEN_TYPE = 'urn:ietf:params:oauth:token-type:access_token'
-const ID_TOKEN_TYPE = 'urn:ietf:params:oauth:token-type:id_token'
 const REFRESH_TOKEN_TYPE = 'urn:ietf:params:oauth:token-type:refresh_token'
 
-export const SUPPORTED_TOKEN_TYPES = [ACCESS_TOKEN_TYPE, ID_TOKEN_TYPE]
+/** What this exchange issues. An ID token is not stored, so it can be neither issued nor accepted here. */
+export const SUPPORTED_TOKEN_TYPES = [ACCESS_TOKEN_TYPE]
+
+const KIND_OF: Record<string, ArtifactKind> = { [ACCESS_TOKEN_TYPE]: 'access_token', [REFRESH_TOKEN_TYPE]: 'refresh_token' }
 
 export type ExchangeDecision = {
   /** The account the new token speaks for. Impersonation keeps it; delegation may not. */
@@ -30,18 +34,17 @@ export type ExchangePolicy = (input: {
   requested: { scopes: string[]; resource: string | undefined; audience: string | undefined; tokenType: string }
 }) => Promise<ExchangeDecision | undefined> | ExchangeDecision | undefined
 
-const resolveToken = async (config: ResolvedConfig, value: string, declaredType: string | null) => {
-  const kinds: ArtifactKind[] =
-    declaredType === REFRESH_TOKEN_TYPE
-      ? ['refresh_token']
-      : declaredType === ID_TOKEN_TYPE
-        ? ['access_token']
-        : ['access_token', 'refresh_token']
-  for (const kind of kinds) {
-    const artifact = await config.adapter.artifacts.find(kind, value)
-    if (artifact && !artifact.consumedAt) return artifact
+/** RFC 8693 §2.1: the declared type says what the token is, so it is looked up as that and nothing else. */
+const resolveToken = async (config: ResolvedConfig, value: string, declaredType: string | null, parameter: string) => {
+  const kind = declaredType ? KIND_OF[declaredType] : undefined
+  if (!kind) {
+    throw new OAuthError('invalid_request', {
+      description: `${parameter}_type must be the access_token or refresh_token type`,
+      spec: 'RFC 8693 §3'
+    })
   }
-  return undefined
+  const artifact = await findPresented(config, kind, value)
+  return artifact && !artifact.consumedAt ? artifact : undefined
 }
 
 /**
@@ -71,7 +74,7 @@ export const tokenExchange = async (config: ResolvedConfig, client: Client, form
     throw new OAuthError('invalid_request', { description: `requested_token_type ${requestedType} is not supported` })
   }
 
-  const subject = await resolveToken(config, subjectToken, subjectTokenType)
+  const subject = await resolveToken(config, subjectToken, subjectTokenType, 'subject_token')
   if (!subject) throw new OAuthError('invalid_grant', { description: 'the subject_token is unknown or expired' })
 
   const actorTokenValue = form.get('actor_token')
@@ -81,7 +84,7 @@ export const tokenExchange = async (config: ResolvedConfig, client: Client, form
       spec: 'RFC 8693 §2.1'
     })
   }
-  const actor = actorTokenValue ? await resolveToken(config, actorTokenValue, form.get('actor_token_type')) : undefined
+  const actor = actorTokenValue ? await resolveToken(config, actorTokenValue, form.get('actor_token_type'), 'actor_token') : undefined
   if (actorTokenValue && !actor) throw new OAuthError('invalid_grant', { description: 'the actor_token is unknown or expired' })
 
   const requestedScopes = (form.get('scope') ?? '').split(' ').filter(Boolean)
@@ -112,10 +115,18 @@ export const tokenExchange = async (config: ResolvedConfig, client: Client, form
 
 export const exchangeGrant = async (config: ResolvedConfig, client: Client, form: URLSearchParams, binding: Binding) => {
   const cnf = confirmationOf(binding)
-  const { decision, requestedType, subject } = await tokenExchange(config, client, form)
+  const { decision, subject } = await tokenExchange(config, client, form)
+
+  // A sender-constrained token is only usable by its holder; exchanging it must not launder that away.
+  const bound = subject.payload.cnf as { jkt?: string; 'x5t#S256'?: string } | undefined
+  if ((bound?.jkt && bound.jkt !== binding.jkt) || (bound?.['x5t#S256'] && bound['x5t#S256'] !== binding.x5t)) {
+    throw new OAuthError('invalid_grant', { description: 'the subject_token is bound to a key or certificate this request did not prove' })
+  }
 
   const accessToken = randomString()
-  const expiresIn = config.ttl.accessToken
+  // An exchanged token never outlives the one it was exchanged for.
+  const expiresAt = new Date(Math.min(Date.now() + config.ttl.accessToken * 1000, subject.expiresAt.getTime()))
+  const expiresIn = Math.max(0, Math.floor((expiresAt.getTime() - Date.now()) / 1000))
   await config.adapter.artifacts.upsert({
     id: accessToken,
     kind: 'access_token',
@@ -125,19 +136,19 @@ export const exchangeGrant = async (config: ResolvedConfig, client: Client, form
     payload: {
       scopes: decision.scopes,
       sessionId: subject.payload.sessionId as string,
-      subject: decision.accountId,
+      subject: await subjectFor(config, client, decision.accountId),
       // RFC 8693 §4.1: who is acting, so a resource server can tell delegation from the real thing.
       ...(decision.actor && { act: { client_id: decision.actor.clientId } }),
       ...(decision.resource && { resource: decision.resource }),
       ...(decision.audience && { aud: decision.audience }),
       ...(cnf && { cnf })
     },
-    expiresAt: new Date(Date.now() + expiresIn * 1000)
+    expiresAt
   })
 
   return {
     access_token: accessToken,
-    issued_token_type: SUPPORTED_TOKEN_TYPES.includes(requestedType) ? requestedType : SUPPORTED_TOKEN_TYPES[0],
+    issued_token_type: ACCESS_TOKEN_TYPE,
     token_type: binding.jkt ? 'DPoP' : 'Bearer',
     expires_in: expiresIn,
     scope: decision.scopes.join(' ')

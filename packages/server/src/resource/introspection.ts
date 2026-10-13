@@ -1,6 +1,7 @@
 import { authenticateClient } from '../clients/authenticate'
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
+import { findPresented } from '../token/access-token'
 import type { Artifact, ArtifactKind } from '../types'
 
 const INTROSPECTABLE: ArtifactKind[] = ['access_token', 'refresh_token']
@@ -37,7 +38,7 @@ export const introspectionEndpoint = async (config: ResolvedConfig, request: Req
   const kinds = hint === 'refresh_token' ? ['refresh_token', 'access_token'] : INTROSPECTABLE
 
   for (const kind of kinds as ArtifactKind[]) {
-    const artifact = await config.adapter.artifacts.find(kind, presented)
+    const artifact = await findPresented(config, kind, presented)
     if (!artifact || artifact.consumedAt) continue
     if (artifact.clientId !== client.clientId) return inactive
 

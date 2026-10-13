@@ -1,7 +1,7 @@
 import { decodeJwt, importJWK, SignJWT } from 'jose'
 import type { ResolvedConfig } from '../config'
 import { signingKey } from '../keys/keys'
-import type { Artifact, Client } from '../types'
+import type { Artifact, ArtifactKind, Client } from '../types'
 
 export const JWT_ACCESS_TOKEN_TYPE = 'at+jwt'
 
@@ -46,6 +46,10 @@ export const mintJwtAccessToken = async (config: ResolvedConfig, input: AccessTo
     .setExpirationTime(Math.floor(input.expiresAt.getTime() / 1000))
     .sign(await importJWK(key.privateJwk as never, alg))
 }
+
+/** An access token by whichever form it was presented in; any other kind by its id. */
+export const findPresented = (config: ResolvedConfig, kind: ArtifactKind, presented: string) =>
+  kind === 'access_token' ? resolveAccessToken(config, presented) : config.adapter.artifacts.find(kind, presented)
 
 const looksLikeJwt = (value: string) => value.split('.').length === 3
 

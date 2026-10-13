@@ -122,18 +122,38 @@ describe('FR-T2: JWT access tokens', () => {
     const before = await provider.handle(new Request(`${ISSUER}/userinfo`, { headers: { authorization: `Bearer ${issued.access_token}` } }))
     expect(before.status).toBe(200)
 
-    await provider.handle(
-      new Request(`${ISSUER}/token`, {
+    const revoked = await provider.handle(
+      new Request(`${ISSUER}/revoke`, {
         method: 'POST',
         headers: { 'content-type': 'application/x-www-form-urlencoded', authorization: basic() },
-        body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: 'x' }).toString()
+        body: new URLSearchParams({ token: issued.access_token }).toString()
       })
     )
-    const jti = decodeJwt(issued.access_token).jti as string
-    await adapter.artifacts.destroy('access_token', jti)
+    expect(revoked.status).toBe(200)
+    expect(await adapter.artifacts.find('access_token', decodeJwt(issued.access_token).jti as string)).toBeUndefined()
 
     const after = await provider.handle(new Request(`${ISSUER}/userinfo`, { headers: { authorization: `Bearer ${issued.access_token}` } }))
     expect(after.status).toBe(401)
+  })
+
+  test('a JWT access token can be introspected', async () => {
+    await adapter.clients.upsert?.(client({ accessTokenFormat: 'jwt' }))
+    const provider = build()
+    const issued = await tokensFor(provider)
+    const introspect = async (token: string) =>
+      (
+        await provider.handle(
+          new Request(`${ISSUER}/introspect`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/x-www-form-urlencoded', authorization: basic() },
+            body: new URLSearchParams({ token }).toString()
+          })
+        )
+      ).json()
+
+    expect(await introspect(issued.access_token)).toMatchObject({ active: true, client_id: 'rp', scope: 'openid profile' })
+    await adapter.artifacts.destroy('access_token', decodeJwt(issued.access_token).jti as string)
+    expect(await introspect(issued.access_token)).toEqual({ active: false })
   })
 
   test('a JWT this provider did not issue is not accepted', async () => {

@@ -1,6 +1,7 @@
 import { authenticateClient } from '../clients/authenticate'
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
+import { findPresented } from '../token/access-token'
 import type { ArtifactKind } from '../types'
 
 const REVOCABLE: ArtifactKind[] = ['refresh_token', 'access_token']
@@ -22,7 +23,7 @@ export const revocationEndpoint = async (config: ResolvedConfig, request: Reques
   const ok = new Response(null, { status: 200, headers: { 'cache-control': 'no-store' } })
 
   for (const kind of order(form.get('token_type_hint'))) {
-    const artifact = await config.adapter.artifacts.find(kind, presented)
+    const artifact = await findPresented(config, kind, presented)
     if (!artifact || artifact.clientId !== client.clientId) continue
 
     // Revoking a refresh token takes the whole grant with it: leaving the access tokens it minted
@@ -31,7 +32,7 @@ export const revocationEndpoint = async (config: ResolvedConfig, request: Reques
       await config.adapter.artifacts.revokeByGrantId(artifact.grantId)
       await config.adapter.grants.destroy(artifact.grantId)
     } else {
-      await config.adapter.artifacts.destroy(kind, presented)
+      await config.adapter.artifacts.destroy(kind, artifact.id)
     }
     return ok
   }

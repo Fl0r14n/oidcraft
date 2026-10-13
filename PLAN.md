@@ -182,7 +182,7 @@ In fix order; the first is the only one that changes the adapter contract.
       `issueTokens`, so code, device and CIBA all record the client. The append is a read-then-upsert:
       two clients signing in on one session at the same instant can still lose one. Atomic would be a
       `SessionStore.addClient` across every adapter
-- [ ] JWT access tokens cannot be revoked or introspected (FR-C8, FR-T2)
+- [x] JWT access tokens cannot be revoked or introspected (FR-C8, FR-T2). Fixed: both resolve by `jti`
 - [ ] mTLS: binding only on `authorization_code`, lost on refresh; client auth only at the token endpoint (FR-C4, FR-C13)
 
 **Medium**

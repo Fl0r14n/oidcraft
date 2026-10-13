@@ -1,4 +1,4 @@
-import { randomString } from '@oidcraft/core'
+import { constantTimeEquals, randomString } from '@oidcraft/core'
 import { audit } from '../audit'
 import type { ResolvedConfig } from '../config'
 import { supportedGrantTypes } from '../discovery'
@@ -167,7 +167,10 @@ const authorizeRegistrationAccess = async (config: ResolvedConfig, request: Requ
   const presented = header?.toLowerCase().startsWith('bearer ') ? header.slice(7).trim() : undefined
   const client = await config.adapter.clients.find(clientId)
   // An unknown client and a wrong token are the same answer: otherwise this enumerates client ids.
-  if (!client || !presented || !client.registrationAccessToken || presented !== client.registrationAccessToken) {
+  const matches = Boolean(
+    client?.registrationAccessToken && presented && (await constantTimeEquals(presented, client.registrationAccessToken))
+  )
+  if (!client || !matches) {
     throw new OAuthError('invalid_client', {
       description: 'no registration access token for this client',
       spec: 'RFC 7592 §2',
@@ -178,22 +181,26 @@ const authorizeRegistrationAccess = async (config: ResolvedConfig, request: Requ
   return client
 }
 
+/** FR-C3: only the host's onRegister can exempt a dynamically registered client, and never a public one. */
+const applyDecision = (client: Client, decision: { requirePkce?: boolean } | undefined) => {
+  if (decision?.requirePkce !== false) return
+  if (client.tokenEndpointAuthMethod === 'none') throw invalid('a public client cannot be exempted from PKCE')
+  client.requirePkce = false
+}
+
 /** OIDC Dynamic Client Registration 1.0 and RFC 7592. Off unless a deployment turns it on (FR-C9). */
 export const registrationEndpoint = async (config: ResolvedConfig, request: Request) => {
   const url = new URL(request.url)
 
   if (request.method === 'POST') {
-    const decision = config.onRegister ? await config.onRegister(request.clone()) : undefined
+    const decision = config.onRegister ? await config.onRegister(request.clone(), { existing: undefined }) : undefined
     const body = (await request.json().catch(() => {
       throw invalid('the registration request must be JSON')
     })) as Record<string, unknown>
 
     const client = metadataFrom(config, body)
     await assertRegistrable(config, client)
-    if (decision?.requirePkce === false) {
-      if (client.tokenEndpointAuthMethod === 'none') throw invalid('a public client cannot be exempted from PKCE')
-      client.requirePkce = false
-    }
+    applyDecision(client, decision)
     if (!config.adapter.clients.upsert) throw new OAuthError('server_error', { description: 'this adapter cannot create clients' })
     await config.adapter.clients.upsert(client)
     await audit(config, 'client.register', { clientId: client.clientId })
@@ -212,11 +219,15 @@ export const registrationEndpoint = async (config: ResolvedConfig, request: Requ
     return new Response(null, { status: 204, headers: { 'cache-control': 'no-store' } })
   }
 
+  // An update is a registration of new metadata, so the host vets it as it vetted the first; its
+  // answer, not the stored client, decides any PKCE exemption (FR-C3).
+  const decision = config.onRegister ? await config.onRegister(request.clone(), { existing: client }) : undefined
   const body = (await request.json().catch(() => {
     throw invalid('the update must be JSON')
   })) as Record<string, unknown>
   const replacement = metadataFrom(config, body)
   await assertRegistrable(config, replacement)
+  applyDecision(replacement, decision)
   // Identity and the token that grants access to it are the server's, not the client's to change.
   const updated: Client = {
     ...replacement,

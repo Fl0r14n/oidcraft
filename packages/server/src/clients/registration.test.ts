@@ -270,6 +270,39 @@ describe('dynamic client registration', () => {
     expect(allowed.status).toBe(201)
   })
 
+  // RFC 7592: an update is new metadata; skipping the hook would let it bypass whatever the host vets.
+  test('an update runs onRegister too, which decides the PKCE exemption again', async () => {
+    const seen: (string | undefined)[] = []
+    let exempt = true
+    const vetted = createProvider({
+      interactionUrl: 'https://op.example.com/interaction',
+      issuer: ISSUER,
+      adapter,
+      features: { dynamicRegistration: true },
+      onRegister: (_request, { existing }) => {
+        seen.push(existing?.clientId)
+        return { requirePkce: !exempt }
+      }
+    })
+    const created = await (await vetted.handle(new Request(`${ISSUER}/register`, { method: 'POST', body: JSON.stringify(valid) }))).json()
+    const update = (body: unknown) =>
+      vetted.handle(
+        new Request(`${ISSUER}/register?client_id=${created.client_id}`, {
+          method: 'PUT',
+          headers: { authorization: `Bearer ${created.registration_access_token}` },
+          body: JSON.stringify(body)
+        })
+      )
+
+    expect((await update({ ...valid, client_name: 'Renamed' })).status).toBe(200)
+    expect(seen).toEqual([undefined, created.client_id])
+    expect((await adapter.clients.find(created.client_id))?.requirePkce).toBe(false)
+
+    exempt = false
+    await update(valid)
+    expect((await adapter.clients.find(created.client_id))?.requirePkce).toBe(true)
+  })
+
   test('registration emits an audit event', async () => {
     await register(valid)
     expect(audit.map(event => event.action)).toEqual(['client.register'])

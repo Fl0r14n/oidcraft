@@ -168,8 +168,14 @@ export type ProviderConfig = {
    * an OAuthError refuses the registration. Without it, and with the feature on, anyone may
    * register a client (FR-C9). Returning `{ requirePkce: false }` is the host vouching for a
    * confidential client, the only way a dynamic one is exempted from PKCE (FR-C3).
+   *
+   * An RFC 7592 update runs it too, with `existing` set: the new metadata needs the same vetting,
+   * and its `Authorization` header carries the registration access token, not an initial one.
    */
-  onRegister?: (request: Request) => RegistrationDecision | undefined | Promise<RegistrationDecision | undefined>
+  onRegister?: (
+    request: Request,
+    context: { existing: Client | undefined }
+  ) => RegistrationDecision | undefined | Promise<RegistrationDecision | undefined>
   /** Every write through registration or the management API. The host decides where these go (FR-M3). */
   onAudit?: (event: AuditEvent) => void | Promise<void>
 }

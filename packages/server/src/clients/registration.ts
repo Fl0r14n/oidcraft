@@ -1,5 +1,6 @@
 import { constantTimeEquals, randomString } from '@oidcraft/core'
 import { audit } from '../audit'
+import { CIBA_GRANT } from '../authorize/ciba'
 import type { ResolvedConfig } from '../config'
 import { supportedGrantTypes } from '../discovery'
 import { OAuthError } from '../errors'
@@ -119,6 +120,30 @@ const grantsFrom = (config: ResolvedConfig, body: Record<string, unknown>, metho
   return { grantTypes, responseTypes }
 }
 
+/**
+ * OIDC CIBA 1.0 §4: a client of the CIBA grant says how it gets its result, and a ping client where.
+ * Push is out of scope (FR-C17).
+ */
+const cibaMetadataFrom = (body: Record<string, unknown>, grantTypes: string[]) => {
+  const mode = body.backchannel_token_delivery_mode
+  const ciba = grantTypes.includes(CIBA_GRANT)
+  if (mode === undefined) {
+    if (ciba) throw invalid('a client of the CIBA grant must declare backchannel_token_delivery_mode')
+    return {}
+  }
+  if (!ciba) throw invalid('backchannel_token_delivery_mode needs the CIBA grant type')
+  if (mode !== 'poll' && mode !== 'ping') throw invalid(`backchannel_token_delivery_mode ${String(mode)} is not supported; poll or ping`)
+  if (mode === 'poll') return { backchannelTokenDeliveryMode: mode } as const
+  // The host posts to it on a stranger's say-so, so it is held to the same rule as the other server-side URIs.
+  return {
+    backchannelTokenDeliveryMode: mode,
+    backchannelClientNotificationEndpoint: serverUri(
+      body.backchannel_client_notification_endpoint,
+      'backchannel_client_notification_endpoint'
+    )
+  } as const
+}
+
 const subjectTypeFrom = (config: ResolvedConfig, requested: unknown) => {
   if (requested === undefined) return {}
   if (requested !== 'public' && requested !== 'pairwise') throw invalid(`subject_type ${String(requested)} is not supported`)
@@ -157,6 +182,7 @@ const metadataFrom = (config: ResolvedConfig, body: Record<string, unknown>): Cl
     tokenEndpointAuthMethod: method,
     ...(typeof body.sector_identifier_uri === 'string' && { sectorIdentifierUri: body.sector_identifier_uri }),
     ...subjectTypeFrom(config, body.subject_type),
+    ...cibaMetadataFrom(body, grantTypes),
     // OIDC DCR 1.0 §2: RS256 when omitted, whatever the provider's own default is (FR-T1).
     idTokenSignedResponseAlg: (body.id_token_signed_response_alg as string | undefined) ?? 'RS256',
     ...(body.jwks ? { jwks: body.jwks as { keys: unknown[] } } : {}),
@@ -183,6 +209,10 @@ export const clientResponse = (config: ResolvedConfig, client: Client) => ({
   token_endpoint_auth_method: client.tokenEndpointAuthMethod,
   ...(client.sectorIdentifierUri && { sector_identifier_uri: client.sectorIdentifierUri }),
   ...(client.subjectType && { subject_type: client.subjectType }),
+  ...(client.backchannelTokenDeliveryMode && { backchannel_token_delivery_mode: client.backchannelTokenDeliveryMode }),
+  ...(client.backchannelClientNotificationEndpoint && {
+    backchannel_client_notification_endpoint: client.backchannelClientNotificationEndpoint
+  }),
   ...(client.idTokenSignedResponseAlg && { id_token_signed_response_alg: client.idTokenSignedResponseAlg }),
   client_id_issued_at: Math.floor(client.createdAt.getTime() / 1000),
   ...(client.registrationAccessToken && {

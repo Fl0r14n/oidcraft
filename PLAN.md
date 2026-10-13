@@ -173,8 +173,9 @@ In fix order; the first is the only one that changes the adapter contract.
 **High — broken features**
 
 - [x] CIBA ping can never redeem; `ciba.test.ts` asserts the bug (FR-C17). Fixed: a ping client
-      redeems with the poll request (CIBA §10.2). Still missing for ping to be usable end to end:
-      `Client` has no `backchannel_client_notification_endpoint`, and registration cannot set ping mode
+      redeems with the poll request (CIBA §10.2). Ping end to end: `Client` carries the
+      notification endpoint, registration sets the mode and endpoint, and `ciba.resolve` returns the
+      `CibaPing` the host delivers
 - [x] A PAR-required client cannot finish an interaction: the replay drops `request_uri` (FR-C12).
       Fixed: a pushed request resumes through a fresh pushed reference, never the front channel
 - [x] Logout notifies only the first RP: `session.clients` is never appended (FR-C11). Fixed in

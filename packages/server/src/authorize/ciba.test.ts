@@ -57,7 +57,13 @@ const build = (over: Record<string, unknown> = {}) =>
 beforeEach(async () => {
   adapter = await memoryAdapter({ accounts })
   await adapter.clients.upsert?.(client())
-  await adapter.clients.upsert?.(client({ clientId: 'pinger', backchannelTokenDeliveryMode: 'ping' }))
+  await adapter.clients.upsert?.(
+    client({
+      clientId: 'pinger',
+      backchannelTokenDeliveryMode: 'ping',
+      backchannelClientNotificationEndpoint: 'https://rp.example.com/ping'
+    })
+  )
   provider = build()
 })
 
@@ -174,8 +180,8 @@ describe('polling', () => {
 
     const session = { id: 's3', accountId: 'ada', authTime: new Date(), clients: ['pinger'], expiresAt: new Date(Date.now() + 60_000) }
     await adapter.sessions.upsert(session)
-    const { notify } = await provider.ciba.resolve(auth_req_id, { accountId: 'ada', sessionId: session.id, scopes: ['openid'] })
-    expect(notify).toBe('nt')
+    const { ping } = await provider.ciba.resolve(auth_req_id, { accountId: 'ada', sessionId: session.id, scopes: ['openid'] })
+    expect(ping?.clientNotificationToken).toBe('nt')
 
     setSystemTime(new Date(Date.now() + 10_000))
     try {
@@ -204,12 +210,29 @@ describe('resolution', () => {
     await expect(approve(auth_req_id, ['openid', 'admin'])).rejects.toThrow(/never requested/)
   })
 
-  test('hands back the notification token so ping mode can be delivered', async () => {
+  // OIDC CIBA 1.0 §10.2: the host delivers it; the core does no I/O (FR-A1).
+  test('hands back everything the host needs to deliver the ping', async () => {
     const { auth_req_id } = await (await start({ client_notification_token: 'nt' }, 'pinger')).json()
     const session = { id: 's2', accountId: 'ada', authTime: new Date(), clients: ['pinger'], expiresAt: new Date(Date.now() + 60_000) }
     await adapter.sessions.upsert(session)
     const result = await provider.ciba.resolve(auth_req_id, { accountId: 'ada', sessionId: session.id, scopes: ['openid'] })
-    expect(result).toEqual({ approved: true, notify: 'nt' })
+    expect(result).toEqual({
+      approved: true,
+      ping: { clientId: 'pinger', uri: 'https://rp.example.com/ping', clientNotificationToken: 'nt', authReqId: auth_req_id }
+    })
+  })
+
+  test('a denial is pinged too, and a poll client is never pinged', async () => {
+    const pinged = await (await start({ client_notification_token: 'nt' }, 'pinger')).json()
+    expect((await provider.ciba.resolve(pinged.auth_req_id, { denied: true })).ping?.uri).toBe('https://rp.example.com/ping')
+    const polled = await (await start()).json()
+    expect((await provider.ciba.resolve(polled.auth_req_id, { denied: true })).ping).toBeUndefined()
+  })
+
+  test('a ping client without a notification endpoint cannot start a request', async () => {
+    await adapter.clients.upsert?.(client({ clientId: 'pinger', backchannelTokenDeliveryMode: 'ping' }))
+    const response = await start({ client_notification_token: 'nt' }, 'pinger')
+    expect((await response.json()).error).toBe('unauthorized_client')
   })
 
   test('answering twice is refused', async () => {

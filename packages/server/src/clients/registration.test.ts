@@ -162,6 +162,50 @@ describe('dynamic client registration', () => {
     expect(await machine.json()).toMatchObject({ grant_types: ['client_credentials'], response_types: [] })
   })
 
+  // OIDC CIBA 1.0 §4: how a CIBA client gets its result, and for ping, where.
+  describe('CIBA delivery metadata', () => {
+    const ciba = () =>
+      createProvider({
+        interactionUrl: 'https://op.example.com/interaction',
+        issuer: ISSUER,
+        adapter,
+        features: { dynamicRegistration: true, ciba: true },
+        resolveCibaUser: () => undefined
+      })
+    const registerWith = (body: Record<string, unknown>) =>
+      ciba().handle(new Request(`${ISSUER}/register`, { method: 'POST', body: JSON.stringify({ ...valid, ...body }) }))
+    const CIBA = 'urn:openid:params:grant-type:ciba'
+
+    test('a ping client registers with its notification endpoint, and gets both back', async () => {
+      const response = await registerWith({
+        grant_types: [CIBA],
+        backchannel_token_delivery_mode: 'ping',
+        backchannel_client_notification_endpoint: 'https://rp.example.com/ping'
+      })
+      expect(response.status).toBe(201)
+      const body = await response.json()
+      expect(body).toMatchObject({
+        backchannel_token_delivery_mode: 'ping',
+        backchannel_client_notification_endpoint: 'https://rp.example.com/ping'
+      })
+      expect((await adapter.clients.find(body.client_id))?.backchannelClientNotificationEndpoint).toBe('https://rp.example.com/ping')
+    })
+
+    test('ping needs a public https endpoint; push and a missing mode are refused', async () => {
+      for (const body of [
+        { grant_types: [CIBA], backchannel_token_delivery_mode: 'ping' },
+        { grant_types: [CIBA], backchannel_token_delivery_mode: 'ping', backchannel_client_notification_endpoint: 'https://10.0.0.1/ping' },
+        { grant_types: [CIBA], backchannel_token_delivery_mode: 'push' },
+        { grant_types: [CIBA] },
+        { backchannel_token_delivery_mode: 'poll' }
+      ]) {
+        const response = await registerWith(body)
+        expect({ body, status: response.status }).toEqual({ body, status: 400 })
+      }
+      expect((await registerWith({ grant_types: [CIBA], backchannel_token_delivery_mode: 'poll' })).status).toBe(201)
+    })
+  })
+
   test('an unknown scope is refused', async () => {
     const response = await register({ ...valid, scope: 'openid wat' })
     expect((await response.json()).error_description).toContain('unknown scope')

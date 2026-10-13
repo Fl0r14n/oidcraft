@@ -46,6 +46,8 @@ export type Client = {
   backchannelLogoutUri?: string
   /** OIDC CIBA 1.0 §7.1. `push` is out of scope (FR-C17). */
   backchannelTokenDeliveryMode?: 'poll' | 'ping'
+  /** OIDC CIBA 1.0 §4: where a ping-mode client is told its result is ready. Required for ping. */
+  backchannelClientNotificationEndpoint?: string
   frontchannelLogoutUri?: string
   registrationAccessToken?: string
   /**

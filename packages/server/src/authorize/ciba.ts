@@ -18,6 +18,7 @@ export type CibaPayload = {
   mode: 'poll' | 'ping'
   bindingMessage?: string
   clientNotificationToken?: string
+  notificationEndpoint?: string
   accountId?: string
   sessionId?: string
   grantId?: string
@@ -61,6 +62,12 @@ export const backchannelAuthenticationEndpoint = async (
 
   const mode = client.backchannelTokenDeliveryMode ?? 'poll'
   const notificationToken = form.get('client_notification_token')
+  if (mode === 'ping' && !client.backchannelClientNotificationEndpoint) {
+    throw new OAuthError('unauthorized_client', {
+      description: `client ${client.clientId} is registered for ping but has no backchannel_client_notification_endpoint`,
+      spec: 'OIDC CIBA 1.0 §4'
+    })
+  }
   if (mode === 'ping' && !notificationToken) {
     throw new OAuthError('invalid_request', {
       description: 'client_notification_token is required in ping mode',
@@ -95,7 +102,9 @@ export const backchannelAuthenticationEndpoint = async (
       interval: DEFAULT_INTERVAL,
       mode,
       ...(form.get('binding_message') && { bindingMessage: form.get('binding_message') }),
-      ...(notificationToken && { clientNotificationToken: notificationToken })
+      ...(notificationToken && { clientNotificationToken: notificationToken }),
+      // Fixed when the request is made, so re-registering mid-flight cannot redirect the ping.
+      ...(mode === 'ping' && { notificationEndpoint: client.backchannelClientNotificationEndpoint })
     },
     expiresAt: new Date(Date.now() + expiresIn * 1000)
   })
@@ -142,6 +151,22 @@ const consumeAuthReqId = async (config: ResolvedConfig, authReqId: string, clien
   return { artifact, payload }
 }
 
+/**
+ * A ping for the host to deliver (OIDC CIBA 1.0 §10.2): POST `{"auth_req_id": authReqId}` as JSON
+ * to `uri`, with `Authorization: Bearer <clientNotificationToken>`. The core does no I/O (FR-A1).
+ */
+export type CibaPing = { clientId: string; uri: string; clientNotificationToken: string; authReqId: string }
+
+const pingFor = (artifact: Artifact, payload: CibaPayload): CibaPing | undefined =>
+  payload.mode === 'ping' && payload.notificationEndpoint && payload.clientNotificationToken
+    ? {
+        clientId: artifact.clientId,
+        uri: payload.notificationEndpoint,
+        clientNotificationToken: payload.clientNotificationToken,
+        authReqId: artifact.id
+      }
+    : undefined
+
 export type CibaDecision = { accountId: string; sessionId: string; scopes: string[] } | { denied: true }
 
 /** What the out-of-band channel calls once the person has answered on their own device. */
@@ -157,7 +182,8 @@ export const resolveBackchannelRequest = async (config: ResolvedConfig, authReqI
       ...artifact,
       payload: { ...payload, status: 'denied' } as unknown as Record<string, unknown>
     })
-    return { approved: false as const, notify: payload.mode === 'ping' ? payload.clientNotificationToken : undefined }
+    // §10.2: a denial is pinged too; the client learns it from the token request that follows.
+    return { approved: false as const, ping: pingFor(artifact, payload) }
   }
 
   // CIBA §7.1: the request named a user; an approval by anyone else is not an answer to it.
@@ -188,7 +214,7 @@ export const resolveBackchannelRequest = async (config: ResolvedConfig, authReqI
     } as unknown as Record<string, unknown>
   })
 
-  return { approved: true as const, notify: payload.mode === 'ping' ? payload.clientNotificationToken : undefined }
+  return { approved: true as const, ping: pingFor(artifact, payload) }
 }
 
 export const cibaGrant = async (config: ResolvedConfig, client: Client, form: URLSearchParams, binding: Binding) => {

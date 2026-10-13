@@ -647,3 +647,36 @@ describe('FR-C8: introspection by a resource server', () => {
     expect(body.iat).toBeLessThan(body.exp)
   })
 })
+
+describe('malformed credentials are client errors, not 500s', () => {
+  test('a Basic header that is not base64, or not percent-decodable, is invalid_client', async () => {
+    await adapter.clients.upsert?.(client())
+    const provider = build()
+    for (const authorization of ['Basic !!!not-base64!!!', `Basic ${btoa('rp:%E0%A4%A')}`]) {
+      const response = await provider.handle(
+        new Request(`${ISSUER}/token`, {
+          method: 'POST',
+          headers: { authorization, 'content-type': 'application/x-www-form-urlencoded' },
+          body: 'grant_type=authorization_code&code=x'
+        })
+      )
+      expect({ authorization, status: response.status }).toEqual({ authorization, status: 401 })
+    }
+  })
+
+  test('a cookie that is not percent-decodable is ignored', async () => {
+    await adapter.clients.upsert?.(client())
+    const params = new URLSearchParams({
+      client_id: 'rp',
+      redirect_uri: REDIRECT,
+      response_type: 'code',
+      scope: 'openid',
+      code_challenge: challenge,
+      code_challenge_method: 'S256'
+    })
+    const response = await build().handle(
+      new Request(`${ISSUER}/authorize?${params}`, { headers: { cookie: `${SESSION_COOKIE}=%E0%A4%A; other=1` } })
+    )
+    expect(response.status).toBe(303)
+  })
+})

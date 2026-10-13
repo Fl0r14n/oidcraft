@@ -17,7 +17,7 @@ const EXPOSED = 'www-authenticate, dpop-nonce'
 const basicClientId = (header: string | null) => {
   if (!header?.toLowerCase().startsWith('basic ')) return undefined
   try {
-    return decodeURIComponent(atob(header.slice(6).trim()).split(':')[0] ?? '')
+    return decodeURIComponent((atob(header.slice(6).trim()).split(':')[0] ?? '').replace(/\+/g, ' '))
   } catch {
     return undefined
   }

@@ -210,7 +210,7 @@ In fix order; the first is the only one that changes the adapter contract.
       interaction kind; the reference app's confirm screen is now that interaction
 - [x] Introspection has no resource-server authentication; `iat` equals `exp` (FR-C8). Fixed: `Client.resourceServer`;
       `iat` recorded at issuance
-- [ ] A malformed cookie or Basic header is a 500
+- [x] A malformed cookie or Basic header is a 500
 - [ ] RFC 7592 update skips `onRegister`, resets `requirePkce`, compares the token with `!==`
 - [x] Non-string request-object claims become `"[object Object]"`
 

@@ -26,14 +26,17 @@ const unauthorized = (description: string, spec = 'RFC 6749 §2.3, OIDC Core §9
     headers: { 'www-authenticate': 'Basic realm="oidcraft"' }
   })
 
+// RFC 6749 §2.3.1: both halves are form-urlencoded before the base64, so `+` is a space.
+const formDecode = (value: string) => decodeURIComponent(value.replace(/\+/g, ' '))
+
 const fromBasic = (header: string) => {
-  const decoded = atob(header.slice(6))
-  const separator = decoded.indexOf(':')
-  if (separator < 0) return undefined
-  // RFC 6749 §2.3.1: both halves are form-urlencoded before the base64.
-  return {
-    clientId: decodeURIComponent(decoded.slice(0, separator)),
-    clientSecret: decodeURIComponent(decoded.slice(separator + 1))
+  try {
+    const decoded = atob(header.slice(6).trim())
+    const separator = decoded.indexOf(':')
+    if (separator < 0) return undefined
+    return { clientId: formDecode(decoded.slice(0, separator)), clientSecret: formDecode(decoded.slice(separator + 1)) }
+  } catch {
+    throw unauthorized('the Basic authorization header is not valid base64 of form-encoded credentials')
   }
 }
 

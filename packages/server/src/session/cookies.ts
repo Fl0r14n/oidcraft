@@ -4,7 +4,10 @@ export const parseCookies = (header: string | null) => {
   for (const pair of header.split(';')) {
     const separator = pair.indexOf('=')
     if (separator < 0) continue
-    out.set(pair.slice(0, separator).trim(), decodeURIComponent(pair.slice(separator + 1).trim()))
+    // A cookie this provider never set, or one mangled in transit, is ignored rather than a 500.
+    try {
+      out.set(pair.slice(0, separator).trim(), decodeURIComponent(pair.slice(separator + 1).trim()))
+    } catch {}
   }
   return out
 }

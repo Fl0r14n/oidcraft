@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, test } from 'bun:test'
+import { beforeEach, describe, expect, setSystemTime, test } from 'bun:test'
 import { decodeJwt } from 'jose'
 import { memoryAdapter } from '../adapters/memory'
 import type { Adapter, Client } from '../index'
@@ -166,10 +166,22 @@ describe('polling', () => {
     expect((await (await pollFor('nope')).json()).error).toBe('expired_token')
   })
 
-  // Ping mode delivers by notification; polling it would race the notification it replaces.
-  test('a ping request cannot be polled', async () => {
+  // OIDC CIBA 1.0 §10.2: the notification says the result is ready; the token request is the poll one.
+  test('a ping request is redeemed once answered', async () => {
     const { auth_req_id } = await (await start({ client_notification_token: 'nt' }, 'pinger')).json()
-    expect((await (await pollFor(auth_req_id, 'pinger')).json()).error_description).toContain('delivered by ping')
+    expect((await (await pollFor(auth_req_id, 'pinger')).json()).error).toBe('authorization_pending')
+
+    const session = { id: 's3', accountId: 'ada', authTime: new Date(), clients: ['pinger'], expiresAt: new Date(Date.now() + 60_000) }
+    await adapter.sessions.upsert(session)
+    const { notify } = await provider.ciba.resolve(auth_req_id, { accountId: 'ada', sessionId: session.id, scopes: ['openid'] })
+    expect(notify).toBe('nt')
+
+    setSystemTime(new Date(Date.now() + 10_000))
+    try {
+      expect((await (await pollFor(auth_req_id, 'pinger')).json()).access_token).toBeTruthy()
+    } finally {
+      setSystemTime()
+    }
   })
 })
 

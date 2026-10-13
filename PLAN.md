@@ -173,7 +173,9 @@ In fix order; the first is the only one that changes the adapter contract.
 
 **High — broken features**
 
-- [ ] CIBA ping can never redeem; `ciba.test.ts` asserts the bug (FR-C17)
+- [x] CIBA ping can never redeem; `ciba.test.ts` asserts the bug (FR-C17). Fixed: a ping client
+      redeems with the poll request (CIBA §10.2). Still missing for ping to be usable end to end:
+      `Client` has no `backchannel_client_notification_endpoint`, and registration cannot set ping mode
 - [ ] A PAR-required client cannot finish an interaction: the replay drops `request_uri` (FR-C12)
 - [ ] Logout notifies only the first RP: `session.clients` is never appended (FR-C11)
 - [ ] JWT access tokens cannot be revoked or introspected (FR-C8, FR-T2)

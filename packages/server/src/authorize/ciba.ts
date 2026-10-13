@@ -108,11 +108,8 @@ const consumeAuthReqId = async (config: ResolvedConfig, authReqId: string, clien
   if (artifact.consumedAt)
     throw new OAuthError('invalid_grant', { description: 'that auth_req_id was already redeemed', spec: 'OIDC CIBA 1.0 §11' })
 
+  // OIDC CIBA 1.0 §10.2: a ping client redeems with the same request a poll client makes.
   const payload = payloadOf(artifact)
-  if (payload.mode !== 'poll') {
-    throw new OAuthError('invalid_grant', { description: 'this request is delivered by ping; poll only after the notification' })
-  }
-
   const now = Date.now()
   const since = payload.lastPolledAt ? (now - payload.lastPolledAt) / 1000 : Number.POSITIVE_INFINITY
   if (since < payload.interval) {

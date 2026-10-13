@@ -5,7 +5,7 @@ import type { InteractionCompletion, InteractionKind, InteractionRequest, Intera
 import { startSession } from '../session/session'
 import type { Grant } from '../types'
 import type { AuthorizationRequest } from './authorization'
-import { detailsConsentId, redirectTo } from './authorization'
+import { detailsConsentId, type ResponseTarget } from './authorization'
 import { pushParameters } from './par'
 
 const load = async (config: ResolvedConfig, id: string) => {
@@ -64,13 +64,23 @@ export const interactions = (config: ResolvedConfig) => ({
 
     if (outcome.error) {
       await config.adapter.artifacts.destroy('interaction', id)
-      return {
-        redirectTo: redirectTo(request, {
-          error: outcome.error.error,
-          ...(outcome.error.description && { error_description: outcome.error.description })
-        }),
-        setCookie: undefined
-      }
+      // A form_post response cannot be a URL handed to the host, so every error goes back through the
+      // authorization endpoint, which delivers it in the mode the client asked for.
+      const responseId = randomString()
+      const target: ResponseTarget = { redirectUri: request.redirectUri, responseMode: request.responseMode, state: request.state }
+      await config.adapter.artifacts.upsert({
+        id: responseId,
+        kind: 'authorization_response',
+        clientId: request.clientId,
+        payload: {
+          target,
+          values: { error: outcome.error.error, ...(outcome.error.description && { error_description: outcome.error.description }) }
+        },
+        expiresAt: new Date(Date.now() + config.ttl.interaction * 1000)
+      })
+      const url = new URL(config.routes.authorization, config.issuer)
+      url.searchParams.set('response', responseId)
+      return { redirectTo: url.toString(), setCookie: undefined }
     }
 
     let setCookie: string | undefined

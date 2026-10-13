@@ -97,6 +97,7 @@ export type ArtifactKind =
   | 'registration_access_token'
   | 'authorization_details_consent'
   | 'dpop_nonce'
+  | 'authorization_response'
 
 export type Artifact = {
   id: string

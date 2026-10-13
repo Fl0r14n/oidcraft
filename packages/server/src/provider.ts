@@ -1,4 +1,11 @@
-import { authorize, parseAuthorizationRequest, redirectTo, validateAuthorizationRequest } from './authorize/authorization'
+import {
+  authorizationResponse,
+  authorize,
+  parseAuthorizationRequest,
+  RESPONSE_MODES,
+  type ResponseTarget,
+  validateAuthorizationRequest
+} from './authorize/authorization'
 import { backchannelAuthenticationEndpoint, type CibaDecision, resolveBackchannelRequest } from './authorize/ciba'
 import { deviceAuthorizationEndpoint, findByUserCode, resolveDeviceCode } from './authorize/device'
 import { interactions } from './authorize/interactions'
@@ -46,9 +53,23 @@ const seeOther = (url: string, setCookie?: string) =>
     headers: { location: url, 'cache-control': 'no-store', ...(setCookie && { 'set-cookie': setCookie }) }
   })
 
+const errorValues = (error: OAuthError) => ({ error: error.code, ...(error.description && { error_description: error.description }) })
+
+/** An interaction's error answer, single-use, delivered in the mode the request asked for (FR-C14). */
+const deliverStoredResponse = async (config: ResolvedConfig, id: string) => {
+  const artifact = await config.adapter.artifacts.find('authorization_response', id)
+  if (!artifact || !(await config.adapter.artifacts.consume('authorization_response', id))) {
+    throw new OAuthError('invalid_request', { description: 'this authorization response is unknown, expired or already delivered' })
+  }
+  return authorizationResponse(config.issuer, artifact.payload.target as ResponseTarget, artifact.payload.values as Record<string, string>)
+}
+
 const authorizationHandler: Handler = async (config, request) => {
   const url = new URL(request.url)
   const raw = request.method === 'POST' ? new URLSearchParams(await request.text()) : url.searchParams
+
+  const stored = raw.get('response')
+  if (stored && !raw.has('client_id')) return deliverStoredResponse(config, stored)
 
   const params = await resolveParameters(config, raw)
 
@@ -71,18 +92,18 @@ const authorizationHandler: Handler = async (config, request) => {
     }
   } catch (error) {
     if (!(error instanceof OAuthError)) throw error
-    const url = new URL(redirectUri)
-    url.searchParams.set('error', error.code)
-    if (error.description) url.searchParams.set('error_description', error.description)
-    const state = params.get('state')
-    if (state !== null) url.searchParams.set('state', state)
-    url.searchParams.set('iss', config.issuer)
-    return seeOther(url.toString())
+    const mode = params.get('response_mode')
+    const target: ResponseTarget = {
+      redirectUri,
+      responseMode: mode && RESPONSE_MODES.includes(mode) ? mode : 'query',
+      state: params.get('state') ?? undefined
+    }
+    return authorizationResponse(config.issuer, target, errorValues(error))
   }
 
   try {
     const outcome = await authorize(config, validated, await readSession(config, request), client)
-    if (outcome.kind === 'redirect') return seeOther(outcome.url)
+    if (outcome.kind === 'response') return authorizationResponse(config.issuer, validated, outcome.values)
 
     if (!config.interactionUrl) {
       throw new OAuthError('server_error', { description: 'an interaction is required but no interactionUrl is configured (FR-I1)' })
@@ -90,9 +111,7 @@ const authorizationHandler: Handler = async (config, request) => {
     return seeOther(`${config.interactionUrl}/${outcome.id}`)
   } catch (error) {
     if (!(error instanceof OAuthError)) throw error
-    return seeOther(
-      redirectTo(validated, { error: error.code, ...(error.description && { error_description: error.description }), iss: config.issuer })
-    )
+    return authorizationResponse(config.issuer, validated, errorValues(error))
   }
 }
 

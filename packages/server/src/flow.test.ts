@@ -483,10 +483,40 @@ describe('interaction', () => {
     const first = await go(authorizeUrl())
     const id = new URL(first.headers.get('location') as string).pathname.split('/').pop() as string
     const { redirectTo } = await provider.interactions.complete(id, { error: { error: 'access_denied' } })
-    const url = new URL(redirectTo)
+    const delivered = await go(redirectTo)
+    const url = new URL(delivered.headers.get('location') as string)
     expect(url.origin + url.pathname).toBe(REDIRECT)
     expect(url.searchParams.get('error')).toBe('access_denied')
     expect(url.searchParams.get('state')).toBe('xyz')
+    // FR-C14: iss on every authorization response, errors included.
+    expect(url.searchParams.get('iss')).toBe(ISSUER)
+    // Delivered once: a replayed link is not a second answer.
+    expect((await go(redirectTo)).status).toBe(400)
+  })
+
+  test('form_post answers with a self-submitting form, never a query string', async () => {
+    const { location, cookie } = await loginAndConsent()
+    expect(location.searchParams.get('code')).toBeTruthy()
+    const response = await go(authorizeUrl({ response_mode: 'form_post' }), cookie)
+    expect(response.status).toBe(200)
+    expect(response.headers.get('location')).toBeNull()
+    const html = await response.text()
+    expect(html).toContain(`action="${REDIRECT}"`)
+    expect(html).toMatch(/name="code" value="[^"]+"/)
+    expect(html).toContain(`name="iss" value="${ISSUER}"`)
+    expect(response.headers.get('content-security-policy')).toContain('form-action https://rp.example.com')
+  })
+
+  test('form_post errors are posted too, and a denial carries iss', async () => {
+    const first = await go(authorizeUrl({ response_mode: 'form_post' }))
+    const id = new URL(first.headers.get('location') as string).pathname.split('/').pop() as string
+    const { redirectTo } = await provider.interactions.complete(id, { error: { error: 'access_denied' } })
+    const html = await (await go(redirectTo)).text()
+    expect(html).toContain('name="error" value="access_denied"')
+    expect(html).toContain(`name="iss" value="${ISSUER}"`)
+
+    const invalid = await (await go(authorizeUrl({ response_mode: 'form_post', scope: 'profile' }))).text()
+    expect(invalid).toContain('name="error" value="invalid_scope"')
   })
 
   test('an unknown interaction is a 404, not a crash', async () => {

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, test } from 'bun:test'
+import { beforeEach, describe, expect, setSystemTime, test } from 'bun:test'
 import { randomString, sha256 } from '@oidcraft/core'
 import { base64url, decodeJwt } from 'jose'
 import { memoryAdapter } from './adapters/memory'
@@ -179,7 +179,9 @@ describe('introspection', () => {
 describe('end session', () => {
   test('ends the session and clears the cookie', async () => {
     const issued = await tokens()
-    const response = await provider.handle(new Request(`${ISSUER}/session/end`, { headers: { cookie: issued.cookie } }))
+    const response = await provider.handle(
+      new Request(`${ISSUER}/session/end?id_token_hint=${issued.id_token}`, { headers: { cookie: issued.cookie } })
+    )
     expect(response.status).toBe(200)
     expect(response.headers.get('set-cookie')).toContain('Max-Age=0')
 
@@ -234,7 +236,7 @@ describe('end session', () => {
       backchannelLogoutUri: 'https://rp.example.com/backchannel'
     })
     const issued = await tokens()
-    await provider.handle(new Request(`${ISSUER}/session/end`, { headers: { cookie: issued.cookie } }))
+    await provider.handle(new Request(`${ISSUER}/session/end?id_token_hint=${issued.id_token}`, { headers: { cookie: issued.cookie } }))
 
     expect(delivered).toHaveLength(1)
     expect(delivered[0]?.uri).toBe('https://rp.example.com/backchannel')
@@ -244,6 +246,51 @@ describe('end session', () => {
     expect(claims.sub).toBe('ada')
     expect(Object.keys(claims.events as object)).toEqual(['http://schemas.openid.net/event/backchannel-logout'])
     expect(claims.nonce).toBeUndefined()
+  })
+
+  // OIDC RP-Initiated Logout 1.0 §2: nothing proves who sent a hintless request, so the person is asked.
+  test('without a verified hint the person confirms first, and only then is the session ended', async () => {
+    const issued = await tokens()
+    const asked = await provider.handle(new Request(`${ISSUER}/session/end`, { headers: { cookie: issued.cookie } }))
+    expect(asked.status).toBe(303)
+    expect(asked.headers.get('set-cookie')).toBeNull()
+    const id = (asked.headers.get('location') as string).split('/').pop() as string
+    expect((await provider.interactions.find(id)).kind).toBe('logout')
+    expect(await adapter.sessions.listForAccount('ada')).toHaveLength(1)
+
+    const { redirectTo } = await provider.interactions.complete(id, { logout: true })
+    const done = await provider.handle(new Request(redirectTo, { headers: { cookie: issued.cookie } }))
+    expect(done.status).toBe(200)
+    expect(done.headers.get('set-cookie')).toContain('Max-Age=0')
+    expect(await adapter.sessions.listForAccount('ada')).toHaveLength(0)
+    // Single-use: the same confirmation cannot end a later session.
+    expect((await provider.handle(new Request(redirectTo, { headers: { cookie: issued.cookie } }))).status).toBe(400)
+  })
+
+  test("a confirmation cannot end someone else's session", async () => {
+    const issued = await tokens()
+    const asked = await provider.handle(new Request(`${ISSUER}/session/end`, { headers: { cookie: issued.cookie } }))
+    const id = (asked.headers.get('location') as string).split('/').pop() as string
+    const { redirectTo } = await provider.interactions.complete(id, { logout: true })
+    const other = { id: 'other', accountId: 'grace', authTime: new Date(), clients: [], expiresAt: new Date(Date.now() + 60_000) }
+    await adapter.sessions.upsert(other)
+    const response = await provider.handle(new Request(redirectTo, { headers: { cookie: `${SESSION_COOKIE}=other` } }))
+    expect(response.status).toBe(400)
+    expect(await adapter.sessions.find('other')).toBeTruthy()
+  })
+
+  // §2: the hint is usually long expired by the time the user signs out; it only proves who issued it.
+  test('an expired id_token_hint is still accepted', async () => {
+    const issued = await tokens()
+    setSystemTime(new Date(Date.now() + 24 * 3600 * 1000))
+    try {
+      const response = await provider.handle(
+        new Request(`${ISSUER}/session/end?id_token_hint=${issued.id_token}`, { headers: { cookie: issued.cookie } })
+      )
+      expect(response.status).toBe(200)
+    } finally {
+      setSystemTime()
+    }
   })
 
   test('no session is still a clean sign-out', async () => {

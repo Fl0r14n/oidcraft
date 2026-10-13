@@ -145,12 +145,11 @@ export const deviceDoneScreen = (approved: boolean) =>
       : `<h1>Denied</h1><p class="sub">Nothing was shared with the device.</p>`
   )
 
-export const logoutConfirmScreen = (clientName: string | undefined, returnTo: string | undefined) =>
+export const logoutConfirmScreen = (id: string, clientName: string | undefined) =>
   layout(
     'Sign out',
     `<h1>Sign out?</h1><p class="sub">${clientName ? `${escapeHtml(clientName)} asked to sign you out.` : 'This will end your session here.'}</p>
-<form method="post" action="/interaction/logout" class="row">
-<input type="hidden" name="return_to" value="${escapeHtml(returnTo ?? '')}">
+<form method="post" action="/interaction/${escapeHtml(id)}/logout" class="row">
 <button type="submit" name="decision" value="yes">Sign out</button>
 <button type="submit" name="decision" value="no" class="secondary">Stay signed in</button></form>`
   )

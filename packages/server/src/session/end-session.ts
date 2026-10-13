@@ -1,3 +1,4 @@
+import { randomString } from '@oidcraft/core'
 import { createLocalJWKSet, decodeJwt, jwtVerify } from 'jose'
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
@@ -24,7 +25,9 @@ const clientFromHint = async (config: ResolvedConfig, hint: string | null, clien
 const verifyHint = async (config: ResolvedConfig, hint: string) => {
   const jwks = createLocalJWKSet(jwksResponseBody(await config.adapter.keys.active()) as never)
   try {
-    const { payload } = await jwtVerify(hint, jwks, { issuer: config.issuer })
+    // §2: the hint is usually an ID token that has long expired by the time the user signs out, and
+    // it only has to prove this provider issued it, so its lifetime is not checked.
+    const { payload } = await jwtVerify(hint, jwks, { issuer: config.issuer, clockTolerance: Number.MAX_SAFE_INTEGER })
     return payload
   } catch {
     throw new OAuthError('invalid_request', {
@@ -51,6 +54,15 @@ export const endSessionEndpoint = async (
   const requested = params.get('post_logout_redirect_uri')
   const target = resolveTarget(client, requested, Boolean(claims))
 
+  const confirmation = params.get('logout')
+  if (confirmation) {
+    await acceptConfirmation(config, confirmation, session)
+  } else if (session && !claims) {
+    // §2: without a verified hint nothing proves the client sent this, and a bare link would sign
+    // anyone out who followed it, so the person is asked first.
+    return { response: await askToConfirm(config, session, client, params.get('state')), notifications: [], frontChannel: [] }
+  }
+
   const notifications = session ? await logoutTokens(config, session) : []
   const frontChannel = session ? await frontChannelLogouts(config, session) : []
   if (session) await config.adapter.sessions.destroy(session.id)
@@ -70,6 +82,28 @@ export const endSessionEndpoint = async (
   if (state !== null) redirect.searchParams.set('state', state)
   headers.set('location', redirect.toString())
   return { response: new Response(null, { status: 303, headers }), notifications, frontChannel }
+}
+
+const askToConfirm = async (config: ResolvedConfig, session: Session, client: Client | undefined, state: string | null) => {
+  const id = randomString()
+  await config.adapter.artifacts.upsert({
+    id,
+    kind: 'interaction',
+    clientId: client?.clientId ?? '',
+    accountId: session.accountId,
+    payload: { interactionKind: 'logout', sessionId: session.id, ...(state !== null && { state }) },
+    expiresAt: new Date(Date.now() + config.ttl.interaction * 1000)
+  })
+  return new Response(null, { status: 303, headers: { location: `${config.interactionUrl}/${id}`, 'cache-control': 'no-store' } })
+}
+
+/** Only a confirmed logout interaction for this very session ends it, and only once. */
+const acceptConfirmation = async (config: ResolvedConfig, id: string, session: Session | undefined) => {
+  const artifact = await config.adapter.artifacts.find('interaction', id)
+  if (!artifact?.consumedAt || artifact.payload.interactionKind !== 'logout' || artifact.payload.sessionId !== session?.id) {
+    throw new OAuthError('invalid_request', { description: 'this logout confirmation is unknown, expired, or for another session' })
+  }
+  await config.adapter.artifacts.destroy('interaction', id)
 }
 
 const resolveTarget = (client: Client | undefined, requested: string | null, verifiedHint: boolean) => {

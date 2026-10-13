@@ -99,6 +99,14 @@ const tokensFor = async (
   throw new Error('never reached the redirect')
 }
 
+/** RP-initiated logout as a relying party sends it: with the ID token it was issued (OIDC RP-Initiated Logout 1.0 §2). */
+const endSession = (provider: Provider, sessionId: string | undefined, idToken: string) =>
+  provider.handle(
+    new Request(`${ISSUER}/session/end?${new URLSearchParams({ id_token_hint: idToken })}`, {
+      headers: { cookie: `${SESSION_COOKIE}=${sessionId}` }
+    })
+  )
+
 describe('FR-T2: JWT access tokens', () => {
   test('opaque by default', async () => {
     await adapter.clients.upsert?.(client())
@@ -238,7 +246,7 @@ describe('FR-C11: front-channel logout', () => {
     const issued = await tokensFor(provider)
     const session = (await adapter.sessions.listForAccount('ada'))[0]
 
-    await provider.handle(new Request(`${ISSUER}/session/end`, { headers: { cookie: `${SESSION_COOKIE}=${session?.id}` } }))
+    await endSession(provider, session?.id, issued.id_token)
     expect(targets).toEqual([{ clientId: 'rp', uri: 'https://rp.example.com/fc' }])
     expect(issued.access_token).toBeTruthy()
   })
@@ -252,9 +260,9 @@ describe('FR-C11: front-channel logout', () => {
         targets = received
       }
     })
-    await tokensFor(provider)
+    const issued = await tokensFor(provider)
     const session = (await adapter.sessions.listForAccount('ada'))[0]
-    await provider.handle(new Request(`${ISSUER}/session/end`, { headers: { cookie: `${SESSION_COOKIE}=${session?.id}` } }))
+    await endSession(provider, session?.id, issued.id_token)
 
     const url = new URL(targets[0]?.uri as string)
     expect(url.searchParams.get('iss')).toBe(ISSUER)
@@ -270,12 +278,12 @@ describe('FR-C11: front-channel logout', () => {
         targets = received
       }
     })
-    await tokensFor(provider)
+    const issued = await tokensFor(provider)
     const session = (await adapter.sessions.listForAccount('ada'))[0]
     await tokensFor(provider, 'rp2', undefined, { session: session?.id })
     expect(await adapter.sessions.listForAccount('ada')).toHaveLength(1)
 
-    await provider.handle(new Request(`${ISSUER}/session/end`, { headers: { cookie: `${SESSION_COOKIE}=${session?.id}` } }))
+    await endSession(provider, session?.id, issued.id_token)
     expect(targets.map(target => target.clientId).sort()).toEqual(['rp', 'rp2'])
   })
 
@@ -287,9 +295,9 @@ describe('FR-C11: front-channel logout', () => {
         targets = received
       }
     })
-    await tokensFor(provider)
+    const issued = await tokensFor(provider)
     const session = (await adapter.sessions.listForAccount('ada'))[0]
-    await provider.handle(new Request(`${ISSUER}/session/end`, { headers: { cookie: `${SESSION_COOKIE}=${session?.id}` } }))
+    await endSession(provider, session?.id, issued.id_token)
     expect(targets).toEqual([])
   })
 })
@@ -512,7 +520,7 @@ describe('FR-C18: a pairwise subject never leaks the account id', () => {
     })
     const issued = await tokensFor(provider)
     const session = (await adapter.sessions.listForAccount('ada'))[0]
-    await provider.handle(new Request(`${ISSUER}/session/end`, { headers: { cookie: `${SESSION_COOKIE}=${session?.id}` } }))
+    await endSession(provider, session?.id, issued.id_token)
     expect(decodeJwt(tokens[0]?.logoutToken as string).sub).toBe(decodeJwt(issued.id_token).sub as string)
   })
 })

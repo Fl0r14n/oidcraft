@@ -21,6 +21,7 @@ const load = async (config: ResolvedConfig, id: string) => {
 export const interactions = (config: ResolvedConfig) => ({
   async find(id: string): Promise<InteractionRequest> {
     const { artifact, request, kind } = await load(config, id)
+    if (kind === 'logout') return logoutView(id, artifact.clientId, artifact.expiresAt)
     const client = await config.adapter.clients.find(request.clientId)
     return {
       id,
@@ -46,7 +47,8 @@ export const interactions = (config: ResolvedConfig) => ({
    * belong in a URL the user can edit.
    */
   async complete(id: string, outcome: InteractionResult): Promise<InteractionCompletion> {
-    const { artifact, request } = await load(config, id)
+    const { artifact, request, kind } = await load(config, id)
+    if (kind === 'logout') return confirmLogout(config, id, artifact.payload, outcome)
     const requestedDetails = request.authorizationDetails
     if (outcome.consent && requestedDetails) {
       const approved = outcome.consent.authorizationDetails
@@ -126,6 +128,36 @@ export const interactions = (config: ResolvedConfig) => ({
     return { redirectTo: await authorizationUrl(config, request, Boolean(outcome.login)), setCookie }
   }
 })
+
+const logoutView = (id: string, clientId: string, expiresAt: Date): InteractionRequest => ({
+  id,
+  kind: 'logout',
+  clientId,
+  scopes: [],
+  prompt: [],
+  loginHint: undefined,
+  acrValues: undefined,
+  uiLocales: undefined,
+  maxAge: undefined,
+  upstreamProviders: undefined,
+  upstream: undefined,
+  authorizationDetails: undefined,
+  expiresAt
+})
+
+/** The person confirmed; end-session runs again with a single-use proof of it (OIDC RP-Initiated Logout 1.0 §2). */
+const confirmLogout = async (config: ResolvedConfig, id: string, payload: Record<string, unknown>, outcome: InteractionResult) => {
+  if (!outcome.logout) {
+    throw new OAuthError('invalid_request', { description: 'a logout interaction is completed only by confirming it', status: 400 })
+  }
+  if (!(await config.adapter.artifacts.consume('interaction', id))) {
+    throw new OAuthError('invalid_request', { description: 'this interaction was already completed', status: 404 })
+  }
+  const url = new URL(`${config.issuer}${config.routes.endSession}`)
+  url.searchParams.set('logout', id)
+  if (typeof payload.state === 'string') url.searchParams.set('state', payload.state)
+  return { redirectTo: url.toString(), setCookie: undefined }
+}
 
 const authorizationUrl = async (config: ResolvedConfig, request: AuthorizationRequest, loggedIn: boolean) => {
   const url = new URL(`${config.issuer}${config.routes.authorization}`)

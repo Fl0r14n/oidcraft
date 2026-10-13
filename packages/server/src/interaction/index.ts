@@ -15,7 +15,8 @@ export {
   oauthFieldErrors
 } from '@oidcraft/core'
 
-export type InteractionKind = 'login' | 'consent'
+/** `logout` asks whether to end the session, when the request to do so could not prove who sent it. */
+export type InteractionKind = 'login' | 'consent' | 'logout'
 
 /** One RFC 9396 detail. Its fields are the host's to define, under the types it declared. */
 export type InteractionAuthorizationDetail = { type: string } & Record<string, unknown>
@@ -57,6 +58,11 @@ export type InteractionResult = {
    */
   consent?: { scopes: string[]; authorizationDetails?: InteractionAuthorizationDetail[] | undefined }
   error?: { error: 'access_denied' | 'login_required' | 'consent_required'; description?: string }
+  /**
+   * The answer to a `logout` interaction: the person confirmed. To decline, show your own page and
+   * do not complete it; the interaction expires and the session stays.
+   */
+  logout?: true
 }
 
 export type InteractionCompletion = { redirectTo: string; setCookie: string | undefined }

@@ -37,6 +37,10 @@ export const interactionRoutes = async (request: Request, url: URL) => {
 
     if (request.method === 'GET' && !action) {
       if (view.kind === 'consent') return html(consentScreen(view))
+      if (view.kind === 'logout') {
+        const client = view.clientId ? await provider.config.adapter.clients.find(view.clientId) : undefined
+        return html(logoutConfirmScreen(view.id, client?.clientName ?? client?.clientId))
+      }
       // prompt=select_account asks which identity, not whether to sign in (OIDC Core §3.1.2.1).
       return html(
         view.prompt.includes('select_account')
@@ -70,6 +74,14 @@ export const interactionRoutes = async (request: Request, url: URL) => {
     if (request.method === 'POST' && action === 'upstream') {
       const response = await startUpstream(id, request)
       if (response) return response
+    }
+
+    // Declining is not an answer the provider needs: the interaction expires and the session stays.
+    if (request.method === 'POST' && action === 'logout') {
+      const form = new URLSearchParams(await request.text())
+      if (form.get('decision') !== 'yes') return html('<h1>You are still signed in</h1><p class="sub">You can close this page.</p>')
+      const { redirectTo } = await provider.interactions.complete(id, { logout: true })
+      return seeOther(redirectTo)
     }
 
     if (request.method === 'POST' && action === 'consent') {
@@ -146,12 +158,5 @@ const deviceScreens = async (request: Request, url: URL, context: { clientIp: st
     }
   }
 
-  return undefined
-}
-
-export const logoutRoutes = async (request: Request, url: URL) => {
-  if (request.method === 'GET' && url.pathname === '/interaction/logout') {
-    return html(logoutConfirmScreen(url.searchParams.get('client_name') ?? undefined, url.searchParams.get('return_to') ?? undefined))
-  }
   return undefined
 }

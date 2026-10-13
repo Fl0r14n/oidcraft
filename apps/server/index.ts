@@ -4,7 +4,7 @@ import { bunContext } from 'oidcraft/runtimes/bun'
 import { adminApi } from './src/admin/api'
 import { optional } from './src/env'
 import { federationCallback } from './src/federation'
-import { deviceRoutes, interactionRoutes, logoutRoutes } from './src/interaction/routes'
+import { deviceRoutes, interactionRoutes } from './src/interaction/routes'
 import { errorScreen, html } from './src/interaction/screens'
 import { provider } from './src/provider'
 
@@ -31,10 +31,6 @@ const server = serve({
   async fetch(request, server) {
     const url = new URL(request.url)
     const context = bunContext(provider.config.issuer, server)(request)
-    if (url.pathname === '/interaction/logout') {
-      const response = await logoutRoutes(request, url)
-      if (response) return response
-    }
     if (url.pathname.startsWith('/interaction/')) {
       const response = await interactionRoutes(request, url)
       if (response) return response

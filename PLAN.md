@@ -206,7 +206,8 @@ In fix order; the first is the only one that changes the adapter contract.
 - [x] Upstream back-channel logout tokens: no jti replay, no `typ`, unchecked `events`
 - [x] Construction accepts a missing `interactionUrl`, CIBA without its resolver, federation without its stores (NFR-D2)
 - [x] No CORS, so a browser client on another origin cannot use the OP. Fixed: by registered redirect origins (ARCHITECTURE.md §3.1)
-- [ ] End-session rejects an expired `id_token_hint`; a bare GET logs out without confirmation
+- [x] End-session rejects an expired `id_token_hint`; a bare GET logs out without confirmation. Fixed: a `logout`
+      interaction kind; the reference app's confirm screen is now that interaction
 - [ ] Introspection has no resource-server authentication; `iat` equals `exp` (FR-C8)
 - [ ] A malformed cookie or Basic header is a 500
 - [ ] RFC 7592 update skips `onRegister`, resets `requirePkce`, compares the token with `!==`

@@ -18,9 +18,8 @@ export const matchesSubjectDn = (client: Client, certificate: ClientCertificate)
  * `self_signed_tls_client_auth` (RFC 8705 §2.2): no chain to check, so identity rests entirely on
  * the certificate matching one the client registered.
  */
-export const matchesRegisteredCertificate = async (client: Client, certificate: ClientCertificate) => {
+export const matchesRegisteredCertificate = (client: Client, certificate: ClientCertificate) => {
   const registered = (client.jwks?.keys as { 'x5t#S256'?: string }[] | undefined) ?? []
   if (!registered.length) return false
-  const thumbprint = await certificateThumbprint(certificate.der)
-  return registered.some(key => key['x5t#S256'] === thumbprint)
+  return registered.some(key => key['x5t#S256'] === certificate.thumbprint)
 }

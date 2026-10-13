@@ -165,7 +165,9 @@ In fix order; the first is the only one that changes the adapter contract.
 - [x] Client assertion lifetime measured from the client's `iat`; jti remembered for 300 s only (FR-C4, NFR-S5)
 - [x] Federation handoff not bound to the browser — login CSRF (FR-F3). `apps/server` now brokers
       to Google when `UPSTREAM_GOOGLE_*` is set, so the round trip and its cookie run for real
-- [ ] workerd hands over an empty certificate DER; every thumbprint is the same (FR-C13)
+- [x] workerd hands over an empty certificate DER; every thumbprint is the same (FR-C13).
+      Fixed: `ClientCertificate` carries the `x5t#S256` thumbprint, not the DER. Workers never see
+      the DER, so workerd derives it from `certFingerprintSHA256` and drops a certificate without one
 - [ ] Open registration does not validate `grant_types` (FR-C9)
 
 **High — broken features**

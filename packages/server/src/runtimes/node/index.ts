@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { Readable } from 'node:stream'
 import type { ClientCertificate, RequestContext } from 'oidcraft'
@@ -20,7 +21,7 @@ const peerCertificate = (socket: TlsSocket): ClientCertificate | undefined => {
   // An unverified certificate is a claim, not an identity: only `authorized` means the chain checked.
   if (!socket.authorized || !socket.getPeerCertificate) return undefined
   const raw = socket.getPeerCertificate(true).raw
-  return raw ? { der: raw } : undefined
+  return raw ? { thumbprint: createHash('sha256').update(raw).digest('base64url') } : undefined
 }
 
 const forwardedIp = (request: IncomingMessage) => {

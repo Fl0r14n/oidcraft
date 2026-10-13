@@ -20,9 +20,10 @@ export type RequestContext = {
   clientCertificate?: ClientCertificate | undefined
 }
 
-/** DER bytes plus the fields RFC 8705 matches on. The core never parses X.509 itself. */
+/** The fields RFC 8705 matches on. The core never parses X.509 itself. */
 export type ClientCertificate = {
-  der: Uint8Array
+  /** `x5t#S256`: the base64url SHA-256 of the DER certificate (RFC 8705 §3.1). `certificateThumbprint` computes it. */
+  thumbprint: string
   subjectDn?: string | undefined
   issuerDn?: string | undefined
   sanDnsNames?: string[] | undefined

@@ -1,7 +1,6 @@
 import { CIBA_GRANT, cibaGrant } from '../authorize/ciba'
 import { deviceCodeGrant } from '../authorize/device'
 import { verifyDpopProof } from '../binding/dpop'
-import { certificateThumbprint } from '../binding/mtls'
 import { authenticateClient } from '../clients/authenticate'
 import type { ResolvedConfig } from '../config'
 import type { ClientCertificate } from '../context'
@@ -40,7 +39,7 @@ export const tokenEndpoint = async (config: ResolvedConfig, request: Request, ce
   const jkt = await bindingFor(config, client, request)
   // RFC 8705 §3: binding to the certificate the client already presented costs nothing extra and
   // makes a stolen token useless without the private key behind it.
-  const x5t = client.certificateBoundAccessTokens && certificate ? await certificateThumbprint(certificate.der) : undefined
+  const x5t = client.certificateBoundAccessTokens ? certificate?.thumbprint : undefined
 
   const body = await (async () => {
     switch (grantType) {

@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import { certificateThumbprint } from '../binding/mtls'
 import type { RequestContext } from '../context'
 import { bunContext } from './bun'
 import { denoContext } from './deno'
@@ -10,6 +11,11 @@ import { workerdContext } from './workerd'
  * looks fine until an audit log has no addresses in it.
  */
 const request = (headers: Record<string, string> = {}) => new Request('https://op.example.com/token', { method: 'POST', headers })
+
+const DER = new Uint8Array([0x30, 0x82, 0x01, 0x0a, 0x02, 0x01, 0x05])
+const hex = (bytes: ArrayBuffer) => Array.from(new Uint8Array(bytes), byte => byte.toString(16).padStart(2, '0')).join('')
+const fingerprint = hex(await crypto.subtle.digest('SHA-256', DER))
+const presented = { certPresented: '1', certVerified: 'SUCCESS', certFingerprintSHA256: fingerprint }
 
 describe('bun', () => {
   test('takes the peer address from the server, since Request has none', () => {
@@ -51,7 +57,7 @@ describe('workerd', () => {
   // Only "SUCCESS" means the edge verified it; anything else is an unverified claim by the client.
   test('accepts a client certificate only when the edge verified it', () => {
     const verified = workerdContext('https://op.example.com')(request(), {
-      tlsClientAuth: { certPresented: '1', certVerified: 'SUCCESS', certSubjectDN: 'CN=rp', certIssuerDN: 'CN=ca' }
+      tlsClientAuth: { ...presented, certSubjectDN: 'CN=rp', certIssuerDN: 'CN=ca' }
     })
     expect(verified.clientCertificate?.subjectDn).toBe('CN=rp')
 
@@ -63,6 +69,27 @@ describe('workerd', () => {
     ]) {
       const context = workerdContext('https://op.example.com')(request(), { tlsClientAuth: auth })
       expect({ auth, cert: context.clientCertificate }).toEqual({ auth, cert: undefined })
+    }
+  })
+
+  // FR-C13: Workers never see the DER, so the thumbprint comes from Cloudflare's fingerprint of it.
+  test('derives the RFC 8705 thumbprint from the edge fingerprint', async () => {
+    const context = workerdContext('https://op.example.com')(request(), { tlsClientAuth: presented })
+    expect(context.clientCertificate?.thumbprint).toBe(await certificateThumbprint(DER))
+
+    const other = workerdContext('https://op.example.com')(request(), {
+      tlsClientAuth: { ...presented, certFingerprintSHA256: 'ab'.repeat(32) }
+    })
+    expect(other.clientCertificate?.thumbprint).not.toBe(context.clientCertificate?.thumbprint)
+  })
+
+  test('a verified certificate without a usable fingerprint is no certificate', () => {
+    const { certFingerprintSHA256: _, ...withoutFingerprint } = presented
+    for (const tlsClientAuth of [
+      withoutFingerprint,
+      ...['', 'not-hex', 'ab'.repeat(20)].map(certFingerprintSHA256 => ({ ...presented, certFingerprintSHA256 }))
+    ]) {
+      expect(workerdContext('https://op.example.com')(request(), { tlsClientAuth }).clientCertificate).toBeUndefined()
     }
   })
 

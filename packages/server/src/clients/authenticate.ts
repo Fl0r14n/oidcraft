@@ -89,8 +89,7 @@ export const authenticateClient = async (
     // which client it is, not whether to trust it, and the two are only the same when the host did
     // its half (FR-R4, RFC 8705 §2).
     if (!certificate) throw unauthorized(`client ${clientId} must authenticate with ${method}, and no client certificate was presented`)
-    const ok =
-      method === 'tls_client_auth' ? matchesSubjectDn(client, certificate) : await matchesRegisteredCertificate(client, certificate)
+    const ok = method === 'tls_client_auth' ? matchesSubjectDn(client, certificate) : matchesRegisteredCertificate(client, certificate)
     if (!ok) throw unauthorized('the client certificate does not match the one registered for this client', 'RFC 8705 §2')
     return { client, method }
   }

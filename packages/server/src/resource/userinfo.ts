@@ -1,7 +1,7 @@
 import { CompactEncrypt, importJWK, type JWK, SignJWT } from 'jose'
 import { verifyDpopProof } from '../binding/dpop'
-import { certificateThumbprint } from '../binding/mtls'
 import type { ResolvedConfig } from '../config'
+import type { ClientCertificate } from '../context'
 import { OAuthError } from '../errors'
 import { signingKey } from '../keys/keys'
 import { resolveAccessToken } from '../token/access-token'
@@ -63,7 +63,7 @@ const asJwt = async (config: ResolvedConfig, client: Client, subject: string, cl
 }
 
 /** Claims are resolved now, through the adapter — never served from a copy cached at login (FR-C5). */
-export const userinfoEndpoint = async (config: ResolvedConfig, request: Request, clientCertificate?: { der: Uint8Array } | undefined) => {
+export const userinfoEndpoint = async (config: ResolvedConfig, request: Request, clientCertificate?: ClientCertificate | undefined) => {
   const form = request.method === 'POST' ? new URLSearchParams(await request.text()) : undefined
   const presented = presentedToken(request, form)
   if (!presented) throw unauthorized('no access token was presented', 'Bearer', 'invalid_request')
@@ -89,8 +89,7 @@ export const userinfoEndpoint = async (config: ResolvedConfig, request: Request,
   const boundCertificate = confirmation?.['x5t#S256']
   if (boundCertificate) {
     // RFC 8705 §3: the certificate is the second half of the credential, so no certificate is no token.
-    const thumbprint = clientCertificate ? await certificateThumbprint(clientCertificate.der) : undefined
-    if (thumbprint !== boundCertificate) {
+    if (clientCertificate?.thumbprint !== boundCertificate) {
       throw unauthorized('this access token is bound to a client certificate that was not presented')
     }
   }

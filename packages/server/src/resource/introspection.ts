@@ -3,20 +3,21 @@ import type { ResolvedConfig } from '../config'
 import type { ClientCertificate } from '../context'
 import { OAuthError } from '../errors'
 import { findPresented } from '../token/access-token'
+import { subjectFor } from '../token/subjects'
 import type { Artifact, ArtifactKind } from '../types'
 
 const INTROSPECTABLE: ArtifactKind[] = ['access_token', 'refresh_token']
 
 const seconds = (date: Date) => Math.floor(date.getTime() / 1000)
 
-const describe = (artifact: Artifact, kind: ArtifactKind, issuer: string) => ({
+const describe = (artifact: Artifact, kind: ArtifactKind, issuer: string, subject: string | undefined) => ({
   active: true,
   scope: ((artifact.payload.scopes as string[] | undefined) ?? []).join(' '),
   client_id: artifact.clientId,
   token_type: kind === 'access_token' ? (artifact.payload.cnf ? 'DPoP' : 'Bearer') : undefined,
   exp: seconds(artifact.expiresAt),
   iat: seconds(new Date(artifact.expiresAt.getTime())),
-  sub: artifact.accountId,
+  sub: subject,
   aud: artifact.clientId,
   iss: issuer,
   // A resource server must be able to see the binding, or it cannot enforce it (RFC 9449 §6).
@@ -43,7 +44,11 @@ export const introspectionEndpoint = async (config: ResolvedConfig, request: Req
     if (!artifact || artifact.consumedAt) continue
     if (artifact.clientId !== client.clientId) return inactive
 
-    const body = describe(artifact, kind, config.issuer)
+    // FR-C18: the subject the token's client was given, never the account id behind a pairwise one.
+    const subject = artifact.accountId
+      ? ((artifact.payload.subject as string | undefined) ?? (await subjectFor(config, client, artifact.accountId)))
+      : undefined
+    const body = describe(artifact, kind, config.issuer, subject)
     return Response.json(Object.fromEntries(Object.entries(body).filter(([, value]) => value !== undefined)), {
       headers: { 'cache-control': 'no-store' }
     })

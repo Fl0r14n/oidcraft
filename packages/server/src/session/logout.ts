@@ -2,6 +2,7 @@ import { randomString } from '@oidcraft/core'
 import { importJWK, SignJWT } from 'jose'
 import type { ResolvedConfig } from '../config'
 import { signingKey } from '../keys/keys'
+import { subjectFor } from '../token/subjects'
 import type { Session } from '../types'
 
 export type LogoutNotification = { clientId: string; uri: string; logoutToken: string }
@@ -50,7 +51,8 @@ export const logoutTokens = async (config: ResolvedConfig, session: Session): Pr
     if (!client?.backchannelLogoutUri) continue
 
     const logoutToken = await new SignJWT({
-      sub: session.accountId,
+      // FR-C18: the subject this client knows, never the account id behind a pairwise one.
+      sub: await subjectFor(config, client, session.accountId),
       sid: session.id,
       // The marker that makes this a logout token and not a re-usable ID token (§2.4).
       events: { 'http://schemas.openid.net/event/backchannel-logout': {} },

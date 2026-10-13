@@ -108,5 +108,6 @@ export const userinfoEndpoint = async (config: ResolvedConfig, request: Request,
     })
   }
 
-  return Response.json({ sub: subject, ...claims }, { headers: { 'cache-control': 'no-store' } })
+  // The account store supplies claims, not the subject: a `sub` from it would undo a pairwise one (FR-C18).
+  return Response.json({ ...claims, sub: subject }, { headers: { 'cache-control': 'no-store' } })
 }

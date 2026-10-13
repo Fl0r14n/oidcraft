@@ -475,3 +475,44 @@ describe('FR-C16: the resource-server challenge', () => {
     expect(meetsRequirement({ maxAge: 60 }, {}).sufficient).toBe(false)
   })
 })
+
+describe('FR-C18: a pairwise subject never leaks the account id', () => {
+  const pairwise = (over: Record<string, unknown> = {}) => build({ subjectType: 'pairwise', pairwiseSalt: 'a-long-enough-salt', ...over })
+  const post = (provider: Provider, path: string, body: Record<string, string>) =>
+    provider.handle(
+      new Request(`${ISSUER}${path}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded', authorization: basic() },
+        body: new URLSearchParams(body).toString()
+      })
+    )
+
+  test('UserInfo and introspection report the sub the ID token carried', async () => {
+    await adapter.clients.upsert?.(client())
+    adapter.accounts.claims = async () => ({ sub: 'ada', name: 'Ada' })
+    const provider = pairwise()
+    const issued = await tokensFor(provider)
+    const sub = decodeJwt(issued.id_token).sub
+    expect(sub).not.toBe('ada')
+
+    const userinfo = await (
+      await provider.handle(new Request(`${ISSUER}/userinfo`, { headers: { authorization: `Bearer ${issued.access_token}` } }))
+    ).json()
+    expect(userinfo.sub).toBe(sub)
+    expect((await (await post(provider, '/introspect', { token: issued.access_token })).json()).sub).toBe(sub)
+  })
+
+  test('the back-channel logout token carries the pairwise sub', async () => {
+    await adapter.clients.upsert?.(client({ backchannelLogoutUri: 'https://rp.example.com/logout' }))
+    let tokens: { logoutToken: string }[] = []
+    const provider = pairwise({
+      onLogout: (received: { logoutToken: string }[]) => {
+        tokens = received
+      }
+    })
+    const issued = await tokensFor(provider)
+    const session = (await adapter.sessions.listForAccount('ada'))[0]
+    await provider.handle(new Request(`${ISSUER}/session/end`, { headers: { cookie: `${SESSION_COOKIE}=${session?.id}` } }))
+    expect(decodeJwt(tokens[0]?.logoutToken as string).sub).toBe(decodeJwt(issued.id_token).sub as string)
+  })
+})

@@ -1,9 +1,7 @@
-import { randomString } from '@oidcraft/core'
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
 import type { Artifact, ArtifactKind, Client } from '../types'
-import { findPresented } from './access-token'
-import { type Binding, confirmationOf } from './issue'
+import { type Binding, findPresented, issueAccessToken } from './access-token'
 import { subjectFor } from './subjects'
 
 export const TOKEN_EXCHANGE = 'urn:ietf:params:oauth:grant-type:token-exchange'
@@ -114,7 +112,6 @@ export const tokenExchange = async (config: ResolvedConfig, client: Client, form
 }
 
 export const exchangeGrant = async (config: ResolvedConfig, client: Client, form: URLSearchParams, binding: Binding) => {
-  const cnf = confirmationOf(binding)
   const { decision, subject } = await tokenExchange(config, client, form)
 
   // A sender-constrained token is only usable by its holder; exchanging it must not launder that away.
@@ -123,35 +120,26 @@ export const exchangeGrant = async (config: ResolvedConfig, client: Client, form
     throw new OAuthError('invalid_grant', { description: 'the subject_token is bound to a key or certificate this request did not prove' })
   }
 
-  const accessToken = randomString()
-  // An exchanged token never outlives the one it was exchanged for.
-  const expiresAt = new Date(Math.min(Date.now() + config.ttl.accessToken * 1000, subject.expiresAt.getTime()))
-  const expiresIn = Math.max(0, Math.floor((expiresAt.getTime() - Date.now()) / 1000))
-  await config.adapter.artifacts.upsert({
-    id: accessToken,
-    kind: 'access_token',
-    clientId: client.clientId,
+  const access = await issueAccessToken(config, {
+    client,
+    scopes: decision.scopes,
+    binding,
     accountId: decision.accountId,
-    ...(subject.grantId && { grantId: subject.grantId }),
-    payload: {
-      iat: Math.floor(Date.now() / 1000),
-      scopes: decision.scopes,
-      sessionId: subject.payload.sessionId as string,
-      subject: await subjectFor(config, client, decision.accountId),
-      // RFC 8693 §4.1: who is acting, so a resource server can tell delegation from the real thing.
-      ...(decision.actor && { act: { client_id: decision.actor.clientId } }),
-      ...(decision.resource && { resource: decision.resource }),
-      ...(decision.audience && { aud: decision.audience }),
-      ...(cnf && { cnf })
-    },
-    expiresAt
+    grantId: subject.grantId,
+    sessionId: subject.payload.sessionId as string | undefined,
+    subject: await subjectFor(config, client, decision.accountId),
+    // An exchanged token never outlives the one it was exchanged for.
+    expiresAt: new Date(Math.min(Date.now() + config.ttl.accessToken * 1000, subject.expiresAt.getTime())),
+    actor: decision.actor && { client_id: decision.actor.clientId },
+    resource: decision.resource,
+    audience: decision.audience
   })
 
   return {
-    access_token: accessToken,
+    access_token: access.token,
     issued_token_type: ACCESS_TOKEN_TYPE,
-    token_type: binding.jkt ? 'DPoP' : 'Bearer',
-    expires_in: expiresIn,
+    token_type: access.tokenType,
+    expires_in: access.expiresIn,
     scope: decision.scopes.join(' ')
   }
 }

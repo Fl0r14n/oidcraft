@@ -13,7 +13,6 @@ export { type FromKvOptions, fromKv, type KvEntry, type KvStore } from './adapte
 export type { AuthorizationDetail, AuthorizationRequest } from './authorize/authorization'
 export type { CibaDecision, CibaPayload } from './authorize/ciba'
 export type { DeviceApproval, DevicePayload, UserCodeContext } from './authorize/device'
-export { authenticationOf, meetsRequirement, type StepUpRequirement, type StepUpVerdict } from './authorize/step-up'
 export { type DpopProof, type VerifyOptions, verifyDpopProof } from './binding/dpop'
 export { certificateThumbprint } from './binding/mtls'
 export type {
@@ -31,6 +30,7 @@ export { ConfigurationError, errorResponse, OAuthError, type OAuthErrorCode, typ
 export { type ActiveKey, generatedKeyStore, generateKey, staticKeyStore } from './keys/keys'
 export type { Management, ManagementClientInput } from './management'
 export { createProvider, type LogoutDelivery, type Provider } from './provider'
+export { authenticationOf, meetsRequirement, type StepUpRequirement, type StepUpVerdict } from './resource/step-up'
 export type { FrontChannelLogout, LogoutNotification } from './session/logout'
 export { resolveAccessToken } from './token/access-token'
 export type { ExchangeDecision, ExchangePolicy } from './token/exchange'

@@ -2,14 +2,11 @@ import { randomString } from '@oidcraft/core'
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
 import type { Artifact, Client, Grant, Session } from '../types'
-import { mintJwtAccessToken } from './access-token'
+import { type Binding, confirmationOf, issueAccessToken } from './access-token'
 import { mintIdToken } from './id-token'
 import { subjectFor } from './subjects'
 
-/** What a token is sender-constrained to: a DPoP key (RFC 9449), a client certificate (RFC 8705), or both. */
-export type Binding = { jkt?: string | undefined; x5t?: string | undefined }
-
-export const confirmationOf = ({ jkt, x5t }: Binding) => (jkt || x5t ? { ...(jkt && { jkt }), ...(x5t && { 'x5t#S256': x5t }) } : undefined)
+export { type Binding, confirmationOf } from './access-token'
 
 export const issueTokens = async (
   config: ResolvedConfig,
@@ -34,7 +31,6 @@ export const issueTokens = async (
   } = {}
 ) => {
   const { jkt } = binding
-  const cnf = confirmationOf(binding)
   // FR-C11: logout notifies the session's clients, so every client it signs in to must be on the list.
   // An offline refresh may outlive the session; one that has ended is not brought back.
   if (!session.clients.includes(client.clientId)) {
@@ -42,41 +38,19 @@ export const issueTokens = async (
     if (current) await config.adapter.sessions.upsert({ ...current, clients: [...new Set([...current.clients, client.clientId])] })
   }
 
-  const accessTokenId = randomString()
-  const expiresIn = config.ttl.accessToken
-  const accessTokenExpiry = new Date(Date.now() + expiresIn * 1000)
   // FR-C18: what this client is told the user is called, which may not be the local account id.
   const subject = await subjectFor(config, client, session.accountId)
-
-  await config.adapter.artifacts.upsert({
-    id: accessTokenId,
-    kind: 'access_token',
-    clientId: client.clientId,
+  const access = await issueAccessToken(config, {
+    client,
+    scopes,
+    binding,
     accountId: session.accountId,
     grantId: grant.id,
-    // RFC 9449 §6: the confirmation claim is what makes the token useless without the key.
-    payload: {
-      iat: Math.floor(Date.now() / 1000),
-      scopes,
-      sessionId: session.id,
-      subject,
-      ...(authorizationDetails && { authorizationDetails }),
-      ...(cnf && { cnf })
-    },
-    expiresAt: accessTokenExpiry
+    sessionId: session.id,
+    subject,
+    authorizationDetails
   })
-
-  const accessToken =
-    client.accessTokenFormat === 'jwt'
-      ? await mintJwtAccessToken(config, {
-          client,
-          id: accessTokenId,
-          subject,
-          scopes,
-          expiresAt: accessTokenExpiry,
-          ...(cnf && { confirmation: cnf })
-        })
-      : accessTokenId
+  const accessToken = access.token
 
   const refreshX5t = client.tokenEndpointAuthMethod === 'none' ? binding.x5t : undefined
   let refreshToken: string | undefined
@@ -121,8 +95,8 @@ export const issueTokens = async (
 
   return {
     access_token: accessToken,
-    token_type: jkt ? 'DPoP' : 'Bearer',
-    expires_in: expiresIn,
+    token_type: access.tokenType,
+    expires_in: access.expiresIn,
     scope: scopes.join(' '),
     ...(authorizationDetails && { authorization_details: authorizationDetails }),
     ...(idToken && { id_token: idToken }),

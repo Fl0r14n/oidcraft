@@ -2,10 +2,10 @@ import { beforeEach, describe, expect, setSystemTime, test } from 'bun:test'
 import { randomString, sha256 } from '@oidcraft/core'
 import { base64url, compactDecrypt, createLocalJWKSet, decodeJwt, decodeProtectedHeader, exportJWK, generateKeyPair, jwtVerify } from 'jose'
 import { memoryAdapter } from './adapters/memory'
-import { meetsRequirement } from './authorize/step-up'
 import { certificateThumbprint } from './binding/mtls'
 import type { Adapter, Client, RequestContext } from './index'
 import { createProvider, type Provider } from './provider'
+import { meetsRequirement } from './resource/step-up'
 import { SESSION_COOKIE } from './session/session'
 
 const ISSUER = 'https://op.example.com'
@@ -787,5 +787,23 @@ describe('discovery advertises what verification accepts', () => {
     const provider = build({ clientAuthMethods: ['client_secret_basic', 'none'] })
     const metadata = await (await provider.handle(new Request(`${ISSUER}/.well-known/openid-configuration`))).json()
     expect(metadata).not.toHaveProperty('token_endpoint_auth_signing_alg_values_supported')
+  })
+})
+
+describe('one way to make an access token', () => {
+  // FR-T2: the client chose the format; which grant produced the token does not change that.
+  test('client_credentials honours a client opted into JWT access tokens', async () => {
+    await adapter.clients.upsert?.(client({ accessTokenFormat: 'jwt', grantTypes: ['client_credentials'], scopes: ['profile'] }))
+    const body = await (
+      await build().handle(
+        new Request(`${ISSUER}/token`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/x-www-form-urlencoded', authorization: basic() },
+          body: 'grant_type=client_credentials'
+        })
+      )
+    ).json()
+    expect(decodeProtectedHeader(body.access_token).typ).toBe('at+jwt')
+    expect(await adapter.artifacts.find('access_token', decodeJwt(body.access_token).jti as string)).toBeTruthy()
   })
 })

@@ -224,7 +224,7 @@ In fix order; the first is the only one that changes the adapter contract.
       private address is still the host's to refuse: only it resolves
 - [x] Discovery advertises the wrong algorithm lists. Fixed: `keys/algorithms.ts`, one list for verification and discovery
 - [x] Claim mapping can pair one source's `email_verified` with another's `email`; `acr`/`amr`/`sid` unprotected
-- [ ] Access-token artifacts built in three places; `step-up.ts` belongs in `resource/`
+- [x] Access-token artifacts built in three places; `step-up.ts` belongs in `resource/`
 
 **Follow-ups, not findings**
 

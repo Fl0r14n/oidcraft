@@ -1,9 +1,83 @@
+import { randomString } from '@oidcraft/core'
 import { decodeJwt, importJWK, SignJWT } from 'jose'
 import type { ResolvedConfig } from '../config'
 import { signingKey } from '../keys/keys'
 import type { Artifact, ArtifactKind, Client } from '../types'
 
 export const JWT_ACCESS_TOKEN_TYPE = 'at+jwt'
+
+/** What a token is sender-constrained to: a DPoP key (RFC 9449), a client certificate (RFC 8705), or both. */
+export type Binding = { jkt?: string | undefined; x5t?: string | undefined }
+
+export const confirmationOf = ({ jkt, x5t }: Binding) => (jkt || x5t ? { ...(jkt && { jkt }), ...(x5t && { 'x5t#S256': x5t }) } : undefined)
+
+export type AccessTokenRequest = {
+  client: Client
+  scopes: string[]
+  binding: Binding
+  accountId?: string | undefined
+  grantId?: string | undefined
+  sessionId?: string | undefined
+  /** FR-C18: what this client was told the user is called. */
+  subject?: string | undefined
+  /** Defaults to the access token lifetime; an exchange caps it at its subject token's. */
+  expiresAt?: Date | undefined
+  authorizationDetails?: unknown[] | undefined
+  /** RFC 8693 §4.1: who is acting, so a resource server can tell delegation from the real thing. */
+  actor?: { client_id: string } | undefined
+  resource?: string | undefined
+  audience?: string | undefined
+}
+
+/**
+ * The one place an access token is made: stored, then shaped as the client asked (FR-T2). The
+ * stored record is the authority either way, which is what keeps a JWT revocable.
+ */
+export const issueAccessToken = async (config: ResolvedConfig, request: AccessTokenRequest) => {
+  const id = randomString()
+  const expiresAt = request.expiresAt ?? new Date(Date.now() + config.ttl.accessToken * 1000)
+  // RFC 9449 §6: the confirmation claim is what makes the token useless without the key.
+  const cnf = confirmationOf(request.binding)
+  await config.adapter.artifacts.upsert({
+    id,
+    kind: 'access_token',
+    clientId: request.client.clientId,
+    ...(request.accountId && { accountId: request.accountId }),
+    ...(request.grantId && { grantId: request.grantId }),
+    payload: {
+      iat: Math.floor(Date.now() / 1000),
+      scopes: request.scopes,
+      ...(request.sessionId && { sessionId: request.sessionId }),
+      ...(request.subject && { subject: request.subject }),
+      ...(request.authorizationDetails && { authorizationDetails: request.authorizationDetails }),
+      ...(request.actor && { act: request.actor }),
+      ...(request.resource && { resource: request.resource }),
+      ...(request.audience && { aud: request.audience }),
+      ...(cnf && { cnf })
+    },
+    expiresAt
+  })
+
+  const token =
+    request.client.accessTokenFormat === 'jwt'
+      ? await mintJwtAccessToken(config, {
+          client: request.client,
+          id,
+          subject: request.subject,
+          scopes: request.scopes,
+          expiresAt,
+          audience: request.audience,
+          actor: request.actor,
+          ...(cnf && { confirmation: cnf })
+        })
+      : id
+
+  return {
+    token,
+    tokenType: request.binding.jkt ? 'DPoP' : 'Bearer',
+    expiresIn: Math.max(0, Math.floor((expiresAt.getTime() - Date.now()) / 1000))
+  }
+}
 
 export type AccessTokenInput = {
   client: Client

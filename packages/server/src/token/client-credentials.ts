@@ -1,8 +1,7 @@
-import { randomString } from '@oidcraft/core'
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
 import type { Client } from '../types'
-import { type Binding, confirmationOf } from './issue'
+import { type Binding, issueAccessToken } from './access-token'
 
 /**
  * The client acting as itself, with no user behind it (RFC 6749 §4.4).
@@ -12,7 +11,6 @@ import { type Binding, confirmationOf } from './issue'
  * because a scope that means "tell me who the user is" is meaningless when there is no user.
  */
 export const clientCredentialsGrant = async (config: ResolvedConfig, client: Client, form: URLSearchParams, binding: Binding) => {
-  const cnf = confirmationOf(binding)
   if (client.tokenEndpointAuthMethod === 'none') {
     throw new OAuthError('invalid_client', {
       description: 'a public client has no credentials of its own to present',
@@ -29,21 +27,6 @@ export const clientCredentialsGrant = async (config: ResolvedConfig, client: Cli
     throw new OAuthError('invalid_scope', { description: `client ${client.clientId} may not request: ${unallowed.join(', ')}` })
 
   const scopes = requested.length ? requested : client.scopes.filter(scope => scope !== 'openid' && scope !== 'offline_access')
-  const accessToken = randomString()
-  const expiresIn = config.ttl.accessToken
-
-  await config.adapter.artifacts.upsert({
-    id: accessToken,
-    kind: 'access_token',
-    clientId: client.clientId,
-    payload: { iat: Math.floor(Date.now() / 1000), scopes, ...(cnf && { cnf }) },
-    expiresAt: new Date(Date.now() + expiresIn * 1000)
-  })
-
-  return {
-    access_token: accessToken,
-    token_type: binding.jkt ? 'DPoP' : 'Bearer',
-    expires_in: expiresIn,
-    scope: scopes.join(' ')
-  }
+  const access = await issueAccessToken(config, { client, scopes, binding })
+  return { access_token: access.token, token_type: access.tokenType, expires_in: access.expiresIn, scope: scopes.join(' ') }
 }

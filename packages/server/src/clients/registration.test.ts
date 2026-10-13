@@ -91,6 +91,34 @@ describe('dynamic client registration', () => {
     expect((await register({ redirect_uris: ['http://127.0.0.1:8080/cb'] })).status).toBe(201)
   })
 
+  // RFC 8252 §8.3: loopback is the IP literal; `localhost` can resolve somewhere else.
+  test('http on localhost is refused, and so are schemes that run script', async () => {
+    for (const uri of ['http://localhost:8080/cb', 'javascript:alert(1)', 'data:text/html,hi']) {
+      const response = await register({ redirect_uris: [uri] })
+      expect({ uri, status: response.status }).toEqual({ uri, status: 400 })
+    }
+    expect((await register({ redirect_uris: ['com.example.app:/cb'] })).status).toBe(201)
+  })
+
+  test('post_logout_redirect_uris are held to the same rules', async () => {
+    const response = await register({ ...valid, post_logout_redirect_uris: ['http://rp.example.com/bye'] })
+    expect((await response.json()).error_description).toContain('must be https')
+  })
+
+  // The host fetches jwks_uri and posts to backchannel_logout_uri on a stranger's say-so.
+  test('server-side URIs must be https on a public name, never an address or localhost', async () => {
+    for (const body of [
+      { jwks_uri: 'https://169.254.169.254/latest/meta-data' },
+      { jwks_uri: 'http://rp.example.com/jwks' },
+      { backchannel_logout_uri: 'https://localhost/logout' },
+      { backchannel_logout_uri: 'https://[::1]/logout' }
+    ]) {
+      const response = await register({ ...valid, ...body })
+      expect({ body, status: response.status }).toEqual({ body, status: 400 })
+    }
+    expect((await register({ ...valid, jwks_uri: 'https://rp.example.com/jwks' })).status).toBe(201)
+  })
+
   test('a redirect_uri with a fragment is refused', async () => {
     const response = await register({ redirect_uris: ['https://rp.example.com/cb#x'] })
     expect((await response.json()).error_description).toContain('fragment')

@@ -11,7 +11,47 @@ const DEFAULT_GRANTS = ['authorization_code']
 const invalid = (description: string, code: 'invalid_client_metadata' | 'invalid_redirect_uri' = 'invalid_client_metadata') =>
   new OAuthError('invalid_request', { description, spec: `OIDC Dynamic Client Registration 1.0 §3.3 (${code})`, status: 400 })
 
-const isLoopback = (url: URL) => url.hostname === 'localhost' || url.hostname === '127.0.0.1' || url.hostname === '[::1]'
+// RFC 8252 §8.3: loopback means the IP literal. `localhost` can be resolved elsewhere.
+const isLoopbackIp = (url: URL) => url.hostname === '127.0.0.1' || url.hostname === '[::1]'
+
+// Each would run script, or read a file, wherever the browser is sent or a form is posted.
+const FORBIDDEN_SCHEMES = ['javascript:', 'data:', 'vbscript:', 'file:']
+
+type UriCode = 'invalid_client_metadata' | 'invalid_redirect_uri'
+
+/** A URI the browser is sent to: absolute, matchable, no script, https unless on a loopback IP. */
+const browserUri = (raw: unknown, name: string, code: UriCode = 'invalid_client_metadata') => {
+  if (typeof raw !== 'string' || !URL.canParse(raw)) throw invalid(`${name} ${String(raw)} is not an absolute URL`, code)
+  const url = new URL(raw)
+  // A fragment can never be matched: the browser never sends it (RFC 6749 §3.1.2).
+  if (url.hash) throw invalid(`${name} ${raw} must not carry a fragment`, code)
+  if (FORBIDDEN_SCHEMES.includes(url.protocol)) throw invalid(`${name} ${raw} uses a scheme that can run script`, code)
+  if (url.protocol === 'http:' && !isLoopbackIp(url)) throw invalid(`${name} ${raw} must be https outside a loopback IP`, code)
+  return raw
+}
+
+const isIpLiteral = (hostname: string) => hostname.startsWith('[') || /^\d+\.\d+\.\d+\.\d+$/.test(hostname)
+
+/**
+ * A URI the host fetches or posts to on a stranger's say-so. An address literal or `localhost`
+ * aims that request inside the network (SSRF); a name that resolves there is the host's to refuse,
+ * since only it does the resolving (FR-A1).
+ */
+const serverUri = (raw: unknown, name: string) => {
+  if (typeof raw !== 'string' || !URL.canParse(raw)) throw invalid(`${name} ${String(raw)} is not an absolute URL`)
+  const url = new URL(raw)
+  if (url.protocol !== 'https:') throw invalid(`${name} ${raw} must be https`)
+  if (url.hash) throw invalid(`${name} ${raw} must not carry a fragment`)
+  if (isIpLiteral(url.hostname) || url.hostname === 'localhost' || url.hostname.endsWith('.localhost')) {
+    throw invalid(`${name} ${raw} must name a public host, not an address or localhost`)
+  }
+  return raw
+}
+
+const uriList = (value: unknown, name: string) => {
+  if (!Array.isArray(value)) throw invalid(`${name} must be an array`)
+  return value.map(each => browserUri(each, name))
+}
 
 /**
  * Registration is the one endpoint that lets a stranger write to the client store, so the metadata
@@ -20,21 +60,7 @@ const isLoopback = (url: URL) => url.hostname === 'localhost' || url.hostname ==
 const validateRedirectUris = (uris: unknown) => {
   if (!Array.isArray(uris) || uris.length === 0)
     throw invalid('redirect_uris is required and must be a non-empty array', 'invalid_redirect_uri')
-  for (const raw of uris) {
-    if (typeof raw !== 'string') throw invalid('every redirect_uri must be a string', 'invalid_redirect_uri')
-    let url: URL
-    try {
-      url = new URL(raw)
-    } catch {
-      throw invalid(`redirect_uri ${raw} is not an absolute URL`, 'invalid_redirect_uri')
-    }
-    // A fragment can never be matched: the browser never sends it (RFC 6749 §3.1.2).
-    if (url.hash) throw invalid(`redirect_uri ${raw} must not carry a fragment`, 'invalid_redirect_uri')
-    if (url.protocol === 'http:' && !isLoopback(url)) {
-      throw invalid(`redirect_uri ${raw} must be https outside loopback`, 'invalid_redirect_uri')
-    }
-  }
-  return uris as string[]
+  return uris.map(each => browserUri(each, 'redirect_uri', 'invalid_redirect_uri'))
 }
 
 /** FR-T1: `none` never, and never an algorithm the provider holds no key for. */
@@ -122,7 +148,9 @@ const metadataFrom = (config: ResolvedConfig, body: Record<string, unknown>): Cl
     ...(method !== 'none' && { clientSecret: randomString() }),
     ...(typeof body.client_name === 'string' && { clientName: body.client_name }),
     redirectUris,
-    ...(Array.isArray(body.post_logout_redirect_uris) && { postLogoutRedirectUris: body.post_logout_redirect_uris as string[] }),
+    ...(body.post_logout_redirect_uris !== undefined && {
+      postLogoutRedirectUris: uriList(body.post_logout_redirect_uris, 'post_logout_redirect_uri')
+    }),
     grantTypes,
     responseTypes,
     scopes,
@@ -132,8 +160,10 @@ const metadataFrom = (config: ResolvedConfig, body: Record<string, unknown>): Cl
     // OIDC DCR 1.0 §2: RS256 when omitted, whatever the provider's own default is (FR-T1).
     idTokenSignedResponseAlg: (body.id_token_signed_response_alg as string | undefined) ?? 'RS256',
     ...(body.jwks ? { jwks: body.jwks as { keys: unknown[] } } : {}),
-    ...(typeof body.jwks_uri === 'string' && { jwksUri: body.jwks_uri }),
-    ...(typeof body.backchannel_logout_uri === 'string' && { backchannelLogoutUri: body.backchannel_logout_uri }),
+    ...(body.jwks_uri !== undefined && { jwksUri: serverUri(body.jwks_uri, 'jwks_uri') }),
+    ...(body.backchannel_logout_uri !== undefined && {
+      backchannelLogoutUri: serverUri(body.backchannel_logout_uri, 'backchannel_logout_uri')
+    }),
     // FR-C3: registering itself gives no assurance; only the host's onRegister can exempt it.
     requirePkce: true,
     registrationAccessToken: randomString(),

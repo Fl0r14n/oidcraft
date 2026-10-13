@@ -220,7 +220,8 @@ In fix order; the first is the only one that changes the adapter contract.
 - [x] `at_hash` always SHA-256; no `sid` in the ID token; an ID token without `openid`
 - [x] Refresh family has no absolute lifetime; offline access dies with the browser session. Fixed:
       `ttl.refreshTokenFamily` (90 days); a refresh token carries its sign-in and outlives the session, not the grant
-- [ ] Registration: unvalidated logout and `jwks_uri` URIs (SSRF), http `localhost` (NFR-S2)
+- [x] Registration: unvalidated logout and `jwks_uri` URIs (SSRF), http `localhost` (NFR-S2). A name that resolves to a
+      private address is still the host's to refuse: only it resolves
 - [ ] Discovery advertises the wrong algorithm lists
 - [ ] Claim mapping can pair one source's `email_verified` with another's `email`; `acr`/`amr`/`sid` unprotected
 - [ ] Access-token artifacts built in three places; `step-up.ts` belongs in `resource/`

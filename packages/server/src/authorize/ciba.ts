@@ -202,5 +202,5 @@ export const cibaGrant = async (config: ResolvedConfig, client: Client, form: UR
   const session = await config.adapter.sessions.find(payload.sessionId)
   if (!grant || !session) throw new OAuthError('invalid_grant', { description: 'the grant or session behind that request is gone' })
 
-  return issueTokens(config, client, grant, session, payload.scopes, undefined, binding)
+  return issueTokens(config, client, grant, session, payload.scopes, { binding })
 }

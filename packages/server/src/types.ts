@@ -72,7 +72,7 @@ export type Session = {
   expiresAt: Date
 }
 
-/** A durable record of what an account allowed a client — survives token revocation (FR-G1). */
+/** A durable record of what an account allowed a client — survives token revocation (FR-I4). */
 export type Grant = {
   id: string
   accountId: string

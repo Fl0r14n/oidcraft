@@ -331,6 +331,34 @@ describe('token endpoint', () => {
     expect((await widened.json()).error).toBe('invalid_scope')
   })
 
+  // RFC 6749 §6: narrowing the access token must not cost the client its refresh token.
+  test('a narrowed refresh still rotates a refresh token of the original scope', async () => {
+    const { location } = await loginAndConsent()
+    const first = await (await exchange(location.searchParams.get('code') as string)).json()
+    const narrowed = await (
+      await post('/token', { grant_type: 'refresh_token', refresh_token: first.refresh_token, scope: 'openid' }, { authorization: basic() })
+    ).json()
+    expect(narrowed.scope).toBe('openid')
+    expect(narrowed.refresh_token).toBeTruthy()
+
+    const full = await (
+      await post('/token', { grant_type: 'refresh_token', refresh_token: narrowed.refresh_token }, { authorization: basic() })
+    ).json()
+    expect(full.scope).toBe('openid profile offline_access')
+  })
+
+  test('a scope withdrawn from the grant does not come back on refresh', async () => {
+    const { location } = await loginAndConsent()
+    const first = await (await exchange(location.searchParams.get('code') as string)).json()
+    const grant = await adapter.grants.findByAccountAndClient('ada', 'rp')
+    await adapter.grants.upsert({ ...(grant as NonNullable<typeof grant>), scopes: ['openid', 'offline_access'] })
+
+    const refreshed = await (
+      await post('/token', { grant_type: 'refresh_token', refresh_token: first.refresh_token }, { authorization: basic() })
+    ).json()
+    expect(refreshed.scope).toBe('openid offline_access')
+  })
+
   test('a bad client secret is rejected', async () => {
     const { location } = await loginAndConsent()
     const response = await exchange(location.searchParams.get('code') as string, {})

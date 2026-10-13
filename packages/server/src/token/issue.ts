@@ -17,9 +17,18 @@ export const issueTokens = async (
   grant: Grant,
   session: Session,
   scopes: string[],
-  nonce?: string,
-  binding: Binding = {},
-  authorizationDetails?: unknown[]
+  {
+    nonce,
+    binding = {},
+    authorizationDetails,
+    refreshScopes = scopes
+  }: {
+    nonce?: string | undefined
+    binding?: Binding
+    authorizationDetails?: unknown[] | undefined
+    /** RFC 6749 §6: a rotated refresh token keeps its own scope even when the access token is narrowed. */
+    refreshScopes?: string[]
+  } = {}
 ) => {
   const { jkt } = binding
   const cnf = confirmationOf(binding)
@@ -67,7 +76,7 @@ export const issueTokens = async (
   const refreshX5t = client.tokenEndpointAuthMethod === 'none' ? binding.x5t : undefined
   let refreshToken: string | undefined
   // Only when the client asked for it: a refresh token nobody requested is a credential nobody guards.
-  if (scopes.includes('offline_access') && client.grantTypes.includes('refresh_token')) {
+  if (refreshScopes.includes('offline_access') && client.grantTypes.includes('refresh_token')) {
     refreshToken = randomString()
     await config.adapter.artifacts.upsert({
       id: refreshToken,
@@ -79,7 +88,7 @@ export const issueTokens = async (
       // certificate binds a refresh token only for a public client; a confidential one is held to
       // its certificate by authenticating with it (RFC 8705 §4).
       payload: {
-        scopes,
+        scopes: refreshScopes,
         sessionId: session.id,
         ...((jkt || refreshX5t) && { cnf: confirmationOf({ jkt, x5t: refreshX5t }) })
       },

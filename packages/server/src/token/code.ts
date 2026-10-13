@@ -45,16 +45,11 @@ export const authorizationCodeGrant = async (config: ResolvedConfig, client: Cli
   if (!(await config.adapter.artifacts.consume('authorization_code', code))) await revokeOnReplay(config, artifact, 'authorization code')
 
   const { grant, session } = await loadGrantAndSession(config, artifact)
-  return issueTokens(
-    config,
-    client,
-    grant,
-    session,
-    scopesOf(artifact),
-    artifact.payload.nonce as string | undefined,
+  return issueTokens(config, client, grant, session, scopesOf(artifact), {
+    nonce: artifact.payload.nonce as string | undefined,
     binding,
-    artifact.payload.authorizationDetails as unknown[] | undefined
-  )
+    authorizationDetails: artifact.payload.authorizationDetails as unknown[] | undefined
+  })
 }
 
 export const refreshTokenGrant = async (config: ResolvedConfig, client: Client, form: URLSearchParams, binding: Binding) => {
@@ -66,8 +61,10 @@ export const refreshTokenGrant = async (config: ResolvedConfig, client: Client, 
   if (artifact.consumedAt) await revokeOnReplay(config, artifact, 'refresh token')
   if (artifact.clientId !== client.clientId) await revokeOnReplay(config, artifact, 'refresh token presented by the wrong client')
 
+  const { grant, session } = await loadGrantAndSession(config, artifact)
   const requested = form.get('scope')?.split(' ').filter(Boolean)
-  const granted = scopesOf(artifact)
+  // FR-I4: consent withdrawn from the grant since this token was issued does not come back on refresh.
+  const granted = scopesOf(artifact).filter(scope => grant.scopes.includes(scope))
   // RFC 6749 §6: a refresh may narrow the scope, never widen it.
   const widened = requested?.filter(scope => !granted.includes(scope)) ?? []
   if (widened.length) throw new OAuthError('invalid_scope', { description: `a refresh cannot add scopes: ${widened.join(', ')}` })
@@ -84,10 +81,9 @@ export const refreshTokenGrant = async (config: ResolvedConfig, client: Client, 
   // FR-T3: rotation is unconditional, which is what makes the replay rule above meaningful.
   if (!(await config.adapter.artifacts.consume('refresh_token', presented))) await revokeOnReplay(config, artifact, 'refresh token')
 
-  const { grant, session } = await loadGrantAndSession(config, artifact)
   // RFC 8705 §3: the new access token is bound to the certificate presented now, as at issuance.
-  return issueTokens(config, client, grant, session, requested?.length ? requested : granted, undefined, {
-    jkt: bound?.jkt ?? binding.jkt,
-    x5t: binding.x5t
+  return issueTokens(config, client, grant, session, requested?.length ? requested : granted, {
+    binding: { jkt: bound?.jkt ?? binding.jkt, x5t: binding.x5t },
+    refreshScopes: granted
   })
 }

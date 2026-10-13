@@ -100,6 +100,39 @@ describe('dynamic client registration', () => {
     expect((await response.json()).error_description).toContain('no tokens from the authorization endpoint')
   })
 
+  // FR-C9: the registered grant_types are what the token endpoint enforces, so a stranger cannot pick them.
+  test('a grant type the provider does not offer is refused', async () => {
+    for (const grant_types of [['urn:ietf:params:oauth:grant-type:device_code'], ['implicit'], ['password']]) {
+      const response = await register({ ...valid, grant_types })
+      expect({ grant_types, error: (await response.json()).error_description }).toEqual({
+        grant_types,
+        error: expect.stringContaining('not offered by this provider')
+      })
+    }
+  })
+
+  test('grant_types and response_types must be arrays of strings', async () => {
+    for (const body of [{ grant_types: 'authorization_code' }, { grant_types: [1] }, { response_types: 'code' }, { grant_types: [] }]) {
+      expect((await register({ ...valid, ...body })).status).toBe(400)
+    }
+  })
+
+  test('a public client cannot register for client_credentials', async () => {
+    const response = await register({ ...valid, token_endpoint_auth_method: 'none', grant_types: ['client_credentials'] })
+    expect((await response.json()).error_description).toContain('public client')
+  })
+
+  test('response_types must agree with grant_types', async () => {
+    const mismatched = await register({ ...valid, grant_types: ['client_credentials'], response_types: ['code'] })
+    expect((await mismatched.json()).error_description).toContain('go together')
+    expect((await register({ ...valid, response_types: [] })).status).toBe(400)
+    expect((await register({ ...valid, response_types: ['id_token'] })).status).toBe(400)
+
+    const machine = await register({ ...valid, grant_types: ['client_credentials'] })
+    expect(machine.status).toBe(201)
+    expect(await machine.json()).toMatchObject({ grant_types: ['client_credentials'], response_types: [] })
+  })
+
   test('an unknown scope is refused', async () => {
     const response = await register({ ...valid, scope: 'openid wat' })
     expect((await response.json()).error_description).toContain('unknown scope')

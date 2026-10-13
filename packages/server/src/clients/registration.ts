@@ -1,12 +1,12 @@
 import { randomString } from '@oidcraft/core'
 import { audit } from '../audit'
 import type { ResolvedConfig } from '../config'
+import { supportedGrantTypes } from '../discovery'
 import { OAuthError } from '../errors'
 import { signingAlgorithms } from '../keys/keys'
 import type { Client, ClientAuthMethod } from '../types'
 
 const DEFAULT_GRANTS = ['authorization_code']
-const DEFAULT_RESPONSE_TYPES = ['code']
 
 const invalid = (description: string, code: 'invalid_client_metadata' | 'invalid_redirect_uri' = 'invalid_client_metadata') =>
   new OAuthError('invalid_request', { description, spec: `OIDC Dynamic Client Registration 1.0 §3.3 (${code})`, status: 400 })
@@ -65,6 +65,34 @@ const assertSector = async (config: ResolvedConfig, client: Client) => {
   if (missing.length) throw invalid(`sector_identifier_uri does not list ${missing.join(', ')}`)
 }
 
+const stringsFrom = (value: unknown, name: string) => {
+  if (value === undefined) return undefined
+  if (!Array.isArray(value) || !value.every(each => typeof each === 'string')) throw invalid(`${name} must be an array of strings`)
+  return value as string[]
+}
+
+/** The client store's `grantTypes` is what the token endpoint enforces, so a stranger must not choose it freely (FR-C9). */
+const grantsFrom = (config: ResolvedConfig, body: Record<string, unknown>, method: ClientAuthMethod) => {
+  const grantTypes = stringsFrom(body.grant_types, 'grant_types') ?? DEFAULT_GRANTS
+  if (!grantTypes.length) throw invalid('grant_types must not be empty')
+  const offered = supportedGrantTypes(config)
+  const unknown = grantTypes.filter(grant => !offered.includes(grant))
+  if (unknown.length) throw invalid(`grant_types ${unknown.join(', ')} not offered by this provider`)
+  if (method === 'none' && grantTypes.includes('client_credentials')) {
+    throw invalid('a public client cannot use client_credentials (RFC 6749 §4.4)')
+  }
+
+  const code = grantTypes.includes('authorization_code')
+  const responseTypes = stringsFrom(body.response_types, 'response_types') ?? (code ? ['code'] : [])
+  if (responseTypes.some(type => type.split(' ').includes('token')))
+    throw invalid('this provider issues no tokens from the authorization endpoint')
+  const unsupported = responseTypes.filter(type => type !== 'code')
+  if (unsupported.length) throw invalid(`response_types ${unsupported.join(', ')} not offered by this provider`)
+  // OIDC DCR 1.0 §2: the two lists must agree, or the client is registered for a flow it cannot finish.
+  if (code !== responseTypes.includes('code')) throw invalid('response_types code and grant_types authorization_code go together')
+  return { grantTypes, responseTypes }
+}
+
 const subjectTypeFrom = (config: ResolvedConfig, requested: unknown) => {
   if (requested === undefined) return {}
   if (requested !== 'public' && requested !== 'pairwise') throw invalid(`subject_type ${String(requested)} is not supported`)
@@ -82,10 +110,7 @@ const metadataFrom = (config: ResolvedConfig, body: Record<string, unknown>): Cl
   const method = (body.token_endpoint_auth_method as ClientAuthMethod | undefined) ?? 'client_secret_basic'
   if (!config.clientAuthMethods.includes(method)) throw invalid(`token_endpoint_auth_method ${method} is not offered by this provider`)
 
-  const grantTypes = (body.grant_types as string[] | undefined) ?? DEFAULT_GRANTS
-  const responseTypes = (body.response_types as string[] | undefined) ?? DEFAULT_RESPONSE_TYPES
-  if (responseTypes.some(type => type.split(' ').includes('token')))
-    throw invalid('this provider issues no tokens from the authorization endpoint')
+  const { grantTypes, responseTypes } = grantsFrom(config, body, method)
 
   const scopes = ((body.scope as string | undefined) ?? 'openid').split(' ').filter(Boolean)
   const unknown = scopes.filter(scope => !config.scopes.includes(scope))

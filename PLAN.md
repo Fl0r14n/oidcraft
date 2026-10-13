@@ -168,7 +168,8 @@ In fix order; the first is the only one that changes the adapter contract.
 - [x] workerd hands over an empty certificate DER; every thumbprint is the same (FR-C13).
       Fixed: `ClientCertificate` carries the `x5t#S256` thumbprint, not the DER. Workers never see
       the DER, so workerd derives it from `certFingerprintSHA256` and drops a certificate without one
-- [ ] Open registration does not validate `grant_types` (FR-C9)
+- [x] Open registration does not validate `grant_types` (FR-C9). Fixed: only grants discovery
+      advertises, no `client_credentials` for a public client, and `response_types` must agree
 
 **High — broken features**
 

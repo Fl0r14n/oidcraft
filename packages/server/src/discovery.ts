@@ -8,17 +8,21 @@ const MTLS_METHODS: ClientAuthMethod[] = ['tls_client_auth', 'self_signed_tls_cl
  * Advertises only what this configuration can actually do (FR-C6). A capability the runtime cannot
  * supply removes the methods that need it rather than listing them (FR-R5).
  */
+export const supportedGrantTypes = ({ features, exchangePolicy }: ResolvedConfig) => [
+  'authorization_code',
+  'refresh_token',
+  'client_credentials',
+  ...(features.deviceFlow ? ['urn:ietf:params:oauth:grant-type:device_code'] : []),
+  ...(exchangePolicy ? ['urn:ietf:params:oauth:grant-type:token-exchange'] : []),
+  ...(features.ciba ? ['urn:openid:params:grant-type:ciba'] : [])
+]
+
 export const metadata = (config: ResolvedConfig, algorithms: string[]) => {
   const url = (path: string) => `${config.issuer}${path}`
   const { features, routes } = config
 
   const mtlsAvailable = config.capabilities.clientCertificate
   const authMethods = config.clientAuthMethods.filter(method => mtlsAvailable || !MTLS_METHODS.includes(method))
-
-  const grantTypes = ['authorization_code', 'refresh_token', 'client_credentials']
-  if (features.deviceFlow) grantTypes.push('urn:ietf:params:oauth:grant-type:device_code')
-  if (config.exchangePolicy) grantTypes.push('urn:ietf:params:oauth:grant-type:token-exchange')
-  if (features.ciba) grantTypes.push('urn:openid:params:grant-type:ciba')
 
   return {
     issuer: config.issuer,
@@ -45,7 +49,7 @@ export const metadata = (config: ResolvedConfig, algorithms: string[]) => {
     // returning an id_token through the front channel hands it to the browser's history and Referer.
     response_types_supported: ['code'],
     response_modes_supported: ['query', 'fragment', 'form_post'],
-    grant_types_supported: grantTypes,
+    grant_types_supported: supportedGrantTypes(config),
     subject_types_supported: config.pairwiseSalt ? ['public', 'pairwise'] : ['public'],
     id_token_signing_alg_values_supported: algorithms,
     token_endpoint_auth_methods_supported: authMethods,

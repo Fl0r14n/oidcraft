@@ -1,4 +1,5 @@
 import type { ResolvedConfig } from './config'
+import { CLIENT_SECRET_ALGS, CLIENT_SIGNING_ALGS } from './keys/algorithms'
 import { signingAlgorithms } from './keys/keys'
 import type { ClientAuthMethod } from './types'
 
@@ -53,14 +54,20 @@ export const metadata = (config: ResolvedConfig, algorithms: string[]) => {
     subject_types_supported: config.pairwiseSalt ? ['public', 'pairwise'] : ['public'],
     id_token_signing_alg_values_supported: algorithms,
     token_endpoint_auth_methods_supported: authMethods,
-    token_endpoint_auth_signing_alg_values_supported: algorithms,
+    // What clients may sign assertions with, not what this provider signs with.
+    ...(authMethods.some(method => method === 'private_key_jwt' || method === 'client_secret_jwt') && {
+      token_endpoint_auth_signing_alg_values_supported: [
+        ...(authMethods.includes('private_key_jwt') ? CLIENT_SIGNING_ALGS : []),
+        ...(authMethods.includes('client_secret_jwt') ? CLIENT_SECRET_ALGS : [])
+      ]
+    }),
     claims_supported: ['sub', 'iss', 'aud', 'exp', 'iat', 'auth_time', 'nonce', 'acr', 'amr', 'azp', ...claimsFrom(config)],
     claim_types_supported: ['normal'],
     // FR-C3: never `plain`.
     code_challenge_methods_supported: ['S256'],
     // FR-C14: unconditional.
     authorization_response_iss_parameter_supported: true,
-    ...(features.dpop && { dpop_signing_alg_values_supported: algorithms }),
+    ...(features.dpop && { dpop_signing_alg_values_supported: CLIENT_SIGNING_ALGS }),
     // RFC 8705 §3.3, only where a certificate can actually reach us (FR-R5, G-8).
     ...(mtlsAvailable && { tls_client_certificate_bound_access_tokens: true }),
     // OIDC Core §5.3.2 (FR-C5) and the logout session parameters (FR-C11).
@@ -73,7 +80,7 @@ export const metadata = (config: ResolvedConfig, algorithms: string[]) => {
     request_parameter_supported: true,
     request_uri_parameter_supported: false,
     require_request_uri_registration: false,
-    request_object_signing_alg_values_supported: ['ES256', 'ES384', 'ES512', 'PS256', 'RS256'],
+    request_object_signing_alg_values_supported: CLIENT_SIGNING_ALGS,
     claims_parameter_supported: false,
     frontchannel_logout_supported: true,
     backchannel_logout_supported: true

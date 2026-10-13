@@ -2,9 +2,9 @@ import { randomString, sha256 } from '@oidcraft/core'
 import { base64url, calculateJwkThumbprint, decodeProtectedHeader, importJWK, type JWK, jwtVerify } from 'jose'
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
+import { CLIENT_SIGNING_ALGS } from '../keys/algorithms'
 
 /** RFC 9449 §4.2: asymmetric only. A symmetric alg would let anyone holding the proof mint another. */
-const ALLOWED_ALGS = ['ES256', 'ES384', 'ES512', 'PS256', 'PS384', 'PS512', 'RS256', 'RS384', 'RS512', 'EdDSA']
 
 const SKEW = 5
 const MAX_AGE = 60
@@ -89,7 +89,7 @@ export const verifyDpopProof = async (config: ResolvedConfig, request: Request, 
   }
 
   if (header.typ !== 'dpop+jwt') throw invalid(`the DPoP proof must have typ "dpop+jwt", got ${String(header.typ)}`)
-  if (!header.alg || !ALLOWED_ALGS.includes(header.alg)) throw invalid(`${String(header.alg)} is not an acceptable DPoP algorithm`)
+  if (!header.alg || !CLIENT_SIGNING_ALGS.includes(header.alg)) throw invalid(`${String(header.alg)} is not an acceptable DPoP algorithm`)
   const jwk = header.jwk as JWK | undefined
   if (!jwk) throw invalid('the DPoP proof carries no jwk')
   // A private member in the header means the client leaked its own key; refuse rather than use it.

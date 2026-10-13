@@ -222,7 +222,7 @@ In fix order; the first is the only one that changes the adapter contract.
       `ttl.refreshTokenFamily` (90 days); a refresh token carries its sign-in and outlives the session, not the grant
 - [x] Registration: unvalidated logout and `jwks_uri` URIs (SSRF), http `localhost` (NFR-S2). A name that resolves to a
       private address is still the host's to refuse: only it resolves
-- [ ] Discovery advertises the wrong algorithm lists
+- [x] Discovery advertises the wrong algorithm lists. Fixed: `keys/algorithms.ts`, one list for verification and discovery
 - [ ] Claim mapping can pair one source's `email_verified` with another's `email`; `acr`/`amr`/`sid` unprotected
 - [ ] Access-token artifacts built in three places; `step-up.ts` belongs in `resource/`
 

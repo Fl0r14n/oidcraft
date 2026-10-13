@@ -1,6 +1,7 @@
 import { createLocalJWKSet, type JSONWebKeySet, jwtVerify } from 'jose'
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
+import { CLIENT_SECRET_ALGS, CLIENT_SIGNING_ALGS } from '../keys/algorithms'
 import type { Client } from '../types'
 
 export const ASSERTION_TYPE = 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer'
@@ -52,7 +53,7 @@ export const verifyClientAssertion = async (config: ResolvedConfig, client: Clie
     subject: client.clientId,
     audience,
     // Confusing the two is how a shared secret gets accepted where a public key was registered.
-    algorithms: method === 'client_secret_jwt' ? ['HS256', 'HS384', 'HS512'] : ['ES256', 'ES384', 'ES512', 'PS256', 'RS256', 'EdDSA']
+    algorithms: method === 'client_secret_jwt' ? CLIENT_SECRET_ALGS : CLIENT_SIGNING_ALGS
   }).catch(error => {
     if (error instanceof OAuthError) throw error
     throw unauthorized('the client assertion does not verify')

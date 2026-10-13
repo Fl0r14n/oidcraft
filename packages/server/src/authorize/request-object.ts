@@ -1,10 +1,10 @@
 import { createLocalJWKSet, type JSONWebKeySet, jwtVerify } from 'jose'
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
+import { CLIENT_SIGNING_ALGS } from '../keys/algorithms'
 import type { Client } from '../types'
 
 /** RFC 9101 §8.2: `none` would make the object unauthenticated, which is the whole point of it. */
-const FORBIDDEN_ALGS = ['none', 'HS256', 'HS384', 'HS512']
 
 /**
  * Parameters that must agree with what was sent outside the object, when present (§6.1). They are
@@ -43,16 +43,16 @@ export const applyRequestObject = async (config: ResolvedConfig, client: Client,
   const jwt = params.get('request')
   if (!jwt) return params
 
-  const { payload, protectedHeader } = await jwtVerify(jwt, await keySetFor(config, client), {
+  const { payload } = await jwtVerify(jwt, await keySetFor(config, client), {
     issuer: client.clientId,
-    audience: config.issuer
+    audience: config.issuer,
+    // RFC 9101 §8.2: never none, never a shared secret; exactly what discovery advertises.
+    algorithms: CLIENT_SIGNING_ALGS
   }).catch(error => {
     if (error instanceof OAuthError) throw error
     throw invalid('the request object does not verify against the keys registered for this client')
   })
 
-  if (FORBIDDEN_ALGS.includes(protectedHeader.alg))
-    throw invalid(`${protectedHeader.alg} is not acceptable for a request object`, 'RFC 9101 §8.2')
   if ('request' in payload || 'request_uri' in payload)
     throw invalid('a request object may not contain request or request_uri', 'RFC 9101 §6.1')
 

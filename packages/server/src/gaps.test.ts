@@ -769,3 +769,23 @@ describe('refresh token lifetime', () => {
     expect((await (await refresh(provider, refreshed.refresh_token)).json()).error).toBe('invalid_grant')
   })
 })
+
+describe('discovery advertises what verification accepts', () => {
+  test('client-side algorithm lists are what clients may sign with, not what the provider signs with', async () => {
+    const provider = build({
+      clientAuthMethods: ['client_secret_basic', 'private_key_jwt', 'client_secret_jwt'],
+      features: { dpop: true }
+    })
+    const metadata = await (await provider.handle(new Request(`${ISSUER}/.well-known/openid-configuration`))).json()
+    expect(metadata.token_endpoint_auth_signing_alg_values_supported).toEqual(expect.arrayContaining(['PS384', 'EdDSA', 'HS256']))
+    expect(metadata.dpop_signing_alg_values_supported).toContain('ES384')
+    expect(metadata.request_object_signing_alg_values_supported).toEqual(expect.arrayContaining(['RS512', 'EdDSA']))
+    expect(metadata.request_object_signing_alg_values_supported).not.toContain('HS256')
+  })
+
+  test('without a JWT client authentication method there is no assertion algorithm list', async () => {
+    const provider = build({ clientAuthMethods: ['client_secret_basic', 'none'] })
+    const metadata = await (await provider.handle(new Request(`${ISSUER}/.well-known/openid-configuration`))).json()
+    expect(metadata).not.toHaveProperty('token_endpoint_auth_signing_alg_values_supported')
+  })
+})

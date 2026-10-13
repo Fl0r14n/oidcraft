@@ -128,15 +128,27 @@ describe('polling', () => {
 })
 
 describe('approval', () => {
-  const approve = async (userCodeTyped: string) => {
+  const approve = async (userCodeTyped: string, scopes = ['openid', 'profile', 'offline_access'], accountId = 'ada') => {
     const session = { id: 's1', accountId: 'ada', authTime: new Date(), clients: ['tv'], expiresAt: new Date(Date.now() + 60_000) }
     await adapter.sessions.upsert(session)
-    return provider.device.resolve(userCodeTyped, {
-      accountId: 'ada',
-      sessionId: session.id,
-      scopes: ['openid', 'profile', 'offline_access']
-    })
+    return provider.device.resolve(userCodeTyped, { accountId, sessionId: session.id, scopes })
   }
+
+  // The person may approve less than the device asked for; the token must say what they approved.
+  test('the token carries the approved scopes, not the requested ones', async () => {
+    const { device_code, user_code } = await start()
+    await approve(user_code, ['openid', 'profile'])
+    const body = await (await poll(device_code)).json()
+    expect(body.scope).toBe('openid profile')
+    expect(body.refresh_token).toBeUndefined()
+  })
+
+  test("an approval cannot add scopes, drop openid, or borrow another account's session", async () => {
+    const { user_code } = await start()
+    await expect(approve(user_code, ['openid', 'profile', 'email'])).rejects.toThrow(/never requested/)
+    await expect(approve(user_code, ['profile'])).rejects.toThrow(/openid/)
+    await expect(approve(user_code, ['openid'], 'mallory')).rejects.toThrow(/session does not belong/)
+  })
 
   test('a screen can look up what was typed before approving it', async () => {
     const { user_code } = await start()

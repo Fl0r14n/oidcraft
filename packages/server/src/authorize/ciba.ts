@@ -5,6 +5,7 @@ import type { ClientCertificate } from '../context'
 import { OAuthError } from '../errors'
 import { type Binding, issueTokens } from '../token/issue'
 import type { Artifact, Client } from '../types'
+import { checkApproval } from './approval'
 
 export const CIBA_GRANT = 'urn:openid:params:grant-type:ciba'
 
@@ -159,12 +160,14 @@ export const resolveBackchannelRequest = async (config: ResolvedConfig, authReqI
     return { approved: false as const, notify: payload.mode === 'ping' ? payload.clientNotificationToken : undefined }
   }
 
+  // CIBA §7.1: the request named a user; an approval by anyone else is not an answer to it.
+  const scopes = await checkApproval(config, payload.scopes, outcome, artifact.accountId)
   const previous = await config.adapter.grants.findByAccountAndClient(outcome.accountId, artifact.clientId)
   const grant = {
     id: previous?.id ?? randomString(),
     accountId: outcome.accountId,
     clientId: artifact.clientId,
-    scopes: [...new Set([...(previous?.scopes ?? []), ...outcome.scopes])],
+    scopes: [...new Set([...(previous?.scopes ?? []), ...scopes])],
     claims: previous?.claims ?? [],
     resources: previous?.resources ?? {},
     createdAt: previous?.createdAt ?? new Date()
@@ -177,6 +180,7 @@ export const resolveBackchannelRequest = async (config: ResolvedConfig, authReqI
     grantId: grant.id,
     payload: {
       ...payload,
+      scopes,
       status: 'approved',
       accountId: outcome.accountId,
       sessionId: outcome.sessionId,

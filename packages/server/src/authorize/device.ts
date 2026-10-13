@@ -5,6 +5,7 @@ import type { ClientCertificate } from '../context'
 import { OAuthError } from '../errors'
 import { type Binding, issueTokens } from '../token/issue'
 import type { Artifact, Client } from '../types'
+import { checkApproval } from './approval'
 
 /**
  * Base32 without the characters a person misreads aloud or in a bad font: no 0/O, 1/I/L, U (which
@@ -146,12 +147,13 @@ export const resolveDeviceCode = async (config: ResolvedConfig, typed: string, o
     return { approved: false as const, client: found.client }
   }
 
+  const scopes = await checkApproval(config, found.payload.scopes, outcome)
   const previous = await config.adapter.grants.findByAccountAndClient(outcome.accountId, found.artifact.clientId)
   const grant = {
     id: previous?.id ?? randomString(),
     accountId: outcome.accountId,
     clientId: found.artifact.clientId,
-    scopes: [...new Set([...(previous?.scopes ?? []), ...outcome.scopes])],
+    scopes: [...new Set([...(previous?.scopes ?? []), ...scopes])],
     claims: previous?.claims ?? [],
     resources: previous?.resources ?? {},
     createdAt: previous?.createdAt ?? new Date()
@@ -160,6 +162,7 @@ export const resolveDeviceCode = async (config: ResolvedConfig, typed: string, o
 
   const payload = {
     ...found.payload,
+    scopes,
     status: 'approved' as const,
     accountId: outcome.accountId,
     sessionId: outcome.sessionId,

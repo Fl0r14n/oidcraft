@@ -186,6 +186,23 @@ describe('polling', () => {
 })
 
 describe('resolution', () => {
+  test('the token carries the approved scopes, not the requested ones', async () => {
+    const { auth_req_id } = await (await start()).json()
+    await approve(auth_req_id, ['openid', 'profile'])
+    expect((await (await pollFor(auth_req_id)).json()).scope).toBe('openid profile')
+  })
+
+  // CIBA §7.1: the hint named the user; someone else answering is not an answer to this request.
+  test('only the account the request was made for can approve it', async () => {
+    const { auth_req_id } = await (await start()).json()
+    const session = { id: 'sm', accountId: 'mallory', authTime: new Date(), clients: [], expiresAt: new Date(Date.now() + 60_000) }
+    await adapter.sessions.upsert(session)
+    await expect(provider.ciba.resolve(auth_req_id, { accountId: 'mallory', sessionId: 'sm', scopes: ['openid'] })).rejects.toThrow(
+      /not the one this request was made for/
+    )
+    await expect(approve(auth_req_id, ['openid', 'admin'])).rejects.toThrow(/never requested/)
+  })
+
   test('hands back the notification token so ping mode can be delivered', async () => {
     const { auth_req_id } = await (await start({ client_notification_token: 'nt' }, 'pinger')).json()
     const session = { id: 's2', accountId: 'ada', authTime: new Date(), clients: ['pinger'], expiresAt: new Date(Date.now() + 60_000) }

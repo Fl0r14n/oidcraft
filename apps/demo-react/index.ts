@@ -74,8 +74,16 @@ const server = serve({
     try {
       const locale = request.headers.get('accept-language')?.split(',')[0]?.split('-')[0]
       const { body, head } = await render(url, locale)
-      const html = template.replace('<!--app-head-->', head + (production ? '' : reloader)).replace('<!--app-html-->', body)
-      return new Response(html, { headers: { 'content-type': 'text/html; charset=utf-8' } })
+      // The template's two halves around React's stream: the head goes out before rendering finishes.
+      const [before, after] = template.replace('<!--app-head-->', head + (production ? '' : reloader)).split('<!--app-html-->')
+      const encoder = new TextEncoder()
+      const page = body.pipeThrough(
+        new TransformStream<Uint8Array, Uint8Array>({
+          start: controller => controller.enqueue(encoder.encode(before)),
+          flush: controller => controller.enqueue(encoder.encode(after))
+        })
+      )
+      return new Response(page, { headers: { 'content-type': 'text/html; charset=utf-8' } })
     } catch (error) {
       console.error('SSR error:', error)
       return new Response(production ? 'Internal Server Error' : String((error as Error).stack), { status: 500 })

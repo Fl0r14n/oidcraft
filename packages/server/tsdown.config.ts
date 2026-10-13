@@ -69,6 +69,15 @@ export default defineConfig([
     clean: false
   },
   {
+    // takes a command function, so it imports no Redis client and no runtime
+    entry: { 'adapters/redis': 'src/adapters/redis/index.ts' },
+    outDir: 'dist',
+    format: 'esm',
+    deps: { neverBundle: external },
+    dts: true,
+    clean: false
+  },
+  {
     // the only entry that may import kysely
     entry: { 'adapters/kysely': 'src/adapters/kysely/index.ts' },
     outDir: 'dist',

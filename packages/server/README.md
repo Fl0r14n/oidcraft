@@ -79,12 +79,17 @@ import { ... } from 'oidcraft/runtimes/workerd'   // request context for Cloudfl
 import { ... } from 'oidcraft/adapters/memory'    // development and tests
 import { ... } from 'oidcraft/adapters/drizzle'   // Postgres, SQLite
 import { ... } from 'oidcraft/adapters/kysely'    // Postgres, SQLite, MySQL
+import { ... } from 'oidcraft/adapters/redis'     // any Redis client, through one command function
 ```
 
 `drizzle-orm` and `kysely` are **optional** peer dependencies, each confined to the entry that uses
 it — installing oidcraft pulls neither. `oidcraft/federation` also needs a relying-party
 implementation, because brokering *is* being a relying party at the upstream; that one is not a
 dependency at all, but this project's own code compiled into the entry.
+
+`oidcraft/adapters/redis` takes no client either: it takes one function that sends a command, so
+Bun's built-in client, ioredis and node-redis all fit —
+`redisAdapter((command, args) => client.send(command, args), { keys, accounts })` on Bun.
 
 Only Node needs an HTTP bridge; Bun, Deno and workerd take the core's handler directly. Every
 runtime needs a context provider, because the client IP and the verified TLS client certificate are

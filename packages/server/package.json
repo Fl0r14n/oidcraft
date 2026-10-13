@@ -68,6 +68,10 @@
       "types": "./dist/adapters/drizzle.d.mts",
       "import": "./dist/adapters/drizzle.mjs"
     },
+    "./adapters/redis": {
+      "types": "./dist/adapters/redis.d.mts",
+      "import": "./dist/adapters/redis.mjs"
+    },
     "./adapters/kysely": {
       "types": "./dist/adapters/kysely.d.mts",
       "import": "./dist/adapters/kysely.mjs"

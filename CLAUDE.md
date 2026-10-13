@@ -80,7 +80,7 @@ bun run conformance      # OpenID Foundation suite against apps/server
 - **Directories name the role, `package.json` names the artifact.** `packages/server` publishes as
   `oidcraft`, `packages/vue` as `vue-oidc`, `packages/react` as `react-oauth-oidc`. `bun run --filter`
   matches package names, not directories.
-- **One package, ten subpath entries** (`packages/server`). An optional peer belongs to exactly
+- **One package, eleven subpath entries** (`packages/server`). An optional peer belongs to exactly
   one entry; `bun run --filter=oidcraft build` runs `verify-entries.ts`, which fails the build if
   one leaks, if a core type is inlined, or if `node:` appears outside the `./runtimes/node` entry
   (ARCHITECTURE.md §2.1–2.2). Do not split this into several packages without reading §2.1.

@@ -63,7 +63,7 @@ packages/core/              the protocol.       private, compiled into its consu
 packages/client/            client runtime.     private, the bindings only
 packages/vue/               vue-oidc
 packages/react/             react-oauth-oidc
-packages/server/            one published package, ten entries — publishes as `oidcraft`
+packages/server/            one published package, eleven entries — publishes as `oidcraft`
   src/index.ts              .                     the OP. fetch in, fetch out, no I/O
   src/federation/           ./federation          the relying-party leg — upstream brokering
   src/interaction/          ./interaction         login/consent policy types
@@ -74,6 +74,7 @@ packages/server/            one published package, ten entries — publishes as 
   src/adapters/memory/      ./adapters/memory     tests and development only
   src/adapters/drizzle/     ./adapters/drizzle    Postgres, SQLite
   src/adapters/kysely/      ./adapters/kysely     Postgres, SQLite, MySQL
+  src/adapters/redis/       ./adapters/redis      any Redis client, through one command function
 apps/
   server                    the reference OP: mounts the core, the login screens and the admin UI
   demo-vue                  demo relying party: Vue 3 + vue-oidc

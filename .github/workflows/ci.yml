@@ -15,6 +15,14 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-latest
+    # The Redis adapter's conformance tests skip without REDIS_URL; here they run against a real one.
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+    env:
+      REDIS_URL: redis://localhost:6379
     steps:
       - uses: actions/checkout@v6
       - uses: oven-sh/setup-bun@v2

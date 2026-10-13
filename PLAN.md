@@ -227,7 +227,7 @@ In fix order; the first is the only one that changes the adapter contract.
 
 **Follow-ups, not findings**
 
-- [ ] A Redis `KvStore` (Bun's built-in client), at least in tests: nothing exercises `fromKv` over a
+- [x] A Redis `KvStore` (Bun's built-in client), at least in tests: nothing exercises `fromKv` over a
       distributed store, where `insert` being atomic is the whole point — the memory store is atomic
       for free. Possibly an `oidcraft/adapters/redis` entry once it exists.
 

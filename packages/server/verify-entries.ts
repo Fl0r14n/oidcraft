@@ -15,7 +15,8 @@ const ENTRIES = {
   'runtimes/workerd': { owns: [], runtime: 'workerd' },
   'adapters/memory': { owns: [], runtime: undefined },
   'adapters/drizzle': { owns: ['drizzle-orm'], runtime: undefined },
-  'adapters/kysely': { owns: ['kysely'], runtime: undefined }
+  'adapters/kysely': { owns: ['kysely'], runtime: undefined },
+  'adapters/redis': { owns: [], runtime: undefined }
 } as const
 
 const OPTIONAL_PEERS = ['drizzle-orm', 'kysely'] as const

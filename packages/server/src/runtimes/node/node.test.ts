@@ -2,7 +2,7 @@ import { afterAll, describe, expect, test } from 'bun:test'
 import { createServer } from 'node:http'
 import { memoryAdapter } from '../../adapters/memory'
 import { createProvider } from '../../provider'
-import { toNodeHandler } from './index'
+import { nodeContext, toNodeHandler } from './index'
 
 const adapter = await memoryAdapter()
 const provider = createProvider({ issuer: 'http://127.0.0.1:0', adapter })
@@ -49,5 +49,20 @@ describe('node bridge', () => {
     const response = await fetch(`${base}/jwks`, { method: 'POST' })
     expect(response.status).toBe(405)
     expect(response.headers.get('allow')).toBe('GET')
+  })
+})
+
+describe('nodeContext', () => {
+  const incoming = (forwardedFor?: string) =>
+    ({ headers: forwardedFor ? { 'x-forwarded-for': forwardedFor } : {}, socket: { remoteAddress: '10.0.0.2' } }) as never
+
+  // NFR-S6: everything left of the proxy's own entry was written by the client.
+  test('with trustProxy, takes the address the proxy appended, not one the client wrote', () => {
+    const context = nodeContext('https://op.example.com', { trustProxy: true })(incoming('6.6.6.6, 203.0.113.9'))
+    expect(context.clientIp).toBe('203.0.113.9')
+  })
+
+  test('without trustProxy, the header is ignored', () => {
+    expect(nodeContext('https://op.example.com')(incoming('6.6.6.6')).clientIp).toBe('10.0.0.2')
   })
 })

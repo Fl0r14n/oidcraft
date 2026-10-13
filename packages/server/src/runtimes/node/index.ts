@@ -24,10 +24,14 @@ const peerCertificate = (socket: TlsSocket): ClientCertificate | undefined => {
   return raw ? { thumbprint: createHash('sha256').update(raw).digest('base64url') } : undefined
 }
 
+/**
+ * The address the trusted proxy saw is the one it appended: the right-most. Everything to its left
+ * arrived from the client and is whatever the client chose to write (NFR-S6).
+ */
 const forwardedIp = (request: IncomingMessage) => {
   const header = request.headers['x-forwarded-for']
-  const first = (Array.isArray(header) ? header[0] : header)?.split(',')[0]?.trim()
-  return first || undefined
+  const last = (Array.isArray(header) ? header.join(',') : header)?.split(',').at(-1)?.trim()
+  return last || undefined
 }
 
 /**

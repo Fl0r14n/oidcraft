@@ -183,6 +183,16 @@ describe('approval', () => {
     expect(provider.device.resolve(user_code, { denied: true })).rejects.toThrow(/already been answered/)
   })
 
+  // RFC 8628 §5.1: a user code is short enough to guess, so wrong guesses are limited per address.
+  test('wrong codes from one address are limited; another address is unaffected', async () => {
+    for (let attempt = 0; attempt < 5; attempt++) {
+      expect(await provider.device.find('WRONG-CODE', { clientIp: '198.51.100.1' })).toBeUndefined()
+    }
+    const { user_code } = await start()
+    await expect(provider.device.find(user_code, { clientIp: '198.51.100.1' })).rejects.toThrow(/too many wrong codes/)
+    expect((await provider.device.find(user_code, { clientIp: '198.51.100.2' }))?.client.clientId).toBe('tv')
+  })
+
   test('an unknown code is refused', async () => {
     expect(provider.device.find('ZZZZ-ZZZZ')).resolves.toBeUndefined()
     expect(provider.device.resolve('ZZZZ-ZZZZ', { denied: true })).rejects.toThrow(/not one we are waiting for/)

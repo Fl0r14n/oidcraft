@@ -1,3 +1,4 @@
+import { OAuthError } from 'oidcraft'
 import { type InteractionRequest, oauthFieldError } from 'oidcraft/interaction'
 import { startUpstream, upstreamLabels } from '../federation'
 import { provider } from '../provider'
@@ -88,11 +89,23 @@ export const interactionRoutes = async (request: Request, url: URL) => {
 }
 
 /** The device flow's human half: a person types a code they read on another screen (FR-C7). */
-export const deviceRoutes = async (request: Request, url: URL) => {
+export const deviceRoutes = async (request: Request, url: URL, clientIp: string | undefined) => {
+  try {
+    return await deviceScreens(request, url, { clientIp })
+  } catch (error) {
+    // RFC 8628 §5.1: the provider stops answering after too many wrong codes from one address.
+    if (error instanceof OAuthError && error.status === 429) {
+      return html(deviceCodeScreen('', 'Too many wrong codes. Wait a few minutes and try again.'), 429)
+    }
+    throw error
+  }
+}
+
+const deviceScreens = async (request: Request, url: URL, context: { clientIp: string | undefined }) => {
   if (request.method === 'GET' && url.pathname === '/device') {
     const prefilled = url.searchParams.get('user_code') ?? ''
     if (!prefilled) return html(deviceCodeScreen())
-    const found = await provider.device.find(prefilled)
+    const found = await provider.device.find(prefilled, context)
     if (!found) return html(deviceCodeScreen(prefilled, 'That code is not one we are waiting for.'), 404)
     return html(deviceConfirmScreen(prefilled, found.client.clientName ?? found.client.clientId, found.payload.scopes))
   }
@@ -100,7 +113,7 @@ export const deviceRoutes = async (request: Request, url: URL) => {
   if (request.method === 'POST' && url.pathname === '/device') {
     const form = new URLSearchParams(await request.text())
     const typed = form.get('user_code') ?? ''
-    const found = await provider.device.find(typed)
+    const found = await provider.device.find(typed, context)
     if (!found) return html(deviceCodeScreen(typed, 'That code is not one we are waiting for.'), 404)
     return html(deviceConfirmScreen(typed, found.client.clientName ?? found.client.clientId, found.payload.scopes))
   }
@@ -111,11 +124,11 @@ export const deviceRoutes = async (request: Request, url: URL) => {
     const allow = form.get('decision') === 'allow'
     try {
       if (!allow) {
-        await provider.device.resolve(typed, { denied: true })
+        await provider.device.resolve(typed, { denied: true }, context)
         return html(deviceDoneScreen(false))
       }
       // Demo: a real deployment would require a signed-in session here rather than inventing one.
-      const found = await provider.device.find(typed)
+      const found = await provider.device.find(typed, context)
       if (!found) return html(deviceCodeScreen(typed, 'That code has expired.'), 404)
       const session = {
         id: crypto.randomUUID(),
@@ -126,7 +139,7 @@ export const deviceRoutes = async (request: Request, url: URL) => {
         expiresAt: new Date(Date.now() + 3_600_000)
       }
       await provider.config.adapter.sessions.upsert(session)
-      await provider.device.resolve(typed, { accountId: session.accountId, sessionId: session.id, scopes: found.payload.scopes })
+      await provider.device.resolve(typed, { accountId: session.accountId, sessionId: session.id, scopes: found.payload.scopes }, context)
       return html(deviceDoneScreen(true))
     } catch {
       return html(deviceCodeScreen(typed, 'That code has expired or was already answered.'), 400)

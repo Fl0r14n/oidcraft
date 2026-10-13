@@ -200,7 +200,8 @@ In fix order; the first is the only one that changes the adapter contract.
 - [x] `form_post` advertised but answered in the query; error redirects ignore `response_mode`; `access_denied` lacks `iss` (FR-C14).
       Fixed: one `authorizationResponse`; an interaction error is delivered through `/authorize?response=` once
 - [x] `max_age=0` loops; `prompt=select_account` ignored; `prompt=none` combined accepted (FR-I5)
-- [ ] No `user_code` rate limiting (NFR-S3); Node bridge takes the left-most `X-Forwarded-For`
+- [x] No `user_code` rate limiting (NFR-S3); Node bridge takes the left-most `X-Forwarded-For`. Fixed: 5 wrong codes
+      per address per 10 minutes (50 when the host passes no address); the right-most forwarded entry
 - [ ] DPoP `htu` from `request.url`, not the issuer (NFR-S6); an issuer with a path 404s every route
 - [ ] Upstream back-channel logout tokens: no jti replay, no `typ`, unchecked `events`
 - [ ] Construction accepts a missing `interactionUrl`, CIBA without its resolver, federation without its stores (NFR-D2)

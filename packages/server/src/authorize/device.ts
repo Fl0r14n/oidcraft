@@ -125,17 +125,58 @@ export type DeviceApproval = {
   scopes: string[]
 }
 
+const ATTEMPT_WINDOW_SECONDS = 600
+const MAX_FAILURES = 5
+// Without a peer address every guesser shares one bucket, so it is wider, or one person locks out all.
+const MAX_ANONYMOUS_FAILURES = 50
+
+/** Who is typing codes, as far as the host can tell. Only the peer address counts (FR-R4). */
+export type UserCodeContext = { clientIp?: string | undefined }
+
+/**
+ * RFC 8628 §5.1: a user code is short enough to guess, so wrong guesses are limited per peer.
+ * A read-then-write count can let a burst through a few over the limit; it bounds guessing, it is
+ * not an exact quota.
+ */
+const attemptsFor = async (config: ResolvedConfig, context: UserCodeContext) => {
+  const id = context.clientIp ? `ip:${context.clientIp}` : 'anonymous'
+  const limit = context.clientIp ? MAX_FAILURES : MAX_ANONYMOUS_FAILURES
+  const record = await config.adapter.artifacts.find('user_code_attempts', id)
+  const failures = (record?.payload.failures as number | undefined) ?? 0
+  if (failures >= limit) {
+    throw new OAuthError('invalid_request', { description: 'too many wrong codes; try again later', spec: 'RFC 8628 §5.1', status: 429 })
+  }
+  return async () => {
+    await config.adapter.artifacts.upsert({
+      id,
+      kind: 'user_code_attempts',
+      clientId: '',
+      payload: { failures: failures + 1 },
+      expiresAt: record?.expiresAt ?? new Date(Date.now() + ATTEMPT_WINDOW_SECONDS * 1000)
+    })
+  }
+}
+
 /** Looks up what a person typed, so a screen can show them what they are approving (FR-C7). */
-export const findByUserCode = async (config: ResolvedConfig, typed: string) => {
+export const findByUserCode = async (config: ResolvedConfig, typed: string, context: UserCodeContext = {}) => {
+  const recordFailure = await attemptsFor(config, context)
   const artifact = await config.adapter.artifacts.findByUserCode?.(normalizeUserCode(typed))
-  if (!artifact) return undefined
+  if (!artifact) {
+    await recordFailure()
+    return undefined
+  }
   const payload = payloadOf(artifact)
   const client = await config.adapter.clients.find(artifact.clientId)
   return client ? { artifact, payload, client } : undefined
 }
 
-export const resolveDeviceCode = async (config: ResolvedConfig, typed: string, outcome: DeviceApproval | { denied: true }) => {
-  const found = await findByUserCode(config, typed)
+export const resolveDeviceCode = async (
+  config: ResolvedConfig,
+  typed: string,
+  outcome: DeviceApproval | { denied: true },
+  context: UserCodeContext = {}
+) => {
+  const found = await findByUserCode(config, typed, context)
   if (!found) throw new OAuthError('invalid_request', { description: 'that code is not one we are waiting for', status: 404 })
   if (found.payload.status !== 'pending') {
     throw new OAuthError('invalid_request', { description: 'that code has already been answered', status: 409 })

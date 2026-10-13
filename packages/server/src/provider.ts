@@ -7,7 +7,7 @@ import {
   validateAuthorizationRequest
 } from './authorize/authorization'
 import { backchannelAuthenticationEndpoint, type CibaDecision, resolveBackchannelRequest } from './authorize/ciba'
-import { deviceAuthorizationEndpoint, findByUserCode, resolveDeviceCode } from './authorize/device'
+import { deviceAuthorizationEndpoint, findByUserCode, resolveDeviceCode, type UserCodeContext } from './authorize/device'
 import { interactions } from './authorize/interactions'
 import { pushedAuthorizationRequestEndpoint, resolvePushedRequest } from './authorize/par'
 import { applyRequestObject } from './authorize/request-object'
@@ -36,8 +36,13 @@ export type Provider = {
    * functions rather than routes: look up what was typed, then approve or deny it (FR-C7).
    */
   device: {
-    find: (userCode: string) => ReturnType<typeof findByUserCode>
-    resolve: (userCode: string, outcome: Parameters<typeof resolveDeviceCode>[2]) => ReturnType<typeof resolveDeviceCode>
+    /** Pass the peer address: wrong codes are limited per address (RFC 8628 §5.1). */
+    find: (userCode: string, context?: UserCodeContext) => ReturnType<typeof findByUserCode>
+    resolve: (
+      userCode: string,
+      outcome: Parameters<typeof resolveDeviceCode>[2],
+      context?: UserCodeContext
+    ) => ReturnType<typeof resolveDeviceCode>
   }
   /** CIBA's out-of-band half, for whatever channel actually asks the person (FR-C17). */
   ciba: { resolve: (authReqId: string, outcome: CibaDecision) => ReturnType<typeof resolveBackchannelRequest> }
@@ -206,8 +211,8 @@ export const createProvider = (config: ProviderConfig): Provider => {
     interactions: interactions(resolved),
     management: management(resolved),
     device: {
-      find: userCode => findByUserCode(resolved, userCode),
-      resolve: (userCode, outcome) => resolveDeviceCode(resolved, userCode, outcome)
+      find: (userCode, context) => findByUserCode(resolved, userCode, context),
+      resolve: (userCode, outcome, context) => resolveDeviceCode(resolved, userCode, outcome, context)
     },
     ciba: { resolve: (authReqId, outcome) => resolveBackchannelRequest(resolved, authReqId, outcome) },
     async handle(request, context) {

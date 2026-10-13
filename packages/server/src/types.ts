@@ -98,6 +98,7 @@ export type ArtifactKind =
   | 'authorization_details_consent'
   | 'dpop_nonce'
   | 'authorization_response'
+  | 'user_code_attempts'
 
 export type Artifact = {
   id: string

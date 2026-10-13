@@ -1,5 +1,6 @@
 /// <reference types="bun" />
 import { serve } from 'bun'
+import { bunContext } from 'oidcraft/runtimes/bun'
 import { adminApi } from './src/admin/api'
 import { optional } from './src/env'
 import { federationCallback } from './src/federation'
@@ -27,8 +28,9 @@ const server = serve({
     '/admin': admin,
     '/admin/*': admin
   },
-  async fetch(request) {
+  async fetch(request, server) {
     const url = new URL(request.url)
+    const context = bunContext(provider.config.issuer, server)(request)
     if (url.pathname === '/interaction/logout') {
       const response = await logoutRoutes(request, url)
       if (response) return response
@@ -42,10 +44,10 @@ const server = serve({
       if (response) return response
     }
     if (url.pathname === '/device' || url.pathname === '/device/decide') {
-      const response = await deviceRoutes(request, url)
+      const response = await deviceRoutes(request, url, context.clientIp)
       if (response) return response
     }
-    const response = await provider.handle(request)
+    const response = await provider.handle(request, context)
     if (url.pathname === '/authorize' && response.status >= 400 && response.headers.get('content-type')?.includes('json')) {
       const { error, error_description } = await response.json()
       return html(errorScreen(error, error_description), response.status)

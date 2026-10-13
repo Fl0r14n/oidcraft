@@ -12,7 +12,7 @@ export type {
 export { type FromKvOptions, fromKv, type KvEntry, type KvStore } from './adapters/kv'
 export type { AuthorizationDetail, AuthorizationRequest } from './authorize/authorization'
 export type { CibaDecision, CibaPayload } from './authorize/ciba'
-export type { DeviceApproval, DevicePayload } from './authorize/device'
+export type { DeviceApproval, DevicePayload, UserCodeContext } from './authorize/device'
 export { authenticationOf, meetsRequirement, type StepUpRequirement, type StepUpVerdict } from './authorize/step-up'
 export { type DpopProof, type VerifyOptions, verifyDpopProof } from './binding/dpop'
 export { certificateThumbprint } from './binding/mtls'

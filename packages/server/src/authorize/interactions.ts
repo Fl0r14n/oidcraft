@@ -135,6 +135,9 @@ const authorizationUrl = async (config: ResolvedConfig, request: AuthorizationRe
   // acr_values was put to the login that just ran; what it achieved is the answer, and the ID token
   // reports it (OIDC Core §3.1.2.1, FR-C16). Replaying an unmeetable one loops forever too.
   if (loggedIn) params.delete('acr_values')
+  // max_age was measured against the login that just ran; replaying it loops whenever it is shorter
+  // than the round trip, which max_age=0 always is (OIDC Core §3.1.2.1).
+  if (loggedIn) params.delete('max_age')
   // A pushed or signed request was already resolved into these parameters; replaying the reference
   // would consume it a second time (RFC 9126 §4).
   params.delete('request_uri')

@@ -470,6 +470,29 @@ describe('userinfo', () => {
 })
 
 describe('interaction', () => {
+  // FR-I5 / OIDC Core §3.1.2.1.
+  test('max_age=0 forces one login and then completes, rather than looping', async () => {
+    const first = await go(authorizeUrl({ max_age: '0' }))
+    const id = new URL(first.headers.get('location') as string).pathname.split('/').pop() as string
+    const { redirectTo } = await provider.interactions.complete(id, { login: { accountId: 'ada' } })
+    // The login just satisfied it; replaying max_age=0 would demand another one forever.
+    expect(new URL(redirectTo).searchParams.has('max_age')).toBe(false)
+  })
+
+  test('prompt=select_account goes to the login screen even with a live session', async () => {
+    const { cookie } = await loginAndConsent()
+    const response = await go(authorizeUrl({ prompt: 'select_account' }), cookie)
+    const id = new URL(response.headers.get('location') as string).pathname.split('/').pop() as string
+    const view = await provider.interactions.find(id)
+    expect(view.kind).toBe('login')
+    expect(view.prompt).toContain('select_account')
+  })
+
+  test('prompt=none with another value is invalid_request', async () => {
+    const response = await go(authorizeUrl({ prompt: 'none login' }))
+    expect(new URL(response.headers.get('location') as string).searchParams.get('error')).toBe('invalid_request')
+  })
+
   test('exposes what the screen needs and nothing secret', async () => {
     const first = await go(authorizeUrl())
     const id = new URL(first.headers.get('location') as string).pathname.split('/').pop() as string

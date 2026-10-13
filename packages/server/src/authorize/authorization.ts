@@ -115,6 +115,14 @@ export const validateAuthorizationRequest = (
     throw new OAuthError('invalid_scope', { description: `client ${client.clientId} may not request: ${unallowed.join(', ')}` })
   }
 
+  const prompt = list(params.get('prompt'))
+  if (prompt.includes('none') && prompt.length > 1) {
+    throw new OAuthError('invalid_request', {
+      description: 'prompt=none cannot be combined with another value',
+      spec: 'OIDC Core §3.1.2.1'
+    })
+  }
+
   const maxAgeRaw = params.get('max_age')
   const maxAge = maxAgeRaw === null ? undefined : Number(maxAgeRaw)
   if (maxAge !== undefined && (!Number.isInteger(maxAge) || maxAge < 0)) {
@@ -135,7 +143,7 @@ export const validateAuthorizationRequest = (
     state: params.get('state') ?? undefined,
     nonce: params.get('nonce') ?? undefined,
     codeChallenge: assertChallenge(client, params.get('code_challenge'), params.get('code_challenge_method'), params.get('nonce')),
-    prompt: list(params.get('prompt')),
+    prompt,
     maxAge,
     loginHint: params.get('login_hint') ?? undefined,
     acrValues: params.get('acr_values') ? list(params.get('acr_values')) : undefined,
@@ -251,7 +259,13 @@ export const authorize = async (
   // RFC 9470: a resource server can demand a stronger acr, and honouring it means re-authenticating
   // rather than issuing a token that quietly fails to meet it.
   const acrUnmet = Boolean(request.acrValues?.length && (!session?.acr || !request.acrValues.includes(session.acr)))
-  const needsLogin = !session || request.prompt.includes('login') || !isFresh(session, request.maxAge) || acrUnmet
+  // FR-I5: select_account asks which identity to use, so it goes to the login screen even with a session.
+  const needsLogin =
+    !session ||
+    request.prompt.includes('login') ||
+    request.prompt.includes('select_account') ||
+    !isFresh(session, request.maxAge) ||
+    acrUnmet
 
   if (needsLogin) {
     if (request.prompt.includes('none')) {

@@ -62,6 +62,11 @@ export type VerifyOptions = {
   accessToken?: string | undefined
   /** The thumbprint the token was issued against; a mismatch means a different key is presenting it. */
   expectedJkt?: string | undefined
+  /**
+   * The URI the proof must name. Defaults to the request's own URL, which is right only where that is
+   * the URL the client used; behind a proxy, pass the public one (NFR-S6).
+   */
+  htu?: string | undefined
 }
 
 /**
@@ -99,7 +104,8 @@ export const verifyDpopProof = async (config: ResolvedConfig, request: Request, 
   })
 
   if (payload.htm !== request.method) throw invalid(`the DPoP proof is bound to ${String(payload.htm)}, not ${request.method}`)
-  if (payload.htu !== htu(request)) throw invalid(`the DPoP proof is bound to ${String(payload.htu)}, not ${htu(request)}`)
+  const expectedHtu = options.htu ?? htu(request)
+  if (payload.htu !== expectedHtu) throw invalid(`the DPoP proof is bound to ${String(payload.htu)}, not ${expectedHtu}`)
 
   const iat = payload.iat
   if (typeof iat !== 'number') throw invalid('the DPoP proof has no iat')

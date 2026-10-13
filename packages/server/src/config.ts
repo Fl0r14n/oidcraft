@@ -227,6 +227,18 @@ const DEFAULT_CLIENT_AUTH: ClientAuthMethod[] = [
   'none'
 ]
 
+/**
+ * The route a request is for. An issuer with a path (`https://x/auth`) publishes `/auth/token`; a
+ * host that mounted the provider under that prefix may already have stripped it, so both resolve.
+ */
+export const routePath = (config: ResolvedConfig, pathname: string) => {
+  const base = config.issuerUrl.pathname.replace(/\/$/, '')
+  return base && pathname.startsWith(`${base}/`) ? pathname.slice(base.length) : pathname
+}
+
+/** Where a route is published: the issuer plus the route, whatever URL the request arrived on (NFR-S6). */
+export const publicUrl = (config: ResolvedConfig, request: Request) => `${config.issuer}${routePath(config, new URL(request.url).pathname)}`
+
 export const resolveConfig = (config: ProviderConfig): ResolvedConfig => {
   const problems: string[] = []
 

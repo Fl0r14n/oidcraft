@@ -115,6 +115,27 @@ describe('DPoP binding', () => {
     expect(body.token_type).toBe('DPoP')
   })
 
+  // NFR-S6: behind a proxy the request URL is the internal one; the proof names the public one.
+  test('htu is checked against the issuer, not the URL the request arrived on', async () => {
+    const code = await codeFor()
+    const internal = (headers: Record<string, string>) =>
+      provider.handle(
+        new Request('http://10.0.0.5:3001/token', {
+          method: 'POST',
+          headers: { 'content-type': 'application/x-www-form-urlencoded', ...headers },
+          body: new URLSearchParams({
+            grant_type: 'authorization_code',
+            code,
+            redirect_uri: REDIRECT,
+            code_verifier: verifier,
+            client_id: 'rp'
+          }).toString()
+        })
+      )
+    expect((await (await internal({ dpop: await proof('POST', 'http://10.0.0.5:3001/token') })).json()).error).toBe('invalid_dpop_proof')
+    expect((await internal({ dpop: await proof('POST', `${ISSUER}/token`) })).status).toBe(200)
+  })
+
   test('without a proof the token is an ordinary Bearer', async () => {
     const body = await (await exchange(await codeFor())).json()
     expect(body.token_type).toBe('Bearer')

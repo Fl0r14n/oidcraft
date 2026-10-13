@@ -1,6 +1,6 @@
 import { CompactEncrypt, importJWK, type JWK, SignJWT } from 'jose'
 import { verifyDpopProof } from '../binding/dpop'
-import type { ResolvedConfig } from '../config'
+import { publicUrl, type ResolvedConfig } from '../config'
 import type { ClientCertificate } from '../context'
 import { OAuthError } from '../errors'
 import { signingKey } from '../keys/keys'
@@ -80,6 +80,7 @@ export const userinfoEndpoint = async (config: ResolvedConfig, request: Request,
       throw unauthorized('this access token is DPoP-bound and must be presented with the DPoP scheme', 'DPoP')
     }
     await verifyDpopProof(config, request, {
+      htu: publicUrl(config, request),
       accessToken: presented.token,
       expectedJkt: confirmation.jkt,
       requireNonceFor: config.features.dpopNonces ? artifact.clientId : undefined

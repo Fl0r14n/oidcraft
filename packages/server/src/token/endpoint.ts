@@ -2,7 +2,7 @@ import { CIBA_GRANT, cibaGrant } from '../authorize/ciba'
 import { deviceCodeGrant } from '../authorize/device'
 import { verifyDpopProof } from '../binding/dpop'
 import { authenticateClient } from '../clients/authenticate'
-import type { ResolvedConfig } from '../config'
+import { publicUrl, type ResolvedConfig } from '../config'
 import type { ClientCertificate } from '../context'
 import { OAuthError } from '../errors'
 import type { Client } from '../types'
@@ -23,7 +23,12 @@ const bindingFor = async (config: ResolvedConfig, client: Client, request: Reque
       spec: 'RFC 9449 §5'
     })
   }
-  return (await verifyDpopProof(config, request, { requireNonceFor: config.features.dpopNonces ? client.clientId : undefined })).jkt
+  return (
+    await verifyDpopProof(config, request, {
+      htu: publicUrl(config, request),
+      requireNonceFor: config.features.dpopNonces ? client.clientId : undefined
+    })
+  ).jkt
 }
 
 export const tokenEndpoint = async (config: ResolvedConfig, request: Request, certificate?: ClientCertificate | undefined) => {

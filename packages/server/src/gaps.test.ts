@@ -516,3 +516,26 @@ describe('FR-C18: a pairwise subject never leaks the account id', () => {
     expect(decodeJwt(tokens[0]?.logoutToken as string).sub).toBe(decodeJwt(issued.id_token).sub as string)
   })
 })
+
+describe('an issuer with a path', () => {
+  const PATHED = 'https://op.example.com/auth'
+
+  test('serves every route under that path, as discovery publishes them', async () => {
+    await adapter.clients.upsert?.(client())
+    const provider = createProvider({ issuer: PATHED, adapter, interactionUrl: `${PATHED}/interaction` })
+    const discovery = await provider.handle(new Request(`${PATHED}/.well-known/openid-configuration`))
+    expect(discovery.status).toBe(200)
+    const metadata = await discovery.json()
+    expect(metadata.token_endpoint).toBe(`${PATHED}/token`)
+    expect((await provider.handle(new Request(`${PATHED}/jwks`))).status).toBe(200)
+    // A host that mounted the provider under the prefix and stripped it is served too.
+    expect((await provider.handle(new Request('https://op.example.com/jwks'))).status).toBe(200)
+  })
+
+  test('a trailing slash on a pathed issuer changes nothing', async () => {
+    const provider = createProvider({ issuer: `${PATHED}/`, adapter, interactionUrl: `${PATHED}/interaction` })
+    const metadata = await (await provider.handle(new Request(`${PATHED}/.well-known/openid-configuration`))).json()
+    expect(metadata.issuer).toBe(PATHED)
+    expect(metadata.token_endpoint).toBe(`${PATHED}/token`)
+  })
+})

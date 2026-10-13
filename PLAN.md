@@ -202,7 +202,7 @@ In fix order; the first is the only one that changes the adapter contract.
 - [x] `max_age=0` loops; `prompt=select_account` ignored; `prompt=none` combined accepted (FR-I5)
 - [x] No `user_code` rate limiting (NFR-S3); Node bridge takes the left-most `X-Forwarded-For`. Fixed: 5 wrong codes
       per address per 10 minutes (50 when the host passes no address); the right-most forwarded entry
-- [ ] DPoP `htu` from `request.url`, not the issuer (NFR-S6); an issuer with a path 404s every route
+- [x] DPoP `htu` from `request.url`, not the issuer (NFR-S6); an issuer with a path 404s every route
 - [ ] Upstream back-channel logout tokens: no jti replay, no `typ`, unchecked `events`
 - [ ] Construction accepts a missing `interactionUrl`, CIBA without its resolver, federation without its stores (NFR-D2)
 - [ ] No CORS, so a browser client on another origin cannot use the OP

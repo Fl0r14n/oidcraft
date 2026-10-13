@@ -12,7 +12,7 @@ import { interactions } from './authorize/interactions'
 import { pushedAuthorizationRequestEndpoint, resolvePushedRequest } from './authorize/par'
 import { applyRequestObject } from './authorize/request-object'
 import { registrationEndpoint } from './clients/registration'
-import { type ProviderConfig, type ResolvedConfig, resolveConfig } from './config'
+import { type ProviderConfig, type ResolvedConfig, resolveConfig, routePath } from './config'
 import type { RequestContext } from './context'
 import { discoveryEndpoint } from './discovery'
 import { errorResponse, OAuthError } from './errors'
@@ -217,7 +217,7 @@ export const createProvider = (config: ProviderConfig): Provider => {
     ciba: { resolve: (authReqId, outcome) => resolveBackchannelRequest(resolved, authReqId, outcome) },
     async handle(request, context) {
       try {
-        const route = routes.get(new URL(request.url).pathname)
+        const route = routes.get(routePath(resolved, new URL(request.url).pathname))
         if (!route) return errorResponse(new OAuthError('invalid_request', { description: 'unknown endpoint', status: 404 }))
 
         if (!route.methods.includes(request.method)) {

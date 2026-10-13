@@ -78,7 +78,7 @@ export const interactions = (config: ResolvedConfig) => ({
         },
         expiresAt: new Date(Date.now() + config.ttl.interaction * 1000)
       })
-      const url = new URL(config.routes.authorization, config.issuer)
+      const url = new URL(`${config.issuer}${config.routes.authorization}`)
       url.searchParams.set('response', responseId)
       return { redirectTo: url.toString(), setCookie: undefined }
     }
@@ -128,7 +128,7 @@ export const interactions = (config: ResolvedConfig) => ({
 })
 
 const authorizationUrl = async (config: ResolvedConfig, request: AuthorizationRequest, loggedIn: boolean) => {
-  const url = new URL(config.routes.authorization, config.issuer)
+  const url = new URL(`${config.issuer}${config.routes.authorization}`)
   const params = new URLSearchParams(request.raw)
   // prompt has just been satisfied, and replaying it loops forever.
   params.delete('prompt')

@@ -14,6 +14,7 @@ import { applyRequestObject } from './authorize/request-object'
 import { registrationEndpoint } from './clients/registration'
 import { type ProviderConfig, type ResolvedConfig, resolveConfig, routePath } from './config'
 import type { RequestContext } from './context'
+import { preflight, withCors } from './cors'
 import { discoveryEndpoint } from './discovery'
 import { errorResponse, OAuthError } from './errors'
 import { jwksEndpoint } from './keys/jwks'
@@ -165,7 +166,7 @@ const resolveParameters = async (config: ResolvedConfig, raw: URLSearchParams) =
 const GET = 'GET'
 
 const routeTable = (config: ResolvedConfig) => {
-  const table = new Map<string, { methods: string[]; handle: Handler }>()
+  const table = new Map<string, Route>()
   const add = (path: string, methods: string[], handle: Handler) => table.set(path, { methods, handle })
 
   add(config.routes.discovery, [GET], async cfg => discoveryEndpoint(cfg))
@@ -198,6 +199,24 @@ const routeTable = (config: ResolvedConfig) => {
   return table
 }
 
+type Route = { methods: string[]; handle: Handler }
+
+const dispatch = async (config: ResolvedConfig, route: Route, request: Request, context: Partial<RequestContext> | undefined) => {
+  try {
+    if (!route.methods.includes(request.method)) {
+      throw new OAuthError('invalid_request', {
+        description: `${request.method} is not allowed here; use ${route.methods.join(' or ')}`,
+        status: 405,
+        headers: { allow: route.methods.join(', ') }
+      })
+    }
+    // The issuer is configuration and is never taken from a header (NFR-S6).
+    return await route.handle(config, request, { ...context, issuer: config.issuer })
+  } catch (error) {
+    return errorResponse(error)
+  }
+}
+
 /**
  * Validates everything it can here rather than on the first request (NFR-D2), then returns a handler
  * that holds no state across calls — two processes behind a load balancer behave as one (FR-A1).
@@ -216,23 +235,16 @@ export const createProvider = (config: ProviderConfig): Provider => {
     },
     ciba: { resolve: (authReqId, outcome) => resolveBackchannelRequest(resolved, authReqId, outcome) },
     async handle(request, context) {
-      try {
-        const route = routes.get(routePath(resolved, new URL(request.url).pathname))
-        if (!route) return errorResponse(new OAuthError('invalid_request', { description: 'unknown endpoint', status: 404 }))
-
-        if (!route.methods.includes(request.method)) {
-          throw new OAuthError('invalid_request', {
-            description: `${request.method} is not allowed here; use ${route.methods.join(' or ')}`,
-            status: 405,
-            headers: { allow: route.methods.join(', ') }
-          })
-        }
-
-        // The issuer is configuration and is never taken from a header (NFR-S6).
-        return await route.handle(resolved, request, { ...context, issuer: resolved.issuer })
-      } catch (error) {
-        return errorResponse(error)
+      const path = routePath(resolved, new URL(request.url).pathname)
+      const route = routes.get(path)
+      if (!route) return errorResponse(new OAuthError('invalid_request', { description: 'unknown endpoint', status: 404 }))
+      if (request.method === 'OPTIONS') {
+        const answer = preflight(resolved, path, request, route.methods)
+        if (answer) return answer
       }
+      // The handler reads the body; deciding CORS afterwards needs its own copy (cors.ts).
+      const original = request.headers.has('origin') ? request.clone() : request
+      return withCors(resolved, path, original, await dispatch(resolved, route, request, context))
     }
   }
 }

@@ -238,6 +238,13 @@ Request
 verified client certificate for mTLS, the client IP, and the deployment's public origin (FR-R4,
 NFR-S6). The issuer is configuration and is never derived from a header.
 
+**CORS is decided by the registration, not by configuration.** Discovery and the key set are
+readable from any origin. A preflight on the token, UserInfo, revocation or introspection endpoint
+is answered for any origin, since it only permits what a form post from there could already send;
+the real response is readable only from the origin of one of the calling client's registered
+redirect URIs. The client is the one the request authenticates as, or, at UserInfo, the one its
+access token was issued to. No cookie is ever sent cross-origin.
+
 ### 3.2 What the core does not do
 
 No HTML. No cookies beyond the session cookie whose name and attributes the host configures. No

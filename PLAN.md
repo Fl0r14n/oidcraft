@@ -205,7 +205,7 @@ In fix order; the first is the only one that changes the adapter contract.
 - [x] DPoP `htu` from `request.url`, not the issuer (NFR-S6); an issuer with a path 404s every route
 - [x] Upstream back-channel logout tokens: no jti replay, no `typ`, unchecked `events`
 - [x] Construction accepts a missing `interactionUrl`, CIBA without its resolver, federation without its stores (NFR-D2)
-- [ ] No CORS, so a browser client on another origin cannot use the OP
+- [x] No CORS, so a browser client on another origin cannot use the OP. Fixed: by registered redirect origins (ARCHITECTURE.md §3.1)
 - [ ] End-session rejects an expired `id_token_hint`; a bare GET logs out without confirmation
 - [ ] Introspection has no resource-server authentication; `iat` equals `exp` (FR-C8)
 - [ ] A malformed cookie or Basic header is a 500

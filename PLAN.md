@@ -5,7 +5,7 @@ This file is working state: tick items off and add notes as work lands.
 
 ## Status
 
-**Every `FR-*` on the plan is implemented.** 366 tests, and `bun run verify` is the gate.
+**Every `FR-*` on the plan is implemented.** 873 tests, and `bun run verify` is the gate.
 
 The authorization code grant with mandatory PKCE, interaction suspend/resume, token issuance with
 rotation and replay revocation, UserInfo, revocation, introspection, logout in both directions,
@@ -16,9 +16,9 @@ conformance suite, four runtime context providers, a management API and an admin
 
 ### What is NOT done, and will not be silently forgotten
 
-**The OpenID Foundation suite's `basic` and `config` plans pass locally** (NFR-C1), with the
-refusals `conformance/README.md` lists. That is a run on one machine, not certification, and it
-does not yet gate CI.
+**The OpenID Foundation suite's `basic` and `config` plans gate CI** (NFR-C1), with the refusals
+`conformance/README.md` lists. That is a passing run, not certification: three modules end in REVIEW,
+which a person signs off with screenshots only when certifying.
 
 **No deployment has run this in production**, against a real relying party that was not also written
 here, or under any load.
@@ -135,11 +135,10 @@ What is *not* claimed: see the status section. Implemented is not the same as ce
 
 ## Next, in this order
 
-1. **Fix what the server review found** — below. The review was by agents reading the code
-   against REQUIREMENTS.md, not yet by a person, so it narrows the search rather than ending it.
-2. **The conformance suite in CI** (NFR-C1). `basic` and `config` are green locally; until they
-   gate the build, a regression can still land unnoticed.
-3. **The docs site**, once there is something certified to document.
+1. ~~Fix what the server review found~~ — done 2026-10-13, every finding below. The review was by
+   agents reading the code against REQUIREMENTS.md, so it narrowed the search rather than ending it.
+2. ~~The conformance suite in CI~~ (NFR-C1) — the `conformance` job, pinned by `SUITE_VERSION`.
+3. **The docs site.**
 
 ## Server review — 2026-10-10
 

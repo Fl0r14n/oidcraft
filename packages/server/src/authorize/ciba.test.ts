@@ -45,6 +45,7 @@ const post = (path: string, body: Record<string, string>, headers: Record<string
 
 const build = (over: Record<string, unknown> = {}) =>
   createProvider({
+    interactionUrl: 'https://op.example.com/interaction',
     issuer: ISSUER,
     adapter,
     scopes: ['openid', 'profile', 'email', 'offline_access', 'payments'],
@@ -81,10 +82,10 @@ describe('backchannel authentication', () => {
   })
 
   // The client never touches the user's browser, so identifying them is entirely ours.
-  test('is refused outright without a resolveCibaUser', async () => {
-    const bare = createProvider({ issuer: ISSUER, adapter, features: { ciba: true } })
-    const response = await post('/backchannel', { scope: 'openid', login_hint: 'ada@example.test' }, { authorization: basic() }, bare)
-    expect((await response.json()).error_description).toContain('resolveCibaUser')
+  test('is refused at construction without a resolveCibaUser', () => {
+    expect(() =>
+      createProvider({ interactionUrl: 'https://op.example.com/interaction', issuer: ISSUER, adapter, features: { ciba: true } })
+    ).toThrow(/resolveCibaUser/)
   })
 
   test('a hint matching nobody is unknown_user_id', async () => {
@@ -119,7 +120,7 @@ describe('backchannel authentication', () => {
   })
 
   test('the endpoint is absent unless the feature is on', async () => {
-    const off = createProvider({ issuer: ISSUER, adapter })
+    const off = createProvider({ interactionUrl: 'https://op.example.com/interaction', issuer: ISSUER, adapter })
     expect((await off.handle(new Request(`${ISSUER}/backchannel`, { method: 'POST' }))).status).toBe(404)
   })
 })
@@ -230,7 +231,9 @@ describe('discovery', () => {
     expect(on.backchannel_token_delivery_modes_supported).toEqual(['poll', 'ping'])
 
     const off = await (
-      await createProvider({ issuer: ISSUER, adapter }).handle(new Request(`${ISSUER}/.well-known/openid-configuration`))
+      await createProvider({ interactionUrl: 'https://op.example.com/interaction', issuer: ISSUER, adapter }).handle(
+        new Request(`${ISSUER}/.well-known/openid-configuration`)
+      )
     ).json()
     expect(off).not.toHaveProperty('backchannel_authentication_endpoint')
   })

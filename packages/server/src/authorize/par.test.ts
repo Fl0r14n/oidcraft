@@ -165,7 +165,7 @@ describe('pushed authorization requests', () => {
   })
 
   test('the endpoint is absent when the feature is off', async () => {
-    const off = createProvider({ issuer: ISSUER, adapter })
+    const off = createProvider({ interactionUrl: 'https://op.example.com/interaction', issuer: ISSUER, adapter })
     const response = await off.handle(new Request(`${ISSUER}/request`, { method: 'POST' }))
     expect(response.status).toBe(404)
   })

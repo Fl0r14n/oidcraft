@@ -15,6 +15,7 @@ beforeEach(async () => {
   adapter = await memoryAdapter()
   audit = []
   provider = createProvider({
+    interactionUrl: 'https://op.example.com/interaction',
     issuer: ISSUER,
     adapter,
     features: { dynamicRegistration: true },
@@ -151,7 +152,7 @@ describe('dynamic client registration', () => {
 
   // FR-C9: disabled is the default, and the route does not exist at all.
   test('the endpoint is absent unless the feature is on', async () => {
-    const off = createProvider({ issuer: ISSUER, adapter })
+    const off = createProvider({ interactionUrl: 'https://op.example.com/interaction', issuer: ISSUER, adapter })
     const response = await off.handle(new Request(`${ISSUER}/register`, { method: 'POST', body: '{}' }))
     expect(response.status).toBe(404)
   })
@@ -162,6 +163,7 @@ describe('dynamic client registration', () => {
     const OTHER = 'https://other.example.net/cb'
     const withSectors = (listed: Record<string, unknown>) =>
       createProvider({
+        interactionUrl: 'https://op.example.com/interaction',
         issuer: ISSUER,
         adapter,
         pairwiseSalt: 'a-salt-long-enough-for-pairwise-subjects',
@@ -212,7 +214,13 @@ describe('dynamic client registration', () => {
 
   describe('onRegister exempting a client from PKCE (FR-C3)', () => {
     const vouching = (decision: { requirePkce: boolean }) =>
-      createProvider({ issuer: ISSUER, adapter, features: { dynamicRegistration: true }, onRegister: () => decision })
+      createProvider({
+        interactionUrl: 'https://op.example.com/interaction',
+        issuer: ISSUER,
+        adapter,
+        features: { dynamicRegistration: true },
+        onRegister: () => decision
+      })
     const registerWith = (provider: ReturnType<typeof vouching>, body: Record<string, unknown>) =>
       provider.handle(new Request(`${ISSUER}/register`, { method: 'POST', body: JSON.stringify(body) }))
 
@@ -229,6 +237,7 @@ describe('dynamic client registration', () => {
     test('leaves the body readable for the hook and for registration', async () => {
       let seen: unknown
       const reading = createProvider({
+        interactionUrl: 'https://op.example.com/interaction',
         issuer: ISSUER,
         adapter,
         features: { dynamicRegistration: true },
@@ -243,6 +252,7 @@ describe('dynamic client registration', () => {
 
   test('onRegister can refuse an open registration', async () => {
     const gated = createProvider({
+      interactionUrl: 'https://op.example.com/interaction',
       issuer: ISSUER,
       adapter,
       features: { dynamicRegistration: true },

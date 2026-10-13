@@ -5,7 +5,7 @@ import { createProvider } from '../../provider'
 import { nodeContext, toNodeHandler } from './index'
 
 const adapter = await memoryAdapter()
-const provider = createProvider({ issuer: 'http://127.0.0.1:0', adapter })
+const provider = createProvider({ interactionUrl: 'https://op.example.com/interaction', issuer: 'http://127.0.0.1:0', adapter })
 
 /** The bridge only proves anything against a real node:http server (FR-R3). */
 const server = createServer(toNodeHandler(provider.handle, 'http://127.0.0.1'))

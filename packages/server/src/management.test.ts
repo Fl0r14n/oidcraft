@@ -25,6 +25,7 @@ beforeEach(async () => {
   audit = []
   delivered = []
   provider = createProvider({
+    interactionUrl: 'https://op.example.com/interaction',
     issuer: ISSUER,
     adapter,
     onAudit: event => {

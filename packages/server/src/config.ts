@@ -296,6 +296,22 @@ export const resolveConfig = (config: ProviderConfig): ResolvedConfig => {
     problems.push('subjectType "pairwise" needs a pairwiseSalt; without one the subjects are trivially correlated (FR-C18)')
   }
 
+  // NFR-D2: each of these would otherwise surface as a 500 on the first request that needs it.
+  if (!config.interactionUrl) {
+    problems.push('interactionUrl is required: a login or consent the provider cannot decide alone is handed there (FR-I1)')
+  } else if (!URL.canParse(config.interactionUrl)) {
+    problems.push(`interactionUrl ${JSON.stringify(config.interactionUrl)} is not an absolute URL`)
+  }
+  if (features.ciba && !config.resolveCibaUser) {
+    problems.push('features.ciba needs a resolveCibaUser; the provider will not guess which hint means which account (FR-C17)')
+  }
+  if (config.upstreams?.length && (!config.adapter?.identities || !config.adapter.sessions.findByUpstreamSession)) {
+    problems.push(
+      'upstreams need an adapter with an identities store and sessions.findByUpstreamSession, ' +
+        'or linking and upstream logout have nowhere to go (FR-F5, FR-F8)'
+    )
+  }
+
   if (features.deviceFlow && !config.adapter?.artifacts.findByUserCode) {
     problems.push('features.deviceFlow needs an adapter whose artifacts store implements findByUserCode (FR-C7)')
   }

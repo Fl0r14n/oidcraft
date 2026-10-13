@@ -3,7 +3,7 @@ import { memoryAdapter } from './adapters/memory'
 import { createProvider } from './provider'
 
 const adapter = await memoryAdapter()
-const provider = createProvider({ issuer: 'https://op.example.com', adapter })
+const provider = createProvider({ interactionUrl: 'https://op.example.com/interaction', issuer: 'https://op.example.com', adapter })
 
 const get = (path: string, init?: RequestInit) => provider.handle(new Request(`https://op.example.com${path}`, init))
 const json = async (path: string, init?: RequestInit) => {
@@ -49,6 +49,7 @@ describe('discovery', () => {
 
   test('advertises an endpoint once its feature is on', async () => {
     const withDevice = createProvider({
+      interactionUrl: 'https://op.example.com/interaction',
       issuer: 'https://op.example.com',
       adapter,
       features: { deviceFlow: true }
@@ -114,6 +115,7 @@ describe('routing', () => {
   // that none are; it is the assertion that stops metadata drifting ahead of behaviour.
   test('no routed endpoint answers 501, whatever features are on', async () => {
     const everything = createProvider({
+      interactionUrl: 'https://op.example.com/interaction',
       issuer: 'https://op.example.com',
       adapter,
       features: { deviceFlow: true, dynamicRegistration: true, pushedAuthorizationRequests: true, dpop: true }
@@ -164,7 +166,12 @@ describe('routing', () => {
   })
 
   test('honours reconfigured routes', async () => {
-    const custom = createProvider({ issuer: 'https://op.example.com', adapter, routes: { jwks: '/keys' } })
+    const custom = createProvider({
+      interactionUrl: 'https://op.example.com/interaction',
+      issuer: 'https://op.example.com',
+      adapter,
+      routes: { jwks: '/keys' }
+    })
     expect((await custom.handle(new Request('https://op.example.com/keys'))).status).toBe(200)
     expect((await custom.handle(new Request('https://op.example.com/jwks'))).status).toBe(404)
   })

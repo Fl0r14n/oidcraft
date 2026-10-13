@@ -292,7 +292,7 @@ describe('discovery', () => {
     const on = await (await provider.handle(new Request(`${ISSUER}/.well-known/openid-configuration`))).json()
     expect(on.dpop_signing_alg_values_supported).toBeTruthy()
 
-    const off = createProvider({ issuer: ISSUER, adapter })
+    const off = createProvider({ interactionUrl: 'https://op.example.com/interaction', issuer: ISSUER, adapter })
     const body = await (await off.handle(new Request(`${ISSUER}/.well-known/openid-configuration`))).json()
     expect(body).not.toHaveProperty('dpop_signing_alg_values_supported')
   })

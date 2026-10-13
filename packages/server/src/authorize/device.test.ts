@@ -48,7 +48,12 @@ const post = (path: string, body: Record<string, string>, headers: Record<string
 beforeEach(async () => {
   adapter = await memoryAdapter({ accounts })
   await adapter.clients.upsert?.(client())
-  provider = createProvider({ issuer: ISSUER, adapter, features: { deviceFlow: true } })
+  provider = createProvider({
+    interactionUrl: 'https://op.example.com/interaction',
+    issuer: ISSUER,
+    adapter,
+    features: { deviceFlow: true }
+  })
 })
 
 const start = async (scope = 'openid profile offline_access') =>
@@ -199,7 +204,7 @@ describe('approval', () => {
   })
 
   test('the endpoint is absent unless the feature is on', async () => {
-    const off = createProvider({ issuer: ISSUER, adapter })
+    const off = createProvider({ interactionUrl: 'https://op.example.com/interaction', issuer: ISSUER, adapter })
     expect((await off.handle(new Request(`${ISSUER}/device/authorize`, { method: 'POST' }))).status).toBe(404)
   })
 })
@@ -209,7 +214,13 @@ describe('pairwise subjects', () => {
     const paired = await memoryAdapter({ accounts })
     await paired.clients.upsert?.(client({ subjectType: 'pairwise' }))
     await paired.clients.upsert?.(client({ clientId: 'other', subjectType: 'pairwise', redirectUris: ['https://other.example.com/cb'] }))
-    return createProvider({ issuer: ISSUER, adapter: paired, features: { deviceFlow: true }, pairwiseSalt: 'a-salt' })
+    return createProvider({
+      interactionUrl: 'https://op.example.com/interaction',
+      issuer: ISSUER,
+      adapter: paired,
+      features: { deviceFlow: true },
+      pairwiseSalt: 'a-salt'
+    })
   }
 
   test('a pairwise sub is not the account id', async () => {
@@ -261,12 +272,16 @@ describe('pairwise subjects', () => {
 
   test('pairwise without a salt is refused at construction', async () => {
     const plain = await memoryAdapter()
-    expect(() => createProvider({ issuer: ISSUER, adapter: plain, subjectType: 'pairwise' })).toThrow(/pairwiseSalt/)
+    expect(() =>
+      createProvider({ interactionUrl: 'https://op.example.com/interaction', issuer: ISSUER, adapter: plain, subjectType: 'pairwise' })
+    ).toThrow(/pairwiseSalt/)
   })
 
   test('discovery advertises pairwise only when it can actually issue them', async () => {
     const off = await (
-      await createProvider({ issuer: ISSUER, adapter }).handle(new Request(`${ISSUER}/.well-known/openid-configuration`))
+      await createProvider({ interactionUrl: 'https://op.example.com/interaction', issuer: ISSUER, adapter }).handle(
+        new Request(`${ISSUER}/.well-known/openid-configuration`)
+      )
     ).json()
     expect(off.subject_types_supported).toEqual(['public'])
     const on = await (await (await pairwise()).handle(new Request(`${ISSUER}/.well-known/openid-configuration`))).json()

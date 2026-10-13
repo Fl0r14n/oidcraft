@@ -94,6 +94,8 @@ describe('the smallest usable provider', () => {
   // NFR-D2: an unusable combination fails here rather than at the first request.
   test('a misconfiguration fails at construction, not at the first request', async () => {
     const adapter = await memoryAdapter()
-    expect(() => createProvider({ issuer: 'not-a-url', adapter })).toThrow(/not an absolute URL/)
+    expect(() => createProvider({ interactionUrl: 'https://op.example.com/interaction', issuer: 'not-a-url', adapter })).toThrow(
+      /not an absolute URL/
+    )
   })
 })

@@ -46,7 +46,12 @@ beforeEach(async () => {
     client({ clientId: 'pkj', tokenEndpointAuthMethod: 'private_key_jwt', jwks: { keys: [await exportJWK(signing.publicKey)] } })
   )
   await adapter.clients.upsert?.(client({ clientId: 'csj', tokenEndpointAuthMethod: 'client_secret_jwt' }))
-  provider = createProvider({ issuer: ISSUER, adapter, scopes: ['openid', 'profile', 'orders'] })
+  provider = createProvider({
+    interactionUrl: 'https://op.example.com/interaction',
+    issuer: ISSUER,
+    adapter,
+    scopes: ['openid', 'profile', 'orders']
+  })
 })
 
 describe('client credentials grant', () => {

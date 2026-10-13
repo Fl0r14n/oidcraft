@@ -204,7 +204,7 @@ In fix order; the first is the only one that changes the adapter contract.
       per address per 10 minutes (50 when the host passes no address); the right-most forwarded entry
 - [x] DPoP `htu` from `request.url`, not the issuer (NFR-S6); an issuer with a path 404s every route
 - [x] Upstream back-channel logout tokens: no jti replay, no `typ`, unchecked `events`
-- [ ] Construction accepts a missing `interactionUrl`, CIBA without its resolver, federation without its stores (NFR-D2)
+- [x] Construction accepts a missing `interactionUrl`, CIBA without its resolver, federation without its stores (NFR-D2)
 - [ ] No CORS, so a browser client on another origin cannot use the OP
 - [ ] End-session rejects an expired `id_token_hint`; a bare GET logs out without confirmation
 - [ ] Introspection has no resource-server authentication; `iat` equals `exp` (FR-C8)

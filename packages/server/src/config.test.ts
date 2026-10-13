@@ -4,7 +4,7 @@ import { resolveConfig } from './config'
 import { ConfigurationError } from './errors'
 
 const adapter = await memoryAdapter()
-const base = { issuer: 'https://op.example.com', adapter }
+const base = { issuer: 'https://op.example.com', adapter, interactionUrl: 'https://op.example.com/interaction' }
 
 const problemsOf = (fn: () => unknown) => {
   try {
@@ -77,6 +77,16 @@ describe('resolveConfig', () => {
     const crippled = { ...full, clients: { find: full.clients.find } }
     const problems = problemsOf(() => resolveConfig({ ...base, adapter: crippled, features: { dynamicRegistration: true } }))
     expect(problems?.join()).toContain('clients store implements create')
+  })
+
+  // NFR-D2: each of these would otherwise be a 500 on the first request that needed it.
+  test('refuses a missing interactionUrl, CIBA without its resolver, and upstreams without their stores', async () => {
+    expect(problemsOf(() => resolveConfig({ issuer: 'https://op.example.com', adapter }))?.join()).toContain('interactionUrl is required')
+    expect(problemsOf(() => resolveConfig({ ...base, features: { ciba: true } }))?.join()).toContain('resolveCibaUser')
+    const { identities: _, ...bare } = adapter
+    expect(
+      problemsOf(() => resolveConfig({ ...base, adapter: bare, upstreams: [{ id: 'entra', domains: ['example.com'] }] }))?.join()
+    ).toContain('identities store')
   })
 
   test('reports every problem at once rather than the first', () => {

@@ -208,7 +208,8 @@ In fix order; the first is the only one that changes the adapter contract.
 - [x] No CORS, so a browser client on another origin cannot use the OP. Fixed: by registered redirect origins (ARCHITECTURE.md §3.1)
 - [x] End-session rejects an expired `id_token_hint`; a bare GET logs out without confirmation. Fixed: a `logout`
       interaction kind; the reference app's confirm screen is now that interaction
-- [ ] Introspection has no resource-server authentication; `iat` equals `exp` (FR-C8)
+- [x] Introspection has no resource-server authentication; `iat` equals `exp` (FR-C8). Fixed: `Client.resourceServer`;
+      `iat` recorded at issuance
 - [ ] A malformed cookie or Basic header is a 500
 - [ ] RFC 7592 update skips `onRegister`, resets `requirePkce`, compares the token with `!==`
 - [x] Non-string request-object claims become `"[object Object]"`

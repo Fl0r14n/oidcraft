@@ -134,6 +134,7 @@ export const exchangeGrant = async (config: ResolvedConfig, client: Client, form
     accountId: decision.accountId,
     ...(subject.grantId && { grantId: subject.grantId }),
     payload: {
+      iat: Math.floor(Date.now() / 1000),
       scopes: decision.scopes,
       sessionId: subject.payload.sessionId as string,
       subject: await subjectFor(config, client, decision.accountId),

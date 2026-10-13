@@ -52,6 +52,7 @@ export const issueTokens = async (
     grantId: grant.id,
     // RFC 9449 §6: the confirmation claim is what makes the token useless without the key.
     payload: {
+      iat: Math.floor(Date.now() / 1000),
       scopes,
       sessionId: session.id,
       subject,
@@ -88,6 +89,7 @@ export const issueTokens = async (
       // certificate binds a refresh token only for a public client; a confidential one is held to
       // its certificate by authenticating with it (RFC 8705 §4).
       payload: {
+        iat: Math.floor(Date.now() / 1000),
         scopes: refreshScopes,
         sessionId: session.id,
         ...((jkt || refreshX5t) && { cnf: confirmationOf({ jkt, x5t: refreshX5t }) })

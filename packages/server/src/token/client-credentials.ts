@@ -36,7 +36,7 @@ export const clientCredentialsGrant = async (config: ResolvedConfig, client: Cli
     id: accessToken,
     kind: 'access_token',
     clientId: client.clientId,
-    payload: { scopes, ...(cnf && { cnf }) },
+    payload: { iat: Math.floor(Date.now() / 1000), scopes, ...(cnf && { cnf }) },
     expiresAt: new Date(Date.now() + expiresIn * 1000)
   })
 

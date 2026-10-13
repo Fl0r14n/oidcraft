@@ -72,6 +72,7 @@
     }
   },
   "devDependencies": {
+    "@mdi/js": "^7.4.47",
     "@oidcraft/client": "workspace:*",
     "@oidcraft/core": "workspace:*",
     "@tsdown/css": "latest",

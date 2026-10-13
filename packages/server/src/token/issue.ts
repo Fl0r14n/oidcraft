@@ -6,6 +6,11 @@ import { mintJwtAccessToken } from './access-token'
 import { mintIdToken } from './id-token'
 import { subjectFor } from './subjects'
 
+/** What a token is sender-constrained to: a DPoP key (RFC 9449), a client certificate (RFC 8705), or both. */
+export type Binding = { jkt?: string | undefined; x5t?: string | undefined }
+
+export const confirmationOf = ({ jkt, x5t }: Binding) => (jkt || x5t ? { ...(jkt && { jkt }), ...(x5t && { 'x5t#S256': x5t }) } : undefined)
+
 export const issueTokens = async (
   config: ResolvedConfig,
   client: Client,
@@ -13,10 +18,11 @@ export const issueTokens = async (
   session: Session,
   scopes: string[],
   nonce?: string,
-  jkt?: string,
-  authorizationDetails?: unknown[],
-  x5t?: string
+  binding: Binding = {},
+  authorizationDetails?: unknown[]
 ) => {
+  const { jkt } = binding
+  const cnf = confirmationOf(binding)
   // FR-C11: logout notifies the session's clients, so every client it signs in to must be on the list.
   if (!session.clients.includes(client.clientId)) {
     const current = (await config.adapter.sessions.find(session.id)) ?? session
@@ -41,7 +47,7 @@ export const issueTokens = async (
       sessionId: session.id,
       subject,
       ...(authorizationDetails && { authorizationDetails }),
-      ...((jkt || x5t) && { cnf: { ...(jkt && { jkt }), ...(x5t && { 'x5t#S256': x5t }) } })
+      ...(cnf && { cnf })
     },
     expiresAt: accessTokenExpiry
   })
@@ -54,10 +60,11 @@ export const issueTokens = async (
           subject,
           scopes,
           expiresAt: accessTokenExpiry,
-          ...((jkt || x5t) && { confirmation: { ...(jkt && { jkt }), ...(x5t && { 'x5t#S256': x5t }) } })
+          ...(cnf && { confirmation: cnf })
         })
       : accessTokenId
 
+  const refreshX5t = client.tokenEndpointAuthMethod === 'none' ? binding.x5t : undefined
   let refreshToken: string | undefined
   // Only when the client asked for it: a refresh token nobody requested is a credential nobody guards.
   if (scopes.includes('offline_access') && client.grantTypes.includes('refresh_token')) {
@@ -68,8 +75,14 @@ export const issueTokens = async (
       clientId: client.clientId,
       accountId: session.accountId,
       grantId: grant.id,
-      // The binding must survive rotation, or it evaporates on the first refresh (RFC 9449 §5).
-      payload: { scopes, sessionId: session.id, ...(jkt && { cnf: { jkt } }) },
+      // The binding must survive rotation, or it evaporates on the first refresh (RFC 9449 §5). A
+      // certificate binds a refresh token only for a public client; a confidential one is held to
+      // its certificate by authenticating with it (RFC 8705 §4).
+      payload: {
+        scopes,
+        sessionId: session.id,
+        ...((jkt || refreshX5t) && { cnf: confirmationOf({ jkt, x5t: refreshX5t }) })
+      },
       expiresAt: new Date(Date.now() + config.ttl.refreshToken * 1000)
     })
   }

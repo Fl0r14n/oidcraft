@@ -183,7 +183,10 @@ In fix order; the first is the only one that changes the adapter contract.
       two clients signing in on one session at the same instant can still lose one. Atomic would be a
       `SessionStore.addClient` across every adapter
 - [x] JWT access tokens cannot be revoked or introspected (FR-C8, FR-T2). Fixed: both resolve by `jti`
-- [ ] mTLS: binding only on `authorization_code`, lost on refresh; client auth only at the token endpoint (FR-C4, FR-C13)
+- [x] mTLS: binding only on `authorization_code`, lost on refresh; client auth only at the token endpoint (FR-C4, FR-C13).
+      Fixed: every grant takes one `Binding` (DPoP key and certificate); a refresh rebinds to the
+      certificate presented, and a public client's refresh token is held to its certificate
+      (RFC 8705 §4). PAR, device, CIBA, revocation and introspection receive the certificate
 
 **Medium**
 

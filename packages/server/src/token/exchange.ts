@@ -2,6 +2,7 @@ import { randomString } from '@oidcraft/core'
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
 import type { Artifact, ArtifactKind, Client } from '../types'
+import { type Binding, confirmationOf } from './issue'
 
 export const TOKEN_EXCHANGE = 'urn:ietf:params:oauth:grant-type:token-exchange'
 
@@ -109,7 +110,8 @@ export const tokenExchange = async (config: ResolvedConfig, client: Client, form
   return { decision, requestedType, subject }
 }
 
-export const exchangeGrant = async (config: ResolvedConfig, client: Client, form: URLSearchParams, jkt?: string) => {
+export const exchangeGrant = async (config: ResolvedConfig, client: Client, form: URLSearchParams, binding: Binding) => {
+  const cnf = confirmationOf(binding)
   const { decision, requestedType, subject } = await tokenExchange(config, client, form)
 
   const accessToken = randomString()
@@ -128,7 +130,7 @@ export const exchangeGrant = async (config: ResolvedConfig, client: Client, form
       ...(decision.actor && { act: { client_id: decision.actor.clientId } }),
       ...(decision.resource && { resource: decision.resource }),
       ...(decision.audience && { aud: decision.audience }),
-      ...(jkt && { cnf: { jkt } })
+      ...(cnf && { cnf })
     },
     expiresAt: new Date(Date.now() + expiresIn * 1000)
   })
@@ -136,7 +138,7 @@ export const exchangeGrant = async (config: ResolvedConfig, client: Client, form
   return {
     access_token: accessToken,
     issued_token_type: SUPPORTED_TOKEN_TYPES.includes(requestedType) ? requestedType : SUPPORTED_TOKEN_TYPES[0],
-    token_type: jkt ? 'DPoP' : 'Bearer',
+    token_type: binding.jkt ? 'DPoP' : 'Bearer',
     expires_in: expiresIn,
     scope: decision.scopes.join(' ')
   }

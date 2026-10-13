@@ -1,8 +1,9 @@
 import { randomString } from '@oidcraft/core'
 import { authenticateClient } from '../clients/authenticate'
 import type { ResolvedConfig } from '../config'
+import type { ClientCertificate } from '../context'
 import { OAuthError } from '../errors'
-import { issueTokens } from '../token/issue'
+import { type Binding, issueTokens } from '../token/issue'
 import type { Artifact, Client } from '../types'
 
 export const CIBA_GRANT = 'urn:openid:params:grant-type:ciba'
@@ -32,9 +33,13 @@ const payloadOf = (artifact: Artifact) => artifact.payload as unknown as CibaPay
  * entirely, which is why `resolveCibaUser` has no default — a library guessing which `login_hint`
  * means which account would be inventing an authentication decision.
  */
-export const backchannelAuthenticationEndpoint = async (config: ResolvedConfig, request: Request) => {
+export const backchannelAuthenticationEndpoint = async (
+  config: ResolvedConfig,
+  request: Request,
+  certificate?: ClientCertificate | undefined
+) => {
   const form = new URLSearchParams(await request.text())
-  const { client } = await authenticateClient(config, form, request.headers)
+  const { client } = await authenticateClient(config, form, request.headers, certificate)
 
   if (!config.resolveCibaUser) {
     throw new OAuthError('unsupported_grant_type', {
@@ -182,7 +187,7 @@ export const resolveBackchannelRequest = async (config: ResolvedConfig, authReqI
   return { approved: true as const, notify: payload.mode === 'ping' ? payload.clientNotificationToken : undefined }
 }
 
-export const cibaGrant = async (config: ResolvedConfig, client: Client, form: URLSearchParams, jkt?: string) => {
+export const cibaGrant = async (config: ResolvedConfig, client: Client, form: URLSearchParams, binding: Binding) => {
   const authReqId = form.get('auth_req_id')
   if (!authReqId) throw new OAuthError('invalid_request', { description: 'auth_req_id is required' })
 
@@ -193,5 +198,5 @@ export const cibaGrant = async (config: ResolvedConfig, client: Client, form: UR
   const session = await config.adapter.sessions.find(payload.sessionId)
   if (!grant || !session) throw new OAuthError('invalid_grant', { description: 'the grant or session behind that request is gone' })
 
-  return issueTokens(config, client, grant, session, payload.scopes, undefined, jkt)
+  return issueTokens(config, client, grant, session, payload.scopes, undefined, binding)
 }

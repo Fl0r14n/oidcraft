@@ -1,8 +1,9 @@
 import { randomString } from '@oidcraft/core'
 import { authenticateClient } from '../clients/authenticate'
 import type { ResolvedConfig } from '../config'
+import type { ClientCertificate } from '../context'
 import { OAuthError } from '../errors'
-import { issueTokens } from '../token/issue'
+import { type Binding, issueTokens } from '../token/issue'
 import type { Artifact, Client } from '../types'
 
 /**
@@ -25,9 +26,13 @@ export const normalizeUserCode = (input: string) => input.toUpperCase().replace(
 
 const DEFAULT_INTERVAL = 5
 
-export const deviceAuthorizationEndpoint = async (config: ResolvedConfig, request: Request) => {
+export const deviceAuthorizationEndpoint = async (
+  config: ResolvedConfig,
+  request: Request,
+  certificate?: ClientCertificate | undefined
+) => {
   const form = new URLSearchParams(await request.text())
-  const { client } = await authenticateClient(config, form, request.headers)
+  const { client } = await authenticateClient(config, form, request.headers, certificate)
 
   const scopes = (form.get('scope') ?? 'openid').split(' ').filter(Boolean)
   const unallowed = scopes.filter(scope => !client.scopes.includes(scope))
@@ -169,7 +174,7 @@ export const resolveDeviceCode = async (config: ResolvedConfig, typed: string, o
   return { approved: true as const, client: found.client }
 }
 
-export const deviceCodeGrant = async (config: ResolvedConfig, client: Client, form: URLSearchParams, jkt?: string) => {
+export const deviceCodeGrant = async (config: ResolvedConfig, client: Client, form: URLSearchParams, binding: Binding) => {
   const deviceCode = form.get('device_code')
   if (!deviceCode) throw new OAuthError('invalid_request', { description: 'device_code is required' })
 
@@ -180,5 +185,5 @@ export const deviceCodeGrant = async (config: ResolvedConfig, client: Client, fo
   const session = await config.adapter.sessions.find(payload.sessionId)
   if (!grant || !session) throw new OAuthError('invalid_grant', { description: 'the grant or session behind this device code is gone' })
 
-  return issueTokens(config, client, grant, session, payload.scopes, undefined, jkt)
+  return issueTokens(config, client, grant, session, payload.scopes, undefined, binding)
 }

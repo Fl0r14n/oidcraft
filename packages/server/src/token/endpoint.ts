@@ -39,22 +39,22 @@ export const tokenEndpoint = async (config: ResolvedConfig, request: Request, ce
   const jkt = await bindingFor(config, client, request)
   // RFC 8705 §3: binding to the certificate the client already presented costs nothing extra and
   // makes a stolen token useless without the private key behind it.
-  const x5t = client.certificateBoundAccessTokens ? certificate?.thumbprint : undefined
+  const binding = { jkt, x5t: client.certificateBoundAccessTokens ? certificate?.thumbprint : undefined }
 
   const body = await (async () => {
     switch (grantType) {
       case 'authorization_code':
-        return authorizationCodeGrant(config, client, form, jkt, x5t)
+        return authorizationCodeGrant(config, client, form, binding)
       case 'refresh_token':
-        return refreshTokenGrant(config, client, form, jkt)
+        return refreshTokenGrant(config, client, form, binding)
       case 'client_credentials':
-        return clientCredentialsGrant(config, client, form, jkt)
+        return clientCredentialsGrant(config, client, form, binding)
       case 'urn:ietf:params:oauth:grant-type:device_code':
-        return deviceCodeGrant(config, client, form, jkt)
+        return deviceCodeGrant(config, client, form, binding)
       case TOKEN_EXCHANGE:
-        return exchangeGrant(config, client, form, jkt)
+        return exchangeGrant(config, client, form, binding)
       case CIBA_GRANT:
-        return cibaGrant(config, client, form, jkt)
+        return cibaGrant(config, client, form, binding)
       default:
         throw new OAuthError('unsupported_grant_type', { description: `${grantType} is not supported` })
     }

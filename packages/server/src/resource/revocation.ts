@@ -1,5 +1,6 @@
 import { authenticateClient } from '../clients/authenticate'
 import type { ResolvedConfig } from '../config'
+import type { ClientCertificate } from '../context'
 import { OAuthError } from '../errors'
 import { findPresented } from '../token/access-token'
 import type { ArtifactKind } from '../types'
@@ -13,9 +14,9 @@ const order = (hint: string | null) => (hint === 'access_token' ? (['access_toke
  * oracle for guessing which tokens exist. The same reasoning applies to a token belonging to
  * someone else — it is reported as success and nothing is revoked.
  */
-export const revocationEndpoint = async (config: ResolvedConfig, request: Request) => {
+export const revocationEndpoint = async (config: ResolvedConfig, request: Request, certificate?: ClientCertificate | undefined) => {
   const form = new URLSearchParams(await request.text())
-  const { client } = await authenticateClient(config, form, request.headers)
+  const { client } = await authenticateClient(config, form, request.headers, certificate)
 
   const presented = form.get('token')
   if (!presented) throw new OAuthError('invalid_request', { description: 'token is required', spec: 'RFC 7009 §2.1' })

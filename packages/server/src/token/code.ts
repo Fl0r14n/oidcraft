@@ -2,7 +2,7 @@ import { verifyChallenge } from '../authorize/pkce'
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
 import type { Artifact, Client } from '../types'
-import { issueTokens, loadGrantAndSession } from './issue'
+import { type Binding, issueTokens, loadGrantAndSession } from './issue'
 
 /**
  * Replaying a single-use artifact revokes the grant it belongs to, rather than merely failing.
@@ -19,7 +19,7 @@ const revokeOnReplay = async (config: ResolvedConfig, artifact: Artifact, what: 
 
 const scopesOf = (artifact: Artifact) => (artifact.payload.scopes as string[] | undefined) ?? []
 
-export const authorizationCodeGrant = async (config: ResolvedConfig, client: Client, form: URLSearchParams, jkt?: string, x5t?: string) => {
+export const authorizationCodeGrant = async (config: ResolvedConfig, client: Client, form: URLSearchParams, binding: Binding) => {
   const code = form.get('code')
   if (!code) throw new OAuthError('invalid_request', { description: 'code is required' })
 
@@ -52,13 +52,12 @@ export const authorizationCodeGrant = async (config: ResolvedConfig, client: Cli
     session,
     scopesOf(artifact),
     artifact.payload.nonce as string | undefined,
-    jkt,
-    artifact.payload.authorizationDetails as unknown[] | undefined,
-    x5t
+    binding,
+    artifact.payload.authorizationDetails as unknown[] | undefined
   )
 }
 
-export const refreshTokenGrant = async (config: ResolvedConfig, client: Client, form: URLSearchParams, jkt?: string) => {
+export const refreshTokenGrant = async (config: ResolvedConfig, client: Client, form: URLSearchParams, binding: Binding) => {
   const presented = form.get('refresh_token')
   if (!presented) throw new OAuthError('invalid_request', { description: 'refresh_token is required' })
 
@@ -74,14 +73,21 @@ export const refreshTokenGrant = async (config: ResolvedConfig, client: Client, 
   if (widened.length) throw new OAuthError('invalid_scope', { description: `a refresh cannot add scopes: ${widened.join(', ')}` })
 
   // A bound refresh token may only be presented by the key it was bound to (RFC 9449 §5).
-  const boundTo = (artifact.payload.cnf as { jkt?: string } | undefined)?.jkt
-  if (boundTo && boundTo !== jkt) {
+  const bound = artifact.payload.cnf as { jkt?: string; 'x5t#S256'?: string } | undefined
+  if (bound?.jkt && bound.jkt !== binding.jkt) {
     throw new OAuthError('invalid_grant', { description: 'this refresh token is bound to a different key', spec: 'RFC 9449 §5' })
+  }
+  if (bound?.['x5t#S256'] && bound['x5t#S256'] !== binding.x5t) {
+    throw new OAuthError('invalid_grant', { description: 'this refresh token is bound to a different certificate', spec: 'RFC 8705 §4' })
   }
 
   // FR-T3: rotation is unconditional, which is what makes the replay rule above meaningful.
   if (!(await config.adapter.artifacts.consume('refresh_token', presented))) await revokeOnReplay(config, artifact, 'refresh token')
 
   const { grant, session } = await loadGrantAndSession(config, artifact)
-  return issueTokens(config, client, grant, session, requested?.length ? requested : granted, undefined, boundTo ?? jkt)
+  // RFC 8705 §3: the new access token is bound to the certificate presented now, as at issuance.
+  return issueTokens(config, client, grant, session, requested?.length ? requested : granted, undefined, {
+    jkt: bound?.jkt ?? binding.jkt,
+    x5t: binding.x5t
+  })
 }

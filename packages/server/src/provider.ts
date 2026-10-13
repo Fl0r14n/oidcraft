@@ -151,19 +151,25 @@ const routeTable = (config: ResolvedConfig) => {
   add(config.routes.token, ['POST'], async (cfg, req, ctx) => tokenEndpoint(cfg, req, ctx.clientCertificate))
   add(config.routes.userinfo, [GET, 'POST'], async (cfg, req, ctx) => userinfoEndpoint(cfg, req, ctx.clientCertificate))
   add(config.routes.endSession, [GET, 'POST'], endSessionHandler)
-  if (config.features.revocation) add(config.routes.revocation, ['POST'], async (cfg, req) => revocationEndpoint(cfg, req))
-  if (config.features.introspection) add(config.routes.introspection, ['POST'], async (cfg, req) => introspectionEndpoint(cfg, req))
+  if (config.features.revocation)
+    add(config.routes.revocation, ['POST'], async (cfg, req, ctx) => revocationEndpoint(cfg, req, ctx.clientCertificate))
+  if (config.features.introspection)
+    add(config.routes.introspection, ['POST'], async (cfg, req, ctx) => introspectionEndpoint(cfg, req, ctx.clientCertificate))
   if (config.features.dynamicRegistration) {
     add(config.routes.registration, ['POST', GET, 'PUT', 'DELETE'], async (cfg, req) => registrationEndpoint(cfg, req))
   }
   if (config.features.deviceFlow) {
-    add(config.routes.deviceAuthorization, ['POST'], async (cfg, req) => deviceAuthorizationEndpoint(cfg, req))
+    add(config.routes.deviceAuthorization, ['POST'], async (cfg, req, ctx) => deviceAuthorizationEndpoint(cfg, req, ctx.clientCertificate))
   }
   if (config.features.ciba) {
-    add(config.routes.backchannelAuthentication, ['POST'], async (cfg, req) => backchannelAuthenticationEndpoint(cfg, req))
+    add(config.routes.backchannelAuthentication, ['POST'], async (cfg, req, ctx) =>
+      backchannelAuthenticationEndpoint(cfg, req, ctx.clientCertificate)
+    )
   }
   if (config.features.pushedAuthorizationRequests) {
-    add(config.routes.pushedAuthorizationRequest, ['POST'], async (cfg, req) => pushedAuthorizationRequestEndpoint(cfg, req))
+    add(config.routes.pushedAuthorizationRequest, ['POST'], async (cfg, req, ctx) =>
+      pushedAuthorizationRequestEndpoint(cfg, req, ctx.clientCertificate)
+    )
   }
   return table
 }

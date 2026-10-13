@@ -1,5 +1,6 @@
 import { authenticateClient } from '../clients/authenticate'
 import type { ResolvedConfig } from '../config'
+import type { ClientCertificate } from '../context'
 import { OAuthError } from '../errors'
 import { findPresented } from '../token/access-token'
 import type { Artifact, ArtifactKind } from '../types'
@@ -26,9 +27,9 @@ const describe = (artifact: Artifact, kind: ArtifactKind, issuer: string) => ({
  * RFC 7662 §2.2: a token the caller may not see is `active: false`, never an error — the difference
  * between "expired" and "belongs to someone else" is exactly what an attacker wants to learn.
  */
-export const introspectionEndpoint = async (config: ResolvedConfig, request: Request) => {
+export const introspectionEndpoint = async (config: ResolvedConfig, request: Request, certificate?: ClientCertificate | undefined) => {
   const form = new URLSearchParams(await request.text())
-  const { client } = await authenticateClient(config, form, request.headers)
+  const { client } = await authenticateClient(config, form, request.headers, certificate)
 
   const presented = form.get('token')
   if (!presented) throw new OAuthError('invalid_request', { description: 'token is required', spec: 'RFC 7662 §2.1' })

@@ -1,6 +1,7 @@
 import { randomString } from '@oidcraft/core'
 import { authenticateClient } from '../clients/authenticate'
 import type { ResolvedConfig } from '../config'
+import type { ClientCertificate } from '../context'
 import { OAuthError } from '../errors'
 import { parseAuthorizationRequest, validateAuthorizationRequest } from './authorization'
 import { applyRequestObject } from './request-object'
@@ -25,9 +26,13 @@ export const pushParameters = async (config: ResolvedConfig, clientId: string, p
  * back channel and receives a reference, so the parameters never travel through the browser where
  * they can be read, reordered or replaced.
  */
-export const pushedAuthorizationRequestEndpoint = async (config: ResolvedConfig, request: Request) => {
+export const pushedAuthorizationRequestEndpoint = async (
+  config: ResolvedConfig,
+  request: Request,
+  certificate?: ClientCertificate | undefined
+) => {
   const form = new URLSearchParams(await request.text())
-  const { client } = await authenticateClient(config, form, request.headers)
+  const { client } = await authenticateClient(config, form, request.headers, certificate)
 
   // §2.1: a pushed request may not reference another one.
   if (form.has('request_uri')) {

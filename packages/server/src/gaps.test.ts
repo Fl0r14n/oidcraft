@@ -49,12 +49,17 @@ beforeEach(async () => {
 const build = (over: Record<string, unknown> = {}) =>
   createProvider({ issuer: ISSUER, adapter, interactionUrl: `${ISSUER}/interaction`, ...over } as Parameters<typeof createProvider>[0])
 
-const tokensFor = async (provider: Provider, clientId = 'rp', context?: Partial<RequestContext>, session?: string) => {
+const tokensFor = async (
+  provider: Provider,
+  clientId = 'rp',
+  context?: Partial<RequestContext>,
+  { session, scope = 'openid profile' }: { session?: string | undefined; scope?: string } = {}
+) => {
   const params = new URLSearchParams({
     client_id: clientId,
     redirect_uri: REDIRECT,
     response_type: 'code',
-    scope: 'openid profile',
+    scope,
     code_challenge: challenge,
     code_challenge_method: 'S256'
   })
@@ -64,13 +69,15 @@ const tokensFor = async (provider: Provider, clientId = 'rp', context?: Partial<
     const location = new URL(response.headers.get('location') as string)
     if (!location.pathname.startsWith('/interaction/')) {
       const code = location.searchParams.get('code') as string
+      const isPublic = (await adapter.clients.find(clientId))?.tokenEndpointAuthMethod === 'none'
       return (
         await provider.handle(
           new Request(`${ISSUER}/token`, {
             method: 'POST',
-            headers: { 'content-type': 'application/x-www-form-urlencoded', authorization: basic(clientId) },
+            headers: { 'content-type': 'application/x-www-form-urlencoded', ...(!isPublic && { authorization: basic(clientId) }) },
             body: new URLSearchParams({
               grant_type: 'authorization_code',
+              ...(isPublic && { client_id: clientId }),
               code,
               redirect_uri: REDIRECT,
               code_verifier: verifier
@@ -265,7 +272,7 @@ describe('FR-C11: front-channel logout', () => {
     })
     await tokensFor(provider)
     const session = (await adapter.sessions.listForAccount('ada'))[0]
-    await tokensFor(provider, 'rp2', undefined, session?.id)
+    await tokensFor(provider, 'rp2', undefined, { session: session?.id })
     expect(await adapter.sessions.listForAccount('ada')).toHaveLength(1)
 
     await provider.handle(new Request(`${ISSUER}/session/end`, { headers: { cookie: `${SESSION_COOKIE}=${session?.id}` } }))
@@ -381,6 +388,57 @@ describe('FR-C4 and FR-C13: mTLS', () => {
       { clientCertificate: certificate }
     )
     expect(with_.status).toBe(200)
+  })
+
+  const form = (path: string, body: Record<string, string>, authorization?: string) =>
+    new Request(`${ISSUER}${path}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded', ...(authorization && { authorization }) },
+      body: new URLSearchParams(body).toString()
+    })
+
+  // FR-C4: a client whose only credential is its certificate must be able to use every endpoint that authenticates it.
+  test('tls_client_auth works at revocation and introspection, not only the token endpoint', async () => {
+    await adapter.clients.upsert?.(client({ tokenEndpointAuthMethod: 'tls_client_auth', tlsClientAuthSubjectDn: 'CN=rp,O=Example' }))
+    const provider = mtlsProvider()
+    const introspected = await provider.handle(form('/introspect', { client_id: 'rp', token: 'nope' }), { clientCertificate: certificate })
+    expect(await introspected.json()).toEqual({ active: false })
+    const revoked = await provider.handle(form('/revoke', { client_id: 'rp', token: 'nope' }), { clientCertificate: certificate })
+    expect(revoked.status).toBe(200)
+    expect((await provider.handle(form('/revoke', { client_id: 'rp', token: 'nope' }))).status).toBe(401)
+  })
+
+  // RFC 8705 §3: the binding is not a property of the first access token only.
+  test('a refreshed access token stays bound to the certificate', async () => {
+    await adapter.clients.upsert?.(client({ certificateBoundAccessTokens: true, scopes: ['openid', 'profile', 'offline_access'] }))
+    const provider = build({ capabilities: { clientCertificate: true } })
+    const issued = await tokensFor(provider, 'rp', { clientCertificate: certificate }, { scope: 'openid offline_access' })
+    expect(issued.refresh_token).toBeTruthy()
+
+    const refreshed = await (
+      await provider.handle(form('/token', { grant_type: 'refresh_token', refresh_token: issued.refresh_token }, basic()), {
+        clientCertificate: certificate
+      })
+    ).json()
+    const stored = await adapter.artifacts.find('access_token', refreshed.access_token)
+    expect((stored?.payload.cnf as { 'x5t#S256'?: string } | undefined)?.['x5t#S256']).toBe(certificate.thumbprint)
+  })
+
+  // RFC 8705 §4: a public client has no other credential, so its refresh token is held to the certificate.
+  test("a public client's refresh token needs the same certificate", async () => {
+    await adapter.clients.upsert?.(
+      client({ tokenEndpointAuthMethod: 'none', certificateBoundAccessTokens: true, scopes: ['openid', 'profile', 'offline_access'] })
+    )
+    const provider = mtlsProvider()
+    const issued = await tokensFor(provider, 'rp', { clientCertificate: certificate }, { scope: 'openid offline_access' })
+    const refresh = (clientCertificate: typeof certificate) =>
+      provider.handle(form('/token', { grant_type: 'refresh_token', client_id: 'rp', refresh_token: issued.refresh_token }), {
+        clientCertificate
+      })
+
+    const other = await refresh({ ...certificate, thumbprint: 'someone-elses' })
+    expect((await other.json()).error_description).toContain('different certificate')
+    expect((await refresh(certificate)).status).toBe(200)
   })
 })
 

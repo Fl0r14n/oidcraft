@@ -217,7 +217,7 @@ In fix order; the first is the only one that changes the adapter contract.
 
 **Low and cleanup**
 
-- [ ] `at_hash` always SHA-256; no `sid` in the ID token; an ID token without `openid`
+- [x] `at_hash` always SHA-256; no `sid` in the ID token; an ID token without `openid`
 - [ ] Refresh family has no absolute lifetime; offline access dies with the browser session
 - [ ] Registration: unvalidated logout and `jwks_uri` URIs (SSRF), http `localhost` (NFR-S2)
 - [ ] Discovery advertises the wrong algorithm lists

@@ -98,14 +98,17 @@ export const issueTokens = async (
     })
   }
 
-  const idToken = await mintIdToken(config, {
-    client,
-    session,
-    subject,
-    nonce,
-    // OIDC Core §5.4: an access token is always issued here, so scope claims are UserInfo's to release.
-    accessToken
-  })
+  // OIDC Core §3.1.2.1: without openid this is plain OAuth, and an ID token would answer a question nobody asked.
+  const idToken = scopes.includes('openid')
+    ? await mintIdToken(config, {
+        client,
+        session,
+        subject,
+        nonce,
+        // OIDC Core §5.4: an access token is always issued here, so scope claims are UserInfo's to release.
+        accessToken
+      })
+    : undefined
 
   return {
     access_token: accessToken,
@@ -113,7 +116,7 @@ export const issueTokens = async (
     expires_in: expiresIn,
     scope: scopes.join(' '),
     ...(authorizationDetails && { authorization_details: authorizationDetails }),
-    id_token: idToken,
+    ...(idToken && { id_token: idToken }),
     ...(refreshToken && { refresh_token: refreshToken })
   }
 }

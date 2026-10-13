@@ -1,6 +1,8 @@
 /// <reference types="bun" />
 import { serve } from 'bun'
 import { render } from './src/entry-server'
+// Read, never run: being imported is what puts it in `bun --watch`'s graph, like the rest of src/.
+import './src/entry-client.tsx' with { type: 'text' }
 
 // dev IdPs are routinely fronted by a self-signed cert; the SSR pass must not die on it
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'
@@ -30,8 +32,7 @@ const define = {
 
 /**
  * The client half, bundled once per process. In development `bun --watch` restarts the process on
- * any change to what the server imports — which is all of `src/` but `entry-client.tsx` — and the
- * page reloads when its socket to the old process drops. There is no Fast Refresh: Bun's
+ * any change to what the server imports — all of `src/` — and the page reloads when its socket to the old process drops. There is no Fast Refresh: Bun's
  * hot-reloading dev server only serves static HTML, and this page is server-rendered.
  */
 const built = await Bun.build({

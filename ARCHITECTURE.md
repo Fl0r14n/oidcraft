@@ -25,13 +25,15 @@ How oidcraft is built. `REQUIREMENTS.md` says what it must do; every section her
 executes TypeScript. No `Bun.build` script, no `dist/`, and nothing to keep in sync between a dev
 path and a build path.
 
-`apps/demo-react` is the exception and states its reason: it demonstrates SSR, and it does that as a
-`Bun.serve` host with **Vite in middleware mode** for the module transform and HMR. Vite is
-load-bearing there rather than incidental — removing it would mean removing the SSR demo, which is
-the part of that app worth having, because `useSyncExternalStore`'s server snapshot is exactly the
-thing a relying-party binding gets wrong. It reads the same root `.env` and the same
-`OIDCRAFT_PUBLIC_*` names as everything else (§9.1); `vite.config.ts` substitutes them as whole
-`process.env.X` literals, so §9.2's rule against `import.meta.env` holds there too.
+`apps/demo-react` differs in one way and states its reason: it demonstrates SSR, because
+`useSyncExternalStore`'s server snapshot is exactly the thing a relying-party binding gets wrong, and
+Bun's HTML imports serve a page as static HTML with nowhere to put server-rendered markup. So its
+`index.ts` is a `Bun.serve` host that imports `entry-server.tsx` directly and bundles
+`entry-client.tsx` with `Bun.build` at startup. Still no bundler beyond Bun and no `dist/`. The price
+is Fast Refresh: `bun --watch` restarts the host on a change and the page reloads itself, losing
+component state. It reads the same root `.env` and `OIDCRAFT_PUBLIC_*` names as everything else
+(§9.1); the `Bun.build` call substitutes them as whole `process.env.X` literals, every name defined
+even when unset, so §9.2's rule against `import.meta.env` holds there too.
 
 Two sharp edges, both measured here rather than assumed:
 

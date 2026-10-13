@@ -456,7 +456,8 @@ something other than their unit tests, which nothing did before.
 Both were brought onto this workspace's conventions rather than kept as they arrived: the React app
 read `import.meta.env.VITE_*` through a destructure — the exact form §9.2 forbids — and now reads
 `OIDCRAFT_PUBLIC_*` as whole `process.env.X` literals from the same root `.env` as everything else,
-substituted by `vite.config.ts`. Its `@/` alias is gone for the same reason. It also stopped carrying
+substituted when its `index.ts` bundles the client (Vite is gone; ARCHITECTURE.md §1). Its `@/` alias
+is gone for the same reason. It also stopped carrying
 a `clientSecret` into a browser bundle, which the sample did and a public client must not.
 
 `apps/demo-angular` is in too, as a toolchain island outside the bun workspace — ARCHITECTURE.md §8.4

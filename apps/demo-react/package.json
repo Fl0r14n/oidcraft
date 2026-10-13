@@ -4,10 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "ssr": "bun run index.ts",
-    "preview": "vite preview",
-    "bundle": "vite build && vite build --ssr src/entry-server.tsx --outDir dist/server",
+    "dev": "bun --env-file=../../.env --watch --no-clear-screen index.ts",
+    "start": "NODE_ENV=production bun --env-file=../../.env index.ts",
     "build": "bun check",
     "typecheck": "bun check"
   },
@@ -27,8 +25,6 @@
     "@types/bun": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
-    "@vitejs/plugin-react": "latest",
-    "typescript": "latest",
-    "vite": "latest"
+    "typescript": "latest"
   }
 }

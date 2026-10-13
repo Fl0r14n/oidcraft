@@ -32,8 +32,9 @@ const define = {
 
 /**
  * The client half, bundled once per process. In development `bun --watch` restarts the process on
- * any change to what the server imports — all of `src/` — and the page reloads when its socket to the old process drops. There is no Fast Refresh: Bun's
- * hot-reloading dev server only serves static HTML, and this page is server-rendered.
+ * any change to what the server imports — all of `src/` — and the page reloads when its socket to
+ * the old process drops. There is no Fast Refresh: Bun's hot-reloading dev server only serves
+ * static HTML, and this page is server-rendered.
  */
 const built = await Bun.build({
   entrypoints: ['./src/entry-client.tsx'],

@@ -2,7 +2,7 @@ import { verifyChallenge } from '../authorize/pkce'
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
 import type { Artifact, Client } from '../types'
-import { type Binding, issueTokens, loadGrantAndSession } from './issue'
+import { type Binding, issueTokens, loadGrantAndSession, loadGrantAndSignIn } from './issue'
 
 /**
  * Replaying a single-use artifact revokes the grant it belongs to, rather than merely failing.
@@ -61,7 +61,7 @@ export const refreshTokenGrant = async (config: ResolvedConfig, client: Client, 
   if (artifact.consumedAt) await revokeOnReplay(config, artifact, 'refresh token')
   if (artifact.clientId !== client.clientId) await revokeOnReplay(config, artifact, 'refresh token presented by the wrong client')
 
-  const { grant, session } = await loadGrantAndSession(config, artifact)
+  const { grant, session } = await loadGrantAndSignIn(config, artifact)
   const requested = form.get('scope')?.split(' ').filter(Boolean)
   // FR-I4: consent withdrawn from the grant since this token was issued does not come back on refresh.
   const granted = scopesOf(artifact).filter(scope => grant.scopes.includes(scope))
@@ -84,6 +84,7 @@ export const refreshTokenGrant = async (config: ResolvedConfig, client: Client, 
   // RFC 8705 §3: the new access token is bound to the certificate presented now, as at issuance.
   return issueTokens(config, client, grant, session, requested?.length ? requested : granted, {
     binding: { jkt: bound?.jkt ?? binding.jkt, x5t: binding.x5t },
-    refreshScopes: granted
+    refreshScopes: granted,
+    familyExpiresAt: artifact.payload.familyExpiresAt as number | undefined
   })
 }

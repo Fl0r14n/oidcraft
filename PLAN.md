@@ -218,7 +218,8 @@ In fix order; the first is the only one that changes the adapter contract.
 **Low and cleanup**
 
 - [x] `at_hash` always SHA-256; no `sid` in the ID token; an ID token without `openid`
-- [ ] Refresh family has no absolute lifetime; offline access dies with the browser session
+- [x] Refresh family has no absolute lifetime; offline access dies with the browser session. Fixed:
+      `ttl.refreshTokenFamily` (90 days); a refresh token carries its sign-in and outlives the session, not the grant
 - [ ] Registration: unvalidated logout and `jwks_uri` URIs (SSRF), http `localhost` (NFR-S2)
 - [ ] Discovery advertises the wrong algorithm lists
 - [ ] Claim mapping can pair one source's `email_verified` with another's `email`; `acr`/`amr`/`sid` unprotected

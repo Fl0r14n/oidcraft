@@ -43,7 +43,10 @@ export type RegistrationDecision = { requirePkce?: boolean }
 export type Ttl = {
   authorizationCode: Seconds
   accessToken: Seconds
+  /** Idle lifetime: each rotation starts it again. */
   refreshToken: Seconds
+  /** Absolute lifetime of a refresh token family, from the first one; rotation never extends it. */
+  refreshTokenFamily: Seconds
   idToken: Seconds
   session: Seconds
   interaction: Seconds
@@ -57,6 +60,7 @@ export const DEFAULT_TTL: Ttl = {
   authorizationCode: 60,
   accessToken: 900,
   refreshToken: 1_209_600,
+  refreshTokenFamily: 7_776_000,
   idToken: 900,
   session: 1_209_600,
   interaction: 600,

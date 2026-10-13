@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, test } from 'bun:test'
+import { beforeEach, describe, expect, setSystemTime, test } from 'bun:test'
 import { randomString, sha256 } from '@oidcraft/core'
 import { base64url, compactDecrypt, createLocalJWKSet, decodeJwt, decodeProtectedHeader, exportJWK, generateKeyPair, jwtVerify } from 'jose'
 import { memoryAdapter } from './adapters/memory'
@@ -719,5 +719,53 @@ describe('ID token details', () => {
     ).json()
     expect(refreshed.access_token).toBeTruthy()
     expect(refreshed.id_token).toBeUndefined()
+  })
+})
+
+describe('refresh token lifetime', () => {
+  const refresh = (provider: Provider, token: string) =>
+    provider.handle(
+      new Request(`${ISSUER}/token`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded', authorization: basic() },
+        body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: token }).toString()
+      })
+    )
+
+  // Rotation restarts the idle lifetime; without an absolute one a family would live forever.
+  test('a family ends at its absolute lifetime however often it rotates', async () => {
+    await adapter.clients.upsert?.(client({ scopes: ['openid', 'offline_access'] }))
+    const provider = build({ ttl: { refreshToken: 3600, refreshTokenFamily: 7200 } })
+    const start = Date.now()
+    let token = (await tokensFor(provider, 'rp', undefined, { scope: 'openid offline_access' })).refresh_token as string
+    try {
+      for (const minutes of [50, 100]) {
+        setSystemTime(new Date(start + minutes * 60_000))
+        token = (await (await refresh(provider, token)).json()).refresh_token
+        expect(token).toBeTruthy()
+      }
+      setSystemTime(new Date(start + 130 * 60_000))
+      expect((await (await refresh(provider, token)).json()).error).toBe('invalid_grant')
+    } finally {
+      setSystemTime()
+    }
+  })
+
+  // OIDC Core §11: offline access is for when the user is not there.
+  test('offline access outlives the browser session, but not the grant', async () => {
+    await adapter.clients.upsert?.(client({ scopes: ['openid', 'offline_access'] }))
+    const provider = build()
+    const issued = await tokensFor(provider, 'rp', undefined, { scope: 'openid offline_access' })
+    const session = (await adapter.sessions.listForAccount('ada'))[0]
+    await adapter.sessions.destroy(session?.id as string)
+
+    const refreshed = await (await refresh(provider, issued.refresh_token)).json()
+    expect(refreshed.access_token).toBeTruthy()
+    expect(decodeJwt(refreshed.id_token).auth_time).toBe(decodeJwt(issued.id_token).auth_time as number)
+    expect(await adapter.sessions.find(session?.id as string)).toBeUndefined()
+
+    const grant = await adapter.grants.findByAccountAndClient('ada', 'rp')
+    await adapter.grants.destroy(grant?.id as string)
+    expect((await (await refresh(provider, refreshed.refresh_token)).json()).error).toBe('invalid_grant')
   })
 })

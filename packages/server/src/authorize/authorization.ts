@@ -29,6 +29,8 @@ export type AuthorizationRequest = {
    * remembered to add to it, which is how `authorization_details` went missing once already.
    */
   raw: string
+  /** Arrived by pushed reference, so it resumes by one: its parameters never cross the front channel (RFC 9126). */
+  pushed?: true
 }
 
 /** RFC 9396 §2. `type` is the only member the spec fixes; the rest is the host's schema. */

@@ -6,6 +6,7 @@ import { startSession } from '../session/session'
 import type { Grant } from '../types'
 import type { AuthorizationRequest } from './authorization'
 import { detailsConsentId, redirectTo } from './authorization'
+import { pushParameters } from './par'
 
 const load = async (config: ResolvedConfig, id: string) => {
   const artifact = await config.adapter.artifacts.find('interaction', id)
@@ -112,11 +113,11 @@ export const interactions = (config: ResolvedConfig) => ({
     // Single-use: the authorization endpoint suspends again if it still cannot decide (FR-I2).
     await config.adapter.artifacts.destroy('interaction', id)
 
-    return { redirectTo: authorizationUrl(config, request, Boolean(outcome.login)), setCookie }
+    return { redirectTo: await authorizationUrl(config, request, Boolean(outcome.login)), setCookie }
   }
 })
 
-const authorizationUrl = (config: ResolvedConfig, request: AuthorizationRequest, loggedIn: boolean) => {
+const authorizationUrl = async (config: ResolvedConfig, request: AuthorizationRequest, loggedIn: boolean) => {
   const url = new URL(config.routes.authorization, config.issuer)
   const params = new URLSearchParams(request.raw)
   // prompt has just been satisfied, and replaying it loops forever.
@@ -128,6 +129,8 @@ const authorizationUrl = (config: ResolvedConfig, request: AuthorizationRequest,
   // would consume it a second time (RFC 9126 §4).
   params.delete('request_uri')
   params.delete('request')
-  url.search = params.toString()
+  url.search = request.pushed
+    ? new URLSearchParams({ client_id: request.clientId, request_uri: await pushParameters(config, request.clientId, params) }).toString()
+    : params.toString()
   return url.toString()
 }

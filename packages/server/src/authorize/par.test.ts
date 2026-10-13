@@ -136,6 +136,34 @@ describe('pushed authorization requests', () => {
     expect((await response.json()).error_description).toContain('must push')
   })
 
+  // FR-C12: resuming after login must not turn a pushed request into a front-channel one.
+  test('a pushed request resumes by reference after each interaction', async () => {
+    const { request_uri } = await (await push(requestParams({ client_id: 'strict' }), { authorization: basic('strict') })).json()
+    const interactionId = async (response: Response) => {
+      const location = response.headers.get('location') as string
+      expect(location).toContain(`${ISSUER}/interaction/`)
+      return location.split('/').at(-1) as string
+    }
+    const follow = async (redirectTo: string, cookie?: string) => {
+      const url = new URL(redirectTo)
+      expect([...url.searchParams.keys()].sort()).toEqual(['client_id', 'request_uri'])
+      expect(url.searchParams.get('request_uri')).not.toBe(request_uri)
+      return provider.handle(new Request(url, { headers: cookie ? { cookie } : {} }))
+    }
+
+    const login = await provider.interactions.complete(await interactionId(await authorize({ client_id: 'strict', request_uri })), {
+      login: { accountId: 'ada' }
+    })
+    const cookie = login.setCookie?.split(';')[0]
+    const consent = await provider.interactions.complete(await interactionId(await follow(login.redirectTo, cookie)), {
+      consent: { scopes: ['openid', 'profile'] }
+    })
+    const done = new URL((await follow(consent.redirectTo, cookie)).headers.get('location') as string)
+    expect(done.origin + done.pathname).toBe(REDIRECT)
+    expect(done.searchParams.get('code')).toBeTruthy()
+    expect(done.searchParams.get('state')).toBe('st')
+  })
+
   test('the endpoint is absent when the feature is off', async () => {
     const off = createProvider({ issuer: ISSUER, adapter })
     const response = await off.handle(new Request(`${ISSUER}/request`, { method: 'POST' }))

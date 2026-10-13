@@ -65,7 +65,10 @@ const authorizationHandler: Handler = async (config, request) => {
 
   let validated: ReturnType<typeof validateAuthorizationRequest>
   try {
-    validated = validateAuthorizationRequest(config, client, redirectUri, params)
+    validated = {
+      ...validateAuthorizationRequest(config, client, redirectUri, params),
+      ...(raw.has('request_uri') && { pushed: true as const })
+    }
   } catch (error) {
     if (!(error instanceof OAuthError)) throw error
     const url = new URL(redirectUri)

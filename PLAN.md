@@ -176,7 +176,8 @@ In fix order; the first is the only one that changes the adapter contract.
 - [x] CIBA ping can never redeem; `ciba.test.ts` asserts the bug (FR-C17). Fixed: a ping client
       redeems with the poll request (CIBA §10.2). Still missing for ping to be usable end to end:
       `Client` has no `backchannel_client_notification_endpoint`, and registration cannot set ping mode
-- [ ] A PAR-required client cannot finish an interaction: the replay drops `request_uri` (FR-C12)
+- [x] A PAR-required client cannot finish an interaction: the replay drops `request_uri` (FR-C12).
+      Fixed: a pushed request resumes through a fresh pushed reference, never the front channel
 - [ ] Logout notifies only the first RP: `session.clients` is never appended (FR-C11)
 - [ ] JWT access tokens cannot be revoked or introspected (FR-C8, FR-T2)
 - [ ] mTLS: binding only on `authorization_code`, lost on refresh; client auth only at the token endpoint (FR-C4, FR-C13)

@@ -7,6 +7,19 @@ import { applyRequestObject } from './request-object'
 
 export const REQUEST_URI_PREFIX = 'urn:ietf:params:oauth:request_uri:'
 
+/** Stores already-validated parameters behind a single-use reference (RFC 9126 §2.2). */
+export const pushParameters = async (config: ResolvedConfig, clientId: string, params: URLSearchParams) => {
+  const id = randomString()
+  await config.adapter.artifacts.upsert({
+    id,
+    kind: 'pushed_authorization_request',
+    clientId,
+    payload: { params: params.toString() },
+    expiresAt: new Date(Date.now() + config.ttl.pushedAuthorizationRequest * 1000)
+  })
+  return `${REQUEST_URI_PREFIX}${id}`
+}
+
 /**
  * Pushed authorization requests (RFC 9126). The client posts the request over an authenticated
  * back channel and receives a reference, so the parameters never travel through the browser where
@@ -32,18 +45,9 @@ export const pushedAuthorizationRequestEndpoint = async (config: ResolvedConfig,
   const { redirectUri } = await parseAuthorizationRequest(config, params)
   validateAuthorizationRequest(config, client, redirectUri, params)
 
-  const id = randomString()
   const expiresIn = config.ttl.pushedAuthorizationRequest
-  await config.adapter.artifacts.upsert({
-    id,
-    kind: 'pushed_authorization_request',
-    clientId: client.clientId,
-    payload: { params: params.toString() },
-    expiresAt: new Date(Date.now() + expiresIn * 1000)
-  })
-
   return Response.json(
-    { request_uri: `${REQUEST_URI_PREFIX}${id}`, expires_in: expiresIn },
+    { request_uri: await pushParameters(config, client.clientId, params), expires_in: expiresIn },
     { status: 201, headers: { 'cache-control': 'no-store', pragma: 'no-cache' } }
   )
 }

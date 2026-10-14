@@ -14,7 +14,7 @@ const base =
 const variants = {
   primary: 'h-11 rounded-control bg-accent px-5 text-accent-ink hover:brightness-110',
   secondary: 'h-11 rounded-control border border-rule bg-sheet px-5 text-ink hover:border-muted',
-  danger: 'h-11 rounded-control bg-danger px-5 text-white hover:brightness-110',
+  danger: 'h-11 rounded-control bg-danger px-5 text-paper hover:brightness-110',
   link: 'text-sm text-danger underline-offset-4 hover:underline'
 }
 </script>

@@ -1,60 +1,55 @@
 <template>
-  <section class="mt-10">
-    <header class="mb-4 flex items-center gap-3">
-      <h2 class="text-sm font-semibold tracking-tight">Account</h2>
-      <UiInput v-model="accountId" placeholder="Account id…" class="w-56" @keyup.enter="load" />
-      <UiButton variant="secondary" @click="load">Look up</UiButton>
-    </header>
-
-    <UiAlert v-if="error" class="mb-4">{{ error }}</UiAlert>
+  <UiSection title="Accounts">
+    <template #description>Look up an account to see where it is signed in and which applications it has allowed.</template>
+    <form class="flex max-w-md gap-3" @submit.prevent="load">
+      <UiInput v-model="accountId" class="flex-1" placeholder="Account ID" aria-label="Account ID" />
+      <UiButton type="submit" variant="secondary">Look up</UiButton>
+    </form>
+    <UiAlert v-if="error">{{ error }}</UiAlert>
 
     <div v-if="loaded" class="grid gap-6 md:grid-cols-2">
-      <div>
-        <h3 class="mb-2 text-xs font-medium text-neutral-500">Sessions</h3>
-        <ul class="space-y-2">
-          <li v-for="session in sessions" :key="session.id" class="rounded-lg border border-neutral-200 px-3 py-2 text-xs dark:border-neutral-800">
-            <div class="flex items-center gap-2">
-              <span class="font-mono">{{ session.id.slice(0, 12) }}…</span>
-              <span v-if="session.idp" class="rounded bg-neutral-100 px-1.5 py-0.5 dark:bg-neutral-800">via {{ session.idp }}</span>
-              <UiButton variant="link" class="ml-auto" @click="endSession(session.id)">End</UiButton>
+      <div class="space-y-3">
+        <h3 class="font-semibold">Sessions</h3>
+        <ul class="divide-y divide-rule rounded-sheet border border-rule bg-sheet">
+          <li v-for="session in sessions" :key="session.id" class="flex items-start gap-3 px-4 py-3 text-sm">
+            <div class="space-y-0.5">
+              <p class="font-medium">Signed in {{ new Date(session.authTime).toLocaleString() }}</p>
+              <p class="text-muted">{{ session.idp ? `Through ${session.idp}` : 'With a password' }}<template v-if="session.acr">, level {{ session.acr }}</template></p>
             </div>
-            <div class="mt-1 text-neutral-500">
-              signed in {{ new Date(session.authTime).toLocaleString() }}<span v-if="session.acr"> · acr {{ session.acr }}</span>
-            </div>
+            <UiButton variant="link" class="ml-auto" @click="endSession(session.id)">Sign out</UiButton>
           </li>
-          <li v-if="sessions.length === 0" class="text-xs text-neutral-500">No active sessions.</li>
+          <li v-if="sessions.length === 0" class="px-4 py-6 text-center text-sm text-muted">Not signed in anywhere.</li>
         </ul>
       </div>
 
-      <div>
-        <h3 class="mb-2 text-xs font-medium text-neutral-500">Grants</h3>
-        <ul class="space-y-2">
-          <li v-for="grant in grants" :key="grant.id" class="rounded-lg border border-neutral-200 px-3 py-2 text-xs dark:border-neutral-800">
-            <div class="flex items-center gap-2">
-              <span class="font-mono">{{ grant.clientId }}</span>
-              <UiButton variant="link" class="ml-auto" @click="revoke(grant.id)">Revoke</UiButton>
+      <div class="space-y-3">
+        <h3 class="font-semibold">Allowed applications</h3>
+        <ul class="divide-y divide-rule rounded-sheet border border-rule bg-sheet">
+          <li v-for="grant in grants" :key="grant.id" class="flex items-start gap-3 px-4 py-3 text-sm">
+            <div class="space-y-0.5">
+              <p class="font-medium">{{ grant.clientId }}</p>
+              <p class="text-muted">{{ grant.scopes.join(', ') }}</p>
             </div>
-            <div class="mt-1 text-neutral-500">{{ grant.scopes.join(' · ') }}</div>
+            <UiButton variant="link" class="ml-auto" @click="revoke(grant.id)">Revoke</UiButton>
           </li>
-          <li v-if="grants.length === 0" class="text-xs text-neutral-500">No grants.</li>
+          <li v-if="grants.length === 0" class="px-4 py-6 text-center text-sm text-muted">No applications allowed yet.</li>
         </ul>
-        <p class="mt-2 text-xs text-neutral-500">Revoking a grant revokes the tokens it produced, not only the record.</p>
+        <p class="text-sm text-muted">Revoking also ends every token the application holds for this account.</p>
       </div>
     </div>
-  </section>
+  </UiSection>
 </template>
 
 <script setup lang="ts">
-import { UiAlert, UiButton, UiInput } from '@oidcraft/ui/components'
+import { UiAlert, UiButton, UiInput, UiSection } from '@oidcraft/ui/components'
 import { shallowRef } from 'vue'
-import { AdminError, api } from './client'
-
-const props = defineProps<{ token: string }>()
+import { failureMessage, useAdminApi } from './client'
 
 type Session = { id: string; accountId: string; authTime: string; acr?: string; idp?: string }
 type Grant = { id: string; clientId: string; scopes: string[] }
 
-const accountId = shallowRef('')
+const api = useAdminApi()
+const accountId = shallowRef<string | undefined>('')
 const sessions = shallowRef<Session[]>([])
 const grants = shallowRef<Grant[]>([])
 const loaded = shallowRef(false)
@@ -65,25 +60,24 @@ const load = async () => {
   if (!accountId.value) return
   try {
     const id = encodeURIComponent(accountId.value)
-    const [s, g] = await Promise.all([
-      api<Session[]>(`/accounts/${id}/sessions`, props.token),
-      api<Grant[]>(`/accounts/${id}/grants`, props.token)
-    ])
+    const [s, g] = await Promise.all([api<Session[]>(`/accounts/${id}/sessions`), api<Grant[]>(`/accounts/${id}/grants`)])
     sessions.value = s
     grants.value = g
     loaded.value = true
   } catch (failure) {
-    error.value = failure instanceof AdminError ? failure.message : 'Could not load that account.'
+    error.value = failureMessage(failure, 'Could not load that account.')
   }
 }
 
-const endSession = async (id: string) => {
-  await api(`/sessions/${encodeURIComponent(id)}`, props.token, { method: 'DELETE' })
-  await load()
+const act = async (path: string, fallback: string) => {
+  try {
+    await api(path, { method: 'DELETE' })
+    await load()
+  } catch (failure) {
+    error.value = failureMessage(failure, fallback)
+  }
 }
 
-const revoke = async (id: string) => {
-  await api(`/grants/${encodeURIComponent(id)}`, props.token, { method: 'DELETE' })
-  await load()
-}
+const endSession = (id: string) => act(`/sessions/${encodeURIComponent(id)}`, 'Could not end that session.')
+const revoke = (id: string) => act(`/grants/${encodeURIComponent(id)}`, 'Could not revoke that grant.')
 </script>

@@ -24,13 +24,14 @@ export const interactionRoutes = async (request: Request, url: URL) => {
   if (!id) return undefined
 
   try {
-    const view = await provider.interactions.find(id)
+    const found = await provider.interactions.find(id)
+    const client = await provider.config.adapter.clients.find(found.clientId)
+    const view = { ...found, clientName: client?.clientName }
 
     if (request.method === 'GET' && !action) {
       if (view.kind === 'consent') return screens.consent(view)
       if (view.kind === 'logout') {
-        const client = view.clientId ? await provider.config.adapter.clients.find(view.clientId) : undefined
-        return screens.logout(view.id, client?.clientName ?? client?.clientId)
+        return screens.logout(view.id, view.clientId ? (client?.clientName ?? view.clientId) : undefined)
       }
       // prompt=select_account asks which identity, not whether to sign in (OIDC Core §3.1.2.1).
       return view.prompt.includes('select_account')

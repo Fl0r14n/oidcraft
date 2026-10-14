@@ -2,6 +2,7 @@
 
 import { createProvider, staticKeyStore } from 'oidcraft'
 import { memoryAdapter } from 'oidcraft/adapters/memory'
+import { seedAdminClients } from './admin'
 import { issuer, optional } from './env'
 import { demoAccounts, seedConformanceClients, seedDemoClient } from './seed'
 import { upstreams } from './upstreams'
@@ -28,6 +29,7 @@ const adapter = await memoryAdapter({
 })
 
 await seedDemoClient(adapter)
+await seedAdminClients(adapter, issuer())
 await seedConformanceClients(adapter)
 
 export const provider = createProvider({

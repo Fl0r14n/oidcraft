@@ -1,107 +1,65 @@
 <template>
-  <div class="min-h-screen bg-neutral-50 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100">
-    <header class="border-b border-neutral-200 bg-white px-6 py-4 dark:border-neutral-800 dark:bg-neutral-900">
-      <div class="mx-auto flex max-w-5xl items-center gap-4">
-        <h1 class="text-sm font-semibold tracking-tight">oidcraft admin</h1>
-        <span class="font-mono text-xs text-neutral-500">{{ issuer }}</span>
-        <UiInput v-model="token" type="password" placeholder="Admin token" class="ml-auto w-64" @change="reload" />
+  <UiCard v-if="!isAuthorized" title="Administer this server">
+    <template #subtitle>Sign in with an account listed in <code class="font-semibold text-ink">OIDCRAFT_ADMINS</code>.</template>
+    <UiAlert v-if="hasError">{{ errorDescription || 'The sign-in did not complete. Try again.' }}</UiAlert>
+    <UiButton class="w-full" @click="signIn">Sign in</UiButton>
+  </UiCard>
+
+  <div v-else class="min-h-dvh bg-paper font-sans text-ink antialiased">
+    <header class="relative overflow-hidden border-b border-rule bg-sheet">
+      <div class="guilloche absolute inset-0" aria-hidden="true" />
+      <div class="relative mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-6 py-5">
+        <div>
+          <p class="text-[0.9375rem] font-semibold tracking-tight">oidcraft admin</p>
+          <p class="text-sm text-muted">{{ issuer }}</p>
+        </div>
+        <div class="ml-auto flex items-center gap-4">
+          <span class="text-sm text-muted">Signed in as <strong class="font-semibold text-ink">{{ user?.name || user?.sub }}</strong></span>
+          <UiButton variant="secondary" @click="signOut">Sign out</UiButton>
+        </div>
       </div>
     </header>
 
-    <main class="mx-auto max-w-5xl px-6 py-8">
-      <UiAlert v-if="error" class="mb-6">{{ error }}</UiAlert>
-
-      <p v-if="!token" class="rounded-md border border-dashed border-neutral-300 px-4 py-8 text-center text-sm text-neutral-500 dark:border-neutral-700">
-        Set <code class="font-mono">OIDCRAFT_ADMIN_TOKEN</code> on the server and paste it above.
-        <span class="mt-2 block text-xs">
-          A shared token is this demo's answer, not the library's — it exposes management as functions so the
-          host decides who is an administrator.
-        </span>
-      </p>
-
+    <main class="mx-auto max-w-6xl space-y-12 px-6 py-10">
+      <UiAlert v-if="error">{{ error }}</UiAlert>
       <template v-else>
-        <ClientsTable :clients="clients" @deleted="remove" />
-
-        <AccountPanel :token="token" />
-
-        <section v-if="upstreams.length" class="mt-10">
-          <h2 class="mb-4 text-sm font-semibold tracking-tight">Upstream providers</h2>
-          <ul class="space-y-2">
-            <li v-for="upstream in upstreams" :key="upstream.id" class="rounded-lg border border-neutral-200 px-3 py-2 text-xs dark:border-neutral-800">
-              <span class="font-mono">{{ upstream.id }}</span>
-              <span v-if="upstream.label" class="ml-2 text-neutral-500">{{ upstream.label }}</span>
-              <span v-if="upstream.domains?.length" class="ml-2 text-neutral-500">· {{ upstream.domains.join(', ') }}</span>
-            </li>
-          </ul>
-          <p class="mt-2 text-xs text-neutral-500">
-            Deployment configuration, not runtime state — shown here, set where the rest of the deployment is.
-          </p>
-        </section>
-
-        <section class="mt-10">
-          <h2 class="mb-4 text-sm font-semibold tracking-tight">Signing keys</h2>
-          <ul class="space-y-2">
-            <li v-for="key in keys" :key="key.kid" class="rounded-lg border border-neutral-200 px-3 py-2 text-xs dark:border-neutral-800">
-              <span class="font-mono">{{ key.kid }}</span>
-              <span class="ml-2 text-neutral-500">{{ key.alg }} · {{ key.kty }}</span>
-              <span v-if="key === keys[0]" class="ml-2 rounded bg-neutral-900 px-1.5 py-0.5 text-[10px] text-white dark:bg-neutral-100 dark:text-neutral-900">
-                signing
-              </span>
-            </li>
-          </ul>
-          <p class="mt-2 text-xs text-neutral-500">
-            The first key of an algorithm signs; the rest only verify, so rotating by prepending never
-            invalidates a token already in flight.
-          </p>
-        </section>
+        <ClientsPanel />
+        <AccountPanel />
+        <div class="grid gap-12 lg:grid-cols-2">
+          <KeysPanel />
+          <UpstreamsPanel />
+        </div>
       </template>
     </main>
   </div>
 </template>
 
 <script setup lang="ts">
-import { UiAlert, UiInput } from '@oidcraft/ui/components'
+import { UiAlert, UiButton, UiCard } from '@oidcraft/ui/components'
 import { onMounted, shallowRef } from 'vue'
+import { useOAuth, useOAuthUser } from 'vue-oidc'
 import AccountPanel from './AccountPanel.vue'
-import ClientsTable from './ClientsTable.vue'
-import type { AdminClient } from './client'
-import { AdminError, api, readToken, writeToken } from './client'
+import ClientsPanel from './ClientsPanel.vue'
+import { failureMessage, useAdminApi } from './client'
+import KeysPanel from './KeysPanel.vue'
+import UpstreamsPanel from './UpstreamsPanel.vue'
 
-const issuer = process.env.OIDCRAFT_PUBLIC_ISSUER || globalThis.location?.origin
-const token = shallowRef(readToken())
-const clients = shallowRef<AdminClient[]>([])
-const keys = shallowRef<{ kid: string; alg: string; kty: string }[]>([])
-const upstreams = shallowRef<{ id: string; label?: string; domains?: string[] }[]>([])
+const issuer = process.env.OIDCRAFT_PUBLIC_ISSUER || location.origin
+const { isAuthorized, hasError, errorDescription, login, logout } = useOAuth()
+const user = useOAuthUser()
+const api = useAdminApi()
 const error = shallowRef('')
 
-const reload = async () => {
-  error.value = ''
-  writeToken(token.value)
-  if (!token.value) return
-  try {
-    const [clientList, keyList, upstreamList] = await Promise.all([
-      api<{ clients: AdminClient[] }>('/clients', token.value),
-      api<{ keys: { kid: string; alg: string; kty: string }[] }>('/keys', token.value),
-      api<{ upstreams: { id: string; label?: string; domains?: string[] }[] }>('/upstreams', token.value)
-    ])
-    clients.value = clientList.clients
-    keys.value = keyList.keys
-    upstreams.value = upstreamList.upstreams
-  } catch (failure) {
-    error.value = failure instanceof AdminError ? failure.message : 'Something went wrong.'
-    clients.value = []
-    keys.value = []
-  }
-}
+const signIn = () => login({ responseType: 'code', redirectUri: `${location.origin}/admin/callback`, state: crypto.randomUUID() })
+const signOut = () => logout(`${location.origin}/admin`)
 
-const remove = async (clientId: string) => {
+// One call up front, so an operator who is signed in but not listed sees why before anything else.
+onMounted(async () => {
+  if (!isAuthorized.value) return
   try {
-    await api(`/clients/${encodeURIComponent(clientId)}`, token.value, { method: 'DELETE' })
-    await reload()
+    await api('/keys')
   } catch (failure) {
-    error.value = failure instanceof AdminError ? failure.message : 'Could not delete that client.'
+    error.value = failureMessage(failure, 'The admin API is not answering.')
   }
-}
-
-onMounted(reload)
+})
 </script>

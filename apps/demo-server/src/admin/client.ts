@@ -1,3 +1,5 @@
+import { useOAuthFetch } from 'vue-oidc'
+
 export type AdminClient = {
   clientId: string
   clientName?: string
@@ -8,36 +10,26 @@ export type AdminClient = {
   createdAt: string
 }
 
-const TOKEN_KEY = 'oidcraft.admin.token'
+export class AdminError extends Error {
+  readonly status: number
 
-/** Per-viewer convenience only; the token authorises nothing on its own. */
-export const readToken = () => {
-  try {
-    return localStorage.getItem(TOKEN_KEY) ?? ''
-  } catch {
-    return ''
+  constructor(message: string, status: number) {
+    super(message)
+    this.status = status
   }
 }
 
-export const writeToken = (token: string) => {
-  try {
-    localStorage.setItem(TOKEN_KEY, token)
-  } catch {
-    // a private window; the token simply will not be remembered
+/** The admin API, called with the signed-in operator's access token. Call from a component's setup. */
+export const useAdminApi = () => {
+  const oauthFetch = useOAuthFetch()
+  return async <T>(path: string, init: RequestInit = {}): Promise<T> => {
+    const response = await oauthFetch(`/admin/api${path}`, init)
+    if (!response.ok) {
+      const body = (await response.json().catch(() => ({}))) as { error_description?: string; error?: string }
+      throw new AdminError(body.error_description ?? body.error ?? `The server answered ${response.status}.`, response.status)
+    }
+    return (await response.json()) as T
   }
 }
 
-export class AdminError extends Error {}
-
-export const api = async <T>(path: string, token: string, init: RequestInit = {}): Promise<T> => {
-  const response = await fetch(`/admin/api${path}`, {
-    ...init,
-    headers: { 'content-type': 'application/json', authorization: `Bearer ${token}`, ...init.headers }
-  })
-  if (response.status === 401) throw new AdminError('That token was not accepted.')
-  if (!response.ok) {
-    const body = (await response.json().catch(() => ({}))) as { error_description?: string; error?: string }
-    throw new AdminError(body.error_description ?? body.error ?? `${response.status}`)
-  }
-  return response.status === 204 ? (undefined as T) : ((await response.json()) as T)
-}
+export const failureMessage = (failure: unknown, fallback: string) => (failure instanceof AdminError ? failure.message : fallback)

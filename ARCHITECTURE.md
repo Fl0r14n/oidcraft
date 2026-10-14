@@ -427,9 +427,14 @@ JavaScript, and `packages/ui/src/screens.test.ts` pins the ids and texts its pla
 (NFR-C1). There is no HTML entrypoint for Bun to bundle their styles from, so `assets.ts` builds
 the stylesheet once at startup and serves it with the font under `/assets/*`.
 
-The **admin UI** (`src/admin`) is a client-rendered app on the same components, and also uses
-`@vuetify/v0` for what is expensive to hand-roll accessibly: `createDataTable` and `Dialog`. It is
-headless, so Tailwind still does all the styling.
+The **admin UI** (`src/admin`) is a client-rendered app on the same components. Its table and
+dialog are `@oidcraft/ui`'s `UiDataTable` and `UiDialog`, which wrap `@vuetify/v0` — headless, so
+Tailwind still does the styling. v0 is behaviour that runs in the browser, so the script-free
+interaction screens never use it.
+
+**The admin app is a client of this OP.** It signs in as `oidcraft-admin` with `vue-oidc`, and its
+API introspects each bearer token in-process: live, issued to that client, and naming an account
+in `OIDCRAFT_ADMINS`. That allowlist is the decision FR-M1 leaves to the host.
 
 `src/op` is the provider's wiring — configuration, seed data, upstreams — and renders nothing.
 

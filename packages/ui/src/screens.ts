@@ -19,6 +19,11 @@ export type ScreenUrls = {
   deviceDecide: string
 }
 
+/** The interaction as the provider describes it, plus the client's display name when the host has it. */
+export type ScreenView = InteractionRequest & { clientName?: string | undefined }
+
+const nameOf = (view: ScreenView) => view.clientName ?? view.clientId
+
 export type ScreensOptions = { brand: Brand; theme?: Theme | undefined; urls?: Partial<ScreenUrls> }
 
 /** Codes come from `oidcraft/interaction`; the wording is this screen's, and its locale's (FR-I6). */
@@ -56,14 +61,14 @@ export const createScreens = ({ brand, theme, urls: overrides }: ScreensOptions)
      * `required` and `maxlength` are the browser's copy of the rules the POST re-checks with
      * `oauthFieldError`. Both are needed: the attribute is absent the moment someone posts without a browser.
      */
-    login: (view: InteractionRequest, attempt?: LoginAttempt, upstreams: { id: string; label: string }[] = [], status?: number) =>
+    login: (view: ScreenView, attempt?: LoginAttempt, upstreams: { id: string; label: string }[] = [], status?: number) =>
       page(
         'Sign in',
         LoginScreen,
         {
           action: urls.interaction(view.id, 'login'),
           upstreamAction: urls.interaction(view.id, 'upstream'),
-          clientName: view.clientId,
+          clientName: nameOf(view),
           username: attempt?.username ?? view.loginHint ?? '',
           maxLength: DEFAULT_MAX_LENGTH,
           errors: { username: message('username', attempt?.errors.username), password: message('password', attempt?.errors.password) },
@@ -72,16 +77,16 @@ export const createScreens = ({ brand, theme, urls: overrides }: ScreensOptions)
         status
       ),
 
-    otp: (view: InteractionRequest, error?: string, status?: number) =>
+    otp: (view: ScreenView, error?: string, status?: number) =>
       page('Enter your code', TotpScreen, { action: urls.interaction(view.id, 'otp'), brandName: brand.name, error }, status),
 
-    selectAccount: (view: InteractionRequest, accounts: { accountId: string; label: string }[]) =>
-      page('Choose an account', SelectAccountScreen, { action: urls.interaction(view.id, 'login'), clientName: view.clientId, accounts }),
+    selectAccount: (view: ScreenView, accounts: { accountId: string; label: string }[]) =>
+      page('Choose an account', SelectAccountScreen, { action: urls.interaction(view.id, 'login'), clientName: nameOf(view), accounts }),
 
-    consent: (view: InteractionRequest) =>
+    consent: (view: ScreenView) =>
       page('Allow access', ConsentScreen, {
         action: urls.interaction(view.id, 'consent'),
-        title: `Allow ${view.clientId} to use your account?`,
+        title: `Allow ${nameOf(view)} to use your account?`,
         intro: `It is asking to:`,
         scopes: view.scopes.map(describe),
         details: (view.authorizationDetails ?? []).map(detail => JSON.stringify(detail, null, 2))

@@ -11,7 +11,7 @@ const firstButton = (html: string) => html.match(/<button[^>]*>/)?.[0] ?? ''
 /** What `conformance/plan.json` drives these screens by. Renaming any of it breaks the CI gate (NFR-C1). */
 describe('the conformance browser contract', () => {
   test('login has fields u and p, and its first submit button signs in', async () => {
-    const html = await (await screens.login(view, undefined, [{ id: 'google', label: 'Google' }])).text()
+    const html = await (await screens.login(view, { upstreams: [{ id: 'google', label: 'Google' }], forgot: true, register: true })).text()
     expect(html).toContain('id="u"')
     expect(html).toContain('id="p"')
     expect(html).toContain('Sign in')
@@ -44,7 +44,9 @@ test('the device confirmation carries the code it is answering', async () => {
 })
 
 test('a rejected login keeps what was typed and says what is wrong', async () => {
-  const html = await (await screens.login(view, { username: 'ada', errors: { username: undefined, password: 'required' } }, [], 400)).text()
+  const html = await (
+    await screens.login(view, { attempt: { username: 'ada', errors: { username: undefined, password: 'required' } }, status: 400 })
+  ).text()
   expect(html).toContain('value="ada"')
   expect(html).toContain('Enter your password')
   expect(html).toContain('aria-invalid="true"')
@@ -63,4 +65,14 @@ test('every form posts where it is told to', async () => {
     urls: { interaction: (id, action) => `/t/acme/i/${id}/${action}` }
   })
   expect(await (await prefixed.login(view)).text()).toContain('action="/t/acme/i/i1/login"')
+})
+
+test('the second step and sign-up post where they should, with the fields password managers look for', async () => {
+  const otp = await (await screens.otp(view)).text()
+  expect(otp).toContain('action="/interaction/i1/otp"')
+  expect(otp).toContain('autocomplete="one-time-code"')
+  expect(await (await screens.otp(view, { recovery: true })).text()).toContain('href="/interaction/i1/otp"')
+  const register = await (await screens.register(view)).text()
+  expect(register).toContain('autocomplete="new-password"')
+  expect(firstButton(register)).toContain('type="submit"')
 })

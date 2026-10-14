@@ -2,9 +2,10 @@
 import { ASSETS, assets } from '@oidcraft/ui'
 import { serve } from 'bun'
 import { bunContext } from 'oidcraft/runtimes/bun'
+import { accountApi } from './src/account/api'
 import { adminApi } from './src/admin/api'
 import { federationCallback } from './src/interaction/federation'
-import { deviceRoutes, interactionRoutes } from './src/interaction/routes'
+import { deviceRoutes, interactionRoutes, resetRoutes } from './src/interaction/routes'
 import { screens } from './src/interaction/screens'
 import { optional } from './src/op/env'
 import { provider } from './src/op/provider'
@@ -16,6 +17,7 @@ const key = optional('SERVER_TLS_KEY')
 
 // A route, not a file read: only the bundler substitutes the script and style tags.
 const admin = (await import('./src/admin/index.html')).default
+const account = (await import('./src/account/index.html')).default
 
 // Bun.serve takes the core's handler directly: on this runtime there is no bridge, only the context
 // provider for what Request does not carry (ARCHITECTURE.md §3.1).
@@ -28,7 +30,11 @@ const server = serve({
       adminApi(provider, request, new URL(request.url)).then(response => response ?? new Response(null, { status: 404 })),
     [ASSETS]: assets,
     '/admin': admin,
-    '/admin/*': admin
+    '/admin/*': admin,
+    '/account/api/*': request =>
+      accountApi(request, new URL(request.url)).then(response => response ?? new Response(null, { status: 404 })),
+    '/account': account,
+    '/account/*': account
   },
   async fetch(request, server) {
     const url = new URL(request.url)
@@ -37,6 +43,7 @@ const server = serve({
       const response = await interactionRoutes(request, url)
       if (response) return response
     }
+    if (url.pathname === '/reset') return resetRoutes(request, url)
     if (url.pathname === '/federation/callback') {
       const response = await federationCallback(request, url)
       if (response) return response
@@ -58,4 +65,5 @@ console.log(`op on http://localhost:${server.port}`)
 console.log(`  discovery  http://localhost:${server.port}/.well-known/openid-configuration`)
 console.log(`  jwks       http://localhost:${server.port}/jwks`)
 console.log(`  admin      http://localhost:${server.port}/admin`)
+console.log(`  account    http://localhost:${server.port}/account`)
 console.log(`  device     http://localhost:${server.port}/device`)

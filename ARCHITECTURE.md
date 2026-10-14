@@ -459,9 +459,22 @@ dialog are `@oidcraft/ui`'s `UiDataTable` and `UiDialog`, which wrap `@vuetify/v
 Tailwind still does the styling. v0 is behaviour that runs in the browser, so the script-free
 interaction screens never use it.
 
-**The admin app is a client of this OP.** It signs in as `oidcraft-admin` with `vue-oidc`, and its
-API introspects each bearer token in-process: live, issued to that client, and naming an account
-in `OIDCRAFT_ADMINS`. That allowlist is the decision FR-M1 leaves to the host.
+**The admin and account apps are clients of this OP.** Each signs in with `vue-oidc` as its own
+public client (`oidcraft-admin`, `oidcraft-account`), and each API introspects the bearer token
+in-process as the resource server `oidcraft-api`: live, and issued to that app's client. The admin
+API also requires an account in `OIDCRAFT_ADMINS`, the decision FR-M1 leaves to the host; the
+account API acts only on the token's own subject, so no path carries an account id to swap. The
+interaction routes answer consent for these first-party clients themselves.
+
+**Sign-in is `oidcraft/accounts` (FR-I7).** A correct password for an account with TOTP sets a
+signed, five-minute cookie bound to the interaction, and only the code step that reads it can
+finish that sign-in. `acr` is `mfa` after a second factor and `pwd` otherwise, with RFC 8176 `amr`
+values. `prompt=select_account` lists the accounts this browser signed in with, from another
+signed cookie, and picking one only fills in the password form. A reset link is printed to the
+console where a deployment would email it.
+
+`bundles.test.ts` bundles both browser apps the way `Bun.serve` does on first request: a syntax only
+the type checker accepts, such as a generic arrow function in an SFC, otherwise fails first in a browser.
 
 `src/op` is the provider's wiring — configuration, seed data, upstreams — and renders nothing.
 

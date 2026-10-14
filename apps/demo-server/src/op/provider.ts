@@ -1,9 +1,10 @@
 /// <reference types="bun" />
 
 import { createProvider, staticKeyStore } from 'oidcraft'
-import { seedAdminClients } from './admin'
+import { accountStore, createDemoAccounts, seedDemoAccounts } from './accounts'
 import { issuer, optional } from './env'
-import { demoAccounts, seedConformanceClients, seedDemoClient } from './seed'
+import { seedFirstPartyClients } from './first-party'
+import { seedConformanceClients, seedDemoClient } from './seed'
 import { openStorage } from './storage'
 import { upstreams } from './upstreams'
 
@@ -21,17 +22,18 @@ const keys = () => {
   return staticKeyStore(JSON.parse(raw))
 }
 
-const adapter = await openStorage({
-  accounts: demoAccounts(() => adapter.identities),
-  federation: upstreams.length > 0,
-  keys: keys()
-})
+const storage = await openStorage({ federation: upstreams.length > 0, keys: keys() })
+
+export const accounts = createDemoAccounts(storage, optional('OIDCRAFT_BRAND_NAME') ?? 'oidcraft')
+await seedDemoAccounts(accounts, storage)
+
+const adapter = { ...storage, accounts: accountStore(storage, accounts) }
 
 // Expired rows are never served (FR-T5); sweeping them only reclaims the space, in bounded batches (NFR-P3).
 setInterval(() => void adapter.artifacts.prune?.(new Date(), 1000), 10 * 60_000).unref()
 
 await seedDemoClient(adapter)
-await seedAdminClients(adapter, issuer())
+await seedFirstPartyClients(adapter, issuer())
 await seedConformanceClients(adapter)
 
 export const provider = createProvider({

@@ -22,8 +22,8 @@ import { UiAlert, UiButton, UiDataTable, UiDialog, UiSection } from '@oidcraft/u
 import { onMounted, shallowRef } from 'vue'
 import { type AdminClient, failureMessage, useAdminApi } from './client'
 
-/** The admin app's own clients: deleting either would lock every operator out. */
-const PROTECTED = ['oidcraft-admin', 'oidcraft-admin-api']
+/** The first-party apps' clients: deleting one locks everyone out of that app. */
+const PROTECTED = ['oidcraft-admin', 'oidcraft-account', 'oidcraft-api']
 
 const columns = [
   { id: 'clientId', title: 'Client ID', sortable: true, filterable: true },

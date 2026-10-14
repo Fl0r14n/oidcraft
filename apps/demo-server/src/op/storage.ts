@@ -3,7 +3,7 @@ import { Database } from 'bun:sqlite'
 import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { drizzle } from 'drizzle-orm/bun-sqlite'
-import { type AccountStore, type Adapter, generatedKeyStore, type KeyStore } from 'oidcraft'
+import { type Adapter, generatedKeyStore, type KeyStore } from 'oidcraft'
 import { type DrizzleDatabase, drizzleAdapter, SQLITE_MIGRATIONS } from 'oidcraft/adapters/drizzle'
 import { memoryAdapter } from 'oidcraft/adapters/memory'
 import { withDefault } from './env'
@@ -29,12 +29,12 @@ const migrate = (sqlite: Database) => {
   }
 }
 
-type StorageOptions = { accounts: AccountStore; federation: boolean; keys: KeyStore | undefined }
+type StorageOptions = { federation: boolean; keys: KeyStore | undefined }
 
 /** OIDCRAFT_DB names a SQLite file; `memory` keeps nothing, which is what a conformance run wants. */
-export const openStorage = async ({ accounts, federation, keys }: StorageOptions): Promise<Adapter> => {
+export const openStorage = async ({ federation, keys }: StorageOptions): Promise<Adapter> => {
   const location = withDefault('OIDCRAFT_DB', 'data/oidcraft.sqlite')
-  if (location === 'memory') return memoryAdapter({ accounts, federation, ...(keys && { keys }) })
+  if (location === 'memory') return memoryAdapter({ federation, ...(keys && { keys }) })
 
   mkdirSync(dirname(location), { recursive: true })
   const sqlite = new Database(location, { create: true })
@@ -43,7 +43,6 @@ export const openStorage = async ({ accounts, federation, keys }: StorageOptions
   console.log(`[oidcraft] storing in ${location}`)
   return drizzleAdapter({
     db: drizzle(sqlite) as unknown as DrizzleDatabase,
-    accounts,
     federation,
     keys: keys ?? (await generatedKeyStore())
   })

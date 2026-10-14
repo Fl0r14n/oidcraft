@@ -1,51 +1,6 @@
 /// <reference types="bun" />
-import type { AccountStore, Adapter, FederatedIdentityStore } from 'oidcraft'
+import type { Adapter } from 'oidcraft'
 import { optional, withDefault } from './env'
-
-const PROFILE = ['name', 'given_name', 'family_name', 'preferred_username', 'picture', 'locale']
-
-/**
- * Demo only: any account name works and the claims are synthetic (FR-I7 — a deployment brings
- * its own `AccountStore`). An account created by brokering reports what its upstream said instead, which is the
- * mapped claims linking recorded (FR-F7). Read lazily, because the store exists before the adapter.
- */
-export const demoAccounts = (identities: () => FederatedIdentityStore | undefined): AccountStore => ({
-  async find(accountId) {
-    return { accountId, claims: {} }
-  },
-  async claims(accountId, scopes) {
-    const [linked] = (await identities()?.listForAccount(accountId)) ?? []
-    if (linked) {
-      const claims = linked.claims
-      return Object.fromEntries(
-        Object.entries(claims).filter(
-          ([name]) =>
-            (scopes.includes('profile') && PROFILE.includes(name)) ||
-            (scopes.includes('email') && ['email', 'email_verified'].includes(name))
-        )
-      )
-    }
-    return {
-      ...(scopes.includes('profile') && {
-        name: accountId,
-        given_name: accountId,
-        middle_name: 'Q',
-        family_name: 'Demo',
-        nickname: accountId,
-        preferred_username: accountId,
-        profile: `https://example.invalid/${accountId}`,
-        picture: `https://example.invalid/${accountId}.png`,
-        website: 'https://example.invalid',
-        gender: 'unspecified',
-        birthdate: '0000-01-01',
-        zoneinfo: 'Europe/London',
-        locale: 'en',
-        updated_at: Math.floor(Date.now() / 1000)
-      }),
-      ...(scopes.includes('email') && { email: `${accountId}@example.invalid`, email_verified: false })
-    }
-  }
-})
 
 /** The demo relying party in apps/demo-vue. A real deployment registers clients through the admin API. */
 export const seedDemoClient = async (adapter: Adapter) => {

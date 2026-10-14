@@ -5,37 +5,25 @@
     <UiButton class="w-full" @click="signIn">Sign in</UiButton>
   </UiCard>
 
-  <div v-else class="min-h-dvh bg-paper font-sans text-ink antialiased">
-    <header class="relative overflow-hidden border-b border-rule bg-sheet">
-      <div class="guilloche absolute inset-0" aria-hidden="true" />
-      <div class="relative mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-6 py-5">
-        <div>
-          <p class="text-[0.9375rem] font-semibold tracking-tight">oidcraft admin</p>
-          <p class="text-sm text-muted">{{ issuer }}</p>
-        </div>
-        <div class="ml-auto flex items-center gap-4">
-          <span class="text-sm text-muted">Signed in as <strong class="font-semibold text-ink">{{ user?.name || user?.sub }}</strong></span>
-          <UiButton variant="secondary" @click="signOut">Sign out</UiButton>
-        </div>
+  <UiShell v-else title="oidcraft admin" :subtitle="issuer">
+    <template #actions>
+      <span class="text-sm text-muted">Signed in as <strong class="font-semibold text-ink">{{ user?.name || user?.sub }}</strong></span>
+      <UiButton variant="secondary" @click="signOut">Sign out</UiButton>
+    </template>
+    <UiAlert v-if="error">{{ error }}</UiAlert>
+    <template v-else>
+      <ClientsPanel />
+      <AccountPanel />
+      <div class="grid gap-12 lg:grid-cols-2">
+        <KeysPanel />
+        <UpstreamsPanel />
       </div>
-    </header>
-
-    <main class="mx-auto max-w-6xl space-y-12 px-6 py-10">
-      <UiAlert v-if="error">{{ error }}</UiAlert>
-      <template v-else>
-        <ClientsPanel />
-        <AccountPanel />
-        <div class="grid gap-12 lg:grid-cols-2">
-          <KeysPanel />
-          <UpstreamsPanel />
-        </div>
-      </template>
-    </main>
-  </div>
+    </template>
+  </UiShell>
 </template>
 
 <script setup lang="ts">
-import { UiAlert, UiButton, UiCard } from '@oidcraft/ui/components'
+import { UiAlert, UiButton, UiCard, UiShell } from '@oidcraft/ui/components'
 import { onMounted, shallowRef } from 'vue'
 import { useOAuth, useOAuthUser } from 'vue-oidc'
 import AccountPanel from './AccountPanel.vue'

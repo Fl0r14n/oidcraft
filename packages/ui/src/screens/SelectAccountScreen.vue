@@ -17,17 +17,14 @@
         </li>
       </ul>
     </form>
-    <form method="post" :action="action" class="space-y-5">
-      <UiField id="u" name="username" label="Use another account" autocomplete="username" required />
-      <UiButton type="submit" variant="secondary" class="w-full">Continue</UiButton>
-    </form>
+    <p class="text-sm"><UiLink :href="loginUrl">Use another account</UiLink></p>
   </UiCard>
 </template>
 
 <script setup lang="ts">
 import UiButton from '../UiButton.vue'
 import UiCard from '../UiCard.vue'
-import UiField from '../UiField.vue'
+import UiLink from '../UiLink.vue'
 
-defineProps<{ action: string; clientName: string; accounts: { accountId: string; label: string }[] }>()
+defineProps<{ action: string; loginUrl: string; clientName: string; accounts: { accountId: string; label: string }[] }>()
 </script>

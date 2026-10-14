@@ -5,7 +5,7 @@ This file is working state: tick items off and add notes as work lands.
 
 ## Status
 
-**Every `FR-*` on the plan is implemented except FR-A6 and FR-I7, recorded 2026-10-14.** 918 tests, and `bun run verify` is the gate.
+**Every `FR-*` on the plan is implemented except FR-A6, recorded 2026-10-14.** 919 tests, and `bun run verify` is the gate.
 
 The authorization code grant with mandatory PKCE, interaction suspend/resume, token issuance with
 rotation and replay revocation, UserInfo, revocation, introspection, logout in both directions,
@@ -145,8 +145,11 @@ waits on `oidcraft/accounts` (FR-I7).
       runs with `OIDCRAFT_DB=memory`. The adapters now ship their SQLite schema as `SQLITE_MIGRATIONS`
       (FR-A4 said they did; they did not), and the CI conformance build now includes `vue-oidc`, which
       the admin bundle needs at startup
-- [ ] `/account`: self-service as another client of the OP — TOTP enrolment with a QR code
-- [ ] A TOTP step after the password, recording `amr: ['pwd', 'otp']` and a stronger `acr` (FR-C16)
+- [x] `/account`: self-service as another client of the OP — TOTP enrolment with a QR code, recovery
+      codes, password change
+- [x] A TOTP step after the password, recording `amr: ['pwd', 'otp', 'mfa']` and `acr: mfa` (FR-C16); sign-up,
+      forgotten password and reset screens
+- [ ] The device flow still approves as a made-up `ada` session; it should require a signed-in account
 
 ## `FR-*` coverage
 

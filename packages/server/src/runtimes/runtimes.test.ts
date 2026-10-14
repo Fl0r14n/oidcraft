@@ -108,3 +108,19 @@ describe('every runtime', () => {
     expect(workerdContext('https://op.example.com')(hostile).issuer).toBe('https://op.example.com')
   })
 })
+
+// FR-I7: both write PHC argon2id strings, so a deployment can move between Bun and Node without
+// resetting every password.
+describe('password hashers', () => {
+  test('each verifies its own hash and the other’s, and refuses a wrong password', async () => {
+    const { bunPasswordHasher } = await import('./bun')
+    const { nodePasswordHasher } = await import('./node')
+    const fromBun = await bunPasswordHasher.hash('correct horse')
+    const fromNode = await nodePasswordHasher.hash('correct horse')
+    expect(fromNode).toStartWith('$argon2id$v=19$')
+    expect(await nodePasswordHasher.verify('correct horse', fromBun)).toBe(true)
+    expect(await bunPasswordHasher.verify('correct horse', fromNode)).toBe(true)
+    expect(await nodePasswordHasher.verify('wrong horse', fromNode)).toBe(false)
+    expect(await nodePasswordHasher.verify('correct horse', 'not a hash')).toBe(false)
+  })
+})

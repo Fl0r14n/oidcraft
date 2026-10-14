@@ -59,19 +59,10 @@ export const memoryKv = (): KvStore & { size: () => number } => {
   }
 }
 
-const rejectingAccounts: AccountStore = {
-  async find() {
-    return undefined
-  },
-  async claims() {
-    return undefined
-  }
-}
-
 export const memoryAdapter = async (options: MemoryAdapterOptions = {}): Promise<Adapter> => {
   const from: FromKvOptions = {
     keys: options.keys ?? (await generatedKeyStore()),
-    accounts: options.accounts ?? rejectingAccounts,
+    ...(options.accounts && { accounts: options.accounts }),
     ...(options.federation !== undefined && { federation: options.federation })
   }
   return fromKv(memoryKv(), from)

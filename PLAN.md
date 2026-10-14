@@ -5,7 +5,7 @@ This file is working state: tick items off and add notes as work lands.
 
 ## Status
 
-**Every `FR-*` on the plan is implemented except FR-A6 and FR-I7, recorded 2026-10-14.** 893 tests, and `bun run verify` is the gate.
+**Every `FR-*` on the plan is implemented except FR-A6 and FR-I7, recorded 2026-10-14.** 918 tests, and `bun run verify` is the gate.
 
 The authorization code grant with mandatory PKCE, interaction suspend/resume, token issuance with
 rotation and replay revocation, UserInfo, revocation, introspection, logout in both directions,
@@ -118,9 +118,10 @@ here, or under any load.
 - [x] First manual publish: `oidcraft@0.0.1` claimed the name — the similarity check cleared
 - [ ] `npm trust github` registration, so releases publish from CI (ARCHITECTURE.md §11)
 - [ ] Docs site — **after** the review and the conformance run; requirements below
-- [ ] `oidcraft/accounts` (FR-I7): argon2id and TOTP behind `AccountStore`. Undecided: where argon2
-      comes from portably (`Bun.password`, Node's `crypto.argon2` and workerd differ — FR-R1), and
-      whether enrolment, recovery codes and password reset are in scope
+- [x] `oidcraft/accounts` (FR-I7): passwords through an injected argon2id hasher (`bunPasswordHasher`,
+      `nodePasswordHasher`, interoperable PHC strings), TOTP with sealed secrets, recovery codes,
+      throttling, reset tokens and sign-up, over a new `credentials` store in every adapter and SQLite
+      migration `0002`. The demo's screens for it are next
 - [ ] `oidcraft/adapters/typeorm` (FR-A6) on the shared conformance suite, with migrations (FR-A4)
 
 ## Demo server

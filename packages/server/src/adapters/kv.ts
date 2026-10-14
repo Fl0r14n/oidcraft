@@ -3,6 +3,7 @@ import type {
   Adapter,
   ArtifactStore,
   ClientStore,
+  CredentialStore,
   EntityStore,
   FederatedIdentityStore,
   GrantStore,
@@ -10,7 +11,7 @@ import type {
   ReplayGuard,
   SessionStore
 } from '../adapter'
-import type { Artifact, FederatedIdentity, Grant, Seconds, Session } from '../types'
+import type { Artifact, Credential, FederatedIdentity, Grant, Seconds, Session } from '../types'
 
 export type KvEntry = { key: string; value: string; ttl?: Seconds }
 
@@ -28,9 +29,19 @@ export type KvStore = EntityStore<KvEntry, [key: string]> & {
 
 export type FromKvOptions = {
   keys: KeyStore
-  accounts: AccountStore
+  /** Omitted, every account lookup misses: the host composes one in later, as `oidcraft/accounts` does. */
+  accounts?: AccountStore
   /** Without one, `identities` is absent and a brokering deployment will not start (FR-F5). */
   federation?: boolean
+}
+
+const noAccounts: AccountStore = {
+  async find() {
+    return undefined
+  },
+  async claims() {
+    return undefined
+  }
 }
 
 const enc = (value: unknown) => JSON.stringify(value)
@@ -217,12 +228,55 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): Adapter => {
     }
   }
 
+  const credentialKey = (accountId: string) => `credential/${accountId}`
+  const usernameKey = (username: string) => `username/${username}`
+  const reviveCredential = (credential: Credential) => {
+    revive(credential, ['createdAt', 'updatedAt', 'lockedUntil'])
+    if (credential.totp) revive(credential.totp, ['confirmedAt'])
+    return credential
+  }
+  const readCredential = async (accountId: string) => {
+    const credential = dec<Credential>(await read(credentialKey(accountId)))
+    return credential ? reviveCredential(credential) : undefined
+  }
+
+  // The username index is claimed with `insert`, so uniqueness rests on the same atomic write as single use.
+  const credentials: CredentialStore = {
+    find: readCredential,
+    async findByUsername(username) {
+      const accountId = await read(usernameKey(username))
+      return accountId ? readCredential(accountId) : undefined
+    },
+    async create(credential) {
+      if (!(await kv.insert({ key: usernameKey(credential.username), value: credential.accountId }))) return false
+      if (await kv.insert({ key: credentialKey(credential.accountId), value: enc(credential) })) return true
+      await kv.destroy(usernameKey(credential.username))
+      return false
+    },
+    async upsert(credential) {
+      const existing = await readCredential(credential.accountId)
+      if (existing && existing.username !== credential.username) {
+        if (!(await kv.insert({ key: usernameKey(credential.username), value: credential.accountId }))) {
+          throw new Error(`the username ${credential.username} is taken`)
+        }
+        await kv.destroy(usernameKey(existing.username))
+      }
+      await kv.upsert({ key: credentialKey(credential.accountId), value: enc(credential) })
+    },
+    async destroy(accountId) {
+      const existing = await readCredential(accountId)
+      if (existing) await kv.destroy(usernameKey(existing.username))
+      await kv.destroy(credentialKey(accountId))
+    }
+  }
+
   return {
     clients,
     artifacts,
     sessions,
     grants,
-    accounts: options.accounts,
+    accounts: options.accounts ?? noAccounts,
+    credentials,
     keys: options.keys,
     replay,
     ...(options.federation !== false && { identities })

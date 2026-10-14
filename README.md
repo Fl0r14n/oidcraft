@@ -3,12 +3,13 @@
 An OpenID Provider library for TypeScript. RFC-compliant core, runtime-portable, pluggable
 storage, and identity brokering as a first-class mode rather than an application concern.
 
-One package, eleven entries:
+One package, twelve entries:
 
 ```
 oidcraft                     the OP — one fetch handler, no I/O, no node:*
 oidcraft/federation          the relying-party leg: brokering to upstream OPs
 oidcraft/interaction         login / consent policy
+oidcraft/accounts            local accounts: argon2id passwords, TOTP, recovery codes, reset
 oidcraft/runtimes/node       node:http bridge + request context
 oidcraft/runtimes/bun        request context for Bun.serve
 oidcraft/runtimes/deno       request context for Deno.serve

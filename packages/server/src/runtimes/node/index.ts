@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto'
+import { argon2, createHash, randomBytes, timingSafeEqual } from 'node:crypto'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { Readable } from 'node:stream'
 import type { ClientCertificate, RequestContext } from 'oidcraft'
@@ -92,5 +92,37 @@ export const toNodeHandler = (
   return async (incoming, outgoing) => {
     const response = await handle(toRequest(incoming, issuer), context(incoming))
     await sendResponse(response, outgoing)
+  }
+}
+
+/** RFC 9106 §4's second recommended setting: 64 MiB, three passes, four lanes. */
+const ARGON2 = { memory: 65536, passes: 3, parallelism: 4, tagLength: 32 }
+
+const derive = (password: string, nonce: Buffer, params: typeof ARGON2) =>
+  new Promise<Buffer>((resolve, reject) => {
+    argon2('argon2id', { message: password, nonce, ...params }, (error, key) => (error ? reject(error) : resolve(key)))
+  })
+
+const PHC = /^\$argon2id\$v=19\$m=(\d+),t=(\d+),p=(\d+)\$([A-Za-z0-9+/]+)\$([A-Za-z0-9+/]+)$/
+
+/**
+ * argon2id through `node:crypto` (Node ≥ 24.7), for `oidcraft/accounts` (FR-I7). PHC strings, so the
+ * hashes the Bun entry's hasher writes verify here and the other way round.
+ */
+export const nodePasswordHasher = {
+  async hash(password: string) {
+    const nonce = randomBytes(16)
+    const key = await derive(password, nonce, ARGON2)
+    const b64 = (buffer: Buffer) => buffer.toString('base64').replace(/=+$/, '')
+    return `$argon2id$v=19$m=${ARGON2.memory},t=${ARGON2.passes},p=${ARGON2.parallelism}$${b64(nonce)}$${b64(key)}`
+  },
+  async verify(password: string, hash: string) {
+    const match = PHC.exec(hash)
+    if (!match) return false
+    const [, memory, passes, parallelism, nonce, expected] = match as unknown as string[]
+    const target = Buffer.from(expected as string, 'base64')
+    const params = { memory: Number(memory), passes: Number(passes), parallelism: Number(parallelism), tagLength: target.length }
+    const key = await derive(password, Buffer.from(nonce as string, 'base64'), params)
+    return key.length === target.length && timingSafeEqual(key, target)
   }
 }

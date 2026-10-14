@@ -246,4 +246,52 @@ export const adapterConformance = (name: string, create: () => Promise<Adapter>)
     await adapter.identities.destroy('google', 'g-1')
     expect(await adapter.identities.find('google', 'g-1')).toBeUndefined()
   })
+
+  const credential = (accountId: string, username: string) => ({
+    accountId,
+    username,
+    passwordHash: '$argon2id$stub',
+    claims: { name: 'Ada' },
+    failedAttempts: 0,
+    createdAt: new Date(1_000),
+    updatedAt: new Date(2_000)
+  })
+
+  // FR-I7: a username belongs to one account, even when two sign-ups race for it.
+  test(`${name}: a credential is created once per account and per username, atomically`, async () => {
+    const adapter = await create()
+    if (!adapter.credentials) return
+    const results = await Promise.all(Array.from({ length: 8 }, (_, i) => adapter.credentials?.create(credential(`a${i}`, 'ada'))))
+    expect(results.filter(Boolean)).toHaveLength(1)
+    const winner = (await adapter.credentials.findByUsername('ada'))?.accountId as string
+    expect(await adapter.credentials.create(credential(winner, 'grace'))).toBe(false)
+    expect(await adapter.credentials.findByUsername('grace')).toBeUndefined()
+  })
+
+  test(`${name}: a credential round-trips, by account and by username`, async () => {
+    const adapter = await create()
+    if (!adapter.credentials) return
+    expect(await adapter.credentials.create(credential('a1', 'ada'))).toBe(true)
+    const totp = { secret: 'v1.iv.ct', confirmedAt: new Date(3_000) }
+    await adapter.credentials.upsert({
+      ...credential('a1', 'ada'),
+      totp,
+      recoveryCodes: ['h1', 'h2'],
+      failedAttempts: 2,
+      lockedUntil: new Date(4_000)
+    })
+    const found = await adapter.credentials.findByUsername('ada')
+    expect(found).toEqual({
+      ...credential('a1', 'ada'),
+      totp,
+      recoveryCodes: ['h1', 'h2'],
+      failedAttempts: 2,
+      lockedUntil: new Date(4_000)
+    })
+    expect((await adapter.credentials.find('a1'))?.username).toBe('ada')
+    await adapter.credentials.destroy('a1')
+    expect(await adapter.credentials.find('a1')).toBeUndefined()
+    expect(await adapter.credentials.findByUsername('ada')).toBeUndefined()
+    expect(await adapter.credentials.create(credential('a2', 'ada'))).toBe(true)
+  })
 }

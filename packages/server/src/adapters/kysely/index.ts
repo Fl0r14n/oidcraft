@@ -1,11 +1,23 @@
 import type { Kysely, Selectable } from 'kysely'
-import type { AccountStore, Adapter, Artifact, ArtifactKind, Client, FederatedIdentity, Grant, KeyStore, Session } from 'oidcraft'
-import type { ArtifactsTable, GrantsTable, IdentitiesTable, OidcraftDatabase, SessionsTable } from './schema'
+import type {
+  AccountStore,
+  Adapter,
+  Artifact,
+  ArtifactKind,
+  Client,
+  Credential,
+  FederatedIdentity,
+  Grant,
+  KeyStore,
+  Session
+} from 'oidcraft'
+import type { ArtifactsTable, CredentialsTable, GrantsTable, IdentitiesTable, OidcraftDatabase, SessionsTable } from './schema'
 
 export type KyselyAdapterOptions = {
   db: Kysely<OidcraftDatabase>
   keys: KeyStore
-  accounts: AccountStore
+  /** Omitted, every account lookup misses: the host composes one in later, as `oidcraft/accounts` does. */
+  accounts?: AccountStore
   federation?: boolean
 }
 
@@ -45,6 +57,44 @@ const toGrant = (row: Selectable<GrantsTable>): Grant => ({
   resources: parse<Record<string, string[]>>(row.resources),
   createdAt: new Date(row.created_at),
   ...(row.expires_at && { expiresAt: new Date(row.expires_at) })
+})
+
+const noAccounts: AccountStore = {
+  async find() {
+    return undefined
+  },
+  async claims() {
+    return undefined
+  }
+}
+
+const credentialRow = (credential: Credential) => ({
+  account_id: credential.accountId,
+  username: credential.username,
+  password_hash: credential.passwordHash,
+  claims: json(credential.claims),
+  totp_secret: credential.totp?.secret ?? null,
+  totp_confirmed_at: credential.totp?.confirmedAt?.getTime() ?? null,
+  recovery_codes: credential.recoveryCodes ? json(credential.recoveryCodes) : null,
+  failed_attempts: credential.failedAttempts,
+  locked_until: credential.lockedUntil?.getTime() ?? null,
+  created_at: credential.createdAt.getTime(),
+  updated_at: credential.updatedAt.getTime()
+})
+
+const toCredential = (row: Selectable<CredentialsTable>): Credential => ({
+  accountId: row.account_id,
+  username: row.username,
+  passwordHash: row.password_hash,
+  claims: parse<Record<string, unknown>>(row.claims),
+  ...(row.totp_secret && {
+    totp: { secret: row.totp_secret, ...(row.totp_confirmed_at && { confirmedAt: new Date(row.totp_confirmed_at) }) }
+  }),
+  ...(row.recovery_codes ? { recoveryCodes: parse<string[]>(row.recovery_codes) } : {}),
+  failedAttempts: row.failed_attempts,
+  ...(row.locked_until && { lockedUntil: new Date(row.locked_until) }),
+  createdAt: new Date(row.created_at),
+  updatedAt: new Date(row.updated_at)
 })
 
 const toIdentity = (row: Selectable<IdentitiesTable>): FederatedIdentity => ({
@@ -277,7 +327,39 @@ export const kyselyAdapter = (options: KyselyAdapterOptions): Adapter => {
       }
     },
 
-    accounts: options.accounts,
+    accounts: options.accounts ?? noAccounts,
+
+    credentials: {
+      async find(accountId: string) {
+        const row = await db.selectFrom('oidc_credentials').selectAll().where('account_id', '=', accountId).executeTakeFirst()
+        return row ? toCredential(row) : undefined
+      },
+      async findByUsername(username: string) {
+        const row = await db.selectFrom('oidc_credentials').selectAll().where('username', '=', username).executeTakeFirst()
+        return row ? toCredential(row) : undefined
+      },
+      // Both the key and the username are unique, and DO NOTHING without a target covers either.
+      async create(credential: Credential) {
+        const won = await db
+          .insertInto('oidc_credentials')
+          .values(credentialRow(credential))
+          .onConflict(conflict => conflict.doNothing())
+          .returning('account_id')
+          .executeTakeFirst()
+        return won !== undefined
+      },
+      async upsert(credential: Credential) {
+        const row = credentialRow(credential)
+        await db
+          .insertInto('oidc_credentials')
+          .values(row)
+          .onConflict(conflict => conflict.column('account_id').doUpdateSet(row))
+          .execute()
+      },
+      async destroy(accountId: string) {
+        await db.deleteFrom('oidc_credentials').where('account_id', '=', accountId).execute()
+      }
+    },
     keys: options.keys,
 
     replay: {

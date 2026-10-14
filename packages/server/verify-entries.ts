@@ -9,6 +9,7 @@ const ENTRIES = {
   index: { owns: [] as string[], runtime: undefined },
   federation: { owns: [] as string[], runtime: undefined },
   interaction: { owns: [], runtime: undefined },
+  accounts: { owns: [], runtime: undefined },
   'runtimes/node': { owns: [], runtime: 'node' },
   'runtimes/bun': { owns: [], runtime: 'bun' },
   'runtimes/deno': { owns: [], runtime: 'deno' },

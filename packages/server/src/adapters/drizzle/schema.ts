@@ -98,4 +98,22 @@ export const replay = sqliteTable(
   table => [primaryKey({ columns: [table.namespace, table.value] }), index('oidc_replay_expiry_idx').on(table.expiresAt)]
 )
 
-export const schema = { clients, artifacts, sessions, grants, identities, replay }
+export const credentials = sqliteTable(
+  'oidc_credentials',
+  {
+    accountId: text('account_id').primaryKey(),
+    username: text('username').notNull(),
+    passwordHash: text('password_hash').notNull(),
+    claims: text('claims', { mode: 'json' }).notNull(),
+    totpSecret: text('totp_secret'),
+    totpConfirmedAt: integer('totp_confirmed_at', { mode: 'timestamp_ms' }),
+    recoveryCodes: text('recovery_codes', { mode: 'json' }),
+    failedAttempts: integer('failed_attempts').notNull().default(0),
+    lockedUntil: integer('locked_until', { mode: 'timestamp_ms' }),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull()
+  },
+  table => [uniqueIndex('oidc_credentials_username_idx').on(table.username)]
+)
+
+export const schema = { clients, artifacts, sessions, grants, identities, replay, credentials }

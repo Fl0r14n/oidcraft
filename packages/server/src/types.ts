@@ -106,6 +106,7 @@ export type ArtifactKind =
   | 'dpop_nonce'
   | 'authorization_response'
   | 'user_code_attempts'
+  | 'password_reset'
 
 export type Artifact = {
   id: string
@@ -119,6 +120,24 @@ export type Artifact = {
 }
 
 /** An account's link to an upstream provider — the brokering key (FR-F5). */
+/**
+ * What `oidcraft/accounts` keeps per local account (FR-I7). Every secret here is either a one-way hash
+ * or, for the TOTP secret the server must read back, ciphertext bound to `accountId`.
+ */
+export type Credential = {
+  accountId: string
+  /** Normalized, and unique across the store. */
+  username: string
+  passwordHash: string
+  claims: Record<string, unknown>
+  totp?: { secret: string; confirmedAt?: Date }
+  recoveryCodes?: string[]
+  failedAttempts: number
+  lockedUntil?: Date
+  createdAt: Date
+  updatedAt: Date
+}
+
 export type FederatedIdentity = {
   accountId: string
   provider: string

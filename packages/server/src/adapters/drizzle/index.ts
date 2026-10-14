@@ -1,14 +1,26 @@
 import { and, eq, gt, isNull, lte } from 'drizzle-orm'
 import type { BaseSQLiteDatabase } from 'drizzle-orm/sqlite-core'
-import type { AccountStore, Adapter, Artifact, ArtifactKind, Client, FederatedIdentity, Grant, KeyStore, Session } from 'oidcraft'
-import { artifacts, clients, grants, identities, replay, sessions } from './schema'
+import type {
+  AccountStore,
+  Adapter,
+  Artifact,
+  ArtifactKind,
+  Client,
+  Credential,
+  FederatedIdentity,
+  Grant,
+  KeyStore,
+  Session
+} from 'oidcraft'
+import { artifacts, clients, credentials, grants, identities, replay, sessions } from './schema'
 
 export type DrizzleDatabase = BaseSQLiteDatabase<'sync' | 'async', unknown, Record<string, never>>
 
 export type DrizzleAdapterOptions = {
   db: DrizzleDatabase
   keys: KeyStore
-  accounts: AccountStore
+  /** Omitted, every account lookup misses: the host composes one in later, as `oidcraft/accounts` does. */
+  accounts?: AccountStore
   federation?: boolean
 }
 
@@ -237,7 +249,7 @@ export const drizzleAdapter = (options: DrizzleAdapterOptions): Adapter => {
       }
     },
 
-    accounts: options.accounts,
+    accounts: options.accounts ?? noAccounts,
     keys: options.keys,
 
     replay: {
@@ -250,6 +262,33 @@ export const drizzleAdapter = (options: DrizzleAdapterOptions): Adapter => {
           .onConflictDoUpdate({ target: [replay.namespace, replay.value], set: { expiresAt }, setWhere: lte(replay.expiresAt, now()) })
           .returning({ value: replay.value })
         return won.length === 1
+      }
+    },
+
+    credentials: {
+      async find(accountId: string) {
+        const [row] = await db.select().from(credentials).where(eq(credentials.accountId, accountId)).limit(1)
+        return row ? toCredential(row) : undefined
+      },
+      async findByUsername(username: string) {
+        const [row] = await db.select().from(credentials).where(eq(credentials.username, username)).limit(1)
+        return row ? toCredential(row) : undefined
+      },
+      // Both the key and the username are unique, and DO NOTHING without a target covers either.
+      async create(credential: Credential) {
+        const won = await db
+          .insert(credentials)
+          .values(credentialRow(credential))
+          .onConflictDoNothing()
+          .returning({ id: credentials.accountId })
+        return won.length === 1
+      },
+      async upsert(credential: Credential) {
+        const row = credentialRow(credential)
+        await db.insert(credentials).values(row).onConflictDoUpdate({ target: credentials.accountId, set: row })
+      },
+      async destroy(accountId: string) {
+        await db.delete(credentials).where(eq(credentials.accountId, accountId))
       }
     },
 
@@ -287,6 +326,42 @@ export const drizzleAdapter = (options: DrizzleAdapterOptions): Adapter => {
     })
   }
 }
+
+const noAccounts: AccountStore = {
+  async find() {
+    return undefined
+  },
+  async claims() {
+    return undefined
+  }
+}
+
+const credentialRow = (credential: Credential) => ({
+  accountId: credential.accountId,
+  username: credential.username,
+  passwordHash: credential.passwordHash,
+  claims: credential.claims,
+  totpSecret: credential.totp?.secret ?? null,
+  totpConfirmedAt: credential.totp?.confirmedAt ?? null,
+  recoveryCodes: credential.recoveryCodes ?? null,
+  failedAttempts: credential.failedAttempts,
+  lockedUntil: credential.lockedUntil ?? null,
+  createdAt: credential.createdAt,
+  updatedAt: credential.updatedAt
+})
+
+const toCredential = (row: typeof credentials.$inferSelect): Credential => ({
+  accountId: row.accountId,
+  username: row.username,
+  passwordHash: row.passwordHash,
+  claims: row.claims as Record<string, unknown>,
+  ...(row.totpSecret && { totp: { secret: row.totpSecret, ...(row.totpConfirmedAt && { confirmedAt: row.totpConfirmedAt }) } }),
+  ...(row.recoveryCodes ? { recoveryCodes: row.recoveryCodes as string[] } : {}),
+  failedAttempts: row.failedAttempts,
+  ...(row.lockedUntil && { lockedUntil: row.lockedUntil }),
+  createdAt: row.createdAt,
+  updatedAt: row.updatedAt
+})
 
 const toIdentity = (row: typeof identities.$inferSelect): FederatedIdentity => ({
   accountId: row.accountId,

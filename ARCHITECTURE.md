@@ -66,10 +66,11 @@ packages/client/            client runtime.     private, the bindings only
 packages/ui/                screens + design.   private, consumed from source by apps/demo-server (§8.1)
 packages/vue/               vue-oidc
 packages/react/             react-oauth-oidc
-packages/server/            one published package, eleven entries — publishes as `oidcraft`
+packages/server/            one published package, twelve entries — publishes as `oidcraft`
   src/index.ts              .                     the OP. fetch in, fetch out, no I/O
   src/federation/           ./federation          the relying-party leg — upstream brokering
   src/interaction/          ./interaction         login/consent policy types
+  src/accounts/             ./accounts            local accounts: passwords, TOTP, recovery codes, reset (FR-I7)
   src/runtimes/node/        ./runtimes/node       node:http bridge + request context
   src/runtimes/bun/         ./runtimes/bun        request context for Bun.serve
   src/runtimes/deno/        ./runtimes/deno       request context for Deno.serve
@@ -79,7 +80,7 @@ packages/server/            one published package, eleven entries — publishes 
   src/adapters/kysely/      ./adapters/kysely     Postgres, SQLite, MySQL
   src/adapters/redis/       ./adapters/redis      any Redis client, through one command function
 apps/
-  server                    the reference OP: mounts the core, the login screens and the admin UI
+  demo-server               the reference OP: mounts the core, the login screens and the admin UI
   demo-vue                  demo relying party: Vue 3 + vue-oidc
   demo-react                demo relying party: React 19 + react-oauth-oidc, with SSR
   demo-angular              demo relying party: Angular 22 + ngx-oauth. Outside the workspace (§8.4)
@@ -398,6 +399,26 @@ request against it, free to demand another interaction (FR-I2).
 This is `oidc-provider`'s model, and it is the right one: it keeps HTML out of the protocol core
 and lets a host replace the screens entirely. The difference is that oidcraft ships the screens
 (FR-I3) and the consent-memory model (FR-I4) instead of leaving both as an exercise.
+
+### 6.1 Local accounts
+
+`oidcraft/accounts` (FR-I7) is a set of functions, not a screen or a route: the interaction app
+calls `authenticate`, then `verifySecondFactor` when the result says one is enrolled, and only then
+completes the interaction. It is composed in after the adapter exists —
+`createProvider({ adapter: { ...adapter, accounts: accounts.store } })` — which is why every adapter
+now takes `accounts` as optional.
+
+It stores through the adapter's `credentials` store and borrows two guarantees that already exist
+rather than adding new ones: a TOTP step and a recovery code are made single-use by `ReplayGuard`
+(namespaces `totp` and `recovery`), and a reset token by the `password_reset` artifact's atomic
+`consume`. A username is unique through `CredentialStore.create`, which is atomic in every adapter
+for the same reason `insert` is. The failed-attempt counter is a plain read-modify-write: two
+racing failures can count as one, which loosens the lockout by one attempt and nothing more.
+
+Hashing is injected. The entry ships no hasher of its own, because the fast ones are runtime
+globals: `bunPasswordHasher` lives in `./runtimes/bun` and `nodePasswordHasher` in
+`./runtimes/node`, both writing PHC argon2id strings the other verifies. A Deno or workerd host
+passes its own.
 
 ## 7. Administration
 

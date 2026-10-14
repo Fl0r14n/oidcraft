@@ -266,9 +266,21 @@ honoured, including the error responses when `none` cannot be satisfied.
 **FR-I6** — `ui_locales` selects the screen language; the reference screens ship English and are
 structured for translation.
 
-**FR-I7** — An optional `oidcraft/accounts` entry implements `AccountStore` over the `Adapter`:
-argon2id password hashing and TOTP as a second factor. It is a subpath entry like any other, so a
-host that brings its own `AccountStore` pulls none of it, and nothing in the core assumes it.
+**FR-I7** — An optional `oidcraft/accounts` entry implements `AccountStore` over the `Adapter`'s
+`credentials` store. It is a subpath entry like any other, so a host that brings its own
+`AccountStore` pulls none of it, and nothing in the core assumes it. It covers:
+
+- **Passwords**, hashed with argon2id by a `PasswordHasher` the host passes in. The library ships
+  one per runtime that has a native argon2 (`./runtimes/bun`, `./runtimes/node`) and none of its own,
+  so no runtime's global leaks into the entry. An unknown username costs the same hash as a known one.
+- **TOTP** (RFC 6238) as a second factor: begin, confirm with a first code, verify, remove. A code is
+  accepted once (NFR-S5). The secret is stored encrypted with AES-GCM under a key the host
+  configures, bound to its account, so a database dump alone yields no second factor.
+- **Recovery codes**, issued when TOTP is confirmed, stored hashed and each usable once.
+- **Throttling**: failed passwords and codes lock the account for a while (NFR-S3).
+- **Password reset**: single-use tokens with a short lifetime, stored hashed. Delivering one is I/O,
+  so the host sends it (FR-A1). Completing a reset ends the account's sessions.
+- **Self-service sign-up**, which the host may leave unmounted.
 
 ## 8. Administration — `FR-M*`
 

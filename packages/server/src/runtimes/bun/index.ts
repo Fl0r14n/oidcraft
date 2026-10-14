@@ -15,3 +15,9 @@ export const bunContext =
     issuer,
     clientIp: server.requestIP(request)?.address
   })
+
+/** argon2id through `Bun.password`, for `oidcraft/accounts` (FR-I7). PHC strings, so a Node host can verify them too. */
+export const bunPasswordHasher = {
+  hash: (password: string) => Bun.password.hash(password, { algorithm: 'argon2id', memoryCost: 65536, timeCost: 3 }),
+  verify: (password: string, hash: string) => Bun.password.verify(password, hash)
+}

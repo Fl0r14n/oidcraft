@@ -40,6 +40,10 @@
       "types": "./dist/federation.d.mts",
       "import": "./dist/federation.mjs"
     },
+    "./accounts": {
+      "types": "./dist/accounts.d.mts",
+      "import": "./dist/accounts.mjs"
+    },
     "./interaction": {
       "types": "./dist/interaction.d.mts",
       "import": "./dist/interaction.mjs"

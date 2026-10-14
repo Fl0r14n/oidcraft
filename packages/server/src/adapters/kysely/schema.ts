@@ -60,6 +60,20 @@ export type ReplayTable = {
   expires_at: Millis
 }
 
+export type CredentialsTable = {
+  account_id: string
+  username: string
+  password_hash: string
+  claims: string
+  totp_secret: string | null
+  totp_confirmed_at: Millis | null
+  recovery_codes: string | null
+  failed_attempts: number
+  locked_until: Millis | null
+  created_at: Millis
+  updated_at: Millis
+}
+
 export type OidcraftDatabase = {
   oidc_clients: ClientsTable
   oidc_artifacts: ArtifactsTable
@@ -67,6 +81,7 @@ export type OidcraftDatabase = {
   oidc_grants: GrantsTable
   oidc_identities: IdentitiesTable
   oidc_replay: ReplayTable
+  oidc_credentials: CredentialsTable
 }
 
 export type { Generated }

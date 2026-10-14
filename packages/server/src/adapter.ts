@@ -1,4 +1,4 @@
-import type { Account, Artifact, ArtifactKind, Client, FederatedIdentity, Grant, Seconds, Session } from './types'
+import type { Account, Artifact, ArtifactKind, Client, Credential, FederatedIdentity, Grant, Seconds, Session } from './types'
 
 /**
  * Storage is a set of narrow capability stores, not one stringly-typed table (ARCHITECTURE.md §4).
@@ -13,6 +13,8 @@ export type Adapter = {
   keys: KeyStore
   replay: ReplayGuard
   identities?: FederatedIdentityStore
+  /** Only `oidcraft/accounts` reads this; a host with its own `AccountStore` never needs it (FR-I7). */
+  credentials?: CredentialStore
 }
 
 /**
@@ -82,4 +84,10 @@ export type ReplayGuard = {
 
 export type FederatedIdentityStore = EntityStore<FederatedIdentity, [provider: string, subject: string]> & {
   listForAccount(accountId: string): Promise<FederatedIdentity[]>
+}
+
+export type CredentialStore = EntityStore<Credential> & {
+  findByUsername(username: string): Promise<Credential | undefined>
+  /** Writes only when neither the account nor the username exists, atomically: two sign-ups racing for one name must not both win. */
+  create(credential: Credential): Promise<boolean>
 }

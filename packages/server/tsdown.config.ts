@@ -29,6 +29,14 @@ export default defineConfig([
     clean: false
   },
   {
+    entry: { accounts: 'src/accounts/index.ts' },
+    outDir: 'dist',
+    format: 'esm',
+    deps: { neverBundle: external },
+    dts: true,
+    clean: false
+  },
+  {
     entry: { interaction: 'src/interaction/index.ts' },
     outDir: 'dist',
     format: 'esm',

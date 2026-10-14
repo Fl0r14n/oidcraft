@@ -3,6 +3,7 @@ export type {
   Adapter,
   ArtifactStore,
   ClientStore,
+  CredentialStore,
   FederatedIdentityStore,
   GrantStore,
   KeyStore,
@@ -34,5 +35,16 @@ export { authenticationOf, meetsRequirement, type StepUpRequirement, type StepUp
 export type { FrontChannelLogout, LogoutNotification } from './session/logout'
 export { resolveAccessToken } from './token/access-token'
 export type { ExchangeDecision, ExchangePolicy } from './token/exchange'
-export type { Account, Artifact, ArtifactKind, Client, ClientAuthMethod, FederatedIdentity, Grant, Seconds, Session } from './types'
+export type {
+  Account,
+  Artifact,
+  ArtifactKind,
+  Client,
+  ClientAuthMethod,
+  Credential,
+  FederatedIdentity,
+  Grant,
+  Seconds,
+  Session
+} from './types'
 export { ACR_PREFIX, type SelectionHints, selectUpstream, type UpstreamDescriptor } from './upstreams/selection'

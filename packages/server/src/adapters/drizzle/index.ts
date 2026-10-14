@@ -297,5 +297,6 @@ const toIdentity = (row: typeof identities.$inferSelect): FederatedIdentity => (
   linkedAt: row.linkedAt
 })
 
+export { type Migration, SQLITE_MIGRATIONS } from '../sql/sqlite'
 export * from './schema'
 export { schema } from './schema'

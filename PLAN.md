@@ -140,7 +140,10 @@ waits on `oidcraft/accounts` (FR-I7).
       as "no authorizePath". It now rethrows that one and still survives outages. The three demos allow
       plain http against a loopback issuer only; demo-vue had also been building against a stale npm
       `vue-oidc@5.3.0` in its own `node_modules`, shadowing the workspace link
-- [ ] SQLite through the Drizzle adapter, so an enrolment survives a restart; conformance stays on memory
+- [x] SQLite through the Drizzle adapter (`OIDCRAFT_DB`), so an enrolment survives a restart; conformance
+      runs with `OIDCRAFT_DB=memory`. The adapters now ship their SQLite schema as `SQLITE_MIGRATIONS`
+      (FR-A4 said they did; they did not), and the CI conformance build now includes `vue-oidc`, which
+      the admin bundle needs at startup
 - [ ] `/account`: self-service as another client of the OP — TOTP enrolment with a QR code
 - [ ] A TOTP step after the password, recording `amr: ['pwd', 'otp']` and a stronger `acr` (FR-C16)
 

@@ -40,11 +40,11 @@ OIDCRAFT_ISSUER=https://localhost:3001
 OIDCRAFT_CONFORMANCE_SUITE=https://localhost.emobix.co.uk:8443   # seeds plan.json's three clients
 SERVER_TLS_CERT=../../conformance/tls/cert.pem
 SERVER_TLS_KEY=../../conformance/tls/key.pem
+OIDCRAFT_DB=memory                                               # every run starts empty
 ```
 
 ```sh
-bun run --filter=oidcraft build
-bun run dev:server
+bun run dev:server        # builds what the server runs from, then starts it
 CONFORMANCE_SUITE_DIR=<the suite checkout> bun run conformance
 ```
 

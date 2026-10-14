@@ -311,6 +311,12 @@ An adapter ships migrations the host runs. The library never creates or alters a
 a library that migrates a production database on import is a library that migrates it during a
 rolling deploy, from several processes at once.
 
+For SQLite that is `SQLITE_MIGRATIONS`, exported from both `./adapters/drizzle` and
+`./adapters/kysely` because they query the same tables: ordered `{ id, statements }` records, data
+rather than a runner, so the host applies them with whatever tool it already uses. Both adapters'
+tests build their database from it, so the shipped schema is the tested one. `apps/demo-server`
+applies it at boot, which is safe there only because it is one process.
+
 ## 5. Federation
 
 ### 5.1 Two things named federation

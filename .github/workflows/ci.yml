@@ -53,6 +53,8 @@ jobs:
       OIDCRAFT_CONFORMANCE_SUITE: https://localhost.emobix.co.uk:8443
       SERVER_TLS_CERT: ../../conformance/tls/cert.pem
       SERVER_TLS_KEY: ../../conformance/tls/key.pem
+      # Every run starts from nothing, so a module never sees state another one left behind.
+      OIDCRAFT_DB: memory
     steps:
       - uses: actions/checkout@v6
       - uses: oven-sh/setup-bun@v2
@@ -60,7 +62,8 @@ jobs:
           bun-version: latest
       - run: bun install --frozen-lockfile
       # apps/demo-server runs oidcraft from its build, so the suite tests exactly what was just built.
-      - run: bun run --filter=@oidcraft/core --filter=oidcraft build
+      # The admin app is bundled at startup, so its vue-oidc has to be built too.
+      - run: bun run --filter=@oidcraft/core --filter=@oidcraft/client --filter=oidcraft --filter=vue-oidc build
       - run: pipx install uv
       - run: git clone --quiet --depth 1 --branch "$SUITE_VERSION" https://gitlab.com/openid/conformance-suite.git "$SUITE_DIR"
       - name: certificate for the https issuer

@@ -14,3 +14,4 @@ coverage/
 # conformance suite exports
 conformance/results/
 conformance/tls/
+apps/demo-server/data/

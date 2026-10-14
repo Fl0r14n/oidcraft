@@ -1,10 +1,10 @@
 /// <reference types="bun" />
 
 import { createProvider, staticKeyStore } from 'oidcraft'
-import { memoryAdapter } from 'oidcraft/adapters/memory'
 import { seedAdminClients } from './admin'
 import { issuer, optional } from './env'
 import { demoAccounts, seedConformanceClients, seedDemoClient } from './seed'
+import { openStorage } from './storage'
 import { upstreams } from './upstreams'
 
 /**
@@ -21,12 +21,14 @@ const keys = () => {
   return staticKeyStore(JSON.parse(raw))
 }
 
-const keyStore = keys()
-const adapter = await memoryAdapter({
+const adapter = await openStorage({
   accounts: demoAccounts(() => adapter.identities),
   federation: upstreams.length > 0,
-  ...(keyStore && { keys: keyStore })
+  keys: keys()
 })
+
+// Expired rows are never served (FR-T5); sweeping them only reclaims the space, in bounded batches (NFR-P3).
+setInterval(() => void adapter.artifacts.prune?.(new Date(), 1000), 10 * 60_000).unref()
 
 await seedDemoClient(adapter)
 await seedAdminClients(adapter, issuer())

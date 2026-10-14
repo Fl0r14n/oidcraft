@@ -333,5 +333,6 @@ export const kyselyAdapter = (options: KyselyAdapterOptions): Adapter => {
   }
 }
 
+export { type Migration, SQLITE_MIGRATIONS } from '../sql/sqlite'
 export type { OidcraftDatabase } from './schema'
 export * from './schema'

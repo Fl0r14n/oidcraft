@@ -54,7 +54,7 @@ here, or under any load.
       (FR-C2, FR-T3, FR-T4)
 - [x] Client authentication: `none`, `client_secret_basic`, `client_secret_post` (FR-C4)
 - [x] UserInfo (FR-C5); `iss` in the authorization response (FR-C14)
-- [x] `apps/server` serves a real OP with reference login and consent screens
+- [x] `apps/demo-server` serves a real OP with reference login and consent screens
 
 ## M2 — storage and conformance
 
@@ -166,7 +166,7 @@ In fix order; the first is the only one that changes the adapter contract.
 - [x] `authorization_details` issued without consent, and absent from `InteractionRequest` (FR-C15)
 - [x] DPoP nonce can be minted by the client: `claim` stores the unknown value it refuses (RFC 9449 §8)
 - [x] Client assertion lifetime measured from the client's `iat`; jti remembered for 300 s only (FR-C4, NFR-S5)
-- [x] Federation handoff not bound to the browser — login CSRF (FR-F3). `apps/server` now brokers
+- [x] Federation handoff not bound to the browser — login CSRF (FR-F3). `apps/demo-server` now brokers
       to Google when `UPSTREAM_GOOGLE_*` is set, so the round trip and its cookie run for real
 - [x] workerd hands over an empty certificate DER; every thumbprint is the same (FR-C13).
       Fixed: `ClientCertificate` carries the `x5t#S256` thumbprint, not the DER. Workers never see
@@ -409,7 +409,7 @@ with no second island in a published package. The rejected alternatives were a n
 install building only `./component`, and moving the whole package out of the workspace; both put a
 published entry outside the gate that checks everything else.
 
-`oauthForm()` drives the resource-owner password grant, which OAuth 2.1 removed — so `apps/server`
+`oauthForm()` drives the resource-owner password grant, which OAuth 2.1 removed — so `apps/demo-server`
 does not advertise it and `apps/demo-angular` cannot demonstrate it. It is there for the IdPs that
 still accept it, which is what v8's component was for too.
 

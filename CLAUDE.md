@@ -72,7 +72,7 @@ bun run typecheck        # bun check, or vue-tsgo where there are SFCs
 bun run test
 bun run lint             # biome check .
 bun run format           # biome check --write .
-bun run conformance      # OpenID Foundation suite against apps/server
+bun run conformance      # OpenID Foundation suite against apps/demo-server
 ```
 
 ## Gotchas
@@ -125,5 +125,5 @@ bun run conformance      # OpenID Foundation suite against apps/server
   `oauthFieldError` a browser binding does, and `oidcraft/interaction` re-exports them for a host
   replacing those screens. `@oidcraft/client` holds only the stateful controller. A binding is a
   reactive wrapper over one `view` and nothing more; do not re-explode it into a property per field.
-- **Components: Tailwind everywhere; `@vuetify/v0` in `apps/server/src/admin` only.** The login and
+- **Components: Tailwind everywhere; `@vuetify/v0` in `apps/demo-server/src/admin` only.** The login and
   consent screens stay dependency-free on purpose (ARCHITECTURE.md §8.1).

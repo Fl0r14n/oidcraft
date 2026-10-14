@@ -21,7 +21,7 @@
       "path": "./packages/angular"
     },
     {
-      "path": "./apps/server"
+      "path": "./apps/demo-server"
     },
     {
       "path": "./apps/demo-vue"

@@ -32,7 +32,7 @@ mkdir -p conformance/tls && openssl req -x509 -newkey rsa:2048 -nodes -days 30 -
   -addext subjectAltName=DNS:localhost,IP:127.0.0.1 -keyout conformance/tls/key.pem -out conformance/tls/cert.pem
 ```
 
-Then, from this repository — `apps/server` runs `oidcraft` from its build, so build after any change
+Then, from this repository — `apps/demo-server` runs `oidcraft` from its build, so build after any change
 to the core, or the suite tests the previous one — with these in `.env`:
 
 ```sh
@@ -55,7 +55,7 @@ Exports land in `conformance/results/`.
 ## What is under test
 
 `plan.json` configures `oidcc-basic-certification-test-plan` (discovery, static clients) and
-`oidcc-config-certification-test-plan` against `apps/server`. The issuer is configuration and is
+`oidcc-config-certification-test-plan` against `apps/demo-server`. The issuer is configuration and is
 never derived from a header (NFR-S6), so `OIDCRAFT_ISSUER` must be the URL the suite actually uses.
 
 ## Refused on purpose

@@ -59,7 +59,7 @@ jobs:
         with:
           bun-version: latest
       - run: bun install --frozen-lockfile
-      # apps/server runs oidcraft from its build, so the suite tests exactly what was just built.
+      # apps/demo-server runs oidcraft from its build, so the suite tests exactly what was just built.
       - run: bun run --filter=@oidcraft/core --filter=oidcraft build
       - run: pipx install uv
       - run: git clone --quiet --depth 1 --branch "$SUITE_VERSION" https://gitlab.com/openid/conformance-suite.git "$SUITE_DIR"
@@ -72,7 +72,7 @@ jobs:
       - name: start the suite
         run: IMAGE_TAG="$SUITE_VERSION" docker compose -f "$SUITE_DIR/docker-compose-prebuilt.yml" -f conformance/compose.override.yml up -d
       - name: start the OP
-        working-directory: apps/server
+        working-directory: apps/demo-server
         run: nohup bun index.ts > "$RUNNER_TEMP/op.log" 2>&1 &
       - name: wait for both
         run: |

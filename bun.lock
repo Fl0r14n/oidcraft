@@ -39,13 +39,15 @@
         "typescript": "latest",
       },
     },
-    "apps/demo-vue": {
-      "name": "@oidcraft/demo-vue",
+    "apps/demo-server": {
+      "name": "@oidcraft/demo-server",
       "version": "0.0.0",
       "dependencies": {
-        "pinia": "^4.0.3",
+        "@vuetify/v0": "^1.2.3",
+        "drizzle-orm": "^0.45.4",
+        "oidcraft": "workspace:*",
+        "pg": "^8.23.1",
         "vue": "^3.5.43",
-        "vue-oidc": "workspace:*",
         "vue-router": "^5.4.0",
       },
       "devDependencies": {
@@ -55,15 +57,13 @@
         "vue-tsgo": "^0.3.0",
       },
     },
-    "apps/server": {
-      "name": "@oidcraft/server-app",
+    "apps/demo-vue": {
+      "name": "@oidcraft/demo-vue",
       "version": "0.0.0",
       "dependencies": {
-        "@vuetify/v0": "^1.2.3",
-        "drizzle-orm": "^0.45.4",
-        "oidcraft": "workspace:*",
-        "pg": "^8.23.1",
+        "pinia": "^4.0.3",
         "vue": "^3.5.43",
+        "vue-oidc": "workspace:*",
         "vue-router": "^5.4.0",
       },
       "devDependencies": {
@@ -330,9 +330,9 @@
 
     "@oidcraft/demo-react": ["@oidcraft/demo-react@workspace:apps/demo-react"],
 
-    "@oidcraft/demo-vue": ["@oidcraft/demo-vue@workspace:apps/demo-vue"],
+    "@oidcraft/demo-server": ["@oidcraft/demo-server@workspace:apps/demo-server"],
 
-    "@oidcraft/server-app": ["@oidcraft/server-app@workspace:apps/server"],
+    "@oidcraft/demo-vue": ["@oidcraft/demo-vue@workspace:apps/demo-vue"],
 
     "@oven/bun-darwin-aarch64": ["@oven/bun-darwin-aarch64@1.4.3", "", { "os": "darwin", "cpu": "arm64" }, "sha512-u2wAM9RzqyF4baO5oFVhcFUVWO1CCMLG6yC5/aPWCYGZPfL5ULMbeHt+0/3I0h3yaPx1m+PKSANO/61jPtDZcQ=="],
 

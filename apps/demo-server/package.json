@@ -1,5 +1,5 @@
 {
-  "name": "@oidcraft/server-app",
+  "name": "@oidcraft/demo-server",
   "version": "0.0.0",
   "private": true,
   "type": "module",

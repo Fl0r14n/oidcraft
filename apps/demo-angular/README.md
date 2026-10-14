@@ -1,6 +1,6 @@
 # @oidcraft/demo-angular
 
-The Angular relying party, against the provider in `apps/server`.
+The Angular relying party, against the provider in `apps/demo-server`.
 
 **This app is a toolchain island, on purpose.** `@angular/compiler-cli` requires
 `typescript >=6.0 <6.1` and the rest of this workspace is on 7, so it carries its own nested
@@ -9,7 +9,7 @@ instead of Bun or tsdown. Nothing else here needs any of that — `packages/angu
 tsdown on TypeScript 7, because it contains no decorators (PLAN.md).
 
 ```sh
-bun run --filter=@oidcraft/server-app dev    # the provider, on :3001
+bun run --filter=@oidcraft/demo-server dev    # the provider, on :3001
 bun run --filter=@oidcraft/demo-angular dev  # this app, on :3003
 bun run build:angular                        # the AOT build, from the repository root
 ```

@@ -401,7 +401,7 @@ Writes emit audit events the host routes somewhere; the library persists none of
 
 ## 8. Apps
 
-### 8.1 `apps/server` — the reference OP
+### 8.1 `apps/demo-server` — the reference OP
 
 One `Bun.serve` process mounting the core's fetch handler, the reference interaction screens and the
 admin UI. It is the deployment the conformance suite runs against (NFR-C1), which is the reason it

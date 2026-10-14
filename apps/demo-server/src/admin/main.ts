@@ -1,4 +1,4 @@
-import '../ui/styles.css'
+import './styles.css'
 import { createApp } from 'vue'
 import App from './App.vue'
 

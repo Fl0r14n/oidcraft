@@ -63,6 +63,7 @@ keeps `tsc` from TypeScript 6, which its compiler needs (§8.4).
 ```
 packages/core/              the protocol.       private, compiled into its consumers (§2.1)
 packages/client/            client runtime.     private, the bindings only
+packages/ui/                screens + design.   private, consumed from source by apps/demo-server (§8.1)
 packages/vue/               vue-oidc
 packages/react/             react-oauth-oidc
 packages/server/            one published package, eleven entries — publishes as `oidcraft`
@@ -407,19 +408,28 @@ One `Bun.serve` process mounting the core's fetch handler, the reference interac
 admin UI. It is the deployment the conformance suite runs against (NFR-C1), which is the reason it
 exists: a reference that is never executed is a reference that is wrong.
 
-**One component set, rendered two ways.** `src/ui` holds Vue components styled with Tailwind, and
-both surfaces build on them. This is the demo's choice, not the library's: `oidcraft/interaction`
-ships rules and no markup, so no consumer inherits a UI dependency from here (FR-I3).
+**One component set, rendered two ways.** `packages/ui` (`@oidcraft/ui`) holds the design, the
+Vue components and the interaction screens, and both surfaces build on it. It is private and has
+no build: the app imports its source. `oidcraft/interaction` ships rules and no markup, so no
+consumer of the library inherits a UI dependency from it (FR-I3).
 
-The **interaction screens** (`src/interaction`) are rendered on the server with `renderToString`
-and ship no script: each is a form that posts. The conformance suite drives them with a browser
-that runs little JavaScript, and `screens.test.ts` pins the ids and texts its plan clicks on
-(NFR-C1). There is no HTML entrypoint for Bun to bundle their styles from, so `src/ui/assets.ts`
-builds the stylesheet once at startup.
+**The design is a handful of CSS variables** (`--oc-accent`, `--oc-accent-ink`, `--oc-radius`,
+`--oc-font`) that Tailwind's theme reads. `createScreens({ brand, theme, urls })` takes them per
+issuer, along with the brand's name and host and where each form posts, so nothing about one
+deployment is baked into the build — the one thing several issuers in a process would need of the
+screens (G-6). A theme value that could close its `<style>` element is dropped. The typeface is
+served from the OP's own origin: a sign-in page that loads fonts from a third party tells it who
+signed in where.
 
-The **admin UI** (`src/admin`) is a client-rendered app and also uses `@vuetify/v0` for what is
-expensive to hand-roll accessibly: `createDataTable` and `Dialog`. It is headless, so Tailwind
-still does all the styling.
+The **interaction screens** are rendered on the server with `renderToString` and ship no script:
+each is a form that posts. The conformance suite drives them with a browser that runs little
+JavaScript, and `packages/ui/src/screens.test.ts` pins the ids and texts its plan clicks on
+(NFR-C1). There is no HTML entrypoint for Bun to bundle their styles from, so `assets.ts` builds
+the stylesheet once at startup and serves it with the font under `/assets/*`.
+
+The **admin UI** (`src/admin`) is a client-rendered app on the same components, and also uses
+`@vuetify/v0` for what is expensive to hand-roll accessibly: `createDataTable` and `Dialog`. It is
+headless, so Tailwind still does all the styling.
 
 `src/op` is the provider's wiring — configuration, seed data, upstreams — and renders nothing.
 

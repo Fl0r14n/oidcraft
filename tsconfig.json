@@ -21,6 +21,9 @@
       "path": "./packages/angular"
     },
     {
+      "path": "./packages/ui"
+    },
+    {
       "path": "./apps/demo-server"
     },
     {

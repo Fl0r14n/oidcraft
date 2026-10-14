@@ -5,7 +5,7 @@ This file is working state: tick items off and add notes as work lands.
 
 ## Status
 
-**Every `FR-*` on the plan is implemented except FR-A6 and FR-I7, recorded 2026-10-14.** 891 tests, and `bun run verify` is the gate.
+**Every `FR-*` on the plan is implemented except FR-A6 and FR-I7, recorded 2026-10-14.** 893 tests, and `bun run verify` is the gate.
 
 The authorization code grant with mandatory PKCE, interaction suspend/resume, token issuance with
 rotation and replay revocation, UserInfo, revocation, introspection, logout in both directions,
@@ -130,6 +130,9 @@ waits on `oidcraft/accounts` (FR-I7).
 
 - [x] Renamed from `apps/server`; screens are server-rendered Vue on a shared `src/ui`, the admin
       app uses the same components, and `screens.test.ts` pins the conformance browser's contract
+- [x] `packages/ui`, private: the design (CSS variables, Public Sans served from the OP's origin, a
+      guilloche band), the components and the screens, built per issuer by `createScreens` with its
+      brand, theme and form URLs; a TOTP screen ready for FR-I7
 - [ ] Admin signs in through the OP itself with `vue-oidc`, replacing `OIDCRAFT_ADMIN_TOKEN`; the API
       checks the access token and an allowlist this app owns (FR-M1)
 - [ ] SQLite through the Drizzle adapter, so an enrolment survives a restart; conformance stays on memory

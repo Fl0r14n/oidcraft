@@ -6,8 +6,8 @@
 </template>
 
 <script setup lang="ts">
-import UiAlert from '../../ui/UiAlert.vue'
-import UiCard from '../../ui/UiCard.vue'
+import UiAlert from '../UiAlert.vue'
+import UiCard from '../UiCard.vue'
 
 defineProps<{ title: string; text: string; error?: string | undefined }>()
 </script>

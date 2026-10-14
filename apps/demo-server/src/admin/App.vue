@@ -60,9 +60,8 @@
 </template>
 
 <script setup lang="ts">
+import { UiAlert, UiInput } from '@oidcraft/ui/components'
 import { onMounted, shallowRef } from 'vue'
-import UiAlert from '../ui/UiAlert.vue'
-import UiInput from '../ui/UiInput.vue'
 import AccountPanel from './AccountPanel.vue'
 import ClientsTable from './ClientsTable.vue'
 import type { AdminClient } from './client'

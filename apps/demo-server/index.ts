@@ -1,13 +1,13 @@
 /// <reference types="bun" />
+import { ASSETS, assets } from '@oidcraft/ui'
 import { serve } from 'bun'
 import { bunContext } from 'oidcraft/runtimes/bun'
 import { adminApi } from './src/admin/api'
 import { federationCallback } from './src/interaction/federation'
 import { deviceRoutes, interactionRoutes } from './src/interaction/routes'
-import { errorScreen } from './src/interaction/screens'
+import { screens } from './src/interaction/screens'
 import { optional } from './src/op/env'
 import { provider } from './src/op/provider'
-import { STYLESHEET, stylesheet } from './src/ui/assets'
 
 const port = Number(Bun.env.SERVER_PORT ?? 3001)
 // Discovery 1.0 §3 and RFC 8414 §2 require an https issuer even on loopback.
@@ -26,7 +26,7 @@ const server = serve({
     // More specific than '/admin/*', so the API is not swallowed by the SPA shell.
     '/admin/api/*': request =>
       adminApi(provider, request, new URL(request.url)).then(response => response ?? new Response(null, { status: 404 })),
-    [STYLESHEET]: stylesheet,
+    [ASSETS]: assets,
     '/admin': admin,
     '/admin/*': admin
   },
@@ -48,7 +48,7 @@ const server = serve({
     const response = await provider.handle(request, context)
     if (url.pathname === '/authorize' && response.status >= 400 && response.headers.get('content-type')?.includes('json')) {
       const { error, error_description } = await response.json()
-      return errorScreen(error, error_description, response.status)
+      return screens.error(error, error_description, response.status)
     }
     return response
   }

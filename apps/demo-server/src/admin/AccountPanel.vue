@@ -45,10 +45,8 @@
 </template>
 
 <script setup lang="ts">
+import { UiAlert, UiButton, UiInput } from '@oidcraft/ui/components'
 import { shallowRef } from 'vue'
-import UiAlert from '../ui/UiAlert.vue'
-import UiButton from '../ui/UiButton.vue'
-import UiInput from '../ui/UiInput.vue'
 import { AdminError, api } from './client'
 
 const props = defineProps<{ token: string }>()

@@ -1,0 +1,55 @@
+@source "./";
+
+/*
+ * The design is a handful of variables. A host re-themes by setting --oc-accent, --oc-radius and
+ * --oc-font per request (render.ts); the surfaces follow the reader's colour scheme.
+ */
+:root {
+  --oc-accent: #1f6f5c;
+  --oc-accent-ink: #ffffff;
+  --oc-radius: 14px;
+  --oc-font: "Public Sans Variable", system-ui, sans-serif;
+  --oc-paper: #e9eeec;
+  --oc-sheet: #fbfcfb;
+  --oc-ink: #172533;
+  --oc-muted: #586874;
+  --oc-rule: #d2dbd7;
+  --oc-danger: #b42318;
+  --oc-shown-accent: var(--oc-accent);
+  --oc-shown-accent-ink: var(--oc-accent-ink);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --oc-paper: #0c151c;
+    --oc-sheet: #122029;
+    --oc-ink: #e3ebe8;
+    --oc-muted: #8fa1ab;
+    --oc-rule: #2d4352;
+    --oc-danger: #f97066;
+    --oc-shown-accent: color-mix(in oklab, var(--oc-accent) 55%, white);
+    --oc-shown-accent-ink: var(--oc-paper);
+  }
+}
+
+@theme inline {
+  --color-paper: var(--oc-paper);
+  --color-sheet: var(--oc-sheet);
+  --color-ink: var(--oc-ink);
+  --color-muted: var(--oc-muted);
+  --color-rule: var(--oc-rule);
+  --color-accent: var(--oc-shown-accent);
+  --color-accent-ink: var(--oc-shown-accent-ink);
+  --color-danger: var(--oc-danger);
+  --radius-sheet: var(--oc-radius);
+  --radius-control: calc(var(--oc-radius) * 0.55);
+  --font-sans: var(--oc-font);
+}
+
+/* Two sets of engraved rings crossing, as on a banknote or a passport page. CSS only, no asset. */
+@utility guilloche {
+  background-image:
+    repeating-radial-gradient(circle at 0% 140%, transparent 0 9px, color-mix(in oklab, var(--oc-shown-accent) 34%, transparent) 9px 10px),
+    repeating-radial-gradient(circle at 100% 160%, transparent 0 9px, color-mix(in oklab, var(--oc-shown-accent) 22%, transparent) 9px 10px);
+  mask-image: linear-gradient(to bottom, black 35%, transparent);
+}

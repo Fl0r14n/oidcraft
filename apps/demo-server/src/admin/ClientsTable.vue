@@ -69,11 +69,10 @@
 </template>
 
 <script setup lang="ts">
+import { UiButton, UiInput } from '@oidcraft/ui/components'
 import { createDataTable } from '@vuetify/v0'
 import { Dialog } from '@vuetify/v0/components'
 import { shallowRef, watch } from 'vue'
-import UiButton from '../ui/UiButton.vue'
-import UiInput from '../ui/UiInput.vue'
 import type { AdminClient } from './client'
 
 const props = defineProps<{ clients: AdminClient[] }>()

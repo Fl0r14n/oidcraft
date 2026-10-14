@@ -43,6 +43,8 @@
       "name": "@oidcraft/demo-server",
       "version": "0.0.0",
       "dependencies": {
+        "@fontsource-variable/public-sans": "^5.3.0",
+        "@oidcraft/ui": "workspace:*",
         "@vuetify/v0": "^1.2.3",
         "drizzle-orm": "^0.45.4",
         "oidcraft": "workspace:*",
@@ -158,6 +160,21 @@
         "drizzle-orm",
         "kysely",
       ],
+    },
+    "packages/ui": {
+      "name": "@oidcraft/ui",
+      "version": "0.0.0",
+      "dependencies": {
+        "@fontsource-variable/public-sans": "^5.3.0",
+        "bun-plugin-tailwind": "^0.1.2",
+        "oidcraft": "workspace:*",
+        "tailwindcss": "^4.3.3",
+        "vue": "^3.5.43",
+      },
+      "devDependencies": {
+        "bun-plugin-vue3": "^1.1.0",
+        "vue-tsgo": "^0.3.0",
+      },
     },
     "packages/vue": {
       "name": "vue-oidc",
@@ -292,6 +309,8 @@
 
     "@emotion/weak-memoize": ["@emotion/weak-memoize@0.4.0", "", {}, "sha512-snKqtPW01tN0ui7yu9rGv69aJXr/a/Ywvl11sUjNtEcRc+ng/mQriFL0wLXMef74iHa/EkftbDzU9F8iFbH+zg=="],
 
+    "@fontsource-variable/public-sans": ["@fontsource-variable/public-sans@5.3.0", "", {}, "sha512-AVfkmAt50BMXWpOO21FAntiJFKGX6xTc2dSL8dxtDteONe9IuRXJWGbs0EbG955vAMCq23ENeuopuW87cGWDSQ=="],
+
     "@happy-dom/global-registrator": ["@happy-dom/global-registrator@21.0.1", "", { "dependencies": { "@types/node": ">=20.0.0", "happy-dom": "^21.0.1" } }, "sha512-wr/Rpo2cUXb9hOXdpsA3jJvite0YR+jWz3j5XNuXzzBoKpI17U4nzrPNykFu3iUNxT7WWQm/YxpW/aEqfgaZMA=="],
 
     "@jridgewell/gen-mapping": ["@jridgewell/gen-mapping@0.3.13", "", { "dependencies": { "@jridgewell/sourcemap-codec": "^1.5.0", "@jridgewell/trace-mapping": "^0.3.24" } }, "sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA=="],
@@ -333,6 +352,8 @@
     "@oidcraft/demo-server": ["@oidcraft/demo-server@workspace:apps/demo-server"],
 
     "@oidcraft/demo-vue": ["@oidcraft/demo-vue@workspace:apps/demo-vue"],
+
+    "@oidcraft/ui": ["@oidcraft/ui@workspace:packages/ui"],
 
     "@oven/bun-darwin-aarch64": ["@oven/bun-darwin-aarch64@1.4.3", "", { "os": "darwin", "cpu": "arm64" }, "sha512-u2wAM9RzqyF4baO5oFVhcFUVWO1CCMLG6yC5/aPWCYGZPfL5ULMbeHt+0/3I0h3yaPx1m+PKSANO/61jPtDZcQ=="],
 

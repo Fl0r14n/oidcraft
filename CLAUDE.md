@@ -125,6 +125,10 @@ bun run conformance      # OpenID Foundation suite against apps/demo-server
   `oauthFieldError` a browser binding does, and `oidcraft/interaction` re-exports them for a host
   replacing those screens. `@oidcraft/client` holds only the stateful controller. A binding is a
   reactive wrapper over one `view` and nothing more; do not re-explode it into a property per field.
-- **`apps/demo-server`'s screens are server-rendered Vue with no script.** They share `src/ui`
-  with the admin app, but must keep working as plain posting forms: the conformance suite's browser
-  runs little JavaScript, and `screens.test.ts` pins what its plan clicks on (ARCHITECTURE.md §8.1).
+- **The screens live in `packages/ui` (`@oidcraft/ui`): private, no build, imported from source.**
+  They are server-rendered Vue with no script and must keep working as plain posting forms: the
+  conformance suite's browser runs little JavaScript, and `screens.test.ts` pins what its plan
+  clicks on. Brand, theme and form URLs are passed in per issuer, never hardcoded (ARCHITECTURE.md §8.1).
+  A browser bundle imports `@oidcraft/ui/components` and `@oidcraft/ui/theme.css`, never the root:
+  `bun-plugin-vue3` resolves a package `.vue` specifier as a relative path, and the root builds the
+  server stylesheet at import time.

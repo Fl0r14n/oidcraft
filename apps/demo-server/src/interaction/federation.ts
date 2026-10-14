@@ -1,7 +1,7 @@
 import { createBroker, linkIdentity, localSubject } from 'oidcraft/federation'
-import { errorScreen, html } from './interaction/screens'
-import { provider } from './provider'
-import { callbackUri, upstreams } from './upstreams'
+import { provider } from '../op/provider'
+import { callbackUri, upstreams } from '../op/upstreams'
+import { errorScreen } from './screens'
 
 const broker = upstreams.length
   ? createBroker({ adapter: provider.config.adapter, callbackUri: callbackUri(), providers: upstreams })
@@ -22,7 +22,7 @@ export const startUpstream = async (interactionId: string, request: Request) => 
   const view = await provider.interactions.find(interactionId)
   const chosen = new URLSearchParams(await request.text()).get('provider') ?? ''
   const offered = [view.upstream?.chosen, ...(view.upstream?.candidates ?? [])]
-  if (!chosen || !offered.includes(chosen)) return html(errorScreen('invalid_request', 'that sign-in option was not offered'), 400)
+  if (!chosen || !offered.includes(chosen)) return errorScreen('invalid_request', 'that sign-in option was not offered')
 
   const { url, setCookie } = await broker.start(interactionId, chosen, {
     ...(view.loginHint && { loginHint: view.loginHint }),
@@ -45,7 +45,7 @@ export const federationCallback = async (request: Request, url: URL) => {
     const linked = await linkIdentity(provider.config.adapter, identity, {
       createAccount: async brokered => localSubject(brokered.provider, brokered.subject)
     })
-    if (!('accountId' in linked)) return html(errorScreen('access_denied', 'this account needs linking by hand'), 400)
+    if (!('accountId' in linked)) return errorScreen('access_denied', 'this account needs linking by hand')
 
     const { redirectTo, setCookie } = await provider.interactions.complete(interactionId, {
       login: {
@@ -59,7 +59,7 @@ export const federationCallback = async (request: Request, url: URL) => {
     return seeOther(redirectTo, [clearBinding, setCookie])
   } catch (error) {
     const description = error instanceof Error ? error.message : 'the upstream sign-in failed'
-    return html(errorScreen('access_denied', description), 400)
+    return errorScreen('access_denied', description)
   }
 }
 

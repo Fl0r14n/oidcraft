@@ -253,8 +253,9 @@ upstream produces a well-formed error response to the downstream client and a lo
 **FR-I2** — The interaction app answers with an `InteractionResult`; the core re-evaluates the
 original authorization request against it and is free to demand another interaction.
 
-**FR-I3** — Reference screens ship for login, consent, account selection, upstream selection,
-device-code entry and logout confirmation, as Vue SFCs a host can replace wholesale.
+**FR-I3** — The library ships the rules the screens enforce (`oidcraft/interaction`) and no
+markup. Reference screens for login, consent, account selection, upstream selection, device-code
+entry and logout confirmation live in the reference deployment, which a host replaces wholesale.
 
 **FR-I4** — Consent is remembered as a durable `Grant`, so a returning user is not asked again for
 scopes already granted, and revoking the grant re-asks.

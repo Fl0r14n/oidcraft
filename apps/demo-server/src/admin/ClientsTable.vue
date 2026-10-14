@@ -3,11 +3,11 @@
     <header class="mb-4 flex items-center gap-3">
       <h2 class="text-sm font-semibold tracking-tight">Clients</h2>
       <span class="text-xs text-neutral-500">{{ table.total.value }}</span>
-      <input
-        class="ml-auto w-56 rounded-md border border-neutral-300 px-2 py-1 text-sm dark:border-neutral-700 dark:bg-neutral-900"
+      <UiInput
+        class="ml-auto w-56"
         placeholder="Filter…"
-        :value="table.query.value"
-        @input="table.search(($event.target as HTMLInputElement).value)">
+        :model-value="table.query.value"
+        @update:model-value="table.search($event ?? '')" />
     </header>
 
     <div class="overflow-x-auto rounded-lg border border-neutral-200 dark:border-neutral-800">
@@ -35,9 +35,7 @@
             <td class="px-3 py-2 font-mono text-xs break-all">{{ client.redirectUris.join(', ') }}</td>
             <td class="px-3 py-2 text-xs">{{ client.tokenEndpointAuthMethod }}</td>
             <td class="px-3 py-2 text-right">
-              <button type="button" class="text-xs text-red-700 hover:underline dark:text-red-400" @click="askToDelete(client)">
-                Delete
-              </button>
+              <UiButton variant="link" class="text-xs" @click="askToDelete(client)">Delete</UiButton>
             </td>
           </tr>
           <tr v-if="table.items.value.length === 0">
@@ -48,13 +46,9 @@
     </div>
 
     <div v-if="table.pagination.pages > 1" class="mt-3 flex items-center gap-2 text-xs">
-      <button type="button" class="rounded border px-2 py-1 disabled:opacity-40" :disabled="table.pagination.isFirst.value" @click="table.pagination.prev()">
-        Previous
-      </button>
+      <UiButton variant="secondary" :disabled="table.pagination.isFirst.value" @click="table.pagination.prev()">Previous</UiButton>
       <span>{{ table.pagination.page.value }} / {{ table.pagination.pages }}</span>
-      <button type="button" class="rounded border px-2 py-1 disabled:opacity-40" :disabled="table.pagination.isLast.value" @click="table.pagination.next()">
-        Next
-      </button>
+      <UiButton variant="secondary" :disabled="table.pagination.isLast.value" @click="table.pagination.next()">Next</UiButton>
     </div>
 
     <!-- A native <dialog> with focus management, which is the part worth not hand-rolling. -->
@@ -67,7 +61,7 @@
         </Dialog.Description>
         <div class="mt-6 flex justify-end gap-2">
           <Dialog.Close class="rounded-md border border-neutral-300 px-3 py-1.5 text-sm dark:border-neutral-700">Cancel</Dialog.Close>
-          <button type="button" class="rounded-md bg-red-700 px-3 py-1.5 text-sm text-white" @click="confirmDelete">Delete</button>
+          <UiButton variant="danger" @click="confirmDelete">Delete</UiButton>
         </div>
       </Dialog.Content>
     </Dialog.Root>
@@ -78,6 +72,8 @@
 import { createDataTable } from '@vuetify/v0'
 import { Dialog } from '@vuetify/v0/components'
 import { shallowRef, watch } from 'vue'
+import UiButton from '../ui/UiButton.vue'
+import UiInput from '../ui/UiInput.vue'
 import type { AdminClient } from './client'
 
 const props = defineProps<{ clients: AdminClient[] }>()

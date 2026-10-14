@@ -1,15 +1,15 @@
 import { OAuthError } from 'oidcraft'
 import { type InteractionRequest, oauthFieldError } from 'oidcraft/interaction'
-import { startUpstream, upstreamLabels } from '../federation'
-import { provider } from '../provider'
+import { provider } from '../op/provider'
+import { startUpstream, upstreamLabels } from './federation'
 import {
   consentScreen,
   deviceCodeScreen,
   deviceConfirmScreen,
   deviceDoneScreen,
-  html,
   loginScreen,
   logoutConfirmScreen,
+  messageScreen,
   selectAccountScreen
 } from './screens'
 
@@ -36,17 +36,15 @@ export const interactionRoutes = async (request: Request, url: URL) => {
     const view = await provider.interactions.find(id)
 
     if (request.method === 'GET' && !action) {
-      if (view.kind === 'consent') return html(consentScreen(view))
+      if (view.kind === 'consent') return consentScreen(view)
       if (view.kind === 'logout') {
         const client = view.clientId ? await provider.config.adapter.clients.find(view.clientId) : undefined
-        return html(logoutConfirmScreen(view.id, client?.clientName ?? client?.clientId))
+        return logoutConfirmScreen(view.id, client?.clientName ?? client?.clientId)
       }
       // prompt=select_account asks which identity, not whether to sign in (OIDC Core §3.1.2.1).
-      return html(
-        view.prompt.includes('select_account')
-          ? selectAccountScreen(view, recentAccounts)
-          : loginScreen(view, undefined, offeredUpstreams(view))
-      )
+      return view.prompt.includes('select_account')
+        ? selectAccountScreen(view, recentAccounts)
+        : loginScreen(view, undefined, offeredUpstreams(view))
     }
 
     if (request.method === 'POST' && action === 'login') {
@@ -60,7 +58,7 @@ export const interactionRoutes = async (request: Request, url: URL) => {
       }
       if (errors.username || errors.password) {
         // re-rendered with what was typed: losing it and saying nothing is how the old branch failed
-        return html(loginScreen(view, { username: username ?? '', errors }, offeredUpstreams(view)), 400)
+        return loginScreen(view, { username: username ?? '', errors }, offeredUpstreams(view), 400)
       }
       const login = authenticate(username as string)
       // FR-F9 / FR-C16: the client asked for an acr, and claiming to meet it would be a lie the
@@ -79,7 +77,7 @@ export const interactionRoutes = async (request: Request, url: URL) => {
     // Declining is not an answer the provider needs: the interaction expires and the session stays.
     if (request.method === 'POST' && action === 'logout') {
       const form = new URLSearchParams(await request.text())
-      if (form.get('decision') !== 'yes') return html('<h1>You are still signed in</h1><p class="sub">You can close this page.</p>')
+      if (form.get('decision') !== 'yes') return messageScreen('You are still signed in', 'You can close this page.')
       const { redirectTo } = await provider.interactions.complete(id, { logout: true })
       return seeOther(redirectTo)
     }
@@ -96,7 +94,7 @@ export const interactionRoutes = async (request: Request, url: URL) => {
 
     return new Response('Method not allowed', { status: 405 })
   } catch {
-    return html('<h1>This sign-in expired</h1><p class="sub">Start again from the application.</p>', 400)
+    return messageScreen('This sign-in expired', 'Start again from the application.', 400)
   }
 }
 
@@ -107,7 +105,7 @@ export const deviceRoutes = async (request: Request, url: URL, clientIp: string 
   } catch (error) {
     // RFC 8628 §5.1: the provider stops answering after too many wrong codes from one address.
     if (error instanceof OAuthError && error.status === 429) {
-      return html(deviceCodeScreen('', 'Too many wrong codes. Wait a few minutes and try again.'), 429)
+      return deviceCodeScreen('', 'Too many wrong codes. Wait a few minutes and try again.', 429)
     }
     throw error
   }
@@ -116,18 +114,18 @@ export const deviceRoutes = async (request: Request, url: URL, clientIp: string 
 const deviceScreens = async (request: Request, url: URL, context: { clientIp: string | undefined }) => {
   if (request.method === 'GET' && url.pathname === '/device') {
     const prefilled = url.searchParams.get('user_code') ?? ''
-    if (!prefilled) return html(deviceCodeScreen())
+    if (!prefilled) return deviceCodeScreen()
     const found = await provider.device.find(prefilled, context)
-    if (!found) return html(deviceCodeScreen(prefilled, 'That code is not one we are waiting for.'), 404)
-    return html(deviceConfirmScreen(prefilled, found.client.clientName ?? found.client.clientId, found.payload.scopes))
+    if (!found) return deviceCodeScreen(prefilled, 'That code is not one we are waiting for.', 404)
+    return deviceConfirmScreen(prefilled, found.client.clientName ?? found.client.clientId, found.payload.scopes)
   }
 
   if (request.method === 'POST' && url.pathname === '/device') {
     const form = new URLSearchParams(await request.text())
     const typed = form.get('user_code') ?? ''
     const found = await provider.device.find(typed, context)
-    if (!found) return html(deviceCodeScreen(typed, 'That code is not one we are waiting for.'), 404)
-    return html(deviceConfirmScreen(typed, found.client.clientName ?? found.client.clientId, found.payload.scopes))
+    if (!found) return deviceCodeScreen(typed, 'That code is not one we are waiting for.', 404)
+    return deviceConfirmScreen(typed, found.client.clientName ?? found.client.clientId, found.payload.scopes)
   }
 
   if (request.method === 'POST' && url.pathname === '/device/decide') {
@@ -137,11 +135,11 @@ const deviceScreens = async (request: Request, url: URL, context: { clientIp: st
     try {
       if (!allow) {
         await provider.device.resolve(typed, { denied: true }, context)
-        return html(deviceDoneScreen(false))
+        return deviceDoneScreen(false)
       }
       // Demo: a real deployment would require a signed-in session here rather than inventing one.
       const found = await provider.device.find(typed, context)
-      if (!found) return html(deviceCodeScreen(typed, 'That code has expired.'), 404)
+      if (!found) return deviceCodeScreen(typed, 'That code has expired.', 404)
       const session = {
         id: crypto.randomUUID(),
         accountId: 'ada',
@@ -152,9 +150,9 @@ const deviceScreens = async (request: Request, url: URL, context: { clientIp: st
       }
       await provider.config.adapter.sessions.upsert(session)
       await provider.device.resolve(typed, { accountId: session.accountId, sessionId: session.id, scopes: found.payload.scopes }, context)
-      return html(deviceDoneScreen(true))
+      return deviceDoneScreen(true)
     } catch {
-      return html(deviceCodeScreen(typed, 'That code has expired or was already answered.'), 400)
+      return deviceCodeScreen(typed, 'That code has expired or was already answered.', 400)
     }
   }
 

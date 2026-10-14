@@ -2,15 +2,11 @@
   <section class="mt-10">
     <header class="mb-4 flex items-center gap-3">
       <h2 class="text-sm font-semibold tracking-tight">Account</h2>
-      <input
-        v-model="accountId"
-        placeholder="Account id…"
-        class="w-56 rounded-md border border-neutral-300 px-2 py-1 text-sm dark:border-neutral-700 dark:bg-neutral-900"
-        @keyup.enter="load">
-      <button type="button" class="rounded-md border border-neutral-300 px-3 py-1 text-sm dark:border-neutral-700" @click="load">Look up</button>
+      <UiInput v-model="accountId" placeholder="Account id…" class="w-56" @keyup.enter="load" />
+      <UiButton variant="secondary" @click="load">Look up</UiButton>
     </header>
 
-    <p v-if="error" class="mb-4 rounded-md bg-red-50 px-4 py-3 text-sm text-red-800 dark:bg-red-950 dark:text-red-200">{{ error }}</p>
+    <UiAlert v-if="error" class="mb-4">{{ error }}</UiAlert>
 
     <div v-if="loaded" class="grid gap-6 md:grid-cols-2">
       <div>
@@ -20,7 +16,7 @@
             <div class="flex items-center gap-2">
               <span class="font-mono">{{ session.id.slice(0, 12) }}…</span>
               <span v-if="session.idp" class="rounded bg-neutral-100 px-1.5 py-0.5 dark:bg-neutral-800">via {{ session.idp }}</span>
-              <button type="button" class="ml-auto text-red-700 hover:underline dark:text-red-400" @click="endSession(session.id)">End</button>
+              <UiButton variant="link" class="ml-auto" @click="endSession(session.id)">End</UiButton>
             </div>
             <div class="mt-1 text-neutral-500">
               signed in {{ new Date(session.authTime).toLocaleString() }}<span v-if="session.acr"> · acr {{ session.acr }}</span>
@@ -36,7 +32,7 @@
           <li v-for="grant in grants" :key="grant.id" class="rounded-lg border border-neutral-200 px-3 py-2 text-xs dark:border-neutral-800">
             <div class="flex items-center gap-2">
               <span class="font-mono">{{ grant.clientId }}</span>
-              <button type="button" class="ml-auto text-red-700 hover:underline dark:text-red-400" @click="revoke(grant.id)">Revoke</button>
+              <UiButton variant="link" class="ml-auto" @click="revoke(grant.id)">Revoke</UiButton>
             </div>
             <div class="mt-1 text-neutral-500">{{ grant.scopes.join(' · ') }}</div>
           </li>
@@ -50,6 +46,9 @@
 
 <script setup lang="ts">
 import { shallowRef } from 'vue'
+import UiAlert from '../ui/UiAlert.vue'
+import UiButton from '../ui/UiButton.vue'
+import UiInput from '../ui/UiInput.vue'
 import { AdminError, api } from './client'
 
 const props = defineProps<{ token: string }>()

@@ -407,17 +407,21 @@ One `Bun.serve` process mounting the core's fetch handler, the reference interac
 admin UI. It is the deployment the conformance suite runs against (NFR-C1), which is the reason it
 exists: a reference that is never executed is a reference that is wrong.
 
-**The two surfaces get different answers on components.**
+**One component set, rendered two ways.** `src/ui` holds Vue components styled with Tailwind, and
+both surfaces build on them. This is the demo's choice, not the library's: `oidcraft/interaction`
+ships rules and no markup, so no consumer inherits a UI dependency from here (FR-I3).
 
-The **login, consent and device screens** use Tailwind and plain markup, no component library. They
-are a handful of forms, they exist to be forked (FR-I3), and the `./interaction` entry must not put a
-UI peer dependency on every consumer that wants the policy layer.
+The **interaction screens** (`src/interaction`) are rendered on the server with `renderToString`
+and ship no script: each is a form that posts. The conformance suite drives them with a browser
+that runs little JavaScript, and `screens.test.ts` pins the ids and texts its plan clicks on
+(NFR-C1). There is no HTML entrypoint for Bun to bundle their styles from, so `src/ui/assets.ts`
+builds the stylesheet once at startup.
 
-The **admin UI** uses `@vuetify/v0`. Client CRUD, session inspection and grant revocation are
-sorting, pagination, selection, confirmation dialogs and validated forms — expensive to hand-roll
-and easy to get wrong for accessibility. `DataTable`, `Dialog`/`AlertDialog`, `Combobox`/`Select`
-and `Form` + `createValidation` cover it. It is headless, so Tailwind still does all the styling and
-nothing imposes a look on an operator who replaces these screens.
+The **admin UI** (`src/admin`) is a client-rendered app and also uses `@vuetify/v0` for what is
+expensive to hand-roll accessibly: `createDataTable` and `Dialog`. It is headless, so Tailwind
+still does all the styling.
+
+`src/op` is the provider's wiring — configuration, seed data, upstreams — and renders nothing.
 
 ### 8.2 `apps/demo-vue` — the demo relying party
 

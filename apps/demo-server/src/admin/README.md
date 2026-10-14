@@ -1,7 +1,7 @@
 Reference admin UI: client CRUD, key rotation, upstream configuration, session inspection and
 grant revocation (FR-M2).
 
-`@vuetify/v0` lives here and nowhere else — headless primitives for the things genuinely expensive
+Built on `../ui` like the interaction screens. `@vuetify/v0` is used only here — headless primitives for the things genuinely expensive
 to hand-roll. In use today: `createDataTable` (sort, filter, paginate over the clients list) and
 `Dialog` (a native `<dialog>` with focus management, for the delete confirmation). Headless means
 this file renders its own `<table>` and Tailwind does all the styling — see `ARCHITECTURE.md` §8.1.

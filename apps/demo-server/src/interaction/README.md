@@ -1,6 +1,6 @@
 Reference login, consent, account-selection, upstream-selection, device-code and logout screens
-(FR-I3).
+(FR-I3), as Vue components rendered on the server.
 
-**No component library here, deliberately.** These are small forms that exist to be forked, and
-the `oidcraft/interaction` entry must not put a UI peer dependency on every consumer. Tailwind and plain
-markup only — see `ARCHITECTURE.md` §8.1.
+**No script reaches the browser.** Every screen is a form that posts, because the conformance
+suite drives them with a browser that runs little JavaScript; `screens.test.ts` pins the ids and
+texts its plan relies on. See `ARCHITECTURE.md` §8.1.

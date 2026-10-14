@@ -1,6 +1,6 @@
 /// <reference types="bun" />
 import type { Provider } from 'oidcraft'
-import { optional } from '../env'
+import { optional } from '../op/env'
 
 /**
  * A JSON surface over `provider.management`, mounted by this app behind its own check.

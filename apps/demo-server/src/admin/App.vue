@@ -4,19 +4,12 @@
       <div class="mx-auto flex max-w-5xl items-center gap-4">
         <h1 class="text-sm font-semibold tracking-tight">oidcraft admin</h1>
         <span class="font-mono text-xs text-neutral-500">{{ issuer }}</span>
-        <input
-          v-model="token"
-          type="password"
-          placeholder="Admin token"
-          class="ml-auto w-64 rounded-md border border-neutral-300 px-2 py-1 text-sm dark:border-neutral-700 dark:bg-neutral-950"
-          @change="reload">
+        <UiInput v-model="token" type="password" placeholder="Admin token" class="ml-auto w-64" @change="reload" />
       </div>
     </header>
 
     <main class="mx-auto max-w-5xl px-6 py-8">
-      <p v-if="error" class="mb-6 rounded-md bg-red-50 px-4 py-3 text-sm text-red-800 dark:bg-red-950 dark:text-red-200">
-        {{ error }}
-      </p>
+      <UiAlert v-if="error" class="mb-6">{{ error }}</UiAlert>
 
       <p v-if="!token" class="rounded-md border border-dashed border-neutral-300 px-4 py-8 text-center text-sm text-neutral-500 dark:border-neutral-700">
         Set <code class="font-mono">OIDCRAFT_ADMIN_TOKEN</code> on the server and paste it above.
@@ -68,6 +61,8 @@
 
 <script setup lang="ts">
 import { onMounted, shallowRef } from 'vue'
+import UiAlert from '../ui/UiAlert.vue'
+import UiInput from '../ui/UiInput.vue'
 import AccountPanel from './AccountPanel.vue'
 import ClientsTable from './ClientsTable.vue'
 import type { AdminClient } from './client'

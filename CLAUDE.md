@@ -125,5 +125,6 @@ bun run conformance      # OpenID Foundation suite against apps/demo-server
   `oauthFieldError` a browser binding does, and `oidcraft/interaction` re-exports them for a host
   replacing those screens. `@oidcraft/client` holds only the stateful controller. A binding is a
   reactive wrapper over one `view` and nothing more; do not re-explode it into a property per field.
-- **Components: Tailwind everywhere; `@vuetify/v0` in `apps/demo-server/src/admin` only.** The login and
-  consent screens stay dependency-free on purpose (ARCHITECTURE.md §8.1).
+- **`apps/demo-server`'s screens are server-rendered Vue with no script.** They share `src/ui`
+  with the admin app, but must keep working as plain posting forms: the conformance suite's browser
+  runs little JavaScript, and `screens.test.ts` pins what its plan clicks on (ARCHITECTURE.md §8.1).

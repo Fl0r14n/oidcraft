@@ -16,7 +16,7 @@ import {
 const seeOther = (location: string, setCookie?: string) =>
   new Response(null, { status: 303, headers: { location, 'cache-control': 'no-store', ...(setCookie && { 'set-cookie': setCookie }) } })
 
-/** Demo only: every password is accepted. A deployment authenticates against its own directory (G-2). */
+/** Demo only: every password is accepted. A deployment authenticates through its `AccountStore` (FR-I7). */
 const authenticate = (username: string) => ({ accountId: username.toLowerCase().trim() })
 
 /** Stand-in for a directory lookup, so the account-selection screen has something to show. */

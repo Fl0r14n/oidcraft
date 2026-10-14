@@ -5,8 +5,8 @@ import { optional, withDefault } from './env'
 const PROFILE = ['name', 'given_name', 'family_name', 'preferred_username', 'picture', 'locale']
 
 /**
- * Demo only: any account name works and the claims are synthetic (`G-2` — the host owns the
- * directory). An account created by brokering reports what its upstream said instead, which is the
+ * Demo only: any account name works and the claims are synthetic (FR-I7 — a deployment brings
+ * its own `AccountStore`). An account created by brokering reports what its upstream said instead, which is the
  * mapped claims linking recorded (FR-F7). Read lazily, because the store exists before the adapter.
  */
 export const demoAccounts = (identities: () => FederatedIdentityStore | undefined): AccountStore => ({

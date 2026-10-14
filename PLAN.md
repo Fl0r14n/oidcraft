@@ -5,7 +5,7 @@ This file is working state: tick items off and add notes as work lands.
 
 ## Status
 
-**Every `FR-*` on the plan is implemented.** 873 tests, and `bun run verify` is the gate.
+**Every `FR-*` on the plan is implemented except FR-A6 and FR-I7, recorded 2026-10-14.** 885 tests, and `bun run verify` is the gate.
 
 The authorization code grant with mandatory PKCE, interaction suspend/resume, token issuance with
 rotation and replay revocation, UserInfo, revocation, introspection, logout in both directions,
@@ -118,6 +118,10 @@ here, or under any load.
 - [x] First manual publish: `oidcraft@0.0.1` claimed the name — the similarity check cleared
 - [ ] `npm trust github` registration, so releases publish from CI (ARCHITECTURE.md §11)
 - [ ] Docs site — **after** the review and the conformance run; requirements below
+- [ ] `oidcraft/accounts` (FR-I7): argon2id and TOTP behind `AccountStore`. Undecided: where argon2
+      comes from portably (`Bun.password`, Node's `crypto.argon2` and workerd differ — FR-R1), and
+      whether enrolment, recovery codes and password reset are in scope
+- [ ] `oidcraft/adapters/typeorm` (FR-A6) on the shared conformance suite, with migrations (FR-A4)
 
 ## `FR-*` coverage
 
@@ -243,12 +247,12 @@ is extracted at build time, the way `minimal.test.ts` already does for the READM
 sample in a charting library is an annoyance; in an auth library it is a security instruction that
 no longer holds.
 
-**The landing page says what is not done.** "Not run against the OpenID Foundation suite. Not used
-in production" belongs above the fold, not in a FAQ. Docs sites are where that discipline erodes
+**The landing page says what is not done.** "Passes the OpenID Foundation `basic` and `config`
+plans; not certified. Not used in production" belongs above the fold, not in a FAQ. Docs sites are where that discipline erodes
 into "production-ready" and a grid of green ticks, so this is an acceptance criterion rather than an
 intention. If the site cannot say it on page one, it is not ready to exist.
 
-**The requirement ids are the spine.** There are 82 `FR-*`/`NFR-*`/`G-*` ids and 62 of them are
+**The requirement ids are the spine.** There are 81 `FR-*`/`NFR-*`/`G-*` ids and 62 of them are
 cited in the source. `FR-C3` should be a link — to the requirement, to where it is implemented, to
 the test that proves it. That is the thing no other provider's documentation has, and the content
 already exists.
@@ -281,9 +285,8 @@ building a worse site to preserve a rule that was about something else.
 
 ## Decisions waiting on an answer
 
-`G-1` OpenID Federation 1.0 · `G-2` how much of the account the library owns · `G-3` FAPI 2.0 ·
-`G-4` upstream SAML · `G-5` TypeORM · `G-6` multi-tenancy · `G-7` Drizzle v1 ·
-`G-8` mTLS on Bun
+`G-1` OpenID Federation 1.0 · `G-3` FAPI 2.0 · `G-4` upstream SAML · `G-6` multi-tenancy (wanted,
+not scheduled) · `G-7` Drizzle v1 · `G-8` mTLS on Bun
 
 ## Federation moved off `openid-client`
 

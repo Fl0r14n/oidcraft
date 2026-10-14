@@ -27,9 +27,8 @@ differences that are the reason it exists:
   reference implementations meant to be replaced.
 - Not a SAML IdP or SP. Upstream SAML is reachable only through the `UpstreamProvider` extension
   point, never in-tree (G-4).
-- Not a user-directory. Accounts, passwords, MFA enrolment and password reset belong to the host
-  application behind `AccountStore`. oidcraft authenticates a session; it does not own the user
-  (G-2).
+- Not a user-directory by default. Accounts belong to the host application behind `AccountStore`;
+  `oidcraft/accounts` is an optional implementation of it, not a requirement to use one (FR-I7).
 - No OpenID4VC / verifiable-credential issuance.
 
 ## 2. Actors
@@ -183,17 +182,18 @@ derive a complete `Adapter`, so a new backend is a day's work rather than a week
 write only if the key is absent, atomically: single use (FR-T3, FR-T4, NFR-S4) cannot be built from
 a read followed by a write, so an eventually consistent store cannot back a provider.
 
-**FR-A4** — First-party adapters ship for **Drizzle** (Postgres and SQLite) and **Kysely**
-(Postgres, SQLite, MySQL), plus an in-memory one for tests. Each ships its schema as migrations
+**FR-A4** — First-party adapters ship for **Drizzle** (Postgres and SQLite), **Kysely**
+(Postgres, SQLite, MySQL) and **TypeORM** (FR-A6), plus an in-memory one for tests. Each ships its schema as migrations
 the host runs, never as something the library applies at boot.
 
 **FR-A5** — Adapters that own their schema must expose real columns and indexes for every value
 the core queries by (`grant_id`, `user_code`, `expires_at`, `account_id`, upstream session id). A
 JSON blob with no index is a correctness problem at revocation time, not just a slow one.
 
-**FR-A6** — A TypeORM adapter is community-supported, not first-party (`G-5`). A third-party adapter
-is an ordinary package depending on `oidcraft` and implementing `Adapter`; nothing about the
-contract is internal.
+**FR-A6** — The TypeORM adapter is first-party: its own `oidcraft/adapters/typeorm` entry with
+`typeorm` as an optional peer, passing the same conformance suite as the others (FR-A3). A
+third-party adapter is an ordinary package depending on `oidcraft` and implementing `Adapter`;
+nothing about the contract is internal.
 
 ## 6. Federation — `FR-F*`
 
@@ -264,6 +264,10 @@ honoured, including the error responses when `none` cannot be satisfied.
 
 **FR-I6** — `ui_locales` selects the screen language; the reference screens ship English and are
 structured for translation.
+
+**FR-I7** — An optional `oidcraft/accounts` entry implements `AccountStore` over the `Adapter`:
+argon2id password hashing and TOTP as a second factor. It is a subpath entry like any other, so a
+host that brings its own `AccountStore` pulls none of it, and nothing in the core assumes it.
 
 ## 8. Administration — `FR-M*`
 
@@ -386,27 +390,21 @@ depended on, so brokering adds no third-party package either.
 **G-1 — OpenID Federation 1.0.** Real trust-chain federation is a large, separate protocol. Ship
 brokering (FR-F*) first; decide later whether entity statements are in scope at all.
 
-**G-2 — How much of the account does the library own?** `AccountStore` currently pushes passwords,
-MFA and enrolment entirely onto the host, which makes "batteries included" thinner than Django's
-oauth-toolkit. An optional `oidcraft/accounts` entry with argon2 and TOTP would close the gap and widen
-the security surface.
-
 **G-3 — FAPI 2.0.** Worth the constraint it imposes on the core's defaults, or a profile package?
 
 **G-4 — Upstream SAML.** The `UpstreamProvider` interface could accommodate it. Whether anyone
 should is a different question.
 
-**G-5 — TypeORM.** At 3.6M weekly downloads against Drizzle's 16.5M it is no longer where the
-ecosystem is. First-party, community, or not at all?
-
 **G-6 — Multi-tenancy.** One process serving several issuers is a different configuration and
-storage shape. Deferred, but the adapter interfaces should not make it impossible.
+storage shape. Wanted, not scheduled; the adapter interfaces must not make it impossible.
 
 **G-8 — mTLS on Bun.** `Bun.serve` accepts `tls.requestCert`, so the handshake can ask for a client
 certificate, but its `Server` interface exposes only `requestIP`, `timeout`, `upgrade`, `publish`
 and `ref`/`unref` — no peer-certificate accessor. So `tls_client_auth`,
 `self_signed_tls_client_auth` (FR-C4) and certificate-bound tokens (FR-C13) are not implementable
-on Bun today without dropping to `node:tls`. Verified against `bun-types` 1.4.2 on 2026-09-12.
+on Bun today without dropping to `node:tls`. Re-verified on Bun 1.4.3 on 2026-10-14: a handshake
+with `requestCert` succeeds, and neither `Bun.serve` nor `node:https` (oven-sh/bun#16834) hands the
+certificate to the request handler; only `node:tls` and `Bun.listen` sockets expose it.
 Options: leave them unavailable there (current plan, FR-R5), terminate mTLS at a proxy and accept a
 header on an explicitly trusted hop, or open an upstream request. Node and workerd are unaffected.
 

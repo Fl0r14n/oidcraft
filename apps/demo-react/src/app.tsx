@@ -25,11 +25,14 @@ export const useColorMode = () => useContext(ColorModeContext)
 
 /** Once per page load on the client, once per *request* on the server. Nothing here is a module-level
  * singleton, which is what keeps two concurrent SSR renders from sharing a token or a locale. */
+// Plain http only against a provider on this machine, where `bun run dev` serves one.
+const ALLOW_INSECURE = ['localhost', '127.0.0.1', '[::1]'].includes(new URL(ISSUER).hostname)
+
 export const createApp = (locale?: string): AppInstance => {
   // No client secret and no endpoint overrides: this is a public client, discovery fills the rest,
   // and PKCE is not optional against an oidcraft provider (FR-C3).
   const oauth = createOAuth({
-    config: { issuerPath: ISSUER, clientId: CLIENT_ID, scope: SCOPE, pkce: true } as never
+    config: { issuerPath: ISSUER, clientId: CLIENT_ID, scope: SCOPE, pkce: true, allowInsecure: ALLOW_INSECURE } as never
   })
   const i18n = createI18n(locale || globalThis.navigator?.language?.split('-')?.[0] || 'en')
 

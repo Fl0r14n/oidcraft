@@ -1,5 +1,5 @@
 import { resolveOAuthFunctions } from './functions'
-import { isTenantTemplate, sameIssuer } from './secure'
+import { InsecureEndpointError, isTenantTemplate, sameIssuer } from './secure'
 import type { Discovery, OAuthFunctions, OpenIdConfig, OpenIdConfiguration } from './types'
 
 /** Same class as `InsecureEndpointError`: the document is not trustworthy, and that is a fact about
@@ -77,7 +77,12 @@ export const createDiscovery = ({ functions }: { functions?: Partial<OAuthFuncti
       discovered = Promise.resolve(resolveOAuthFunctions(functions).openIdConfiguration(config))
       cache.set(key, discovered)
     }
-    const result = await discovered.catch(() => undefined)
+    const result = await discovered.catch(error => {
+      cache.delete(key)
+      // A refused http issuer is the configuration, not an outage: swallowed, it surfaces as a missing endpoint.
+      if (error instanceof InsecureEndpointError) throw error
+      return undefined
+    })
     if (!result) {
       cache.delete(key)
     }

@@ -16,7 +16,9 @@ const oauth = {
     issuerPath: 'http://localhost:3001',
     clientId: 'demo-client',
     scope: 'openid profile email offline_access',
-    pkce: true
+    pkce: true,
+    // The provider `bun run dev` serves on this machine speaks plain http.
+    allowInsecure: true
   }
 }
 

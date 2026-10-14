@@ -136,9 +136,10 @@ waits on `oidcraft/accounts` (FR-I7).
 - [x] Admin signs in through the OP itself with `vue-oidc`, replacing `OIDCRAFT_ADMIN_TOKEN`; the API
       introspects the token in-process and checks an allowlist this app owns (FR-M1). Restyled on
       `@oidcraft/ui`, whose `UiDataTable` and `UiDialog` now carry `@vuetify/v0`
-- [ ] `vue-oidc` swallows why discovery failed: an http issuer without `allowInsecure` surfaces as
-      "no authorizePath", not as the insecure-endpoint refusal it was. Check `apps/demo-vue` against an
-      http dev issuer too
+- [x] Discovery swallowed `InsecureEndpointError`, so an http issuer without `allowInsecure` surfaced
+      as "no authorizePath". It now rethrows that one and still survives outages. The three demos allow
+      plain http against a loopback issuer only; demo-vue had also been building against a stale npm
+      `vue-oidc@5.3.0` in its own `node_modules`, shadowing the workspace link
 - [ ] SQLite through the Drizzle adapter, so an enrolment survives a restart; conformance stays on memory
 - [ ] `/account`: self-service as another client of the OP — TOTP enrolment with a QR code
 - [ ] A TOTP step after the password, recording `amr: ['pwd', 'otp']` and a stronger `acr` (FR-C16)

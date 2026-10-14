@@ -1,5 +1,6 @@
 import { describe, expect, it, jest } from 'bun:test'
 import { applyDiscovery, createDiscovery, IssuerMismatchError, needsDiscovery } from './discovery'
+import { InsecureEndpointError } from './secure'
 
 const wellKnown = {
   authorization_endpoint: 'https://auth.com/a',
@@ -92,6 +93,12 @@ describe('createDiscovery', () => {
     expect(await discover(config)).toBeUndefined()
     expect(await discover(config)).toEqual(wellKnown)
     expect(openIdConfiguration).toHaveBeenCalledTimes(2)
+  })
+
+  it('rethrows a refused http issuer, which no retry can fix', async () => {
+    const discover = createDiscovery()
+
+    await expect(discover({ issuerPath: 'http://auth.com' } as any)).rejects.toThrow(InsecureEndpointError)
   })
 
   it('survives a rejected lookup', async () => {

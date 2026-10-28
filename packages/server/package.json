@@ -80,6 +80,10 @@
       "types": "./dist/adapters/kysely.d.mts",
       "import": "./dist/adapters/kysely.mjs"
     },
+    "./adapters/typeorm": {
+      "types": "./dist/adapters/typeorm.d.mts",
+      "import": "./dist/adapters/typeorm.mjs"
+    },
     "./package.json": "./package.json"
   },
   "scripts": {
@@ -94,7 +98,8 @@
   },
   "peerDependencies": {
     "drizzle-orm": ">=1.0.0-rc.5",
-    "kysely": ">=0.28"
+    "kysely": ">=0.28",
+    "typeorm": ">=1.1"
   },
   "peerDependenciesMeta": {
     "drizzle-orm": {
@@ -102,13 +107,18 @@
     },
     "kysely": {
       "optional": true
+    },
+    "typeorm": {
+      "optional": true
     }
   },
   "devDependencies": {
     "@oidcraft/core": "workspace:*",
     "drizzle-orm": "1.0.0-rc.5",
     "kysely": "^0.28.18",
-    "kysely-bun-sqlite": "^0.4.0"
+    "kysely-bun-sqlite": "^0.4.0",
+    "sql.js": "^1.15.2",
+    "typeorm": "^1.1.2"
   },
   "publishConfig": {
     "access": "public"

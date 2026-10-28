@@ -17,10 +17,11 @@ const ENTRIES = {
   'adapters/memory': { owns: [], runtime: undefined },
   'adapters/drizzle': { owns: ['drizzle-orm'], runtime: undefined },
   'adapters/kysely': { owns: ['kysely'], runtime: undefined },
+  'adapters/typeorm': { owns: ['typeorm'], runtime: undefined },
   'adapters/redis': { owns: [], runtime: undefined }
 } as const
 
-const OPTIONAL_PEERS = ['drizzle-orm', 'kysely'] as const
+const OPTIONAL_PEERS = ['drizzle-orm', 'kysely', 'typeorm'] as const
 
 /** Workspace packages that are never published. They must be compiled *into* whichever entry uses
  * them: a surviving import resolves to nothing on a consumer's machine, and npm cannot even 404 it

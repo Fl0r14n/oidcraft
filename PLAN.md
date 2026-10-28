@@ -5,13 +5,13 @@ This file is working state: tick items off and add notes as work lands.
 
 ## Status
 
-**Every `FR-*` on the plan is implemented except FR-A6, recorded 2026-10-14.** 924 tests, and `bun run verify` is the gate.
+**Every `FR-*` on the plan is implemented, recorded 2026-10-28.** 924 tests, and `bun run verify` is the gate.
 
 The authorization code grant with mandatory PKCE, interaction suspend/resume, token issuance with
 rotation and replay revocation, UserInfo, revocation, introspection, logout in both directions,
 DPoP with nonces, PAR, JAR by value, dynamic client registration with RFC 7592 management, the
 device grant, CIBA in poll and ping, token exchange, RAR, step-up, pairwise subjects, identity
-brokering with home-realm discovery chosen by the provider, three storage adapters passing one
+brokering with home-realm discovery chosen by the provider, five storage adapters (memory, Drizzle, Kysely, TypeORM, Redis) passing one
 conformance suite, four runtime context providers, a management API and an admin UI.
 
 ### What is NOT done, and will not be silently forgotten
@@ -124,7 +124,10 @@ here, or under any load.
   migration `0002`. The demo's screens for it are next
 - [x] Drizzle v1: the adapter targets `drizzle-orm@>=1.0.0-rc.5` (peer), typed on `SQLiteAsyncDatabase`,
   which a v1 `drizzle({ client })` satisfies without a cast. 0.45 is no longer supported
-- [ ] `oidcraft/adapters/typeorm` (FR-A6) on the shared conformance suite, with migrations (FR-A4)
+- [x] `oidcraft/adapters/typeorm` (FR-A6) on the shared conformance suite, tested on `sql.js`. The schema is
+  the shared SQLite one, as `OIDCRAFT_ENTITIES` and `TYPEORM_SQLITE_MIGRATIONS` (forward-only classes
+  TypeORM's own `runMigrations` applies). `orIgnore` cannot say whether it wrote, so insert-if-absent
+  inserts and treats a failure as a lost race only when the colliding row exists
 
 ## Demo server
 

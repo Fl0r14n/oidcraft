@@ -17,6 +17,7 @@ How oidcraft is built. `REQUIREMENTS.md` says what it must do; every section her
 | **@oidcraft/client** | workspace  | The stateful client runtime, shared by the client bindings only (§2.1). Not published; compiled in.                                                      |
 | **tsdown**           | 0.23.x     | Library build: seven ESM entries with `.d.mts` types (§2.2).                                                                                             |
 | **Drizzle / Kysely** | 1.0 / 0.28 | First-party adapters (FR-A4). Optional peers, never bundled (§2.2).                                                                                      |
+| **TypeORM**          | 1.1        | First-party adapter (FR-A6) over the host's `DataSource`, with `EntitySchema`s rather than decorators. Optional peer, never bundled.                     |
 
 ### 1.1 No bundler, no build step — with one measured exception
 
@@ -68,7 +69,7 @@ packages/client/            client runtime.     private, the bindings only
 packages/ui/                screens + design.   private, consumed from source by apps/demo-server (§8.1)
 packages/vue/               vue-oidc
 packages/react/             react-oauth-oidc
-packages/server/            one published package, twelve entries — publishes as `oidcraft`
+packages/server/            one published package, thirteen entries — publishes as `oidcraft`
   src/index.ts              .                     the OP. fetch in, fetch out, no I/O
   src/federation/           ./federation          the relying-party leg — upstream brokering
   src/interaction/          ./interaction         login/consent policy types
@@ -80,6 +81,7 @@ packages/server/            one published package, twelve entries — publishes 
   src/adapters/memory/      ./adapters/memory     tests and development only
   src/adapters/drizzle/     ./adapters/drizzle    Postgres, SQLite
   src/adapters/kysely/      ./adapters/kysely     Postgres, SQLite, MySQL
+  src/adapters/typeorm/     ./adapters/typeorm    a TypeORM DataSource; SQLite schema shipped as migrations
   src/adapters/redis/       ./adapters/redis      any Redis client, through one command function
 apps/
   demo-server               the reference OP: mounts the core, the login screens and the admin UI
@@ -113,8 +115,8 @@ published entry, so an import names the file it means.
 
 ### 2.1 One published package, one private one
 
-`oidcraft` ships as a single package with subpath exports, and `drizzle-orm` and `kysely` are
-**optional** peer dependencies — nobody installing it for Kysely pulls Drizzle.
+`oidcraft` ships as a single package with subpath exports, and `drizzle-orm`, `kysely` and `typeorm`
+are **optional** peer dependencies — nobody installing it for Kysely pulls Drizzle.
 
 The reason is the adapter contract. It is the part of this library most likely to churn before 1.0,
 and it is exactly the coupling that makes a split painful: separate versioning puts consumers on

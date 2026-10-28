@@ -93,5 +93,14 @@ export default defineConfig([
     deps: { neverBundle: [...external, 'kysely'] },
     dts: true,
     clean: false
+  },
+  {
+    // the only entry that may import typeorm
+    entry: { 'adapters/typeorm': 'src/adapters/typeorm/index.ts' },
+    outDir: 'dist',
+    format: 'esm',
+    deps: { neverBundle: [...external, 'typeorm'] },
+    dts: true,
+    clean: false
   }
 ])

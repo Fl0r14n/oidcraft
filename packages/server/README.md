@@ -79,10 +79,11 @@ import { ... } from 'oidcraft/runtimes/workerd'   // request context for Cloudfl
 import { ... } from 'oidcraft/adapters/memory'    // development and tests
 import { ... } from 'oidcraft/adapters/drizzle'   // Postgres, SQLite
 import { ... } from 'oidcraft/adapters/kysely'    // Postgres, SQLite, MySQL
+import { ... } from 'oidcraft/adapters/typeorm'   // a TypeORM DataSource; SQLite schema shipped as migrations
 import { ... } from 'oidcraft/adapters/redis'     // any Redis client, through one command function
 ```
 
-`drizzle-orm` and `kysely` are **optional** peer dependencies, each confined to the entry that uses
+`drizzle-orm`, `kysely` and `typeorm` are **optional** peer dependencies, each confined to the entry that uses
 it — installing oidcraft pulls neither. `oidcraft/federation` also needs a relying-party
 implementation, because brokering _is_ being a relying party at the upstream; that one is not a
 dependency at all, but this project's own code compiled into the entry.

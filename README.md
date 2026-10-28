@@ -3,7 +3,7 @@
 An OpenID Provider library for TypeScript. RFC-compliant core, runtime-portable, pluggable
 storage, and identity brokering as a first-class mode rather than an application concern.
 
-One package, twelve entries:
+One package, thirteen entries:
 
 ```
 oidcraft                     the OP — one fetch handler, no I/O, no node:*
@@ -17,10 +17,11 @@ oidcraft/runtimes/workerd    request context for Cloudflare Workers
 oidcraft/adapters/memory     development and tests
 oidcraft/adapters/drizzle    Postgres, SQLite
 oidcraft/adapters/kysely     Postgres, SQLite, MySQL
+oidcraft/adapters/typeorm    a TypeORM DataSource; SQLite schema shipped as migrations
 oidcraft/adapters/redis      any Redis client, through one command function
 ```
 
-`drizzle-orm` and `kysely` are optional peers, each confined to the entry that owns it — importing
+`drizzle-orm`, `kysely` and `typeorm` are optional peers, each confined to the entry that owns it — importing
 the core pulls neither.
 
 ```

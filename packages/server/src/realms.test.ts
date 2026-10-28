@@ -185,6 +185,17 @@ describe('realms', () => {
     expect(await other.get('acme')).toBeUndefined()
   })
 
+  // Same timestamp, different record: a write in the same millisecond, or one made in the database by hand.
+  test('another process rebuilds when the record changes but its updatedAt does not', async () => {
+    const { realms, options, configured } = await setup()
+    const other = createRealms({ ...options, revalidate: 0 })
+    const created = await realms.management.create({ id: 'acme', settings: { plan: 'free' } })
+    await other.get('acme')
+    await options.store.upsert({ ...created, settings: { plan: 'pro' } })
+    await other.get('acme')
+    expect(configured.filter(id => id === 'acme')).toHaveLength(2)
+  })
+
   test('an unchanged realm keeps its provider across revalidation', async () => {
     const { realms, options } = await setup()
     const other = createRealms({ ...options, revalidate: 0 })

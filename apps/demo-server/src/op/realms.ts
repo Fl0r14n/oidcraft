@@ -1,6 +1,4 @@
 /// <reference types="bun" />
-import { rmSync } from 'node:fs'
-import { dirname, join } from 'node:path'
 import { type ActiveKey, type Adapter, createRealms, generateKey, type Realm, staticKeyStore } from 'oidcraft'
 import { screensFor } from '../interaction/screens'
 import { accountStore, createDemoAccounts } from './accounts'
@@ -25,8 +23,9 @@ const realmOf = (request: Request) => {
 export const realmIssuer = (id: string) => `${controlUrl.protocol}//${id}.${controlUrl.host}`
 
 const memory = storageLocation() === 'memory'
-const directory = join(dirname(storageLocation()), 'realms')
-const file = (id: string, extension: string) => join(directory, `${id}.${extension}`)
+// Beside the control plane's database: data/oidcraft.sqlite keeps its realms in data/realms/.
+const directory = `${storageLocation().replace(/[^/]*$/, '')}realms`
+const file = (id: string, extension: string) => `${directory}/${id}.${extension}`
 
 // Each realm's own keys, never generatedKeyStore(): its RSA key is one per process, and createRealms
 // refuses two realms that share a signing key.
@@ -76,7 +75,10 @@ export const realms = realmsEnabled
         sites.delete(realm.id)
         keysInMemory.delete(realm.id)
         if (memory) return
-        for (const extension of ['sqlite', 'sqlite-wal', 'sqlite-shm', 'jwks.json']) rmSync(file(realm.id, extension), { force: true })
+        for (const extension of ['sqlite', 'sqlite-wal', 'sqlite-shm', 'jwks.json']) {
+          const target = Bun.file(file(realm.id, extension))
+          if (await target.exists()) await target.delete()
+        }
       },
       onAudit: event => console.log(`[audit] ${event.action} ${event.detail?.realm}`)
     })

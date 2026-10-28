@@ -14,7 +14,7 @@ export type RealmsConfig = {
   provision?: (realm: Realm) => void | Promise<void>
   /** Drops the realm's storage. Runs after the realm stopped being served, before its record goes. */
   retire?: (realm: Realm) => void | Promise<void>
-  /** How long a process trusts its cached provider before re-reading the record. Default 30. */
+  /** How long a process trusts its cached provider before re-reading the record; any change rebuilds it. Default 30. */
   revalidate?: Seconds
   onAudit?: (event: AuditEvent) => void | Promise<void>
 }
@@ -28,7 +28,11 @@ const REALM_ID = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/
 
 export const isRealmId = (id: string) => REALM_ID.test(id)
 
-type Built = { provider: Provider; updatedAt: number }
+type Built = { provider: Provider; record: string }
+
+// The whole record, not updatedAt: two writes in one millisecond, or an edit made straight in the
+// database, change what configure would build without necessarily changing the timestamp.
+const fingerprint = (realm: Realm) => JSON.stringify(realm)
 type Entry = { built: Promise<Built | undefined>; checkedAt: number }
 
 /**
@@ -60,10 +64,10 @@ export const createRealms = (options: RealmsConfig) => {
     const realm = await store.find(id)
     if (!realm?.enabled) return undefined
     const before = await previous?.catch(() => undefined)
-    if (before && before.updatedAt === realm.updatedAt.getTime()) return before
+    if (before && before.record === fingerprint(realm)) return before
     const provider = createProvider(await options.configure(realm))
     await claimKeys(id, provider)
-    return { provider, updatedAt: realm.updatedAt.getTime() }
+    return { provider, record: fingerprint(realm) }
   }
 
   const get = async (id: string) => {

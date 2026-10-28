@@ -453,8 +453,9 @@ with one issuer never calls it, and a bundler drops it from that deployment's bu
   half-built realm is never served and a failed `provision` frees the id. Remove disables first,
   then runs `retire`, then deletes the record, so a failed `retire` leaves a realm nobody is served.
 - **Several processes.** `forget` clears one process's cache. Every process re-reads a cached
-  realm's record after `revalidate` seconds (default 30), keeping the provider when `updatedAt` is
-  unchanged, so a disable reaches every process within that window.
+  realm's record after `revalidate` seconds (default 30) and rebuilds when anything in it changed —
+  the whole record, not `updatedAt`, which the library sets on every write but a same-millisecond write
+  or a hand edit in the database need not change. No trigger: five adapters, two without any.
 - **The control plane is a plain provider.** The operator signs in through a `createProvider`
   issuer, not through a realm, and the realm management functions sit behind the host's own
   authorization like the rest of FR-M1.

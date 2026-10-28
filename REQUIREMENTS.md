@@ -95,7 +95,9 @@ client asks for them.
 
 **FR-C6 — Discovery.** `/.well-known/openid-configuration` (OIDC Discovery 1.0), advertising only
 what the running configuration actually supports, and `/.well-known/oauth-authorization-server`
-(RFC 8414). Protected-resource metadata (RFC 9728) for registered resource servers.
+(RFC 8414). Protected-resource metadata (RFC 9728) is built for each configured resource by
+`protectedResourceMetadata`, for the resource server to serve: the URL is the resource server's, not
+the provider's.
 
 **FR-C7 — Device authorization grant** (RFC 8628), including the user-code interaction screen.
 
@@ -146,6 +148,15 @@ is required, and CIBA is refused without it.
 registered `sector_identifier_uri` is fetched through a host-supplied resolver (FR-A1) and
 registration fails unless it lists every `redirect_uri` (OIDC DCR 1.0 §5); a pairwise client whose
 redirect URIs span several hosts must register one (OIDC Core §8.1).
+
+**FR-C19 — Resource indicators** (RFC 8707). The host configures the resources tokens may be issued
+for — an MCP server, an API — each optionally tied to the resource-server client that introspects for
+it. A `resource` on the authorization, token or refresh request must be one of them, or the request
+fails with `invalid_target`; the access token's audience is then that resource alone, and only its
+resource server may introspect it. A token request may narrow to any configured resource when the
+authorization named none, and only to those it named when it did. Without `resource`, nothing changes.
+This is what an MCP authorization server owes an MCP server (MCP 2026-07-28): a token issued for one
+MCP server is useless at another.
 
 ## 4. Tokens — `FR-T*`
 

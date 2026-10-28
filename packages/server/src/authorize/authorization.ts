@@ -6,6 +6,7 @@ import { isFresh } from '../session/session'
 import type { Artifact, Client, Grant, Session } from '../types'
 import { selectUpstream } from '../upstreams/selection'
 import { assertChallenge } from './pkce'
+import { requestedResources } from './resources'
 
 export type AuthorizationRequest = {
   clientId: string
@@ -23,6 +24,8 @@ export type AuthorizationRequest = {
   uiLocales: string[] | undefined
   /** RFC 9396: what the client wants to do, not merely which scopes it holds. */
   authorizationDetails: AuthorizationDetail[] | undefined
+  /** RFC 8707: the resources the token is for; each one configured, or the request is refused (FR-C19). */
+  resources: string[]
   /**
    * The request exactly as it arrived. Resuming after an interaction replays this rather than
    * rebuilding from the fields above: a hand-maintained list silently drops every parameter nobody
@@ -149,6 +152,7 @@ export const validateAuthorizationRequest = (
     acrValues: params.get('acr_values') ? list(params.get('acr_values')) : undefined,
     uiLocales: params.get('ui_locales') ? list(params.get('ui_locales')) : undefined,
     authorizationDetails: parseAuthorizationDetails(config, params.get('authorization_details')),
+    resources: requestedResources(config, params),
     raw: params.toString()
   }
 }
@@ -354,7 +358,8 @@ const issueCode = async (config: ResolvedConfig, request: AuthorizationRequest, 
       scopes: request.scopes,
       sessionId: session.id,
       ...(request.nonce && { nonce: request.nonce }),
-      ...(request.authorizationDetails && { authorizationDetails: request.authorizationDetails })
+      ...(request.authorizationDetails && { authorizationDetails: request.authorizationDetails }),
+      ...(request.resources.length && { resources: request.resources })
     },
     expiresAt: new Date(Date.now() + config.ttl.authorizationCode * 1000)
   })

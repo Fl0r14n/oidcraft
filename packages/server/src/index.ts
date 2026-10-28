@@ -24,6 +24,7 @@ export type {
   ProviderConfig,
   RegistrationDecision,
   ResolvedConfig,
+  ResourceDescriptor,
   Routes,
   Ttl
 } from './config'
@@ -33,6 +34,7 @@ export { type ActiveKey, generatedKeyStore, generateKey, staticKeyStore } from '
 export type { Management, ManagementClientInput } from './management'
 export { createProvider, type LogoutDelivery, type Provider } from './provider'
 export { createRealms, isRealmId, type RealmInput, type RealmPatch, type Realms, type RealmsConfig } from './realms'
+export { protectedResourceMetadata, protectedResourceMetadataUrl } from './resource/protected-resource'
 export { authenticationOf, meetsRequirement, type StepUpRequirement, type StepUpVerdict } from './resource/step-up'
 export type { FrontChannelLogout, LogoutNotification } from './session/logout'
 export { resolveAccessToken } from './token/access-token'

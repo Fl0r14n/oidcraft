@@ -125,6 +125,11 @@ export type ProviderConfig = {
    * the credentials live with the broker in `oidcraft/federation`, because using them is I/O.
    */
   upstreams?: UpstreamDescriptor[]
+  /**
+   * What tokens may be issued for (RFC 8707): an MCP server, an API. A request that names one gets a
+   * token whose audience is that resource alone; one naming anything else is refused (FR-C19).
+   */
+  resources?: ResourceDescriptor[]
   subjectType?: 'public' | 'pairwise'
   /**
    * Decides who may act as whom in a token exchange. There is no default, because a library cannot
@@ -184,6 +189,15 @@ export type ProviderConfig = {
   onAudit?: (event: AuditEvent) => void | Promise<void>
 }
 
+export type ResourceDescriptor = {
+  /** The resource indicator exactly as clients send it: an absolute URI without a fragment. */
+  uri: string
+  /** The resource-server client that introspects tokens for it, when it does not verify JWTs itself. */
+  resourceServer?: string
+  /** Advertised in its protected-resource metadata (RFC 9728). */
+  scopes?: string[]
+}
+
 export type AuditEvent = {
   action: string
   at: Date
@@ -213,6 +227,7 @@ export type ResolvedConfig = {
   onRegister: ProviderConfig['onRegister']
   onAudit: ProviderConfig['onAudit']
   upstreams: UpstreamDescriptor[]
+  resources: ResourceDescriptor[]
   subjectType: 'public' | 'pairwise'
   pairwiseSalt: string | undefined
   exchangePolicy: ExchangePolicy | undefined
@@ -290,6 +305,15 @@ export const resolveConfig = (config: ProviderConfig): ResolvedConfig => {
 
   if (!clientAuthMethods.length) problems.push('clientAuthMethods must not be empty')
 
+  const resources = config.resources ?? []
+  for (const { uri } of resources) {
+    const url = URL.canParse(uri) ? new URL(uri) : undefined
+    if (!url || url.hash) problems.push(`resource ${uri} must be an absolute URI without a fragment (RFC 8707 §2)`)
+    else if (url.protocol !== 'https:' && !isLoopback(url)) problems.push(`resource ${uri} must be https outside loopback (NFR-S1)`)
+  }
+  const duplicate = resources.find((resource, index) => resources.findIndex(other => other.uri === resource.uri) !== index)
+  if (duplicate) problems.push(`resource ${duplicate.uri} is listed twice`)
+
   const mtls = clientAuthMethods.filter(method => MTLS_METHODS.includes(method))
   if (mtls.length && !capabilities.clientCertificate) {
     problems.push(
@@ -347,6 +371,7 @@ export const resolveConfig = (config: ProviderConfig): ResolvedConfig => {
     onRegister: config.onRegister,
     onAudit: config.onAudit,
     upstreams: config.upstreams ?? [],
+    resources: config.resources ?? [],
     subjectType: config.subjectType ?? 'public',
     pairwiseSalt: config.pairwiseSalt,
     exchangePolicy: config.exchangePolicy,

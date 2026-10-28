@@ -1,3 +1,4 @@
+import { audienceFor, requestedResources } from '../authorize/resources'
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
 import type { Client } from '../types'
@@ -27,6 +28,8 @@ export const clientCredentialsGrant = async (config: ResolvedConfig, client: Cli
     throw new OAuthError('invalid_scope', { description: `client ${client.clientId} may not request: ${unallowed.join(', ')}` })
 
   const scopes = requested.length ? requested : client.scopes.filter(scope => scope !== 'openid' && scope !== 'offline_access')
-  const access = await issueAccessToken(config, { client, scopes, binding })
+  // No user consented to anything, so any configured resource may be named (FR-C19).
+  const audience = audienceFor(requestedResources(config, form), [])
+  const access = await issueAccessToken(config, { client, scopes, binding, audience })
   return { access_token: access.token, token_type: access.tokenType, expires_in: access.expiresIn, scope: scopes.join(' ') }
 }

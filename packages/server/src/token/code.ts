@@ -1,4 +1,5 @@
 import { verifyChallenge } from '../authorize/pkce'
+import { audienceFor, requestedResources } from '../authorize/resources'
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
 import type { Artifact, Client } from '../types'
@@ -18,6 +19,7 @@ const revokeOnReplay = async (config: ResolvedConfig, artifact: Artifact, what: 
 }
 
 const scopesOf = (artifact: Artifact) => (artifact.payload.scopes as string[] | undefined) ?? []
+const resourcesOf = (artifact: Artifact) => (artifact.payload.resources as string[] | undefined) ?? []
 
 export const authorizationCodeGrant = async (config: ResolvedConfig, client: Client, form: URLSearchParams, binding: Binding) => {
   const code = form.get('code')
@@ -41,6 +43,7 @@ export const authorizationCodeGrant = async (config: ResolvedConfig, client: Cli
   }
 
   await verifyChallenge(form.get('code_verifier'), artifact.payload.codeChallenge as string | undefined)
+  const audience = audienceFor(requestedResources(config, form), resourcesOf(artifact))
   // The read above can be stale by now; only the atomic consume decides who redeemed it (NFR-S4).
   if (!(await config.adapter.artifacts.consume('authorization_code', code))) await revokeOnReplay(config, artifact, 'authorization code')
 
@@ -48,7 +51,9 @@ export const authorizationCodeGrant = async (config: ResolvedConfig, client: Cli
   return issueTokens(config, client, grant, session, scopesOf(artifact), {
     nonce: artifact.payload.nonce as string | undefined,
     binding,
-    authorizationDetails: artifact.payload.authorizationDetails as unknown[] | undefined
+    authorizationDetails: artifact.payload.authorizationDetails as unknown[] | undefined,
+    audience,
+    resources: resourcesOf(artifact)
   })
 }
 
@@ -68,6 +73,7 @@ export const refreshTokenGrant = async (config: ResolvedConfig, client: Client, 
   // RFC 6749 §6: a refresh may narrow the scope, never widen it.
   const widened = requested?.filter(scope => !granted.includes(scope)) ?? []
   if (widened.length) throw new OAuthError('invalid_scope', { description: `a refresh cannot add scopes: ${widened.join(', ')}` })
+  const audience = audienceFor(requestedResources(config, form), resourcesOf(artifact))
 
   // A bound refresh token may only be presented by the key it was bound to (RFC 9449 §5).
   const bound = artifact.payload.cnf as { jkt?: string; 'x5t#S256'?: string } | undefined
@@ -85,6 +91,8 @@ export const refreshTokenGrant = async (config: ResolvedConfig, client: Client, 
   return issueTokens(config, client, grant, session, requested?.length ? requested : granted, {
     binding: { jkt: bound?.jkt ?? binding.jkt, x5t: binding.x5t },
     refreshScopes: granted,
-    familyExpiresAt: artifact.payload.familyExpiresAt as number | undefined
+    familyExpiresAt: artifact.payload.familyExpiresAt as number | undefined,
+    audience,
+    resources: resourcesOf(artifact)
   })
 }

@@ -19,7 +19,9 @@ export const issueTokens = async (
     binding = {},
     authorizationDetails,
     refreshScopes = scopes,
-    familyExpiresAt
+    familyExpiresAt,
+    audience,
+    resources = []
   }: {
     nonce?: string | undefined
     binding?: Binding
@@ -28,6 +30,10 @@ export const issueTokens = async (
     refreshScopes?: string[]
     /** Epoch seconds; carried from the token being rotated so the family's lifetime never slides. */
     familyExpiresAt?: number | undefined
+    /** RFC 8707: the one resource this access token is for (FR-C19). */
+    audience?: string | undefined
+    /** The resources the authorization covered, so a refresh can name only those. */
+    resources?: string[]
   } = {}
 ) => {
   const { jkt } = binding
@@ -45,7 +51,8 @@ export const issueTokens = async (
     grantId: grant.id,
     sessionId: session.id,
     subject,
-    authorizationDetails
+    authorizationDetails,
+    audience
   })
   const accessToken = access.token
 
@@ -72,6 +79,7 @@ export const issueTokens = async (
         // offline_access is for when the user is gone: the sign-in it rests on travels with it.
         signIn: snapshotOf(session),
         familyExpiresAt: familyEnd,
+        ...(resources.length && { resources }),
         ...((jkt || refreshX5t) && { cnf: confirmationOf({ jkt, x5t: refreshX5t }) })
       },
       expiresAt: new Date(Math.min(now + config.ttl.refreshToken, familyEnd) * 1000)

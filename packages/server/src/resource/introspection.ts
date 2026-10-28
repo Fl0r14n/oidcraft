@@ -32,11 +32,13 @@ const audiencesOf = (artifact: Artifact) =>
  * The token's own client may always ask. A resource server may ask about access tokens — a refresh
  * token is never presented to it — unless the token was restricted to some other audience (FR-C8).
  */
-const mayIntrospect = (client: Client, artifact: Artifact, kind: ArtifactKind) => {
+const mayIntrospect = (config: ResolvedConfig, client: Client, artifact: Artifact, kind: ArtifactKind) => {
   if (artifact.clientId === client.clientId) return true
   if (!client.resourceServer || kind !== 'access_token') return false
   const audiences = audiencesOf(artifact)
-  return audiences.length === 0 || audiences.includes(client.clientId)
+  // FR-C19: a token issued for a resource is that resource's server's to see, and no other's.
+  const served = config.resources.filter(resource => resource.resourceServer === client.clientId).map(resource => resource.uri)
+  return audiences.length === 0 || audiences.some(audience => audience === client.clientId || served.includes(audience))
 }
 
 /**
@@ -57,7 +59,7 @@ export const introspectionEndpoint = async (config: ResolvedConfig, request: Req
   for (const kind of kinds as ArtifactKind[]) {
     const artifact = await findPresented(config, kind, presented)
     if (!artifact || artifact.consumedAt) continue
-    if (!mayIntrospect(client, artifact, kind)) return inactive
+    if (!mayIntrospect(config, client, artifact, kind)) return inactive
 
     // FR-C18: the subject the token's client was given, never the account id behind a pairwise one.
     const owner = artifact.clientId === client.clientId ? client : await config.adapter.clients.find(artifact.clientId)

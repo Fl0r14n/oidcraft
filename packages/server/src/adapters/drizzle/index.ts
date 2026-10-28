@@ -1,5 +1,5 @@
 import { and, eq, gt, isNull, lte } from 'drizzle-orm'
-import type { BaseSQLiteDatabase } from 'drizzle-orm/sqlite-core'
+import type { SQLiteAsyncDatabase } from 'drizzle-orm/sqlite-core'
 import type {
   AccountStore,
   Adapter,
@@ -14,7 +14,7 @@ import type {
 } from 'oidcraft'
 import { artifacts, clients, credentials, grants, identities, replay, sessions } from './schema'
 
-export type DrizzleDatabase = BaseSQLiteDatabase<'sync' | 'async', unknown, Record<string, never>>
+export type DrizzleDatabase = SQLiteAsyncDatabase<'sync' | 'async', unknown>
 
 export type DrizzleAdapterOptions = {
   db: DrizzleDatabase

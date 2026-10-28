@@ -122,6 +122,8 @@ here, or under any load.
   `nodePasswordHasher`, interoperable PHC strings), TOTP with sealed secrets, recovery codes,
   throttling, reset tokens and sign-up, over a new `credentials` store in every adapter and SQLite
   migration `0002`. The demo's screens for it are next
+- [x] Drizzle v1: the adapter targets `drizzle-orm@>=1.0.0-rc.5` (peer), typed on `SQLiteAsyncDatabase`,
+  which a v1 `drizzle({ client })` satisfies without a cast. 0.45 is no longer supported
 - [ ] `oidcraft/adapters/typeorm` (FR-A6) on the shared conformance suite, with migrations (FR-A4)
 
 ## Demo server
@@ -316,7 +318,7 @@ building a worse site to preserve a rule that was about something else.
 ## Decisions waiting on an answer
 
 `G-1` OpenID Federation 1.0 · `G-3` FAPI 2.0 · `G-4` upstream SAML · `G-6` multi-tenancy (wanted,
-not scheduled) · `G-7` Drizzle v1 · `G-8` mTLS on Bun
+not scheduled) · `G-8` mTLS on Bun
 
 ## Federation moved off `openid-client`
 

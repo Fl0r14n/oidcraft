@@ -21,7 +21,7 @@ const accounts = {
 const fresh = async () => {
   const sqlite = new Database(':memory:')
   for (const statement of SQLITE_MIGRATIONS.flatMap(migration => migration.statements)) sqlite.run(statement)
-  const db = drizzle(sqlite) as unknown as DrizzleDatabase
+  const db: DrizzleDatabase = drizzle({ client: sqlite })
   return { db, adapter: drizzleAdapter({ db, keys: await generatedKeyStore(), accounts }) }
 }
 
@@ -32,9 +32,7 @@ describe('drizzle adapter', () => {
   // FR-A5: the criticism of the blob-table shape only holds if this adapter avoids it.
   test('revocation is an indexed delete, not a scan', async () => {
     const { db } = await fresh()
-    const plan = (db as unknown as { all: (q: unknown) => { detail: string }[] }).all(
-      sql`explain query plan delete from oidc_artifacts where grant_id = 'g1'`
-    )
+    const plan = await db.all<{ detail: string }>(sql`explain query plan delete from oidc_artifacts where grant_id = 'g1'`)
     expect(plan.map(row => row.detail).join(' ')).toContain('oidc_artifacts_grant_idx')
   })
 

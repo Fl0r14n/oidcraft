@@ -4,7 +4,7 @@ import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { drizzle } from 'drizzle-orm/bun-sqlite'
 import { type Adapter, generatedKeyStore, type KeyStore } from 'oidcraft'
-import { type DrizzleDatabase, drizzleAdapter, SQLITE_MIGRATIONS } from 'oidcraft/adapters/drizzle'
+import { drizzleAdapter, SQLITE_MIGRATIONS } from 'oidcraft/adapters/drizzle'
 import { memoryAdapter } from 'oidcraft/adapters/memory'
 import { withDefault } from './env'
 
@@ -42,7 +42,7 @@ export const openStorage = async ({ federation, keys }: StorageOptions): Promise
   migrate(sqlite)
   console.log(`[oidcraft] storing in ${location}`)
   return drizzleAdapter({
-    db: drizzle(sqlite) as unknown as DrizzleDatabase,
+    db: drizzle({ client: sqlite }),
     federation,
     keys: keys ?? (await generatedKeyStore())
   })

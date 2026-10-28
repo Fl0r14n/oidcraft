@@ -420,6 +420,3 @@ with `requestCert` succeeds, and neither `Bun.serve` nor `node:https` (oven-sh/b
 certificate to the request handler; only `node:tls` and `Bun.listen` sockets expose it.
 Options: leave them unavailable there (current plan, FR-R5), terminate mTLS at a proxy and accept a
 header on an explicitly trusted hop, or open an upstream request. Node and workerd are unaffected.
-
-**G-7 — Drizzle v1.** `drizzle-orm` is at `1.0.0-rc.5` with `latest` still on `0.45.2`. The
-adapter targets `0.45` until v1 is on `latest`.

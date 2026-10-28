@@ -15,6 +15,7 @@ Microsoft or any other OpenID provider. One build runs on Bun, Node, Deno and Cl
 - [Storage](#storage)
 - [Node, Deno and Workers](#node-deno-and-workers)
 - [Several issuers in one process](#several-issuers-in-one-process)
+- [For MCP servers](#for-mcp-servers)
 - [Before production](#before-production)
 - [What it does](#what-it-does)
 
@@ -278,6 +279,43 @@ You choose the URL scheme: a subdomain, a path or a custom domain. A request onl
 an unknown or disabled one resolves to nothing, and a realm id must be a DNS label, so a forged
 `Host` header cannot create an issuer. Each realm needs its own signing keys, and two realms
 sharing one are refused.
+
+## For MCP servers
+
+oidcraft can be the authorization server for MCP servers, following the current MCP revision
+(2026-07-28). List each MCP server as a resource: a token requested for it is addressed to it alone,
+so a token issued for one MCP server is useless at another.
+
+```ts
+import { createProvider, protectedResourceMetadata, protectedResourceMetadataUrl } from 'oidcraft'
+
+const MCP = 'https://mcp.example.com/mcp'
+
+const provider = createProvider({
+  issuer: 'https://auth.example.com',
+  adapter: storage,
+  interactionUrl: 'https://auth.example.com/interaction',
+  resources: [{ uri: MCP, resourceServer: 'mcp-server', scopes: ['tools'] }],
+  // MCP clients identify themselves by a URL serving their metadata; fetching it is yours to do
+  resolveClientMetadata: async clientId => {
+    const response = await fetch(clientId, { redirect: 'error', signal: AbortSignal.timeout(3000) })
+    const body = response.ok ? await response.text() : ''
+    return body && body.length <= 5120 ? JSON.parse(body) : undefined
+  }
+})
+
+// what the MCP server serves, so clients can find this provider
+const url = protectedResourceMetadataUrl(MCP) // https://mcp.example.com/.well-known/oauth-protected-resource/mcp
+const metadata = protectedResourceMetadata(provider.config, MCP)
+```
+
+The MCP server then checks each token: introspect it as the `mcp-server` client, which only sees
+tokens issued for its own resource, or verify a JWT access token's `aud`. A production
+`resolveClientMetadata` should also refuse addresses inside your network after DNS resolution, and
+cache documents as their HTTP headers allow. oidcraft validates whatever it returns, and the consent
+screen shows the client's host and where the person will be sent back. Older MCP clients that
+register dynamically are served by `features: { dynamicRegistration: true }`, and may register
+`http://localhost` callbacks when they say they are `native`.
 
 ## Before production
 

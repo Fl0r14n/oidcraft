@@ -46,6 +46,11 @@ export type InteractionRequest = {
   upstream: { chosen: string | undefined; candidates: string[] } | undefined
   /** What the client asks to be allowed to do, for the consent screen to show (RFC 9396 §7, FR-C15). */
   authorizationDetails: InteractionAuthorizationDetail[] | undefined
+  /**
+   * Where the person returns after answering. A consent screen must show its host, and say so when it
+   * is this computer (MCP 2026-07-28): a document-registered client can claim any name it likes.
+   */
+  redirectUri: string | undefined
   expiresAt: Date
 }
 

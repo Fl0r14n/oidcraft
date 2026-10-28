@@ -11,6 +11,7 @@ import { deviceAuthorizationEndpoint, deviceSignIn, findByUserCode, resolveDevic
 import { interactions } from './authorize/interactions'
 import { pushedAuthorizationRequestEndpoint, resolvePushedRequest } from './authorize/par'
 import { applyRequestObject } from './authorize/request-object'
+import { withClientMetadata } from './clients/metadata-document'
 import { registrationEndpoint } from './clients/registration'
 import { type ProviderConfig, type ResolvedConfig, resolveConfig, routePath } from './config'
 import type { RequestContext } from './context'
@@ -227,7 +228,8 @@ const dispatch = async (config: ResolvedConfig, route: Route, request: Request, 
  * that holds no state across calls — two processes behind a load balancer behave as one (FR-A1).
  */
 export const createProvider = (config: ProviderConfig): Provider => {
-  const resolved = resolveConfig(config)
+  const base = resolveConfig(config)
+  const resolved = base.resolveClientMetadata ? { ...base, adapter: withClientMetadata(base, base.resolveClientMetadata) } : base
   const routes = routeTable(resolved)
 
   return {

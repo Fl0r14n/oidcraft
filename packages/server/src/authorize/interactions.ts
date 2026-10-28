@@ -37,6 +37,7 @@ export const interactions = (config: ResolvedConfig) => ({
       upstreamProviders: client?.upstreamProviders,
       upstream: artifact.payload.upstream as InteractionRequest['upstream'],
       authorizationDetails: request.authorizationDetails,
+      redirectUri: request.redirectUri,
       expiresAt: artifact.expiresAt
     }
   },
@@ -144,6 +145,7 @@ const logoutView = (id: string, clientId: string, expiresAt: Date): InteractionR
   upstreamProviders: undefined,
   upstream: undefined,
   authorizationDetails: undefined,
+  redirectUri: undefined,
   expiresAt
 })
 

@@ -67,6 +67,7 @@ export const metadata = (config: ResolvedConfig, algorithms: string[]) => {
     code_challenge_methods_supported: ['S256'],
     // FR-C14: unconditional.
     authorization_response_iss_parameter_supported: true,
+    ...(config.resolveClientMetadata && { client_id_metadata_document_supported: true }),
     ...(features.dpop && { dpop_signing_alg_values_supported: CLIENT_SIGNING_ALGS }),
     // RFC 8705 §3.3, only where a certificate can actually reach us (FR-R5, G-8).
     ...(mtlsAvailable && { tls_client_certificate_bound_access_tokens: true }),

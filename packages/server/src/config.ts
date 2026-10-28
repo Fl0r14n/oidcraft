@@ -173,6 +173,13 @@ export type ProviderConfig = {
    */
   resolveSectorIdentifier?: (uri: string) => Promise<unknown>
   /**
+   * Fetches the metadata document behind an `https` client_id (FR-C20), or undefined to refuse it.
+   * Yours because it is outbound I/O to a URL a stranger chose (FR-A1): block private addresses,
+   * cap the body at a few kilobytes, honour HTTP caching, apply any trust policy. oidcraft checks
+   * what comes back. Without it, such client ids are unknown, as they always were.
+   */
+  resolveClientMetadata?: (clientId: string) => Promise<unknown>
+  /**
    * Gates open registration — an initial access token, a software statement, a rate limit. Throwing
    * an OAuthError refuses the registration. Without it, and with the feature on, anyone may
    * register a client (FR-C9). Returning `{ requirePkce: false }` is the host vouching for a
@@ -224,6 +231,7 @@ export type ResolvedConfig = {
   onFrontChannelLogout: ProviderConfig['onFrontChannelLogout']
   resolveClientJwks: ProviderConfig['resolveClientJwks']
   resolveSectorIdentifier: ProviderConfig['resolveSectorIdentifier']
+  resolveClientMetadata: ProviderConfig['resolveClientMetadata']
   onRegister: ProviderConfig['onRegister']
   onAudit: ProviderConfig['onAudit']
   upstreams: UpstreamDescriptor[]
@@ -368,6 +376,7 @@ export const resolveConfig = (config: ProviderConfig): ResolvedConfig => {
     onFrontChannelLogout: config.onFrontChannelLogout,
     resolveClientJwks: config.resolveClientJwks,
     resolveSectorIdentifier: config.resolveSectorIdentifier,
+    resolveClientMetadata: config.resolveClientMetadata,
     onRegister: config.onRegister,
     onAudit: config.onAudit,
     upstreams: config.upstreams ?? [],

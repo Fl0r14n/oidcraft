@@ -21,7 +21,7 @@ const FORBIDDEN_SCHEMES = ['javascript:', 'data:', 'vbscript:', 'file:']
 type UriCode = 'invalid_client_metadata' | 'invalid_redirect_uri'
 
 /** A URI the browser is sent to: absolute, matchable, no script, https unless on a loopback IP. */
-const browserUri = (raw: unknown, name: string, code: UriCode = 'invalid_client_metadata', native = false) => {
+export const browserUri = (raw: unknown, name: string, code: UriCode = 'invalid_client_metadata', native = false) => {
   if (typeof raw !== 'string' || !URL.canParse(raw)) throw invalid(`${name} ${String(raw)} is not an absolute URL`, code)
   const url = new URL(raw)
   // A fragment can never be matched: the browser never sends it (RFC 6749 §3.1.2).
@@ -42,7 +42,7 @@ const isIpLiteral = (hostname: string) => hostname.startsWith('[') || /^\d+\.\d+
  * aims that request inside the network (SSRF); a name that resolves there is the host's to refuse,
  * since only it does the resolving (FR-A1).
  */
-const serverUri = (raw: unknown, name: string) => {
+export const serverUri = (raw: unknown, name: string) => {
   if (typeof raw !== 'string' || !URL.canParse(raw)) throw invalid(`${name} ${String(raw)} is not an absolute URL`)
   const url = new URL(raw)
   if (url.protocol !== 'https:') throw invalid(`${name} ${raw} must be https`)

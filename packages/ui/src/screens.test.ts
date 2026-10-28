@@ -26,6 +26,20 @@ describe('the conformance browser contract', () => {
     expect(firstButton(html)).toContain('type="submit"')
   })
 
+  // MCP 2026-07-28: a client that names itself must still show where it is from and where it sends you.
+  test('consent names the host a person returns to, and warns when it is this computer', async () => {
+    const remote = await (await screens.consent({ ...view, redirectUri: 'https://rp.example.com/cb' })).text()
+    expect(remote).toContain('rp.example.com')
+    expect(remote).not.toContain('on this computer')
+
+    const local = await (
+      await screens.consent({ ...view, clientId: 'https://app.example.com/client.json', redirectUri: 'http://localhost:3000/callback' })
+    ).text()
+    expect(local).toContain('localhost:3000')
+    expect(local).toContain('on this computer')
+    expect(local).toContain('app.example.com')
+  })
+
   test('consent has an allow button', async () => {
     expect(await (await screens.consent(view)).text()).toMatch(/<button[^>]*value="allow"/)
   })

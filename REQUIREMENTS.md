@@ -158,6 +158,16 @@ authorization named none, and only to those it named when it did. Without `resou
 This is what an MCP authorization server owes an MCP server (MCP 2026-07-28): a token issued for one
 MCP server is useless at another.
 
+**FR-C20 — Client ID Metadata Documents** (draft-ietf-oauth-client-id-metadata-document), the way
+MCP 2026-07-28 prefers a client be known: its `client_id` is an `https` URL serving its own metadata,
+with no registration step. The core does not fetch it (FR-A1): the host's `resolveClientMetadata` does,
+with its own network policy, size limit, caching and trust policy, and the core checks the result —
+a canonical `https` URL with a path and nothing else, refused before any fetch otherwise; a document
+whose `client_id` is that URL exactly; no shared secret, so `none` or `private_key_jwt` only; redirect
+URIs that are the client's registration, `http://localhost` among them unless it says it is `web`.
+PKCE is always required. A stored client with the same id wins. The consent screen shows the
+client's host, the host the person returns to, and warns when that is this computer.
+
 ## 4. Tokens — `FR-T*`
 
 **FR-T1** — ID tokens are always JWS; `none` never. An `RS256` key is mandatory in every key set

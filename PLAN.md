@@ -130,6 +130,19 @@ here, or under any load.
   TypeORM's own `runMigrations` applies). `orIgnore` cannot say whether it wrote, so insert-if-absent
   inserts and treats a failure as a lost race only when the colliding row exists
 
+## MCP authorization (2026-07-28)
+
+What the current MCP revision asks of an authorization server, checked against its text rather than
+an earlier one.
+
+- [x] Resource indicators (RFC 8707, FR-C19): a configured resource becomes the token's only audience,
+  and only its resource server may introspect it. RFC 9728 metadata is built for it to serve
+- [x] `application_type` at registration; a `native` client may register `http://localhost` (NFR-S2)
+- [x] Client ID Metadata Documents (FR-C20) through a host-supplied resolver, with the consent screen
+  showing the client's host and where the person returns
+- [ ] The demo server as an MCP authorization server: a configured MCP resource and a resolver
+- [ ] An end-to-end run with a real MCP client against the demo, rather than only this suite's tests
+
 ## Demo server
 
 `apps/demo-server` is reworked into one coherent demo before the docs site, in this order. TOTP

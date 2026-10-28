@@ -31,6 +31,18 @@ export type ScreenView = InteractionRequest & { clientName?: string | undefined 
 
 const nameOf = (view: ScreenView) => view.clientName ?? view.clientId
 
+const LOCAL_HOSTS = ['localhost', '127.0.0.1', '[::1]']
+
+/** Where the person goes back to, and the client's own host when its id is a URL: names a client cannot fake. */
+const destinationOf = (view: ScreenView) => {
+  const redirect = view.redirectUri && URL.canParse(view.redirectUri) ? new URL(view.redirectUri) : undefined
+  const from = view.clientId.startsWith('https://') && URL.canParse(view.clientId) ? new URL(view.clientId).host : undefined
+  return {
+    ...(from && { from }),
+    ...(redirect && { returnsTo: redirect.host, local: LOCAL_HOSTS.includes(redirect.hostname) })
+  }
+}
+
 export type ScreensOptions = { brand: Brand; theme?: Theme | undefined; urls?: Partial<ScreenUrls> }
 
 /** Codes come from `oidcraft/interaction`; the wording is this screen's, and its locale's (FR-I6). */
@@ -178,7 +190,8 @@ export const createScreens = ({ brand, theme, urls: overrides }: ScreensOptions)
         title: `Allow ${nameOf(view)} to use your account?`,
         intro: `It is asking to:`,
         scopes: view.scopes.map(describe),
-        details: (view.authorizationDetails ?? []).map(detail => JSON.stringify(detail, null, 2))
+        details: (view.authorizationDetails ?? []).map(detail => JSON.stringify(detail, null, 2)),
+        ...destinationOf(view)
       }),
 
     /**

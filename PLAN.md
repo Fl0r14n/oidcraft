@@ -318,7 +318,7 @@ building a worse site to preserve a rule that was about something else.
 ## Decisions waiting on an answer
 
 `G-1` OpenID Federation 1.0 · `G-3` FAPI 2.0 · `G-4` upstream SAML · `G-6` multi-tenancy (wanted,
-not scheduled) · `G-8` mTLS on Bun
+not scheduled). `G-8` mTLS on Bun is decided: unavailable until Bun exposes the certificate
 
 ## Federation moved off `openid-client`
 

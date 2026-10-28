@@ -415,8 +415,13 @@ storage shape. Wanted, not scheduled; the adapter interfaces must not make it im
 certificate, but its `Server` interface exposes only `requestIP`, `timeout`, `upgrade`, `publish`
 and `ref`/`unref` — no peer-certificate accessor. So `tls_client_auth`,
 `self_signed_tls_client_auth` (FR-C4) and certificate-bound tokens (FR-C13) are not implementable
-on Bun today without dropping to `node:tls`. Re-verified on Bun 1.4.3 on 2026-10-14: a handshake
-with `requestCert` succeeds, and neither `Bun.serve` nor `node:https` (oven-sh/bun#16834) hands the
-certificate to the request handler; only `node:tls` and `Bun.listen` sockets expose it.
-Options: leave them unavailable there (current plan, FR-R5), terminate mTLS at a proxy and accept a
-header on an explicitly trusted hop, or open an upstream request. Node and workerd are unaffected.
+on Bun today without dropping to `node:tls`. Re-verified on Bun 1.4.4 on 2026-10-28: a handshake
+with `requestCert` succeeds and is verified, but `Bun.serve` hands the handler nothing, and
+`node:https` (oven-sh/bun#16834) now reports `authorized: true` with an empty certificate — no
+subject, no DER, no fingerprint. Only `node:tls` and `Bun.listen` sockets expose it.
+Decided: they stay unavailable on Bun (FR-R5) until Bun exposes the certificate. DPoP (FR-C13's
+alternative) and `private_key_jwt` cover sender-constraining and client authentication there, as
+FAPI 2.0 itself accepts. A header from a trusted mTLS-terminating proxy was designed and not built:
+every host enabling it must make the proxy overwrite that header, and a misconfiguration is client
+impersonation the library cannot detect. Build it if an mTLS-only deployment on Bun appears. Node
+and workerd are unaffected.

@@ -1,10 +1,12 @@
 /// <reference types="bun" />
 
 import { createProvider, staticKeyStore } from 'oidcraft'
+import { screens } from '../interaction/screens'
 import { accountStore, createDemoAccounts, seedDemoAccounts } from './accounts'
 import { issuer, optional } from './env'
 import { seedFirstPartyClients } from './first-party'
 import { seedConformanceClients, seedDemoClient } from './seed'
+import type { Site } from './site'
 import { openStorage } from './storage'
 import { upstreams } from './upstreams'
 
@@ -45,3 +47,8 @@ export const provider = createProvider({
   // The reference deployment turns these on so the screens below have something to drive.
   features: { deviceFlow: true, pushedAuthorizationRequests: true, dpop: true }
 })
+
+/** The issuer at OIDCRAFT_ISSUER. With realms on, it is the control plane the operator signs in through. */
+export const control: Site = { provider, accounts, screens, federation: upstreams.length > 0 }
+
+export { adapter as controlAdapter }

@@ -355,7 +355,9 @@ export const resolveConfig = (config: ProviderConfig): ResolvedConfig => {
   }
 }
 
-const isLoopback = (url: URL) => url.hostname === 'localhost' || url.hostname === '127.0.0.1' || url.hostname === '[::1]'
+// RFC 6761 §6.3: every name under .localhost is loopback, which is what lets a realm per subdomain run on one machine.
+const isLoopback = (url: URL) =>
+  url.hostname === 'localhost' || url.hostname.endsWith('.localhost') || url.hostname === '127.0.0.1' || url.hostname === '[::1]'
 
 const stripTrailingSlash = (value: string) => (value.endsWith('/') ? value.slice(0, -1) : value)
 

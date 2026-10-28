@@ -74,6 +74,16 @@ export type CredentialsTable = {
   updated_at: Millis
 }
 
+export type RealmsTable = {
+  id: string
+  display_name: string | null
+  /** 0 or 1: SQLite has no boolean. */
+  enabled: number
+  settings: string
+  created_at: Millis
+  updated_at: Millis
+}
+
 export type OidcraftDatabase = {
   oidc_clients: ClientsTable
   oidc_artifacts: ArtifactsTable
@@ -82,6 +92,7 @@ export type OidcraftDatabase = {
   oidc_identities: IdentitiesTable
   oidc_replay: ReplayTable
   oidc_credentials: CredentialsTable
+  oidc_realms: RealmsTable
 }
 
 export type { Generated }

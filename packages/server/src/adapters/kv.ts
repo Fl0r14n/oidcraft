@@ -8,10 +8,11 @@ import type {
   FederatedIdentityStore,
   GrantStore,
   KeyStore,
+  RealmStore,
   ReplayGuard,
   SessionStore
 } from '../adapter'
-import type { Artifact, Credential, FederatedIdentity, Grant, Seconds, Session } from '../types'
+import type { Artifact, Credential, FederatedIdentity, Grant, Realm, Seconds, Session } from '../types'
 
 export type KvEntry = { key: string; value: string; ttl?: Seconds }
 
@@ -270,6 +271,23 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): Adapter => {
     }
   }
 
+  const realmKey = (id: string) => `realm/${id}`
+  const reviveRealm = (raw: string) => revive(JSON.parse(raw) as Realm, ['createdAt', 'updatedAt'])
+  const realms: RealmStore = {
+    async find(id) {
+      const raw = await read(realmKey(id))
+      return raw === undefined ? undefined : reviveRealm(raw)
+    },
+    list: () => collect(kv, 'realm/', reviveRealm),
+    create: realm => kv.insert({ key: realmKey(realm.id), value: enc(realm) }),
+    async upsert(realm) {
+      await kv.upsert({ key: realmKey(realm.id), value: enc(realm) })
+    },
+    async destroy(id) {
+      await kv.destroy(realmKey(id))
+    }
+  }
+
   return {
     clients,
     artifacts,
@@ -277,6 +295,7 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): Adapter => {
     grants,
     accounts: options.accounts ?? noAccounts,
     credentials,
+    realms,
     keys: options.keys,
     replay,
     ...(options.federation !== false && { identities })

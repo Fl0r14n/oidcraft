@@ -10,9 +10,10 @@ import type {
   FederatedIdentity,
   Grant,
   KeyStore,
+  Realm,
   Session
 } from 'oidcraft'
-import { artifacts, clients, credentials, grants, identities, replay, sessions } from './schema'
+import { artifacts, clients, credentials, grants, identities, realms, replay, sessions } from './schema'
 
 export type DrizzleDatabase = SQLiteAsyncDatabase<'sync' | 'async', unknown>
 
@@ -292,6 +293,27 @@ export const drizzleAdapter = (options: DrizzleAdapterOptions): Adapter => {
       }
     },
 
+    realms: {
+      async find(id: string) {
+        const [row] = await db.select().from(realms).where(eq(realms.id, id)).limit(1)
+        return row ? toRealm(row) : undefined
+      },
+      async list() {
+        return (await db.select().from(realms)).map(toRealm)
+      },
+      async create(realm: Realm) {
+        const won = await db.insert(realms).values(realmRow(realm)).onConflictDoNothing().returning({ id: realms.id })
+        return won.length === 1
+      },
+      async upsert(realm: Realm) {
+        const row = realmRow(realm)
+        await db.insert(realms).values(row).onConflictDoUpdate({ target: realms.id, set: row })
+      },
+      async destroy(id: string) {
+        await db.delete(realms).where(eq(realms.id, id))
+      }
+    },
+
     ...(federation && {
       identities: {
         async find(provider: string, subject: string) {
@@ -359,6 +381,24 @@ const toCredential = (row: typeof credentials.$inferSelect): Credential => ({
   ...(row.recoveryCodes ? { recoveryCodes: row.recoveryCodes as string[] } : {}),
   failedAttempts: row.failedAttempts,
   ...(row.lockedUntil && { lockedUntil: row.lockedUntil }),
+  createdAt: row.createdAt,
+  updatedAt: row.updatedAt
+})
+
+const realmRow = (realm: Realm) => ({
+  id: realm.id,
+  displayName: realm.displayName ?? null,
+  enabled: realm.enabled,
+  settings: realm.settings,
+  createdAt: realm.createdAt,
+  updatedAt: realm.updatedAt
+})
+
+const toRealm = (row: typeof realms.$inferSelect): Realm => ({
+  id: row.id,
+  ...(row.displayName && { displayName: row.displayName }),
+  enabled: row.enabled,
+  settings: row.settings as Record<string, unknown>,
   createdAt: row.createdAt,
   updatedAt: row.updatedAt
 })

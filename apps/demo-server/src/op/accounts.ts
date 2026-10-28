@@ -10,12 +10,16 @@ const PROFILE = ['name', 'given_name', 'family_name', 'preferred_username', 'pic
  * Production supplies OIDCRAFT_TOTP_KEY. Without it development generates one per process, and every
  * enrolled authenticator stops working at the next restart — say so rather than fail later.
  */
+let generatedTotpKey: string | undefined
+
 const totpKey = () => {
+  if (generatedTotpKey) return generatedTotpKey
   const key = optional('OIDCRAFT_TOTP_KEY')
   if (key) return key
   if (Bun.env.NODE_ENV === 'production') throw new Error('OIDCRAFT_TOTP_KEY is required in production')
   console.warn('[oidcraft] no OIDCRAFT_TOTP_KEY: authenticator enrolments last until this process exits')
-  return generateSecretKey()
+  generatedTotpKey = generateSecretKey()
+  return generatedTotpKey
 }
 
 export const createDemoAccounts = (adapter: Adapter, issuerName: string) =>

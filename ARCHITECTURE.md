@@ -431,6 +431,35 @@ keys and upstreams (FR-M1). **The library never decides who is an administrator*
 these behind its own authentication, and the reference app does so behind its own admin session.
 Writes emit audit events the host routes somewhere; the library persists none of them (FR-M3).
 
+### 7.1 Realms
+
+A realm is a provider. `createRealms({ store, realmOf, configure, provision, retire })`, exported
+from the root beside `createProvider`, keeps a cache of providers keyed by realm id and builds each
+from its record on first use (FR-M4). There is no realm mode in the core and no switch: a deployment
+with one issuer never calls it, and a bundler drops it from that deployment's build.
+
+- **The host owns the URL scheme.** `realmOf` reads a subdomain, a path prefix or a custom domain;
+  the library imposes no `/realms/` path. What it returns is only a selection: ids are DNS labels,
+  and an unknown or disabled realm resolves to `undefined` without `configure` running, so a forged
+  `Host` header cannot mint an issuer (NFR-S6).
+- **Storage is per realm.** `configure` hands each provider its own adapter — a SQLite file, a
+  Postgres schema, a Redis prefix. The `oidc_realms` table (migration `0003`) is only the registry,
+  in the control plane's storage; no other table gains a realm column (`G-6`).
+- **Keys are per realm, and checked.** A key two realms share would let one realm's token verify
+  against the other's JWKS. `generatedKeyStore()` keeps one RSA key per process — fresh keys per store
+  would take the test suite from about 1 s to 26 s — so building a realm whose key ids collide with
+  another realm's throws instead of serving it.
+- **Lifecycle order.** Create inserts the record disabled, runs `provision`, then enables it, so a
+  half-built realm is never served and a failed `provision` frees the id. Remove disables first,
+  then runs `retire`, then deletes the record, so a failed `retire` leaves a realm nobody is served.
+- **Several processes.** `forget` clears one process's cache. Every process re-reads a cached
+  realm's record after `revalidate` seconds (default 30) and rebuilds when anything in it changed —
+  the whole record, not `updatedAt`, which the library sets on every write but a same-millisecond write
+  or a hand edit in the database need not change. No trigger: five adapters, two without any.
+- **The control plane is a plain provider.** The operator signs in through a `createProvider`
+  issuer, not through a realm, and the realm management functions sit behind the host's own
+  authorization like the rest of FR-M1.
+
 ## 8. Apps
 
 ### 8.1 `apps/demo-server` — the reference OP
@@ -481,6 +510,17 @@ console where a deployment would email it.
 the type checker accepts, such as a generic arrow function in an SFC, otherwise fails first in a browser.
 
 `src/op` is the provider's wiring — configuration, seed data, upstreams — and renders nothing.
+
+**Realms are opt-in (`OIDCRAFT_REALMS=on`, FR-M4).** Off, the demo is one issuer and nothing below
+runs. On, `OIDCRAFT_ISSUER` is the control plane — the operator's admin and account apps, and the
+only site that brokers upstream — and each realm is a subdomain of it, `acme.localhost:3001`, which
+`*.localhost` makes loopback on any machine (RFC 6761). The routes are built per _site_ (a provider,
+its accounts and its branded screens), so the same interaction, device and reset code serves every
+realm. `provision` gives a realm its own SQLite file and key pair under `data/realms/` and
+registers the demo relying party, so a new realm can be signed in to at once; `retire` deletes them.
+The admin's realm panel creates, disables and deletes realms, and `?realm=` aims every other admin
+call at one realm's management, so the panels for clients, accounts and keys are the same code. The
+admin and account apps themselves are the control plane's only.
 
 ### 8.2 `apps/demo-vue` — the demo relying party
 

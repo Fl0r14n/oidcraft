@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
 import type { Adapter } from '../adapter'
-import type { Artifact, Client, Grant, Session } from '../types'
+import type { Artifact, Client, Grant, Realm, Session } from '../types'
 
 /**
  * One suite every adapter runs, so memory, Drizzle and Kysely are provably interchangeable rather
@@ -293,5 +293,39 @@ export const adapterConformance = (name: string, create: () => Promise<Adapter>)
     expect(await adapter.credentials.find('a1')).toBeUndefined()
     expect(await adapter.credentials.findByUsername('ada')).toBeUndefined()
     expect(await adapter.credentials.create(credential('a2', 'ada'))).toBe(true)
+  })
+
+  const realm = (id: string): Realm => ({
+    id,
+    displayName: 'Acme',
+    enabled: true,
+    settings: { brand: { accent: '#123456' }, upstreams: ['google'] },
+    createdAt: new Date(1_000),
+    updatedAt: new Date(2_000)
+  })
+
+  // FR-M4: two operators creating one realm must not both provision it.
+  test(`${name}: a realm is created once, atomically`, async () => {
+    const adapter = await create()
+    if (!adapter.realms) return
+    const results = await Promise.all(Array.from({ length: 8 }, () => adapter.realms?.create(realm('acme'))))
+    expect(results.filter(Boolean)).toHaveLength(1)
+    expect(await adapter.realms.create(realm('acme'))).toBe(false)
+  })
+
+  test(`${name}: a realm round-trips, lists and is removed`, async () => {
+    const adapter = await create()
+    if (!adapter.realms) return
+    await adapter.realms.create(realm('acme'))
+    const { displayName: _, ...globex } = { ...realm('globex'), enabled: false }
+    await adapter.realms.create(globex)
+    expect(await adapter.realms.find('acme')).toEqual(realm('acme'))
+    expect(await adapter.realms.find('globex')).toEqual(globex)
+    expect((await adapter.realms.list()).map(found => found.id).sort()).toEqual(['acme', 'globex'])
+    await adapter.realms.upsert({ ...realm('acme'), enabled: false, updatedAt: new Date(3_000) })
+    expect(await adapter.realms.find('acme')).toEqual({ ...realm('acme'), enabled: false, updatedAt: new Date(3_000) })
+    await adapter.realms.destroy('acme')
+    expect(await adapter.realms.find('acme')).toBeUndefined()
+    expect((await adapter.realms.list()).map(found => found.id)).toEqual(['globex'])
   })
 }

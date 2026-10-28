@@ -321,7 +321,7 @@ building a worse site to preserve a rule that was about something else.
 
 ## Decisions waiting on an answer
 
-- `G-6` multi-tenancy — next: optional realms, designed so a single-issuer deployment never sees them.
+- `G-6` multi-tenancy — realms (FR-M4) on the `realms` branch, storage per realm; shared tables still open.
 - `G-3` FAPI 2.0 — an opt-in profile, after `dpop_jkt`; waiting on narrowing FR-T3 for confidential,
   sender-constrained clients under that profile.
 

@@ -31,5 +31,11 @@ export const SQLITE_MIGRATIONS: Migration[] = [
       'create index oidc_identities_account_idx on oidc_identities (account_id)',
       'create index oidc_replay_expiry_idx on oidc_replay (expires_at)'
     ]
+  },
+  {
+    id: '0003_realms',
+    statements: [
+      'create table oidc_realms (id text primary key, display_name text, enabled integer not null, settings text not null, created_at integer not null, updated_at integer not null)'
+    ]
   }
 ]

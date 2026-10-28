@@ -1,4 +1,4 @@
-import type { Account, Artifact, ArtifactKind, Client, Credential, FederatedIdentity, Grant, Seconds, Session } from './types'
+import type { Account, Artifact, ArtifactKind, Client, Credential, FederatedIdentity, Grant, Realm, Seconds, Session } from './types'
 
 /**
  * Storage is a set of narrow capability stores, not one stringly-typed table (ARCHITECTURE.md §4).
@@ -15,6 +15,8 @@ export type Adapter = {
   identities?: FederatedIdentityStore
   /** Only `oidcraft/accounts` reads this; a host with its own `AccountStore` never needs it (FR-I7). */
   credentials?: CredentialStore
+  /** Only `createRealms` reads this, from the control plane's adapter; a single issuer never needs it (FR-M4). */
+  realms?: RealmStore
 }
 
 /**
@@ -90,4 +92,10 @@ export type CredentialStore = EntityStore<Credential> & {
   findByUsername(username: string): Promise<Credential | undefined>
   /** Writes only when neither the account nor the username exists, atomically: two sign-ups racing for one name must not both win. */
   create(credential: Credential): Promise<boolean>
+}
+
+export type RealmStore = EntityStore<Realm> & {
+  list(): Promise<Realm[]>
+  /** Writes only when the id is free, atomically: two operators creating one realm must not both win. */
+  create(realm: Realm): Promise<boolean>
 }

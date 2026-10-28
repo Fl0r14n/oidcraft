@@ -26,7 +26,7 @@ export const useColorMode = () => useContext(ColorModeContext)
 /** Once per page load on the client, once per *request* on the server. Nothing here is a module-level
  * singleton, which is what keeps two concurrent SSR renders from sharing a token or a locale. */
 // Plain http only against a provider on this machine, where `bun run dev` serves one.
-const ALLOW_INSECURE = ['localhost', '127.0.0.1', '[::1]'].includes(new URL(ISSUER).hostname)
+const ALLOW_INSECURE = /^(localhost|.+\.localhost|127\.0\.0\.1|\[::1\])$/.test(new URL(ISSUER).hostname)
 
 export const createApp = (locale?: string): AppInstance => {
   // No client secret and no endpoint overrides: this is a public client, discovery fills the rest,

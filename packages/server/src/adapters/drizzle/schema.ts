@@ -116,4 +116,13 @@ export const credentials = sqliteTable(
   table => [uniqueIndex('oidc_credentials_username_idx').on(table.username)]
 )
 
-export const schema = { clients, artifacts, sessions, grants, identities, replay, credentials }
+export const realms = sqliteTable('oidc_realms', {
+  id: text('id').primaryKey(),
+  displayName: text('display_name'),
+  enabled: integer('enabled', { mode: 'boolean' }).notNull(),
+  settings: text('settings', { mode: 'json' }).notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull()
+})
+
+export const schema = { clients, artifacts, sessions, grants, identities, replay, credentials, realms }

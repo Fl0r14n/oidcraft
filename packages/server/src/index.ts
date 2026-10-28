@@ -7,6 +7,7 @@ export type {
   FederatedIdentityStore,
   GrantStore,
   KeyStore,
+  RealmStore,
   ReplayGuard,
   SessionStore
 } from './adapter'
@@ -31,6 +32,7 @@ export { ConfigurationError, errorResponse, OAuthError, type OAuthErrorCode, typ
 export { type ActiveKey, generatedKeyStore, generateKey, staticKeyStore } from './keys/keys'
 export type { Management, ManagementClientInput } from './management'
 export { createProvider, type LogoutDelivery, type Provider } from './provider'
+export { createRealms, isRealmId, type RealmInput, type RealmPatch, type Realms, type RealmsConfig } from './realms'
 export { authenticationOf, meetsRequirement, type StepUpRequirement, type StepUpVerdict } from './resource/step-up'
 export type { FrontChannelLogout, LogoutNotification } from './session/logout'
 export { resolveAccessToken } from './token/access-token'
@@ -44,6 +46,7 @@ export type {
   Credential,
   FederatedIdentity,
   Grant,
+  Realm,
   Seconds,
   Session
 } from './types'

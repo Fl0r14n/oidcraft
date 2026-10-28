@@ -22,6 +22,7 @@ export const interactions = (config: ResolvedConfig) => ({
   async find(id: string): Promise<InteractionRequest> {
     const { artifact, request, kind } = await load(config, id)
     if (kind === 'logout') return logoutView(id, artifact.clientId, artifact.expiresAt)
+    if (artifact.payload.device) return deviceView(id, artifact.clientId, artifact.payload.device as DeviceLogin, artifact.expiresAt)
     const client = await config.adapter.clients.find(request.clientId)
     return {
       id,
@@ -49,6 +50,7 @@ export const interactions = (config: ResolvedConfig) => ({
   async complete(id: string, outcome: InteractionResult): Promise<InteractionCompletion> {
     const { artifact, request, kind } = await load(config, id)
     if (kind === 'logout') return confirmLogout(config, id, artifact.payload, outcome)
+    if (artifact.payload.device) return completeDeviceLogin(config, id, artifact.clientId, artifact.payload.device as DeviceLogin, outcome)
     const requestedDetails = request.authorizationDetails
     if (outcome.consent && requestedDetails) {
       const approved = outcome.consent.authorizationDetails
@@ -144,6 +146,35 @@ const logoutView = (id: string, clientId: string, expiresAt: Date): InteractionR
   authorizationDetails: undefined,
   expiresAt
 })
+
+type DeviceLogin = { userCode: string; scopes: string[] }
+
+const deviceView = (id: string, clientId: string, device: DeviceLogin, expiresAt: Date): InteractionRequest => ({
+  ...logoutView(id, clientId, expiresAt),
+  kind: 'login',
+  scopes: device.scopes
+})
+
+/** Signed in, the person goes back to the code they typed; approving it is still a separate step (FR-C7). */
+const completeDeviceLogin = async (
+  config: ResolvedConfig,
+  id: string,
+  clientId: string,
+  device: DeviceLogin,
+  outcome: InteractionResult
+) => {
+  if (!outcome.login) {
+    throw new OAuthError('invalid_request', { description: 'a device sign-in is completed only by signing in', status: 400 })
+  }
+  if (!(await config.adapter.artifacts.consume('interaction', id))) {
+    throw new OAuthError('invalid_request', { description: 'this interaction was already completed', status: 404 })
+  }
+  const { cookie } = await startSession(config, outcome.login, clientId)
+  await config.adapter.artifacts.destroy('interaction', id)
+  const url = new URL(`${config.issuer}${config.routes.deviceVerification}`)
+  url.searchParams.set('user_code', device.userCode)
+  return { redirectTo: url.toString(), setCookie: cookie }
+}
 
 /** The person confirmed; end-session runs again with a single-use proof of it (OIDC RP-Initiated Logout 1.0 §2). */
 const confirmLogout = async (config: ResolvedConfig, id: string, payload: Record<string, unknown>, outcome: InteractionResult) => {

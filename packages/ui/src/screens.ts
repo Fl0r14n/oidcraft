@@ -188,11 +188,11 @@ export const createScreens = ({ brand, theme, urls: overrides }: ScreensOptions)
     deviceCode: (code = '', error = '', status?: number) =>
       page('Connect a device', DeviceCodeScreen, { action: urls.device, code, error }, status),
 
-    deviceConfirm: (userCode: string, clientName: string, scopes: string[]) =>
+    deviceConfirm: (userCode: string, clientName: string, scopes: string[], signedInAs?: string) =>
       page('Allow the device', ConsentScreen, {
         action: urls.deviceDecide,
         title: `Allow ${clientName} to use your account?`,
-        intro: `The device showing ${userCode} is asking to:`,
+        intro: `${signedInAs ? `Signed in as ${signedInAs}. ` : ''}The device showing ${userCode} is asking to:`,
         scopes: scopes.map(describe),
         details: [],
         hidden: { user_code: userCode }

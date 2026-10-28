@@ -5,7 +5,7 @@ This file is working state: tick items off and add notes as work lands.
 
 ## Status
 
-**Every `FR-*` on the plan is implemented except FR-A6, recorded 2026-10-14.** 919 tests, and `bun run verify` is the gate.
+**Every `FR-*` on the plan is implemented except FR-A6, recorded 2026-10-14.** 924 tests, and `bun run verify` is the gate.
 
 The authorization code grant with mandatory PKCE, interaction suspend/resume, token issuance with
 rotation and replay revocation, UserInfo, revocation, introspection, logout in both directions,
@@ -149,7 +149,9 @@ waits on `oidcraft/accounts` (FR-I7).
       codes, password change
 - [x] A TOTP step after the password, recording `amr: ['pwd', 'otp', 'mfa']` and `acr: mfa` (FR-C16); sign-up,
       forgotten password and reset screens
-- [ ] The device flow still approves as a made-up `ada` session; it should require a signed-in account
+- [x] The device flow approves as the browser's signed-in account. Without one, `provider.device.signIn`
+      starts a login interaction on the same screens (password, TOTP, sign-up) that returns to the
+      code; `provider.session(request)` is how a host's own screens see who is signed in
 
 ## `FR-*` coverage
 

@@ -203,6 +203,19 @@ describe('approval', () => {
     expect(provider.device.resolve('ZZZZ-ZZZZ', { denied: true })).rejects.toThrow(/not one we are waiting for/)
   })
 
+  test('approving puts the device on the session, so ending it reaches the device', async () => {
+    const { user_code } = await start()
+    await adapter.sessions.upsert({
+      id: 's2',
+      accountId: 'ada',
+      authTime: new Date(),
+      clients: [],
+      expiresAt: new Date(Date.now() + 60_000)
+    })
+    await provider.device.resolve(user_code, { accountId: 'ada', sessionId: 's2', scopes: ['openid'] })
+    expect((await adapter.sessions.find('s2'))?.clients).toEqual(['tv'])
+  })
+
   test('the endpoint is absent unless the feature is on', async () => {
     const off = createProvider({ interactionUrl: 'https://op.example.com/interaction', issuer: ISSUER, adapter })
     expect((await off.handle(new Request(`${ISSUER}/device/authorize`, { method: 'POST' }))).status).toBe(404)
@@ -286,5 +299,47 @@ describe('pairwise subjects', () => {
     expect(off.subject_types_supported).toEqual(['public'])
     const on = await (await (await pairwise()).handle(new Request(`${ISSUER}/.well-known/openid-configuration`))).json()
     expect(on.subject_types_supported).toContain('pairwise')
+  })
+})
+
+describe('signing in from the verification page', () => {
+  const cookieOf = (setCookie: string | undefined) => setCookie?.split(';')[0] ?? ''
+
+  test('a login interaction that starts a session and returns to the code', async () => {
+    const { user_code } = await start()
+    const { redirectTo } = await provider.device.signIn(user_code.toLowerCase())
+    const id = redirectTo.split('/').pop() as string
+
+    const view = await provider.interactions.find(id)
+    expect(view.kind).toBe('login')
+    expect(view.clientId).toBe('tv')
+    expect(view.scopes).toEqual(['openid', 'profile', 'offline_access'])
+
+    const done = await provider.interactions.complete(id, { login: { accountId: 'ada', amr: ['pwd'] } })
+    expect(done.redirectTo).toBe(`${ISSUER}/device?user_code=${normalizeUserCode(user_code)}`)
+
+    const session = await provider.session(new Request(done.redirectTo, { headers: { cookie: cookieOf(done.setCookie) } }))
+    expect(session?.accountId).toBe('ada')
+    expect(session?.clients).toEqual(['tv'])
+  })
+
+  test('only a login completes it, and only once', async () => {
+    const { user_code } = await start()
+    const { redirectTo } = await provider.device.signIn(user_code)
+    const id = redirectTo.split('/').pop() as string
+    await expect(provider.interactions.complete(id, { consent: { scopes: ['openid'] } })).rejects.toThrow(/only by signing in/)
+    await provider.interactions.complete(id, { login: { accountId: 'ada' } })
+    await expect(provider.interactions.complete(id, { login: { accountId: 'ada' } })).rejects.toThrow()
+  })
+
+  test('is refused for a code that is unknown or already answered', async () => {
+    await expect(provider.device.signIn('ZZZZ-ZZZZ')).rejects.toThrow(/not one we are waiting for/)
+    const { user_code } = await start()
+    await provider.device.resolve(user_code, { denied: true })
+    await expect(provider.device.signIn(user_code)).rejects.toThrow(/not one we are waiting for/)
+  })
+
+  test('no cookie, no session', async () => {
+    expect(await provider.session(new Request(`${ISSUER}/device`))).toBeUndefined()
   })
 })

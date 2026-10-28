@@ -189,48 +189,40 @@ export const deviceRoutes = async (request: Request, url: URL, clientIp: string 
     if (error instanceof OAuthError && error.status === 429) {
       return screens.deviceCode('', 'Too many wrong codes. Wait a few minutes and try again.', 429)
     }
+    if (error instanceof OAuthError) return screens.deviceCode('', 'That code has expired or was already answered.', 400)
     throw error
   }
 }
 
 const deviceScreens = async (request: Request, url: URL, context: { clientIp: string | undefined }) => {
-  if (request.method === 'GET' && url.pathname === '/device') {
-    const prefilled = url.searchParams.get('user_code') ?? ''
-    if (!prefilled) return screens.deviceCode()
-    const found = await provider.device.find(prefilled, context)
-    if (!found) return screens.deviceCode(prefilled, 'No device is waiting for that code. Check it and try again.', 404)
-    return screens.deviceConfirm(prefilled, found.client.clientName ?? found.client.clientId, found.payload.scopes)
-  }
-
-  if (request.method === 'POST' && url.pathname === '/device') {
-    const form = new URLSearchParams(await request.text())
-    const typed = form.get('user_code') ?? ''
+  const confirm = async (typed: string) => {
     const found = await provider.device.find(typed, context)
     if (!found) return screens.deviceCode(typed, 'No device is waiting for that code. Check it and try again.', 404)
-    return screens.deviceConfirm(typed, found.client.clientName ?? found.client.clientId, found.payload.scopes)
+    const session = await provider.session(request)
+    if (!session) return seeOther((await provider.device.signIn(typed, context)).redirectTo)
+    return screens.deviceConfirm(typed, found.client.clientName ?? found.client.clientId, found.payload.scopes, session.accountId)
   }
 
+  if (request.method === 'GET' && url.pathname === '/device') {
+    const prefilled = url.searchParams.get('user_code') ?? ''
+    return prefilled ? confirm(prefilled) : screens.deviceCode()
+  }
+
+  if (request.method === 'POST' && url.pathname === '/device') return confirm((await form(request)).get('user_code') ?? '')
+
   if (request.method === 'POST' && url.pathname === '/device/decide') {
-    const form = new URLSearchParams(await request.text())
-    const typed = form.get('user_code') ?? ''
-    const allow = form.get('decision') === 'allow'
+    const body = await form(request)
+    const typed = body.get('user_code') ?? ''
+    // Approving or refusing on someone's behalf is still doing it as someone (FR-C7).
+    const session = await provider.session(request)
+    if (!session) return seeOther((await provider.device.signIn(typed, context)).redirectTo)
     try {
-      if (!allow) {
+      if (body.get('decision') !== 'allow') {
         await provider.device.resolve(typed, { denied: true }, context)
         return screens.deviceDone(false)
       }
-      // Demo: a real deployment would require a signed-in session here rather than inventing one.
       const found = await provider.device.find(typed, context)
       if (!found) return screens.deviceCode(typed, 'That code has expired.', 404)
-      const session = {
-        id: crypto.randomUUID(),
-        accountId: 'ada',
-        authTime: new Date(),
-        acr: 'pwd',
-        clients: [found.artifact.clientId],
-        expiresAt: new Date(Date.now() + 3_600_000)
-      }
-      await provider.config.adapter.sessions.upsert(session)
       await provider.device.resolve(typed, { accountId: session.accountId, sessionId: session.id, scopes: found.payload.scopes }, context)
       return screens.deviceDone(true)
     } catch {

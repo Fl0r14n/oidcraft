@@ -7,7 +7,7 @@ import {
   validateAuthorizationRequest
 } from './authorize/authorization'
 import { backchannelAuthenticationEndpoint, type CibaDecision, resolveBackchannelRequest } from './authorize/ciba'
-import { deviceAuthorizationEndpoint, findByUserCode, resolveDeviceCode, type UserCodeContext } from './authorize/device'
+import { deviceAuthorizationEndpoint, deviceSignIn, findByUserCode, resolveDeviceCode, type UserCodeContext } from './authorize/device'
 import { interactions } from './authorize/interactions'
 import { pushedAuthorizationRequestEndpoint, resolvePushedRequest } from './authorize/par'
 import { applyRequestObject } from './authorize/request-object'
@@ -26,6 +26,7 @@ import { endSessionEndpoint } from './session/end-session'
 import type { LogoutNotification } from './session/logout'
 import { readSession } from './session/session'
 import { tokenEndpoint } from './token/endpoint'
+import type { Session } from './types'
 
 export type Provider = {
   config: ResolvedConfig
@@ -44,7 +45,11 @@ export type Provider = {
       outcome: Parameters<typeof resolveDeviceCode>[2],
       context?: UserCodeContext
     ) => ReturnType<typeof resolveDeviceCode>
+    /** No session to approve with: a login interaction that returns to the verification page. */
+    signIn: (userCode: string, context?: UserCodeContext) => ReturnType<typeof deviceSignIn>
   }
+  /** Who this browser is signed in as here, for the screens no authorization request leads to. */
+  session(request: Request): Promise<Session | undefined>
   /** CIBA's out-of-band half, for whatever channel actually asks the person (FR-C17). */
   ciba: { resolve: (authReqId: string, outcome: CibaDecision) => ReturnType<typeof resolveBackchannelRequest> }
   /** The whole surface: a WHATWG Request in, a Response out, no I/O of its own (FR-R1, FR-A1). */
@@ -231,8 +236,10 @@ export const createProvider = (config: ProviderConfig): Provider => {
     management: management(resolved),
     device: {
       find: (userCode, context) => findByUserCode(resolved, userCode, context),
-      resolve: (userCode, outcome, context) => resolveDeviceCode(resolved, userCode, outcome, context)
+      resolve: (userCode, outcome, context) => resolveDeviceCode(resolved, userCode, outcome, context),
+      signIn: (userCode, context) => deviceSignIn(resolved, userCode, context)
     },
+    session: request => readSession(resolved, request),
     ciba: { resolve: (authReqId, outcome) => resolveBackchannelRequest(resolved, authReqId, outcome) },
     async handle(request, context) {
       const path = routePath(resolved, new URL(request.url).pathname)

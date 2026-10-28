@@ -189,6 +189,11 @@ export const resolveDeviceCode = async (
   }
 
   const scopes = await checkApproval(config, found.payload.scopes, outcome)
+  const session = await config.adapter.sessions.find(outcome.sessionId)
+  // The device now holds tokens from this session, so ending it must reach the device too (FR-C11).
+  if (session && !session.clients.includes(found.artifact.clientId)) {
+    await config.adapter.sessions.upsert({ ...session, clients: [...session.clients, found.artifact.clientId] })
+  }
   const previous = await config.adapter.grants.findByAccountAndClient(outcome.accountId, found.artifact.clientId)
   const grant = {
     id: previous?.id ?? randomString(),
@@ -216,6 +221,29 @@ export const resolveDeviceCode = async (
     payload: payload as unknown as Record<string, unknown>
   })
   return { approved: true as const, client: found.client }
+}
+
+/**
+ * Approving needs a signed-in person, and a verification page has no authorization request to
+ * suspend. This is the login interaction it lacks: the same screens, then back to that page (FR-C7).
+ */
+export const deviceSignIn = async (config: ResolvedConfig, typed: string, context: UserCodeContext = {}) => {
+  if (!config.interactionUrl) {
+    throw new OAuthError('server_error', { description: 'signing in requires an interactionUrl (FR-I1)' })
+  }
+  const found = await findByUserCode(config, typed, context)
+  if (found?.payload.status !== 'pending') {
+    throw new OAuthError('invalid_request', { description: 'that code is not one we are waiting for', status: 404 })
+  }
+  const id = randomString()
+  await config.adapter.artifacts.upsert({
+    id,
+    kind: 'interaction',
+    clientId: found.artifact.clientId,
+    payload: { interactionKind: 'login', device: { userCode: found.payload.userCode, scopes: found.payload.scopes } },
+    expiresAt: new Date(Math.min(Date.now() + config.ttl.interaction * 1000, found.artifact.expiresAt.getTime()))
+  })
+  return { redirectTo: `${config.interactionUrl}/${id}` }
 }
 
 export const deviceCodeGrant = async (config: ResolvedConfig, client: Client, form: URLSearchParams, binding: Binding) => {

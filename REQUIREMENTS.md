@@ -33,14 +33,14 @@ differences that are the reason it exists:
 
 ## 2. Actors
 
-| Actor | What it is |
-| --- | --- |
-| **Host application** | The TypeScript app embedding the library. Owns accounts, storage and deployment. |
-| **Relying party (client)** | A registered OAuth client. Confidential, public, or dynamically registered. |
-| **End user** | Authenticates at the OP, grants consent. |
-| **Upstream provider** | An external OP oidcraft brokers to, where it is itself the relying party. |
-| **Resource server** | Validates access tokens, by introspection or by verifying a JWT locally. |
-| **Operator** | Runs the deployment; uses the admin surface to manage clients, keys and sessions. |
+| Actor                      | What it is                                                                        |
+| -------------------------- | --------------------------------------------------------------------------------- |
+| **Host application**       | The TypeScript app embedding the library. Owns accounts, storage and deployment.  |
+| **Relying party (client)** | A registered OAuth client. Confidential, public, or dynamically registered.       |
+| **End user**               | Authenticates at the OP, grants consent.                                          |
+| **Upstream provider**      | An external OP oidcraft brokers to, where it is itself the relying party.         |
+| **Resource server**        | Validates access tokens, by introspection or by verifying a JWT locally.          |
+| **Operator**               | Runs the deployment; uses the admin surface to manage clients, keys and sessions. |
 
 ## 3. Protocol core — `FR-C*`
 
@@ -80,7 +80,7 @@ refused it — see `metadata.test.ts`, which now tries every advertised value ra
 `client_secret_jwt`, `private_key_jwt` (RFC 7523), `tls_client_auth` and
 `self_signed_tls_client_auth` (RFC 8705).
 
-The mTLS methods need the host to pass the *verified* client certificate in — the core never
+The mTLS methods need the host to pass the _verified_ client certificate in — the core never
 terminates TLS (FR-R4), so it establishes which client presented a certificate, not whether to trust
 it. They are refused at construction, and absent from discovery, where the runtime cannot supply one
 (FR-R5, `G-8`).
@@ -117,7 +117,7 @@ made it non-functional in current browsers.
 **FR-C12 — Request objects.** JAR (RFC 9101) **by value** (`request`) and PAR (RFC 9126), with
 per-client `require_pushed_authorization_requests`.
 
-JAR *by reference* — a `request_uri` pointing at the client's own server — is not implemented, and
+JAR _by reference_ — a `request_uri` pointing at the client's own server — is not implemented, and
 will not be in the core: resolving it means fetching a URL the client chose, which is outbound I/O
 the core does not perform (FR-A1, FR-R4). A host that needs it supplies `resolveClientJwks`-style
 resolution and pushes the result. A `request_uri` issued by PAR is a different thing: it references

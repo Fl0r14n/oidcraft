@@ -52,6 +52,11 @@ const state = () => screen.getByTestId('state').textContent?.split('|')
 // value it did not see being set
 const type = (label: string, value: string) => fireEvent.change(screen.getByLabelText(label), { target: { value } })
 
+const Seeded = () => {
+  const form = useOAuthForm({ username: 'preset', password: 'pw' })
+  return <span data-testid="seeded">{`${form.view.username.value}|${form.view.valid}`}</span>
+}
+
 describe('useOAuthForm', () => {
   it('reports error codes rather than sentences, so the skin owns the wording', () => {
     mount(<Form />)
@@ -204,10 +209,6 @@ describe('useOAuthForm', () => {
   })
 
   it('seeds from the options, for a prefilled or test form', () => {
-    const Seeded = () => {
-      const form = useOAuthForm({ username: 'preset', password: 'pw' })
-      return <span data-testid="seeded">{`${form.view.username.value}|${form.view.valid}`}</span>
-    }
     mount(<Seeded />)
 
     expect(screen.getByTestId('seeded').textContent).toBe('preset|true')

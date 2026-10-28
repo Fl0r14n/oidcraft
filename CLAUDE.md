@@ -85,7 +85,7 @@ bun run conformance      # OpenID Foundation suite against apps/demo-server
   one leaks, if a core type is inlined, or if `node:` appears outside the `./runtimes/node` entry
   (ARCHITECTURE.md §2.1–2.2). Do not split this into several packages without reading §2.1.
 - **`@oidcraft/core` and `@oidcraft/client` are never published.** `core` is the protocol, used by
-  `oidcraft/federation` *and* by every client binding; `client` is the stateful browser-facing half
+  `oidcraft/federation` _and_ by every client binding; `client` is the stateful browser-facing half
   and is for the bindings only — that split is what keeps `localStorage` structurally out of the
   server. Both are **compiled into** each publisher, never depended on; each `verify-entries.ts`
   fails the build if a published bundle still imports one, because that name resolves to nothing
@@ -117,7 +117,7 @@ bun run conformance      # OpenID Foundation suite against apps/demo-server
   served entrypoint, so the root one does not reach `apps/*`. Missing, it does not error — a `.vue`
   import resolves to a path string and the page renders blank.
 - **`vue-tsc` does not run on TypeScript 7.** Packages containing `.vue` files type-check with
-  `vue-tsgo`; everything else uses `bun check` (Bun ≥ 1.4.3), except the Angular demo's TypeScript 6
+  `vue-tsgo`; everything else uses `bun check` (Bun ≥ 1.4.4), except the Angular demo's TypeScript 6
   `tsc`. Not `tsgo` — that is the older `@typescript/native-preview` binary. Do not drop `typescript`:
   tsdown emits declarations with it.
 - **The credential form is split by purity, not by consumer.** `@oidcraft/core` holds the rules and

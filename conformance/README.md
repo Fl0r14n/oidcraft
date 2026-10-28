@@ -64,13 +64,13 @@ These modules do not pass because the behaviour they look for is one oidcraft de
 clause behind the refusal. They are listed in `expected-failures.json` and `expected-skips.json`,
 so the run still exits 0; anything failing that is **not** here is a bug.
 
-| module | result | why | requirement |
-| --- | --- | --- | --- |
-| `oidcc-ensure-request-without-nonce-succeeds-for-code-flow` | failure | sends neither PKCE nor a `nonce`; a confidential client may skip PKCE only with a `nonce` | FR-C3, NFR-S1, OAuth 2.1 §7.5.1.1 |
-| `oidcc-ensure-request-with-acr-values-succeeds` | warning | the demo login can only do a password and reports `acr=pwd` rather than claim a level it did not reach | FR-F6 |
-| `oidcc-claims-essential` | warning | the `claims` request parameter is not supported, which OIDC Core leaves optional | — |
-| `oidcc-scope-address`, `-phone`, `-all` | skipped | the demo serves no `address` or `phone` scope | — |
-| `oidcc-unsigned-request-object-…`, `oidcc-ensure-request-object-with-redirect-uri` | skipped | an unsigned (`alg: none`) request object is refused | FR-C12 |
+| module                                                                             | result  | why                                                                                                    | requirement                       |
+| ---------------------------------------------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------ | --------------------------------- |
+| `oidcc-ensure-request-without-nonce-succeeds-for-code-flow`                        | failure | sends neither PKCE nor a `nonce`; a confidential client may skip PKCE only with a `nonce`              | FR-C3, NFR-S1, OAuth 2.1 §7.5.1.1 |
+| `oidcc-ensure-request-with-acr-values-succeeds`                                    | warning | the demo login can only do a password and reports `acr=pwd` rather than claim a level it did not reach | FR-F6                             |
+| `oidcc-claims-essential`                                                           | warning | the `claims` request parameter is not supported, which OIDC Core leaves optional                       | —                                 |
+| `oidcc-scope-address`, `-phone`, `-all`                                            | skipped | the demo serves no `address` or `phone` scope                                                          | —                                 |
+| `oidcc-unsigned-request-object-…`, `oidcc-ensure-request-object-with-redirect-uri` | skipped | an unsigned (`alg: none`) request object is refused                                                    | FR-C12                            |
 
 Three more end in **REVIEW**, which is the suite's own state for "a person must look at the
 screenshot": `oidcc-prompt-login` and `oidcc-max-age-1` (the second login page) and

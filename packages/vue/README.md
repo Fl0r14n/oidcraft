@@ -27,12 +27,12 @@ const user = useOAuthUser()
 
 ## Entries
 
-| | |
-| --- | --- |
-| `vue-oidc` | the composables and the plugin. `vue` is the only peer. |
-| `vue-oidc/core` | the protocol alone, with no Vue in its graph — usable from a request handler or a worker. |
-| `vue-oidc/axios` | the optional axios adapter. The only entry importing axios, which is what keeps it optional. |
-| `vue-oidc/component` | the optional Vuetify login component, plus `vue-oidc/component.css`. |
+|                      |                                                                                              |
+| -------------------- | -------------------------------------------------------------------------------------------- |
+| `vue-oidc`           | the composables and the plugin. `vue` is the only peer.                                      |
+| `vue-oidc/core`      | the protocol alone, with no Vue in its graph — usable from a request handler or a worker.    |
+| `vue-oidc/axios`     | the optional axios adapter. The only entry importing axios, which is what keeps it optional. |
+| `vue-oidc/component` | the optional Vuetify login component, plus `vue-oidc/component.css`.                         |
 
 `verify-entries.ts` asserts all four claims after every build, because each one fails silently
 otherwise: a leaked peer only surfaces for a consumer who never installed it, and a satellite entry

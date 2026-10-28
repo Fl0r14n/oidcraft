@@ -84,7 +84,7 @@ import { ... } from 'oidcraft/adapters/redis'     // any Redis client, through o
 
 `drizzle-orm` and `kysely` are **optional** peer dependencies, each confined to the entry that uses
 it — installing oidcraft pulls neither. `oidcraft/federation` also needs a relying-party
-implementation, because brokering *is* being a relying party at the upstream; that one is not a
+implementation, because brokering _is_ being a relying party at the upstream; that one is not a
 dependency at all, but this project's own code compiled into the entry.
 
 `oidcraft/adapters/redis` takes no client either: it takes one function that sends a command, so

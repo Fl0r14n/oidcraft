@@ -208,7 +208,7 @@ describe('brokering to a live upstream', () => {
   // FR-F9: the downstream client asked for these; satisfying them from whatever session the
   // upstream already holds would answer a question nobody asked.
   test('prompt, max_age and acr_values reach the upstream authorization request', async () => {
-    const { url, setCookie } = await broker.start('downstream-interaction-6', 'self', {
+    const { url } = await broker.start('downstream-interaction-6', 'self', {
       prompt: ['login'],
       maxAge: 60,
       acrValues: ['mfa'],

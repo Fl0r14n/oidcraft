@@ -51,7 +51,7 @@ here, or under any load.
 - [x] Authorization endpoint, `code` only, PKCE mandatory (FR-C1, FR-C3)
 - [x] Interaction suspend/resume (FR-I1, FR-I2) and remembered consent (FR-I4)
 - [x] Token endpoint: `authorization_code`, `refresh_token`, with rotation and replay revocation
-      (FR-C2, FR-T3, FR-T4)
+  (FR-C2, FR-T3, FR-T4)
 - [x] Client authentication: `none`, `client_secret_basic`, `client_secret_post` (FR-C4)
 - [x] UserInfo (FR-C5); `iss` in the authorization response (FR-C14)
 - [x] `apps/demo-server` serves a real OP with reference login and consent screens
@@ -59,25 +59,25 @@ here, or under any load.
 ## M2 — storage and conformance
 
 - [x] `oidcraft/adapters/drizzle` (SQLite) with real columns and indexes, passing the shared
-      conformance suite; `explain query plan` asserts revocation and the user-code lookup use
-      their indexes (FR-A5)
+  conformance suite; `explain query plan` asserts revocation and the user-code lookup use
+  their indexes (FR-A5)
 - [~] Postgres — deliberately not shipped untested; see the status section
 - [x] `oidcraft/adapters/kysely`, passing the same conformance suite as memory and Drizzle
 - [x] `metadata.test.ts`: the discovery document against OIDC Discovery 1.0 §3 and RFC 8414 §2,
-      cross-checked against behaviour. **Not certification** — see `conformance/README.md`
+  cross-checked against behaviour. **Not certification** — see `conformance/README.md`
 - [x] `conformance/` harness: plan configuration and a runner, for a suite built from source
 - [x] Run the OpenID Foundation suite locally: `basic` and `config` green (2026-09-30), with the
-      deliberate refusals listed in `conformance/README.md`. The first run found six real bugs —
-      the `acr_values` login loop, a non-URI `error_uri`, scope claims in the ID token, the broker
-      ignoring UserInfo, JSON shown to the browser on an unredirectable error, and an http issuer
+  deliberate refusals listed in `conformance/README.md`. The first run found six real bugs —
+  the `acr_values` login loop, a non-URI `error_uri`, scope claims in the ID token, the broker
+  ignoring UserInfo, JSON shown to the browser on an unredirectable error, and an http issuer
 - [x] Run it in CI (NFR-C1): the suite's images, the forwarder in `conformance/compose.override.yml`,
-      and `bun run conformance` as a job that fails the build
+  and `bun run conformance` as a job that fails the build
 - [x] Checked `REQUIREMENTS.md` against the specs before the run (2026-09-30). Fixed: FR-C3's PKCE
-      exemption, FR-T1's mandatory RS256, NFR-S2's loopback port, FR-C18's sector validation, and
-      NFR-C1 dropping `dynamic` — see `conformance/README.md` for why
+  exemption, FR-T1's mandatory RS256, NFR-S2's loopback port, FR-C18's sector validation, and
+  NFR-C1 dropping `dynamic` — see `conformance/README.md` for why
 - [x] `oidcraft/runtimes/node` HTTP bridge, tested against a real node:http server (FR-R3)
 - [x] Capability gating: mTLS methods are refused at construction where no certificate can be
-      supplied, and absent from discovery (FR-R5, `G-8`)
+  supplied, and absent from discovery (FR-R5, `G-8`)
 - [x] Smoke tests for `oidcraft/runtimes/{bun,deno,workerd}`
 
 ## M3 — federation
@@ -88,7 +88,7 @@ here, or under any load.
 - [x] Claim mapping (FR-F7); provenance carried on the identity (FR-F6)
 - [x] Test upstream: a second oidcraft instance (ARCHITECTURE.md §10)
 - [x] The authorization endpoint chooses the upstream (FR-F4) and the interaction carries that
-      choice; the host still performs the round trip, because that part is I/O
+  choice; the host still performs the round trip, because that part is I/O
 - [x] Upstream back-channel logout mapped to the local sessions it produced (FR-F8)
 - [x] `prompt`, `max_age` and `acr_values` passed through to the upstream (FR-F9)
 
@@ -102,7 +102,7 @@ here, or under any load.
 - [x] DCR (FR-C9) with RFC 7592 client management, gated by `onRegister`
 - [x] Device grant (FR-C7) with slow-down enforcement; pairwise subjects (FR-C18)
 - [x] Token exchange (FR-C2), gated on an explicit `exchangePolicy`; RAR (FR-C15) with declared
-      types; step-up (FR-C16) forcing re-authentication for an unmet `acr`
+  types; step-up (FR-C16) forcing re-authentication for an unmet `acr`
 - [x] CIBA (FR-C17), poll and ping
 
 ## M5 — batteries
@@ -110,18 +110,18 @@ here, or under any load.
 - [x] Reference login and consent screens (FR-I3), remembered consent (FR-I4)
 - [x] The remaining screens: account selection, upstream selection, device code, logout
 - [x] Management API (FR-M1) over clients, grants, sessions, keys and identities, with audit
-      events (FR-M3) — functions, not routes, so the host authorizes it
+  events (FR-M3) — functions, not routes, so the host authorizes it
 - [x] Admin UI (FR-M2): clients table and key list, `@vuetify/v0`'s `createDataTable` for
-      sort/filter/paginate and its `Dialog` for the destructive confirmation
+  sort/filter/paginate and its `Dialog` for the destructive confirmation
 - [x] Admin: sessions and grants by account, with revoke and end-session
 - [x] Admin: upstream providers shown read-only, since they are deployment configuration
 - [x] First manual publish: `oidcraft@0.0.1` claimed the name — the similarity check cleared
 - [ ] `npm trust github` registration, so releases publish from CI (ARCHITECTURE.md §11)
 - [ ] Docs site — **after** the review and the conformance run; requirements below
 - [x] `oidcraft/accounts` (FR-I7): passwords through an injected argon2id hasher (`bunPasswordHasher`,
-      `nodePasswordHasher`, interoperable PHC strings), TOTP with sealed secrets, recovery codes,
-      throttling, reset tokens and sign-up, over a new `credentials` store in every adapter and SQLite
-      migration `0002`. The demo's screens for it are next
+  `nodePasswordHasher`, interoperable PHC strings), TOTP with sealed secrets, recovery codes,
+  throttling, reset tokens and sign-up, over a new `credentials` store in every adapter and SQLite
+  migration `0002`. The demo's screens for it are next
 - [ ] `oidcraft/adapters/typeorm` (FR-A6) on the shared conformance suite, with migrations (FR-A4)
 
 ## Demo server
@@ -130,28 +130,28 @@ here, or under any load.
 waits on `oidcraft/accounts` (FR-I7).
 
 - [x] Renamed from `apps/server`; screens are server-rendered Vue on a shared `src/ui`, the admin
-      app uses the same components, and `screens.test.ts` pins the conformance browser's contract
+  app uses the same components, and `screens.test.ts` pins the conformance browser's contract
 - [x] `packages/ui`, private: the design (CSS variables, Public Sans served from the OP's origin, a
-      guilloche band), the components and the screens, built per issuer by `createScreens` with its
-      brand, theme and form URLs; a TOTP screen ready for FR-I7
+  guilloche band), the components and the screens, built per issuer by `createScreens` with its
+  brand, theme and form URLs; a TOTP screen ready for FR-I7
 - [x] Admin signs in through the OP itself with `vue-oidc`, replacing `OIDCRAFT_ADMIN_TOKEN`; the API
-      introspects the token in-process and checks an allowlist this app owns (FR-M1). Restyled on
-      `@oidcraft/ui`, whose `UiDataTable` and `UiDialog` now carry `@vuetify/v0`
+  introspects the token in-process and checks an allowlist this app owns (FR-M1). Restyled on
+  `@oidcraft/ui`, whose `UiDataTable` and `UiDialog` now carry `@vuetify/v0`
 - [x] Discovery swallowed `InsecureEndpointError`, so an http issuer without `allowInsecure` surfaced
-      as "no authorizePath". It now rethrows that one and still survives outages. The three demos allow
-      plain http against a loopback issuer only; demo-vue had also been building against a stale npm
-      `vue-oidc@5.3.0` in its own `node_modules`, shadowing the workspace link
+  as "no authorizePath". It now rethrows that one and still survives outages. The three demos allow
+  plain http against a loopback issuer only; demo-vue had also been building against a stale npm
+  `vue-oidc@5.3.0` in its own `node_modules`, shadowing the workspace link
 - [x] SQLite through the Drizzle adapter (`OIDCRAFT_DB`), so an enrolment survives a restart; conformance
-      runs with `OIDCRAFT_DB=memory`. The adapters now ship their SQLite schema as `SQLITE_MIGRATIONS`
-      (FR-A4 said they did; they did not), and the CI conformance build now includes `vue-oidc`, which
-      the admin bundle needs at startup
+  runs with `OIDCRAFT_DB=memory`. The adapters now ship their SQLite schema as `SQLITE_MIGRATIONS`
+  (FR-A4 said they did; they did not), and the CI conformance build now includes `vue-oidc`, which
+  the admin bundle needs at startup
 - [x] `/account`: self-service as another client of the OP — TOTP enrolment with a QR code, recovery
-      codes, password change
+  codes, password change
 - [x] A TOTP step after the password, recording `amr: ['pwd', 'otp', 'mfa']` and `acr: mfa` (FR-C16); sign-up,
-      forgotten password and reset screens
+  forgotten password and reset screens
 - [x] The device flow approves as the browser's signed-in account. Without one, `provider.device.signIn`
-      starts a login interaction on the same screens (password, TOTP, sign-up) that returns to the
-      code; `provider.session(request)` is how a host's own screens see who is signed in
+  starts a login interaction on the same screens (password, TOTP, sign-up) that returns to the
+  code; `provider.session(request)` is how a host's own screens see who is signed in
 
 ## `FR-*` coverage
 
@@ -164,7 +164,7 @@ access tokens.
 `metadata.test.ts` exercises every advertised value rather than reading it, which is the check that
 was missing when discovery advertised three things the code refused.
 
-What is *not* claimed: see the status section. Implemented is not the same as certified, and no
+What is _not_ claimed: see the status section. Implemented is not the same as certified, and no
 `FR-*` here has been checked by anything but its author and its tests.
 
 ## Next, in this order
@@ -182,13 +182,13 @@ In fix order; the first is the only one that changes the adapter contract.
 **Critical**
 
 - [x] Single use is not atomic anywhere. `consume()` returns nothing and every adapter writes
-      unconditionally; `replay.claim()` reads then writes. Two parallel redemptions of a code or
-      refresh token both succeed and nothing is revoked (FR-T3, FR-T4, NFR-S4, NFR-S5). Covers
-      codes, refresh tokens, PAR `request_uri`, device and CIBA approvals, assertion and DPoP `jti`.
-      Fixed: `consume` and `claim` return whether this caller won, `KvStore` gained an atomic `insert`,
-      and an artifact upsert can no longer revive a consumed one — a second hole the fix found,
-      reachable through a device or CIBA poll writing back a stale read. Interactions and the
-      federation handoff are now consumed too.
+  unconditionally; `replay.claim()` reads then writes. Two parallel redemptions of a code or
+  refresh token both succeed and nothing is revoked (FR-T3, FR-T4, NFR-S4, NFR-S5). Covers
+  codes, refresh tokens, PAR `request_uri`, device and CIBA approvals, assertion and DPoP `jti`.
+  Fixed: `consume` and `claim` return whether this caller won, `KvStore` gained an atomic `insert`,
+  and an artifact upsert can no longer revive a consumed one — a second hole the fix found,
+  reachable through a device or CIBA poll writing back a stale read. Interactions and the
+  federation handoff are now consumed too.
 
 **High — security**
 
@@ -197,64 +197,64 @@ In fix order; the first is the only one that changes the adapter contract.
 - [x] DPoP nonce can be minted by the client: `claim` stores the unknown value it refuses (RFC 9449 §8)
 - [x] Client assertion lifetime measured from the client's `iat`; jti remembered for 300 s only (FR-C4, NFR-S5)
 - [x] Federation handoff not bound to the browser — login CSRF (FR-F3). `apps/demo-server` now brokers
-      to Google when `UPSTREAM_GOOGLE_*` is set, so the round trip and its cookie run for real
+  to Google when `UPSTREAM_GOOGLE_*` is set, so the round trip and its cookie run for real
 - [x] workerd hands over an empty certificate DER; every thumbprint is the same (FR-C13).
-      Fixed: `ClientCertificate` carries the `x5t#S256` thumbprint, not the DER. Workers never see
-      the DER, so workerd derives it from `certFingerprintSHA256` and drops a certificate without one
+  Fixed: `ClientCertificate` carries the `x5t#S256` thumbprint, not the DER. Workers never see
+  the DER, so workerd derives it from `certFingerprintSHA256` and drops a certificate without one
 - [x] Open registration does not validate `grant_types` (FR-C9). Fixed: only grants discovery
-      advertises, no `client_credentials` for a public client, and `response_types` must agree
+  advertises, no `client_credentials` for a public client, and `response_types` must agree
 
 **High — broken features**
 
 - [x] CIBA ping can never redeem; `ciba.test.ts` asserts the bug (FR-C17). Fixed: a ping client
-      redeems with the poll request (CIBA §10.2). Ping end to end: `Client` carries the
-      notification endpoint, registration sets the mode and endpoint, and `ciba.resolve` returns the
-      `CibaPing` the host delivers
+  redeems with the poll request (CIBA §10.2). Ping end to end: `Client` carries the
+  notification endpoint, registration sets the mode and endpoint, and `ciba.resolve` returns the
+  `CibaPing` the host delivers
 - [x] A PAR-required client cannot finish an interaction: the replay drops `request_uri` (FR-C12).
-      Fixed: a pushed request resumes through a fresh pushed reference, never the front channel
+  Fixed: a pushed request resumes through a fresh pushed reference, never the front channel
 - [x] Logout notifies only the first RP: `session.clients` is never appended (FR-C11). Fixed in
-      `issueTokens`, so code, device and CIBA all record the client, through `SessionStore.addClient`,
-      which every adapter makes atomic (a key per client over a `KvStore`, compare-and-swap in SQL)
+  `issueTokens`, so code, device and CIBA all record the client, through `SessionStore.addClient`,
+  which every adapter makes atomic (a key per client over a `KvStore`, compare-and-swap in SQL)
 - [x] JWT access tokens cannot be revoked or introspected (FR-C8, FR-T2). Fixed: both resolve by `jti`
 - [x] mTLS: binding only on `authorization_code`, lost on refresh; client auth only at the token endpoint (FR-C4, FR-C13).
-      Fixed: every grant takes one `Binding` (DPoP key and certificate); a refresh rebinds to the
-      certificate presented, and a public client's refresh token is held to its certificate
-      (RFC 8705 §4). PAR, device, CIBA, revocation and introspection receive the certificate
+  Fixed: every grant takes one `Binding` (DPoP key and certificate); a refresh rebinds to the
+  certificate presented, and a public client's refresh token is held to its certificate
+  (RFC 8705 §4). PAR, device, CIBA, revocation and introspection receive the certificate
 
 **Medium**
 
 - [x] Device/CIBA tokens carry requested, not approved, scopes; approvals not checked against the requested user.
-      Fixed: `checkApproval` — approved ⊆ requested, keeps `openid`, session is the approver's, CIBA approver is the hinted user
+  Fixed: `checkApproval` — approved ⊆ requested, keeps `openid`, session is the approver's, CIBA approver is the hinted user
 - [x] Refresh narrowing consumes the refresh token without reissuing; withdrawn grant scopes return.
-      Fixed: the rotated refresh token keeps its own scope (RFC 6749 §6), intersected with the grant
+  Fixed: the rotated refresh token keeps its own scope (RFC 6749 §6), intersected with the grant
 - [x] Pairwise `sub` leaks via logout token, introspection, exchange; UserInfo lets the account store override it (FR-C18)
 - [x] Token exchange: drops sender binding, extends lifetime, mislabels token types (RFC 8693). Fixed, and only
-      access and refresh tokens are exchanged or issued: an ID token is not stored
+  access and refresh tokens are exchanged or issued: an ID token is not stored
 - [x] `form_post` advertised but answered in the query; error redirects ignore `response_mode`; `access_denied` lacks `iss` (FR-C14).
-      Fixed: one `authorizationResponse`; an interaction error is delivered through `/authorize?response=` once
+  Fixed: one `authorizationResponse`; an interaction error is delivered through `/authorize?response=` once
 - [x] `max_age=0` loops; `prompt=select_account` ignored; `prompt=none` combined accepted (FR-I5)
 - [x] No `user_code` rate limiting (NFR-S3); Node bridge takes the left-most `X-Forwarded-For`. Fixed: 5 wrong codes
-      per address per 10 minutes (50 when the host passes no address); the right-most forwarded entry
+  per address per 10 minutes (50 when the host passes no address); the right-most forwarded entry
 - [x] DPoP `htu` from `request.url`, not the issuer (NFR-S6); an issuer with a path 404s every route
 - [x] Upstream back-channel logout tokens: no jti replay, no `typ`, unchecked `events`
 - [x] Construction accepts a missing `interactionUrl`, CIBA without its resolver, federation without its stores (NFR-D2)
 - [x] No CORS, so a browser client on another origin cannot use the OP. Fixed: by registered redirect origins (ARCHITECTURE.md §3.1)
 - [x] End-session rejects an expired `id_token_hint`; a bare GET logs out without confirmation. Fixed: a `logout`
-      interaction kind; the reference app's confirm screen is now that interaction
+  interaction kind; the reference app's confirm screen is now that interaction
 - [x] Introspection has no resource-server authentication; `iat` equals `exp` (FR-C8). Fixed: `Client.resourceServer`;
-      `iat` recorded at issuance
+  `iat` recorded at issuance
 - [x] A malformed cookie or Basic header is a 500
 - [x] RFC 7592 update skips `onRegister`, resets `requirePkce`, compares the token with `!==`. Fixed: `onRegister`
-      runs on update with `{ existing }`, and its answer decides the exemption
+  runs on update with `{ existing }`, and its answer decides the exemption
 - [x] Non-string request-object claims become `"[object Object]"`
 
 **Low and cleanup**
 
 - [x] `at_hash` always SHA-256; no `sid` in the ID token; an ID token without `openid`
 - [x] Refresh family has no absolute lifetime; offline access dies with the browser session. Fixed:
-      `ttl.refreshTokenFamily` (90 days); a refresh token carries its sign-in and outlives the session, not the grant
+  `ttl.refreshTokenFamily` (90 days); a refresh token carries its sign-in and outlives the session, not the grant
 - [x] Registration: unvalidated logout and `jwks_uri` URIs (SSRF), http `localhost` (NFR-S2). A name that resolves to a
-      private address is still the host's to refuse: only it resolves
+  private address is still the host's to refuse: only it resolves
 - [x] Discovery advertises the wrong algorithm lists. Fixed: `keys/algorithms.ts`, one list for verification and discovery
 - [x] Claim mapping can pair one source's `email_verified` with another's `email`; `acr`/`amr`/`sid` unprotected
 - [x] Access-token artifacts built in three places; `step-up.ts` belongs in `resource/`
@@ -262,11 +262,11 @@ In fix order; the first is the only one that changes the adapter contract.
 **Follow-ups, not findings**
 
 - [x] A Redis `KvStore` (Bun's built-in client), at least in tests: nothing exercises `fromKv` over a
-      distributed store, where `insert` being atomic is the whole point — the memory store is atomic
-      for free. Possibly an `oidcraft/adapters/redis` entry once it exists.
+  distributed store, where `insert` being atomic is the whole point — the memory store is atomic
+  for free. Possibly an `oidcraft/adapters/redis` entry once it exists.
 
 - [x] `bun check` for the six `tsc --noEmit` typecheck scripts; not for SFC packages (`vue-tsgo`) or
-      the Angular island (TypeScript 6). `engines.bun` is `>=1.4.3`
+  the Angular island (TypeScript 6). `engines.bun` is `>=1.4.4`
 
 ## Docs site — requirements
 
@@ -340,8 +340,8 @@ The swap closed five things `openid-client` did that the ported core did not, ea
 - **FR-F11 is real**: an unreachable upstream, a refusal on the redirect, a wrong `iss` and a failed
   ID token each become a distinct `OAuthError` with the clause that was violated.
 
-`metadata.contract.test.ts` pins the discovery document this OP *writes* to the type the RP core
-*reads*, so renaming an endpoint here is a compile error rather than someone's runtime `undefined`.
+`metadata.contract.test.ts` pins the discovery document this OP _writes_ to the type the RP core
+_reads_, so renaming an endpoint here is a compile error rather than someone's runtime `undefined`.
 
 ## The monorepo: four libraries, one protocol core
 
@@ -352,12 +352,12 @@ users** — only the repositories are deprecated.
 The reason is not tidiness. Read side by side, the three libraries have already converged on the
 same module boundaries, independently:
 
-| module | vue-oidc | react-oauth-oidc | ngx-oauth |
-| --- | --- | --- | --- |
-| `config` `fetch` `functions` `jwt` `token` `types` `user` | yes | yes | yes |
-| storage | `ref.ts` | `storage.ts` | `storage.ts` |
-| flows | `flows.ts` | `flows.ts` | `oauth.ts` |
-| optional UI `component/` | Vuetify | yes | Material |
+| module                                                    | vue-oidc   | react-oauth-oidc | ngx-oauth    |
+| --------------------------------------------------------- | ---------- | ---------------- | ------------ |
+| `config` `fetch` `functions` `jwt` `token` `types` `user` | yes        | yes              | yes          |
+| storage                                                   | `ref.ts`   | `storage.ts`     | `storage.ts` |
+| flows                                                     | `flows.ts` | `flows.ts`       | `oauth.ts`   |
+| optional UI `component/`                                  | Vuetify    | yes              | Material     |
 
 That is one design written three times. Every Vue file above the core imports Vue exactly once, and
 always the same names — `ref`, `computed`, `watch`, `effectScope`, `inject`. ngx-oauth's library is
@@ -415,7 +415,7 @@ workspace-private package leaks into a published bundle.
 
 ### Decided
 
-- **`ngx-oauth`'s service layer drops `ng-packagr`** — done, see above. The Angular *sample* still
+- **`ngx-oauth`'s service layer drops `ng-packagr`** — done, see above. The Angular _sample_ still
   needs the Angular CLI, which is a deliberate exception to §1.1's no-bundler rule for apps.
 
 ### Closed: `ngx-oauth/component` → `oauthForm()`
@@ -459,10 +459,10 @@ publishing, once the client libraries are actually here:
 - **Four consumers, not two.** The bundling case was obvious at two.
 - Svelte, Solid and vanilla come free rather than on request.
 
-What was *not* a real argument against it, and should not be reused: the §2.1 version matrix. That
+What was _not_ a real argument against it, and should not be reused: the §2.1 version matrix. That
 pain is specific to **peer** dependencies, where the consumer reconciles two versions. As an
 ordinary dependency there is nothing to reconcile. If it is published, `NFR-D4` needs one word —
-zero *third-party* runtime dependencies beyond `jose` — because the core's own tree is `jose` alone.
+zero _third-party_ runtime dependencies beyond `jose` — because the core's own tree is `jose` alone.
 
 ### The test DOM, and why it is global
 
@@ -510,7 +510,7 @@ workspace exists to avoid — two near-identical copies of the same rules, about
 It is **not** a net reduction in lines, and it was predicted to be. The three wrappers are ~75 lines
 each rather than the ~25 estimated, because most of each file is the interface restated in that
 framework's reactive vocabulary — `Signal`, `ComputedRef`, plain values. The logic in each is about
-fifteen lines. What the extraction actually buys is that the *rules* exist once and are tested once:
+fifteen lines. What the extraction actually buys is that the _rules_ exist once and are tested once:
 when a field may show an error, what survives a rejected attempt, when a dismissed error comes back.
 
 `vue-oidc/component` lost a fourth copy of those rules along the way — it had been validating through
@@ -542,6 +542,7 @@ writable refs beside it, because `v-model` needs somewhere to write and Vue unwr
 template only at the top level.
 
 ### Still open on the Vue move
+
 - **`@vue/compiler-sfc` cannot resolve an imported type under Bun** ("No fs option provided to
   compileScript in non-Node environment"), so the login component's props are written out literally
   in the SFC and pinned to the protocol by two assignments in `component/props.ts`. Not a version

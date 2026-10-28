@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'bun:test'
 import { act, cleanup, render, screen } from '@testing-library/react'
 import { renderToString } from 'react-dom/server'
-import { createStore, type OAuth, OAuthStatus, OAuthType, type ResourceOwnerConfig } from 'react-oauth-oidc/core'
+import { createStore, type OAuth, OAuthStatus, OAuthType, type ResourceOwnerConfig, type Subscribable } from 'react-oauth-oidc/core'
 import {
   useAccessToken,
   useIsAuthorized,
@@ -31,14 +31,47 @@ beforeEach(() => {
 
 const mount = (ui: React.ReactNode) => render(<OAuthProvider oauth={oauth}>{ui}</OAuthProvider>)
 
-describe('useOAuth', () => {
-  const Probe = () => {
-    const { status, isAuthorized, hasError, errorDescription, accessToken } = useOAuth()
-    return <span data-testid="p">{`${status}|${isAuthorized}|${hasError}|${errorDescription ?? '-'}|${accessToken ?? '-'}`}</span>
-  }
+const OAuthProbe = () => {
+  const { status, isAuthorized, hasError, errorDescription, accessToken } = useOAuth()
+  return <span data-testid="p">{`${status}|${isAuthorized}|${hasError}|${errorDescription ?? '-'}|${accessToken ?? '-'}`}</span>
+}
+const ConfigProbe = () => <span data-testid="c">{(useOAuth().config as ResourceOwnerConfig)?.tokenPath ?? '-'}</span>
+const StateProbe = () => <span data-testid="s">{useOAuth().state ?? '-'}</span>
+const TokenProbe = () => {
+  const [token, setToken] = useOAuthToken()
+  return (
+    <button type="button" data-testid="t" onClick={() => setToken({ access_token: 'set-from-ui', type: OAuthType.RESOURCE })}>
+      {token.access_token ?? '-'}
+    </button>
+  )
+}
+const UserProbe = () => <span data-testid="u">{useOAuthUser()?.name ?? '-'}</span>
+const ConfigFetchProbe = ({ onFetch }: { onFetch: (http: unknown) => void }) => {
+  onFetch(useOAuthFetch())
+  return <span data-testid="k">{useOAuthConfig().storageKey}</span>
+}
+const IsAuthorizedProbe = ({ onRender }: { onRender: () => void }) => {
+  onRender()
+  return <span data-testid="a">{String(useIsAuthorized())}</span>
+}
+const WholeOAuthProbe = ({ onRender }: { onRender: () => void }) => {
+  onRender()
+  return <span data-testid="b">{String(useOAuth().isAuthorized)}</span>
+}
+const ActionsProbe = ({ onRender }: { onRender: (actions: unknown) => void }) => {
+  onRender(useOAuthActions())
+  return null
+}
+const ScopeProbe = () => <span data-testid="s">{useOAuthSelector(token => token.scope ?? '-')}</span>
+const NarrowProbe = () => <span>{`${useIsAuthorized()}|${useOAuthStatus()}|${useAccessToken() ?? '-'}|${useOAuthError() ?? '-'}`}</span>
+const StoreProbe = ({ store, onRender }: { store: Subscribable<{ a: number | string }>; onRender?: () => void }) => {
+  onRender?.()
+  return <span data-testid="a">{useStoreValue(store, state => state.a)}</span>
+}
 
+describe('useOAuth', () => {
   it('re-renders derived protocol state when the token changes', () => {
-    mount(<Probe />)
+    mount(<OAuthProbe />)
     expect(screen.getByTestId('p').textContent).toBe(`${OAuthStatus.NOT_AUTHORIZED}|false|false|-|-`)
 
     act(() => oauth.setToken({ access_token: 'at', token_type: 'Bearer', expires: Date.now() + 60_000 }))
@@ -50,7 +83,6 @@ describe('useOAuth', () => {
   })
 
   it('re-renders when the config changes — the autoconfig case', () => {
-    const ConfigProbe = () => <span data-testid="c">{(useOAuth().config as ResourceOwnerConfig)?.tokenPath ?? '-'}</span>
     mount(<ConfigProbe />)
     expect(screen.getByTestId('c').textContent).toBe('/t')
 
@@ -61,7 +93,6 @@ describe('useOAuth', () => {
   })
 
   it('re-renders when the authorization redirect echoes a state back', async () => {
-    const StateProbe = () => <span data-testid="s">{useOAuth().state ?? '-'}</span>
     mount(<StateProbe />)
 
     await act(async () => {
@@ -74,17 +105,8 @@ describe('useOAuth', () => {
 })
 
 describe('useOAuthToken', () => {
-  const Probe = () => {
-    const [token, setToken] = useOAuthToken()
-    return (
-      <button type="button" data-testid="t" onClick={() => setToken({ access_token: 'set-from-ui', type: OAuthType.RESOURCE })}>
-        {token.access_token ?? '-'}
-      </button>
-    )
-  }
-
   it('reads and writes the live token', () => {
-    mount(<Probe />)
+    mount(<TokenProbe />)
     expect(screen.getByTestId('t').textContent).toBe('-')
 
     act(() => screen.getByTestId('t').click())
@@ -97,8 +119,7 @@ describe('useOAuthToken', () => {
 
 describe('useOAuthUser', () => {
   it('re-renders once the id_token claims are decoded', async () => {
-    const Probe = () => <span data-testid="u">{useOAuthUser()?.name ?? '-'}</span>
-    mount(<Probe />)
+    mount(<UserProbe />)
 
     await act(async () => {
       oauth.setToken({ id_token: idToken({ name: 'Jane' }) })
@@ -113,11 +134,13 @@ describe('useOAuthUser', () => {
 describe('useOAuthConfig / useOAuthFetch', () => {
   it('exposes the live config and the instance transport', () => {
     let http: unknown
-    const Probe = () => {
-      http = useOAuthFetch()
-      return <span data-testid="k">{useOAuthConfig().storageKey}</span>
-    }
-    mount(<Probe />)
+    mount(
+      <ConfigFetchProbe
+        onFetch={value => {
+          http = value
+        }}
+      />
+    )
     expect(screen.getByTestId('k').textContent).toBe('token')
 
     act(() => oauth.setStorageKey('tenant.token'))
@@ -131,11 +154,7 @@ describe('useOAuthConfig / useOAuthFetch', () => {
 describe('fine-grained hooks', () => {
   it('useIsAuthorized does not re-render for token writes that do not change it', () => {
     let renders = 0
-    const Probe = () => {
-      renders++
-      return <span data-testid="a">{String(useIsAuthorized())}</span>
-    }
-    mount(<Probe />)
+    mount(<IsAuthorizedProbe onRender={() => renders++} />)
     expect(screen.getByTestId('a').textContent).toBe('false')
     const baseline = renders
 
@@ -156,11 +175,7 @@ describe('fine-grained hooks', () => {
 
   it('useOAuth re-renders for all of them — the contrast the narrow hooks exist for', () => {
     let renders = 0
-    const Probe = () => {
-      renders++
-      return <span data-testid="b">{String(useOAuth().isAuthorized)}</span>
-    }
-    mount(<Probe />)
+    mount(<WholeOAuthProbe onRender={() => renders++} />)
     const baseline = renders
 
     act(() => oauth.setToken({ nonce: 'n' }))
@@ -173,12 +188,14 @@ describe('fine-grained hooks', () => {
   it('useOAuthActions is stable and never re-renders', () => {
     const seen: unknown[] = []
     let renders = 0
-    const Probe = () => {
-      renders++
-      seen.push(useOAuthActions())
-      return null
-    }
-    mount(<Probe />)
+    mount(
+      <ActionsProbe
+        onRender={actions => {
+          renders++
+          seen.push(actions)
+        }}
+      />
+    )
     const baseline = renders
 
     act(() => oauth.setToken({ access_token: 'at', token_type: 'Bearer' }))
@@ -190,8 +207,7 @@ describe('fine-grained hooks', () => {
   })
 
   it('useOAuthSelector narrows to whatever you select', () => {
-    const Probe = () => <span data-testid="s">{useOAuthSelector(token => token.scope ?? '-')}</span>
-    mount(<Probe />)
+    mount(<ScopeProbe />)
     expect(screen.getByTestId('s').textContent).toBe('-')
 
     act(() => oauth.setToken({ scope: 'openid profile' }))
@@ -202,10 +218,9 @@ describe('fine-grained hooks', () => {
 
   it('the narrow hooks render their signed-out value on the server', () => {
     oauth.setToken({ access_token: 'at', token_type: 'Bearer' })
-    const Probe = () => <span>{`${useIsAuthorized()}|${useOAuthStatus()}|${useAccessToken() ?? '-'}|${useOAuthError() ?? '-'}`}</span>
 
     // the same selector applied to an empty token, so hydration agrees without any extra plumbing
-    const html = renderToString(<OAuthProvider oauth={oauth}>{<Probe />}</OAuthProvider>)
+    const html = renderToString(<OAuthProvider oauth={oauth}>{<NarrowProbe />}</OAuthProvider>)
 
     expect(html).toContain(`false|${OAuthStatus.NOT_AUTHORIZED}|-|-`)
   })
@@ -215,11 +230,7 @@ describe('useStoreValue', () => {
   it('re-renders on a store write and ignores unrelated ones', () => {
     const store = createStore({ a: 1, b: 1 })
     let renders = 0
-    const Probe = () => {
-      renders++
-      return <span data-testid="a">{useStoreValue(store, state => state.a)}</span>
-    }
-    render(<Probe />)
+    render(<StoreProbe store={store} onRender={() => renders++} />)
     expect(screen.getByTestId('a').textContent).toBe('1')
     const baseline = renders
 
@@ -234,12 +245,11 @@ describe('useStoreValue', () => {
 
   it('renders the current state on the server, not the state at store creation', () => {
     const store = createStore({ a: 'initial' })
-    const Probe = () => <span>{useStoreValue(store, state => state.a)}</span>
 
     // stands in for a token restored from storage or a config filled in by discovery — written after the
     // store was built but before renderToString. A creation-time getServerSnapshot renders 'initial' here.
     store.setState({ a: 'written after creation' })
 
-    expect(renderToString(<Probe />)).toContain('written after creation')
+    expect(renderToString(<StoreProbe store={store} />)).toContain('written after creation')
   })
 })

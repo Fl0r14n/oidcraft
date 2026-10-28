@@ -90,7 +90,7 @@
     "verify:entries": "bun run verify-entries.ts"
   },
   "dependencies": {
-    "jose": "^6.2.12"
+    "jose": "^6.2.13"
   },
   "peerDependencies": {
     "drizzle-orm": ">=0.45",
@@ -107,7 +107,7 @@
   "devDependencies": {
     "@oidcraft/core": "workspace:*",
     "drizzle-orm": "^0.45.4",
-    "kysely": "^0.28.17",
+    "kysely": "^0.28.18",
     "kysely-bun-sqlite": "^0.4.0"
   },
   "publishConfig": {

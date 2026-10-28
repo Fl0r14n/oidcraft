@@ -43,12 +43,12 @@ process-wide holder is another user's nonce.
 
 Checked, without a flag to turn any of it off:
 
-| | |
-| --- | --- |
-| **Every endpoint is https** | A code or a secret on the wire in clear is a code or a secret someone already has. `allowInsecure` exists for development and is the only way to say it — `localhost` is not exempt. |
-| **The discovery document asserts its own issuer** | OIDC Discovery 1.0 §4.3. Without it, a host that will serve someone else's document hands over that issuer's endpoints. Entra's `{tenantid}` template is the one documented exception. |
-| **`iss` on the authorization response** | RFC 9207 §2.4, the mix-up defence. A provider that advertises `authorization_response_iss_parameter_supported` has promised to send it, so from that provider its absence is a failure too. |
-| **`state`, `nonce`, `aud` and `azp`** | RFC 6749 §10.12 and OIDC Core §3.1.3.7, including the rule that more than one audience requires `azp`. |
+|                                                   |                                                                                                                                                                                             |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Every endpoint is https**                       | A code or a secret on the wire in clear is a code or a secret someone already has. `allowInsecure` exists for development and is the only way to say it — `localhost` is not exempt.        |
+| **The discovery document asserts its own issuer** | OIDC Discovery 1.0 §4.3. Without it, a host that will serve someone else's document hands over that issuer's endpoints. Entra's `{tenantid}` template is the one documented exception.      |
+| **`iss` on the authorization response**           | RFC 9207 §2.4, the mix-up defence. A provider that advertises `authorization_response_iss_parameter_supported` has promised to send it, so from that provider its absence is a failure too. |
+| **`state`, `nonce`, `aud` and `azp`**             | RFC 6749 §10.12 and OIDC Core §3.1.3.7, including the rule that more than one audience requires `azp`.                                                                                      |
 
 Left to you, deliberately: where the handoff is stored, when to refresh, and what a token means to
 your application. None of those have one right answer, and a library that picks one stops being
@@ -69,4 +69,3 @@ default, and what most providers accept), `client_secret_basic` (the header, whi
 require), or `none` for a public client. The Basic variant form-urlencodes each half before the
 base64, per RFC 6749 §2.3.1 — which is the difference between working and not for any secret
 containing `/`, `+`, `:` or a space.
-

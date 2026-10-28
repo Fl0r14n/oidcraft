@@ -28,17 +28,17 @@ Only Node needs an HTTP bridge; the rest are small context providers for what `R
 carry (client IP, verified TLS client certificate).
 
 ```
-packages/core                the protocol. Private; compiled into whoever uses it
-packages/client              the client runtime. Private; the framework bindings only
-packages/vue                 published as vue-oidc
-packages/react               published as react-oauth-oidc
-packages/server              the package, published as `oidcraft`
-packages/ui                  the screens and their design. Private; demo-server only
-apps/demo-server             reference OP: protocol + login screens + admin
-apps/demo-vue                demo relying party: Vue 3 + vue-oidc
-apps/demo-react              demo relying party: React 19 + react-oauth-oidc, with SSR
-apps/demo-angular            demo relying party: Angular 22 + ngx-oauth (own install, ARCHITECTURE.md §8.4)
-```
+packages/core the protocol. Private; compiled into whoever uses it
+packages/client the client runtime. Private; the framework bindings only
+packages/vue published as vue-oidc
+packages/react published as react-oauth-oidc
+packages/server the package, published as `oidcraft`
+packages/ui the screens and their design. Private; demo-server only
+apps/demo-server reference OP: protocol + login screens + admin
+apps/demo-vue demo relying party: Vue 3 + vue-oidc
+apps/demo-react demo relying party: React 19 + react-oauth-oidc, with SSR
+apps/demo-angular demo relying party: Angular 22 + ngx-oauth (own install, ARCHITECTURE.md §8.4)
+````
 
 **Three root files carry the current state:** `ARCHITECTURE.md` (how it is built),
 `REQUIREMENTS.md` (what it must do) and `PLAN.md` (what is left). None of them carries history.
@@ -48,7 +48,7 @@ bun install
 bun run dev          # OP on 3001, demo client on 3000
 bun run typecheck
 bun run lint
-```
+````
 
 This is a scaffold. The workspace, toolchain and adapter contract exist; the protocol does not yet
 — see `PLAN.md`.

@@ -21,9 +21,9 @@ const { isAuthorized, login, logout } = inject(OAUTH)
 
 ## Entries
 
-| | |
-| --- | --- |
-| `ngx-oauth` | the `OAUTH` instance and its providers. `@angular/core` is the only peer. |
+|                  |                                                                                                         |
+| ---------------- | ------------------------------------------------------------------------------------------------------- |
+| `ngx-oauth`      | the `OAUTH` instance and its providers. `@angular/core` is the only peer.                               |
 | `ngx-oauth/core` | the protocol and runtime alone, with no Angular in its graph — usable from a route handler or a worker. |
 
 `verify-entries.ts` asserts both claims after every build, plus that **no decorator reaches the
@@ -40,7 +40,7 @@ here, instead of needing `ng-packagr`.
   shared runtime, from the id_token or `userinfo`, whichever the session actually has.
 - **Protocol functions are configuration, not injection tokens.** Override them with
   `provideOAuthConfig({ functions: { … } })` rather than by providing `OAUTH_REFRESH` and friends.
-- **`ngx-oauth/component` is gone, replaced by `oauthForm()`.** A published Angular *component* has to
+- **`ngx-oauth/component` is gone, replaced by `oauthForm()`.** A published Angular _component_ has to
   be compiled by `ngc` into partial form, and `ngc` requires a TypeScript this workspace does not use
   (ARCHITECTURE.md §8.4). What the Material form was actually worth — the validation, the submit
   lifecycle, the rule that a pristine field does not show an error, the decision to keep the username

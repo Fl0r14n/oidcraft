@@ -5,18 +5,18 @@ How oidcraft is built. `REQUIREMENTS.md` says what it must do; every section her
 
 ## 1. Stack
 
-| Choice | Version | Why |
-| --- | --- | --- |
-| **Bun** | ≥ 1.4.3 | Workspaces, test runner, bundler and HTTP server in one tool. The *development* runtime; the published packages target no runtime in particular (FR-R1). |
-| **TypeScript** | 7.0.x | `bun check` for `.ts`, `vue-tsgo` for packages with SFCs; `typescript` stays for tsdown's declaration emit. |
-| **Tailwind** | 4.3.x | Styling for both apps, via `bun-plugin-tailwind`. No other CSS pipeline. |
-| **@vuetify/v0** | 1.2.x | Headless Vue primitives, in the **admin surface only** (§8.1). Vue 3.5 is its only dependency. |
-| **Biome** | 2.5.x | Lint and format. `biome.json` settles formatting; it is not a matter of preference. |
-| **jose** | ^6 | The only runtime dependency. WebCrypto-backed, runtime-agnostic (NFR-D4). |
-| **@oidcraft/core** | workspace | The protocol, shared by the provider and every client binding (§2.1). Not published; compiled in. |
-| **@oidcraft/client** | workspace | The stateful client runtime, shared by the client bindings only (§2.1). Not published; compiled in. |
-| **tsdown** | 0.23.x | Library build: seven ESM entries with `.d.mts` types (§2.2). |
-| **Drizzle / Kysely** | 0.45 / 0.28 | First-party adapters (FR-A4). Optional peers, never bundled (§2.2). |
+| Choice               | Version     | Why                                                                                                                                                      |
+| -------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Bun**              | ≥ 1.4.4     | Workspaces, test runner, bundler and HTTP server in one tool. The _development_ runtime; the published packages target no runtime in particular (FR-R1). |
+| **TypeScript**       | 7.0.x       | `bun check` for `.ts`, `vue-tsgo` for packages with SFCs; `typescript` stays for tsdown's declaration emit.                                              |
+| **Tailwind**         | 4.3.x       | Styling for both apps, via `bun-plugin-tailwind`. No other CSS pipeline.                                                                                 |
+| **@vuetify/v0**      | 1.2.x       | Headless Vue primitives, in the **admin surface only** (§8.1). Vue 3.5 is its only dependency.                                                           |
+| **Biome**            | 2.5.x       | Lint and format. `biome.json` settles formatting; it is not a matter of preference.                                                                      |
+| **jose**             | ^6          | The only runtime dependency. WebCrypto-backed, runtime-agnostic (NFR-D4).                                                                                |
+| **@oidcraft/core**   | workspace   | The protocol, shared by the provider and every client binding (§2.1). Not published; compiled in.                                                        |
+| **@oidcraft/client** | workspace   | The stateful client runtime, shared by the client bindings only (§2.1). Not published; compiled in.                                                      |
+| **tsdown**           | 0.23.x      | Library build: seven ESM entries with `.d.mts` types (§2.2).                                                                                             |
+| **Drizzle / Kysely** | 0.45 / 0.28 | First-party adapters (FR-A4). Optional peers, never bundled (§2.2).                                                                                      |
 
 ### 1.1 No bundler, no build step — with one measured exception
 
@@ -123,7 +123,7 @@ optional peers, not as separate packages.
 
 Going one package to several later is mechanical; going several to one is a breaking change for
 every consumer, so the merged shape is the reversible one. And npm's trusted publishing cannot
-bootstrap a *new* package — the configuration only exists once a version is published — so every
+bootstrap a _new_ package — the configuration only exists once a version is published — so every
 extra package is another manual first publish and another `npm trust github` run behind a browser
 OTP.
 
@@ -133,7 +133,7 @@ half built on it: storage, the token lifecycle, refresh, the authorized fetch, t
 
 The split is the consumer list. `@oidcraft/core` has two kinds of consumer that share nothing else:
 
-- `oidcraft/federation`, because brokering *is* being a relying party at the upstream (§5);
+- `oidcraft/federation`, because brokering _is_ being a relying party at the upstream (§5);
 - the framework client libraries — `vue-oidc`, `react-oauth-oidc`, `ngx-oauth` — which publish under
   their own names and whose users have no OP at all.
 
@@ -147,12 +147,12 @@ because they were chosen years apart and cannot change without abandoning their 
 not have to inherit that. `bun run --filter` matches package names, so nothing in the build depends
 on the two agreeing.
 
-They are compiled *into* each publisher rather than published beside them. That is what makes them
+They are compiled _into_ each publisher rather than published beside them. That is what makes them
 free: no npm names to own, no trusted-publishing bootstrap, and NFR-D4 stays literally true —
 `dist/federation.mjs` imports `oidcraft` and `jose` and nothing else. A consumer never learns either
 package exists.
 
-Between themselves the two stay *external*: `@oidcraft/client` does not bundle `@oidcraft/core`.
+Between themselves the two stay _external_: `@oidcraft/client` does not bundle `@oidcraft/core`.
 Bundling would put a second copy of every protocol type in its declarations, and a binding that
 imported `OAuthFunctions` from one and was handed the other fails its own dts emit with "cannot be
 named". Only the published package compiles both in.
@@ -181,7 +181,7 @@ than a tax on every consumer. Nothing enforces this at build time, and every way
 fails silently — a leaked peer surfaces only as a resolution error in a consumer who never installed
 it, and a core type inlined into an entry compiles fine while shipping a second copy that drifts.
 
-It also asserts the opposite for `packages/core`: no entry may *import* it, because it is never
+It also asserts the opposite for `packages/core`: no entry may _import_ it, because it is never
 published and a surviving import resolves to nothing on a consumer's machine. Bundled is the only
 correct outcome, and the check that it stayed bundled is the same shape as the check that an
 optional peer stayed external.
@@ -262,16 +262,16 @@ property that makes horizontal scaling and serverless hosting the same thing.
 `packages/server/src/adapter.ts` is the contract. Storage is **a set of narrow capability stores**,
 not one table keyed by a model-name string:
 
-| Store | Holds |
-| --- | --- |
-| `ClientStore` | Registered clients. `create`/`update`/`destroy` are optional — omitting them disables DCR at runtime (FR-C9). |
-| `ArtifactStore` | Codes, access and refresh tokens, device codes, PAR and CIBA requests, registration access tokens. |
-| `SessionStore` | The end-user's authenticated session at the OP, including its upstream provenance (FR-F6). |
-| `GrantStore` | Durable consent: what an account allowed a client, surviving token revocation (FR-I4). |
-| `AccountStore` | The host's users. Claims are resolved per request, never cached at login (FR-C5). |
-| `KeyStore` | Signing keys, newest first (FR-C10). |
-| `ReplayGuard` | One-shot values: `jti`, DPoP proofs, upstream nonces (NFR-S5). |
-| `FederatedIdentityStore` | `(provider, subject) → account` links. Optional; only brokering deployments need it. |
+| Store                    | Holds                                                                                                         |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------- |
+| `ClientStore`            | Registered clients. `create`/`update`/`destroy` are optional — omitting them disables DCR at runtime (FR-C9). |
+| `ArtifactStore`          | Codes, access and refresh tokens, device codes, PAR and CIBA requests, registration access tokens.            |
+| `SessionStore`           | The end-user's authenticated session at the OP, including its upstream provenance (FR-F6).                    |
+| `GrantStore`             | Durable consent: what an account allowed a client, surviving token revocation (FR-I4).                        |
+| `AccountStore`           | The host's users. Claims are resolved per request, never cached at login (FR-C5).                             |
+| `KeyStore`               | Signing keys, newest first (FR-C10).                                                                          |
+| `ReplayGuard`            | One-shot values: `jti`, DPoP proofs, upstream nonces (NFR-S5).                                                |
+| `FederatedIdentityStore` | `(provider, subject) → account` links. Optional; only brokering deployments need it.                          |
 
 The record-holding stores — clients, artifacts, sessions, grants, identities — share one shape,
 `EntityStore<T, Id>`: `find`, `upsert` and `destroy`, with a composite key passed as arguments
@@ -300,7 +300,7 @@ real columns and indexes (FR-A5), and lets a deployment implement only what it u
 must be atomic — because every single-use rule (a code, a refresh token, a `jti`) is that one
 write. Redis `SET NX`, a Durable Object or a single-process `Map` qualify; Workers KV does not.
 
-`consume` and `claim` are atomic in every adapter for the same reason: each returns whether *this*
+`consume` and `claim` are atomic in every adapter for the same reason: each returns whether _this_
 caller won, and the protocol trusts that answer rather than an earlier read. The SQL adapters use a
 conditional `UPDATE … WHERE consumed_at IS NULL` and an upsert that takes over only a lapsed row,
 both with `RETURNING`; an artifact upsert never writes `consumed_at`, so a stale read written back
@@ -359,7 +359,7 @@ Four things reach into the protocol core and cannot be bolted on from outside:
 - **Session provenance.** `idp`, `acr`, `amr` and `auth_time` in a brokered ID token are the
   upstream's answers, so `SessionStore` must carry them (FR-F6).
 - **Re-authentication.** `prompt=login`, `max_age` and a raised `acr_values` have to force a fresh
-  *upstream* authentication. A local session cannot satisfy them on its own (FR-F9).
+  _upstream_ authentication. A local session cannot satisfy them on its own (FR-F9).
 - **Logout.** An upstream back-channel logout must terminate the local sessions it produced, which
   triggers this OP's back-channel logout to its own clients. Hence
   `SessionStore.findByUpstreamSession` (FR-F8).
@@ -520,7 +520,7 @@ app — so its TypeScript 6 never reaches the root. `bun run --filter='*'` does 
 directories rather than reading the `workspaces` list, and so reaches every script this app defines.
 
 That is why its real build is named `bundle` rather than `build`. As `build` it ran in the root's
-*parallel* build alongside `packages/angular`, whose tsdown config cleans `dist/` before rewriting
+_parallel_ build alongside `packages/angular`, whose tsdown config cleans `dist/` before rewriting
 it — and the Angular compiler reads that same `dist/` for its `ngx-oauth` types. Bun has no
 dependency edge to order them, because the app is not a workspace member, so the root build failed
 roughly one run in three. Measured, not theorised.

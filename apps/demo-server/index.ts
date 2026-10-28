@@ -5,10 +5,10 @@ import { bunContext } from 'oidcraft/runtimes/bun'
 import { accountApi } from './src/account/api'
 import { adminApi } from './src/admin/api'
 import { federationCallback } from './src/interaction/federation'
-import { deviceRoutes, interactionRoutes, resetRoutes } from './src/interaction/routes'
-import { screens } from './src/interaction/screens'
+import { routesFor } from './src/interaction/routes'
 import { optional } from './src/op/env'
-import { provider } from './src/op/provider'
+import { control } from './src/op/provider'
+import { realms, realmsEnabled, siteOf } from './src/op/realms'
 
 const port = Number(Bun.env.SERVER_PORT ?? 3001)
 // Discovery 1.0 §3 and RFC 8414 §2 require an https issuer even on loopback.
@@ -27,7 +27,7 @@ const server = serve({
   routes: {
     // More specific than '/admin/*', so the API is not swallowed by the SPA shell.
     '/admin/api/*': request =>
-      adminApi(provider, request, new URL(request.url)).then(response => response ?? new Response(null, { status: 404 })),
+      adminApi(control.provider, realms, request, new URL(request.url)).then(response => response ?? new Response(null, { status: 404 })),
     [ASSETS]: assets,
     '/admin': admin,
     '/admin/*': admin,
@@ -38,18 +38,22 @@ const server = serve({
   },
   async fetch(request, server) {
     const url = new URL(request.url)
+    const site = await siteOf(request)
+    if (!site) return new Response('No such realm', { status: 404 })
+    const { provider, screens } = site
+    const routes = routesFor(site)
     const context = bunContext(provider.config.issuer, server)(request)
     if (url.pathname.startsWith('/interaction/')) {
-      const response = await interactionRoutes(request, url)
+      const response = await routes.interactionRoutes(request, url)
       if (response) return response
     }
-    if (url.pathname === '/reset') return resetRoutes(request, url)
-    if (url.pathname === '/federation/callback') {
+    if (url.pathname === '/reset') return routes.resetRoutes(request, url)
+    if (url.pathname === '/federation/callback' && site.federation) {
       const response = await federationCallback(request, url)
       if (response) return response
     }
     if (url.pathname === '/device' || url.pathname === '/device/decide') {
-      const response = await deviceRoutes(request, url, context.clientIp)
+      const response = await routes.deviceRoutes(request, url, context.clientIp)
       if (response) return response
     }
     const response = await provider.handle(request, context)
@@ -67,3 +71,4 @@ console.log(`  jwks       http://localhost:${server.port}/jwks`)
 console.log(`  admin      http://localhost:${server.port}/admin`)
 console.log(`  account    http://localhost:${server.port}/account`)
 console.log(`  device     http://localhost:${server.port}/device`)
+if (realmsEnabled) console.log(`  realms     http://<realm>.localhost:${server.port} — create them in the admin`)

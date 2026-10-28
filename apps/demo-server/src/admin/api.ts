@@ -1,8 +1,37 @@
 /// <reference types="bun" />
-import type { Provider } from 'oidcraft'
+import type { Provider, Realms } from 'oidcraft'
 import { ADMIN_CLIENT_ID, administrators, callerOf, FIRST_PARTY, json } from '../op/first-party'
 
-export const adminApi = async (provider: Provider, request: Request, url: URL): Promise<Response | undefined> => {
+const realmsApi = async (realms: Realms | undefined, request: Request, id: string | undefined, action: string | undefined) => {
+  // The admin hides the panel on this answer, so a deployment without realms never shows one (FR-M4).
+  if (!realms) return json({ enabled: false, realms: [] })
+  const { management } = realms
+  if (request.method === 'GET' && !id) return json({ enabled: true, realms: await management.list() })
+  if (request.method === 'POST' && !id) {
+    const { id: realmId, displayName } = (await request.json()) as { id: string; displayName?: string }
+    return json(await management.create({ id: realmId, ...(displayName && { displayName }) }), 201)
+  }
+  if (!id) return undefined
+  if (request.method === 'POST' && action === 'enable') return json(await management.enable(id))
+  if (request.method === 'POST' && action === 'disable') return json(await management.disable(id))
+  if (request.method === 'PATCH') return json(await management.update(id, (await request.json()) as { displayName?: string }))
+  if (request.method === 'DELETE') {
+    await management.remove(id)
+    return json({ ok: true })
+  }
+  return undefined
+}
+
+/**
+ * `?realm=acme` points every other endpoint at that realm's management: the admin of one realm is
+ * the same admin, aimed elsewhere. Without it, the control plane's own.
+ */
+export const adminApi = async (
+  provider: Provider,
+  realms: Realms | undefined,
+  request: Request,
+  url: URL
+): Promise<Response | undefined> => {
   const path = url.pathname.replace(/^\/admin\/api/, '')
   if (!path) return undefined
 
@@ -13,11 +42,17 @@ export const adminApi = async (provider: Provider, request: Request, url: URL): 
     return json({ error: 'forbidden', error_description: `${caller} is not an administrator here. Add it to OIDCRAFT_ADMINS.` }, 403)
   }
 
-  const { management } = provider
   const segments = path.split('/').filter(Boolean)
   const [resource, id, action] = segments
 
   try {
+    if (resource === 'realms') return (await realmsApi(realms, request, id, action)) ?? json({ error: 'not_found' }, 404)
+
+    const realm = url.searchParams.get('realm')
+    const target = realm ? await realms?.get(realm) : provider
+    if (!target) return json({ error: 'not_found', error_description: `there is no enabled realm ${realm}` }, 404)
+    const { management } = target
+
     if (resource === 'clients') {
       if (request.method === 'GET' && !id) return json(await management.clients.list())
       if (request.method === 'GET' && id) {
@@ -30,7 +65,7 @@ export const adminApi = async (provider: Provider, request: Request, url: URL): 
         return json({ ok: true })
       }
       if (request.method === 'DELETE' && id) {
-        if (FIRST_PARTY.includes(id)) {
+        if (!realm && FIRST_PARTY.includes(id)) {
           return json(
             {
               error: 'conflict',
@@ -66,6 +101,8 @@ export const adminApi = async (provider: Provider, request: Request, url: URL): 
 
     return json({ error: 'not_found' }, 404)
   } catch (error) {
+    // A refusal the operator can act on — a taken or malformed realm id — is not a server fault.
+    if (resource === 'realms') return json({ error: 'invalid_request', error_description: (error as Error).message }, 400)
     console.error('[admin]', error)
     return json({ error: 'server_error', error_description: (error as Error).message }, 500)
   }

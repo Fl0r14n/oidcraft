@@ -510,6 +510,17 @@ the type checker accepts, such as a generic arrow function in an SFC, otherwise 
 
 `src/op` is the provider's wiring — configuration, seed data, upstreams — and renders nothing.
 
+**Realms are opt-in (`OIDCRAFT_REALMS=on`, FR-M4).** Off, the demo is one issuer and nothing below
+runs. On, `OIDCRAFT_ISSUER` is the control plane — the operator's admin and account apps, and the
+only site that brokers upstream — and each realm is a subdomain of it, `acme.localhost:3001`, which
+`*.localhost` makes loopback on any machine (RFC 6761). The routes are built per _site_ (a provider,
+its accounts and its branded screens), so the same interaction, device and reset code serves every
+realm. `provision` gives a realm its own SQLite file and key pair under `data/realms/` and
+registers the demo relying party, so a new realm can be signed in to at once; `retire` deletes them.
+The admin's realm panel creates, disables and deletes realms, and `?realm=` aims every other admin
+call at one realm's management, so the panels for clients, accounts and keys are the same code. The
+admin and account apps themselves are the control plane's only.
+
 ### 8.2 `apps/demo-vue` — the demo relying party
 
 Vue 3 + `vue-oidc`, ported from that library's own sample app, and now resolving it from the

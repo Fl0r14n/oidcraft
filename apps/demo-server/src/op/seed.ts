@@ -34,7 +34,7 @@ type PlanClient = { client_id: string; client_secret: string }
 export const seedConformanceClients = async (adapter: Adapter) => {
   const suite = optional('OIDCRAFT_CONFORMANCE_SUITE')
   if (!suite) return
-  const plan = await Bun.file(new URL('../../../conformance/plan.json', import.meta.url)).json()
+  const plan = await Bun.file(new URL('../../../../conformance/plan.json', import.meta.url)).json()
   const callback = `${suite.replace(/\/$/, '')}/test/a/${plan.alias}/callback`
 
   const clients: [PlanClient, 'client_secret_basic' | 'client_secret_post'][] = [

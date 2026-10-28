@@ -14,6 +14,7 @@ Microsoft or any other OpenID provider. One build runs on Bun, Node, Deno and Cl
 - [Sign in with Google or Microsoft](#sign-in-with-google-or-microsoft)
 - [Storage](#storage)
 - [Node, Deno and Workers](#node-deno-and-workers)
+- [Several issuers in one process](#several-issuers-in-one-process)
 - [Before production](#before-production)
 - [What it does](#what-it-does)
 
@@ -239,6 +240,44 @@ export default { fetch: (request: Request) => provider.handle(request, workerdCo
 Behind a reverse proxy on Node, `toNodeHandler(provider.handle, issuer, { trustProxy: true })` reads
 the client address from `X-Forwarded-For`. Turn that on only when the proxy is the only thing that
 can reach the process. The issuer is always your configuration, never a request header.
+
+## Several issuers in one process
+
+Most deployments are one issuer, and need nothing from this section. A dedicated identity server
+for several tenants, or for an organisation's separate apps, can run one issuer per _realm_. Each
+realm is an ordinary provider with its own storage, keys, accounts and clients, built on first use:
+
+```ts
+import { createRealms } from 'oidcraft'
+import { bunContext } from 'oidcraft/runtimes/bun'
+
+const realms = createRealms({
+  store: controlStorage.realms!, // where the list of realms lives
+  realmOf: request => new URL(request.url).hostname.match(/^([a-z0-9-]+)\.id\.example\.com$/)?.[1],
+  configure: async realm => ({
+    issuer: `https://${realm.id}.id.example.com`,
+    adapter: await storageFor(realm.id), // the realm's own storage and keys
+    interactionUrl: `https://${realm.id}.id.example.com/interaction`
+  }),
+  provision: async realm => createStorageFor(realm.id), // runs before a new realm is served
+  retire: async realm => dropStorageFor(realm.id) // runs after a removed realm stops being served
+})
+
+Bun.serve({
+  async fetch(request, server) {
+    const provider = await realms.resolve(request)
+    if (!provider) return new Response('Not found', { status: 404 })
+    return provider.handle(request, bunContext(provider.config.issuer, server)(request))
+  }
+})
+
+await realms.management.create({ id: 'acme', displayName: 'Acme Corp' }) // also update, enable, disable, remove
+```
+
+You choose the URL scheme: a subdomain, a path or a custom domain. A request only selects a realm:
+an unknown or disabled one resolves to nothing, and a realm id must be a DNS label, so a forged
+`Host` header cannot create an issuer. Each realm needs its own signing keys, and two realms
+sharing one are refused.
 
 ## Before production
 

@@ -79,7 +79,25 @@ export const seedDemoAccounts = async (accounts: Accounts, adapter: Adapter) => 
     await register({
       username: 'conformance-user',
       password: 'conformance-password',
-      claims: { name: 'Conformance User', email: 'conformance@example.invalid', email_verified: true }
+      // oidcc-scope-profile warns unless every profile claim (OIDC Core §5.4) comes back.
+      claims: {
+        name: 'Conformance User',
+        given_name: 'Conformance',
+        middle_name: 'Q',
+        family_name: 'User',
+        nickname: 'conformance',
+        preferred_username: 'conformance-user',
+        profile: 'https://example.invalid/conformance-user',
+        picture: 'https://example.invalid/conformance-user.png',
+        website: 'https://example.invalid',
+        gender: 'unspecified',
+        birthdate: '0000-01-01',
+        zoneinfo: 'Europe/London',
+        locale: 'en',
+        updated_at: 1767225600,
+        email: 'conformance@example.invalid',
+        email_verified: true
+      }
     })
   }
   console.log(`[oidcraft] demo accounts: ${people.map(person => person.username).join(', ')} — password from OIDCRAFT_DEMO_PASSWORD`)

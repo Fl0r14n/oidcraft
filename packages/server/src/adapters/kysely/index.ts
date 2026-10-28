@@ -9,9 +9,10 @@ import type {
   FederatedIdentity,
   Grant,
   KeyStore,
+  Realm,
   Session
 } from 'oidcraft'
-import type { ArtifactsTable, CredentialsTable, GrantsTable, IdentitiesTable, OidcraftDatabase, SessionsTable } from './schema'
+import type { ArtifactsTable, CredentialsTable, GrantsTable, IdentitiesTable, OidcraftDatabase, RealmsTable, SessionsTable } from './schema'
 
 export type KyselyAdapterOptions = {
   db: Kysely<OidcraftDatabase>
@@ -93,6 +94,24 @@ const toCredential = (row: Selectable<CredentialsTable>): Credential => ({
   ...(row.recovery_codes ? { recoveryCodes: parse<string[]>(row.recovery_codes) } : {}),
   failedAttempts: row.failed_attempts,
   ...(row.locked_until && { lockedUntil: new Date(row.locked_until) }),
+  createdAt: new Date(row.created_at),
+  updatedAt: new Date(row.updated_at)
+})
+
+const realmRow = (realm: Realm) => ({
+  id: realm.id,
+  display_name: realm.displayName ?? null,
+  enabled: realm.enabled ? 1 : 0,
+  settings: json(realm.settings),
+  created_at: realm.createdAt.getTime(),
+  updated_at: realm.updatedAt.getTime()
+})
+
+const toRealm = (row: Selectable<RealmsTable>): Realm => ({
+  id: row.id,
+  ...(row.display_name && { displayName: row.display_name }),
+  enabled: Boolean(row.enabled),
+  settings: parse<Record<string, unknown>>(row.settings),
   createdAt: new Date(row.created_at),
   updatedAt: new Date(row.updated_at)
 })
@@ -358,6 +377,36 @@ export const kyselyAdapter = (options: KyselyAdapterOptions): Adapter => {
       },
       async destroy(accountId: string) {
         await db.deleteFrom('oidc_credentials').where('account_id', '=', accountId).execute()
+      }
+    },
+
+    realms: {
+      async find(id: string) {
+        const row = await db.selectFrom('oidc_realms').selectAll().where('id', '=', id).executeTakeFirst()
+        return row ? toRealm(row) : undefined
+      },
+      async list() {
+        return (await db.selectFrom('oidc_realms').selectAll().execute()).map(toRealm)
+      },
+      async create(realm: Realm) {
+        const won = await db
+          .insertInto('oidc_realms')
+          .values(realmRow(realm))
+          .onConflict(conflict => conflict.doNothing())
+          .returning('id')
+          .executeTakeFirst()
+        return won !== undefined
+      },
+      async upsert(realm: Realm) {
+        const row = realmRow(realm)
+        await db
+          .insertInto('oidc_realms')
+          .values(row)
+          .onConflict(conflict => conflict.column('id').doUpdateSet(row))
+          .execute()
+      },
+      async destroy(id: string) {
+        await db.deleteFrom('oidc_realms').where('id', '=', id).execute()
       }
     },
     keys: options.keys,

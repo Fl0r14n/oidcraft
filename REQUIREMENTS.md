@@ -294,6 +294,15 @@ session inspection and grant revocation.
 **FR-M3** — Every write through the management API emits an audit event. The host decides where
 audit events go; the library does not persist them.
 
+**FR-M4** — Several issuers in one process are possible and never imposed. `createRealms` builds an
+ordinary provider per realm on first use, from a realm record and a host-supplied `configure`; a
+single-issuer deployment uses `createProvider` alone and meets no realm, default realm or URL
+convention. The library owns the records (an optional `RealmStore`) and their lifecycle — create,
+update, enable, disable, remove, each audited — and calls the host's `provision` and `retire`, since
+creating and dropping a realm's storage is the host's. A request only selects a realm: an id is a
+DNS label, and an unknown or disabled one resolves to nothing. Each realm has its own storage and
+keys, and two realms sharing a signing key are refused.
+
 ## 9. Runtime — `FR-R*`
 
 **FR-R1** — The core's only inputs are a WHATWG `Request` and configuration; its only output is a
@@ -429,12 +438,9 @@ dependency, and the enterprise IdPs that once needed it (ADFS, Entra ID, Okta, P
 host that must accept SAML puts a SAML-to-OIDC bridge upstream and brokers to it as an OIDC
 provider, or implements `UpstreamProvider` itself.
 
-**G-6 — Multi-tenancy.** Possible, never imposed. Most deployments are one issuer brokering for an
-app or two — local login, an upstream such as Google, a client for an MCP server — and must not
-see a realm, a default realm or a URL convention. Several issuers matter only to a dedicated IdP
-serving tenants or an organisation's apps. Today that is one `createProvider` per issuer, each with
-its own storage; the open design is creating them at runtime and letting them share tables. The
-adapter interfaces must not make it impossible.
+**G-6 — Multi-tenancy.** Answered by FR-M4, with storage per realm. Still open: realms sharing
+tables through a realm column in every table and query, for a deployment with more realms than it
+wants databases or schemas. Additive — an optional `realm` on each adapter — when someone needs it.
 
 **G-8 — mTLS on Bun.** `Bun.serve` accepts `tls.requestCert`, so the handshake can ask for a client
 certificate, but its `Server` interface exposes only `requestIP`, `timeout`, `upgrade`, `publish`

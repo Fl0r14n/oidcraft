@@ -138,6 +138,19 @@ export type Credential = {
   updatedAt: Date
 }
 
+/** One issuer among several in a process (FR-M4). A single-issuer deployment never has one. */
+export type Realm = {
+  /** A DNS label, because it ends up in an issuer's host or path. */
+  id: string
+  displayName?: string
+  /** A disabled realm resolves to nothing; its data stays. */
+  enabled: boolean
+  /** The host's: brand, upstreams, plan. The library stores it and never reads it. */
+  settings: Record<string, unknown>
+  createdAt: Date
+  updatedAt: Date
+}
+
 export type FederatedIdentity = {
   accountId: string
   provider: string

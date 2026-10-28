@@ -47,6 +47,15 @@ export type IdentityRow = {
   linked_at: number
 }
 
+export type RealmRow = {
+  id: string
+  display_name: string | null
+  enabled: number
+  settings: string
+  created_at: number
+  updated_at: number
+}
+
 export type ReplayRow = { namespace: string; value: string; expires_at: number }
 
 export type CredentialRow = {
@@ -175,8 +184,30 @@ export const CredentialEntity = new EntitySchema<CredentialRow>({
   indices: [{ name: 'oidc_credentials_username_idx', columns: ['username'], unique: true }]
 })
 
+export const RealmEntity = new EntitySchema<RealmRow>({
+  name: 'oidc_realms',
+  tableName: 'oidc_realms',
+  columns: {
+    id: text({ primary: true }),
+    display_name: text({ nullable: true }),
+    enabled: { type: 'integer' },
+    settings: text(),
+    created_at: millis(),
+    updated_at: millis()
+  }
+})
+
 /** Register these with the host's `DataSource`; the adapter refuses one that lacks them. */
-export const OIDCRAFT_ENTITIES = [ClientEntity, ArtifactEntity, SessionEntity, GrantEntity, IdentityEntity, ReplayEntity, CredentialEntity]
+export const OIDCRAFT_ENTITIES = [
+  ClientEntity,
+  ArtifactEntity,
+  SessionEntity,
+  GrantEntity,
+  IdentityEntity,
+  ReplayEntity,
+  CredentialEntity,
+  RealmEntity
+]
 
 /**
  * TypeORM reads a migration's order from a 13-digit timestamp at the end of its class name. These

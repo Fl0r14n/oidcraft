@@ -431,6 +431,34 @@ keys and upstreams (FR-M1). **The library never decides who is an administrator*
 these behind its own authentication, and the reference app does so behind its own admin session.
 Writes emit audit events the host routes somewhere; the library persists none of them (FR-M3).
 
+### 7.1 Realms
+
+A realm is a provider. `createRealms({ store, realmOf, configure, provision, retire })`, exported
+from the root beside `createProvider`, keeps a cache of providers keyed by realm id and builds each
+from its record on first use (FR-M4). There is no realm mode in the core and no switch: a deployment
+with one issuer never calls it, and a bundler drops it from that deployment's build.
+
+- **The host owns the URL scheme.** `realmOf` reads a subdomain, a path prefix or a custom domain;
+  the library imposes no `/realms/` path. What it returns is only a selection: ids are DNS labels,
+  and an unknown or disabled realm resolves to `undefined` without `configure` running, so a forged
+  `Host` header cannot mint an issuer (NFR-S6).
+- **Storage is per realm.** `configure` hands each provider its own adapter — a SQLite file, a
+  Postgres schema, a Redis prefix. The `oidc_realms` table (migration `0003`) is only the registry,
+  in the control plane's storage; no other table gains a realm column (`G-6`).
+- **Keys are per realm, and checked.** A key two realms share would let one realm's token verify
+  against the other's JWKS. `generatedKeyStore()` keeps one RSA key per process — fresh keys per store
+  would take the test suite from about 1 s to 26 s — so building a realm whose key ids collide with
+  another realm's throws instead of serving it.
+- **Lifecycle order.** Create inserts the record disabled, runs `provision`, then enables it, so a
+  half-built realm is never served and a failed `provision` frees the id. Remove disables first,
+  then runs `retire`, then deletes the record, so a failed `retire` leaves a realm nobody is served.
+- **Several processes.** `forget` clears one process's cache. Every process re-reads a cached
+  realm's record after `revalidate` seconds (default 30), keeping the provider when `updatedAt` is
+  unchanged, so a disable reaches every process within that window.
+- **The control plane is a plain provider.** The operator signs in through a `createProvider`
+  issuer, not through a realm, and the realm management functions sit behind the host's own
+  authorization like the rest of FR-M1.
+
 ## 8. Apps
 
 ### 8.1 `apps/demo-server` — the reference OP

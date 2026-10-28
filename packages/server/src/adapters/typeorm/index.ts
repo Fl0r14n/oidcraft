@@ -8,6 +8,7 @@ import type {
   FederatedIdentity,
   Grant,
   KeyStore,
+  Realm,
   Session
 } from 'oidcraft'
 import { type DataSource, type EntitySchema, QueryFailedError, type Repository } from 'typeorm'
@@ -22,6 +23,8 @@ import {
   IdentityEntity,
   type IdentityRow,
   OIDCRAFT_ENTITIES,
+  RealmEntity,
+  type RealmRow,
   ReplayEntity,
   SessionEntity,
   type SessionRow
@@ -112,6 +115,24 @@ const toIdentity = (row: IdentityRow): FederatedIdentity => ({
   linkedAt: new Date(row.linked_at)
 })
 
+const realmRow = (realm: Realm): RealmRow => ({
+  id: realm.id,
+  display_name: realm.displayName ?? null,
+  enabled: realm.enabled ? 1 : 0,
+  settings: json(realm.settings),
+  created_at: realm.createdAt.getTime(),
+  updated_at: realm.updatedAt.getTime()
+})
+
+const toRealm = (row: RealmRow): Realm => ({
+  id: row.id,
+  ...(row.display_name && { displayName: row.display_name }),
+  enabled: Boolean(row.enabled),
+  settings: parse<Record<string, unknown>>(row.settings),
+  createdAt: new Date(row.created_at),
+  updatedAt: new Date(row.updated_at)
+})
+
 const noAccounts: AccountStore = {
   async find() {
     return undefined
@@ -166,6 +187,7 @@ export const typeormAdapter = (options: TypeormAdapterOptions): Adapter => {
   const identities = dataSource.getRepository(IdentityEntity)
   const replay = dataSource.getRepository(ReplayEntity)
   const credentials = dataSource.getRepository(CredentialEntity)
+  const realms = dataSource.getRepository(RealmEntity)
 
   const artifacts = {
     async upsert(artifact: Artifact) {
@@ -369,6 +391,25 @@ export const typeormAdapter = (options: TypeormAdapterOptions): Adapter => {
       },
       async destroy(accountId: string) {
         await credentials.delete({ account_id: accountId })
+      }
+    },
+
+    realms: {
+      async find(id: string) {
+        const row = await realms.findOneBy({ id })
+        return row ? toRealm(row) : undefined
+      },
+      async list() {
+        return (await realms.find()).map(toRealm)
+      },
+      async create(realm: Realm) {
+        return insertIfAbsent(realms, realmRow(realm), async () => realms.existsBy({ id: realm.id }))
+      },
+      async upsert(realm: Realm) {
+        await upsert(realms, realmRow(realm), ['id'])
+      },
+      async destroy(id: string) {
+        await realms.delete({ id })
       }
     },
 

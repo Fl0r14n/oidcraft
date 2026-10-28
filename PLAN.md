@@ -265,8 +265,8 @@ In fix order; the first is the only one that changes the adapter contract.
   distributed store, where `insert` being atomic is the whole point — the memory store is atomic
   for free. Possibly an `oidcraft/adapters/redis` entry once it exists.
 
-- [x] `bun check` for the six `tsc --noEmit` typecheck scripts; not for SFC packages (`vue-tsgo`) or
-  the Angular island (TypeScript 6). `engines.bun` is `>=1.4.4`
+- [x] `bun check` is every `typecheck`; SFC packages (`vue-tsgo`) and the Angular island (TypeScript 6)
+  put their real checker in a `check` script, which `bun check` runs. `engines.bun` is `>=1.4.4`
 
 ## Docs site — requirements
 

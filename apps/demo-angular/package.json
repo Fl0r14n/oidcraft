@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "ng serve --port 3003",
     "start": "ng serve --port 3003",
-    "typecheck": "tsc --noEmit",
+    "check": "tsc --noEmit",
+    "typecheck": "bun check",
     "bundle": "ng build"
   },
   "devDependencies": {

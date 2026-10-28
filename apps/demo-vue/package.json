@@ -6,8 +6,9 @@
   "scripts": {
     "dev": "bun --env-file=../../.env index.html",
     "start": "bun --env-file=../../.env index.html",
-    "build": "vue-tsgo --noEmit",
-    "typecheck": "vue-tsgo --noEmit"
+    "build": "bun check",
+    "check": "vue-tsgo --noEmit",
+    "typecheck": "bun check"
   },
   "dependencies": {
     "pinia": "^4.1.0",

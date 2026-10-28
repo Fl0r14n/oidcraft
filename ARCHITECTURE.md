@@ -52,11 +52,13 @@ calling `Bun.build` directly. Nothing needs that today.
 ### 1.2 TypeScript 7 and Vue
 
 `vue-tsc` still requires `typescript/lib/tsc` and does not run against TypeScript 7, so any package
-containing `.vue` files type-checks with `vue-tsgo` instead. Packages without SFCs use `bun check`,
-which reports TypeScript 7's errors from the same `tsconfig.json` and writes nothing. Not `tsgo` —
+containing `.vue` files type-checks with `vue-tsgo` instead. Every package's `typecheck` is `bun check`,
+which reports TypeScript 7's errors from the same `tsconfig.json` and writes nothing — and which runs
+a package's own `check` script instead when it has one. That is where `vue-tsgo` lives: `bun check`
+skips `.vue` files, so an SFC package without a `check` script would pass with its components unchecked. Not `tsgo` —
 that is the older `@typescript/native-preview` binary, still on a `7.0.0-dev` tag. The `typescript`
-package stays: tsdown emits the declarations with it, and `bun check` emits none. The Angular demo
-keeps `tsc` from TypeScript 6, which its compiler needs (§8.4).
+package stays: tsdown emits the declarations with it, and `bun check` emits none. The Angular demo's
+`check` is `tsc` from TypeScript 6, which its compiler needs (§8.4).
 
 ## 2. Workspace
 

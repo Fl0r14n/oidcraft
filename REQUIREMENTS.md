@@ -400,16 +400,41 @@ depended on, so brokering adds no third-party package either.
 
 ## 11. Open questions — `G-*`
 
-**G-1 — OpenID Federation 1.0.** Real trust-chain federation is a large, separate protocol. Ship
-brokering (FR-F*) first; decide later whether entity statements are in scope at all.
+**G-1 — OpenID Federation 1.0 (trust chains, not brokering).** Not "sign in with Google": that is
+identity brokering (FR-F*), and it is built. OpenID Federation lets parties that never registered
+with each other trust one another through signed entity statements and a trust anchor — Italy's
+SPID/CIE, EU identity wallets, research federations. Decided: not planned unless a deployment in one
+of those ecosystems needs it. Resolving a trust chain is outbound fetching the core does not do
+(FR-A1), so it would arrive as its own entry with a host-supplied fetcher, and nothing in the core
+assumes it away.
 
-**G-3 — FAPI 2.0.** Worth the constraint it imposes on the core's defaults, or a profile package?
+**G-3 — FAPI 2.0.** Target: an opt-in profile, per client or per provider, never a change of the
+defaults. Most of what the Security Profile (Final, 2025-02-22) requires is built — PKCE S256,
+`response_type=code`, RFC 9207 `iss`, single-use codes of ≤ 60 s, PAR with `request_uri` < 600 s,
+`private_key_jwt`, DPoP with nonces. Missing: Authorization Code Binding to DPoP Key (`dpop_jkt`,
+RFC 9449 §10), which it requires of DPoP; and enforcing what is now only supported — confidential
+clients only, PAR required, PS256/ES256/EdDSA only, client-assertion `aud` exactly the issuer, the
+10 s/60 s `iat`/`nbf` window, `http` redirects for native clients only. **It conflicts with FR-T3**:
+§5.3.2.1 says the server "shall not use refresh token rotation except in extraordinary
+circumstances", because for a confidential client with sender-constrained tokens rotation adds no
+security and loses grants whenever a client misses the new token. The proposal is to narrow FR-T3
+for exactly that case under the profile — the refresh token is useless without the client's key,
+and RFC 9700 §4.14.2 requires rotation or sender-constraining only of public clients — rather than
+FAPI's alternative of rotation with a retry window. Waiting on that decision. Verified by the
+OpenID Foundation's FAPI 2.0 test plan in CI, as NFR-C1 does for `basic` and `config`.
 
-**G-4 — Upstream SAML.** The `UpstreamProvider` interface could accommodate it. Whether anyone
-should is a different question.
+**G-4 — Upstream SAML.** Decided against, in-tree. Validating XML signatures is a history of
+signature-wrapping and canonicalisation vulnerabilities, it would bring a large XML-crypto
+dependency, and the enterprise IdPs that once needed it (ADFS, Entra ID, Okta, Ping) speak OIDC. A
+host that must accept SAML puts a SAML-to-OIDC bridge upstream and brokers to it as an OIDC
+provider, or implements `UpstreamProvider` itself.
 
-**G-6 — Multi-tenancy.** One process serving several issuers is a different configuration and
-storage shape. Wanted, not scheduled; the adapter interfaces must not make it impossible.
+**G-6 — Multi-tenancy.** Possible, never imposed. Most deployments are one issuer brokering for an
+app or two — local login, an upstream such as Google, a client for an MCP server — and must not
+see a realm, a default realm or a URL convention. Several issuers matter only to a dedicated IdP
+serving tenants or an organisation's apps. Today that is one `createProvider` per issuer, each with
+its own storage; the open design is creating them at runtime and letting them share tables. The
+adapter interfaces must not make it impossible.
 
 **G-8 — mTLS on Bun.** `Bun.serve` accepts `tls.requestCert`, so the handshake can ask for a client
 certificate, but its `Server` interface exposes only `requestIP`, `timeout`, `upgrade`, `publish`

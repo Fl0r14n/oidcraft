@@ -34,7 +34,8 @@ here, or under any load.
   needs it and can run it.
 - **Editing upstream providers from the admin UI** — an issuer and client credentials are deployment
   configuration, not runtime state. The admin shows what is configured.
-- **CIBA push mode**, **OpenID Federation 1.0** trust chains (`G-1`), and **upstream SAML** (`G-4`).
+- **CIBA push mode**, **OpenID Federation 1.0** trust chains (`G-1`, unless a deployment needs it), and
+  **upstream SAML** in-tree (`G-4`).
 
 ## M0 — foundation
 
@@ -320,8 +321,12 @@ building a worse site to preserve a rule that was about something else.
 
 ## Decisions waiting on an answer
 
-`G-1` OpenID Federation 1.0 · `G-3` FAPI 2.0 · `G-4` upstream SAML · `G-6` multi-tenancy (wanted,
-not scheduled). `G-8` mTLS on Bun is decided: unavailable until Bun exposes the certificate
+- `G-6` multi-tenancy — next: optional realms, designed so a single-issuer deployment never sees them.
+- `G-3` FAPI 2.0 — an opt-in profile, after `dpop_jkt`; waiting on narrowing FR-T3 for confidential,
+  sender-constrained clients under that profile.
+
+Decided: `G-1` OpenID Federation 1.0 not planned unless a deployment needs it · `G-4` upstream SAML
+not in-tree · `G-8` mTLS unavailable on Bun until Bun exposes the certificate.
 
 ## Federation moved off `openid-client`
 

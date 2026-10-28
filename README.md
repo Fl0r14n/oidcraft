@@ -1,58 +1,57 @@
 # oidcraft
 
-An OpenID Provider library for TypeScript. RFC-compliant core, runtime-portable, pluggable
-storage, and identity brokering as a first-class mode rather than an application concern.
+An OpenID Provider library for TypeScript, and the client libraries that sign in against it.
 
-One package, thirteen entries:
+- **[`oidcraft`](packages/server/README.md)**: the provider. Authorization, tokens, sessions,
+  logout, local accounts with TOTP, and signing people in through Google, Microsoft or any other
+  OpenID provider. One build runs on Bun, Node, Deno and Cloudflare Workers. **Start with its
+  [guide](packages/server/README.md).**
+- **[`vue-oidc`](packages/vue/README.md)**, **`react-oauth-oidc`** and **[`ngx-oauth`](packages/angular/README.md)**:
+  sign-in for Vue, React and Angular applications, against oidcraft or any OpenID provider.
 
-```
-oidcraft                     the OP — one fetch handler, no I/O, no node:*
-oidcraft/federation          the relying-party leg: brokering to upstream OPs
-oidcraft/interaction         login / consent policy
-oidcraft/accounts            local accounts: argon2id passwords, TOTP, recovery codes, reset
-oidcraft/runtimes/node       node:http bridge + request context
-oidcraft/runtimes/bun        request context for Bun.serve
-oidcraft/runtimes/deno       request context for Deno.serve
-oidcraft/runtimes/workerd    request context for Cloudflare Workers
-oidcraft/adapters/memory     development and tests
-oidcraft/adapters/drizzle    Postgres, SQLite
-oidcraft/adapters/kysely     Postgres, SQLite, MySQL
-oidcraft/adapters/typeorm    a TypeORM DataSource; SQLite schema shipped as migrations
-oidcraft/adapters/redis      any Redis client, through one command function
-```
+> **Status: early.** The OpenID Foundation conformance suite's `basic` and `config` plans pass in CI,
+> which is a passing run, not a certification. No deployment has used it in production yet.
 
-`drizzle-orm`, `kysely` and `typeorm` are optional peers, each confined to the entry that owns it — importing
-the core pulls neither.
-
-```
-Only Node needs an HTTP bridge; the rest are small context providers for what `Request` does not
-carry (client IP, verified TLS client certificate).
-
-```
-packages/core the protocol. Private; compiled into whoever uses it
-packages/client the client runtime. Private; the framework bindings only
-packages/vue published as vue-oidc
-packages/react published as react-oauth-oidc
-packages/server the package, published as `oidcraft`
-packages/ui the screens and their design. Private; demo-server only
-apps/demo-server reference OP: protocol + login screens + admin
-apps/demo-vue demo relying party: Vue 3 + vue-oidc
-apps/demo-react demo relying party: React 19 + react-oauth-oidc, with SSR
-apps/demo-angular demo relying party: Angular 22 + ngx-oauth (own install, ARCHITECTURE.md §8.4)
-````
-
-**Three root files carry the current state:** `ARCHITECTURE.md` (how it is built),
-`REQUIREMENTS.md` (what it must do) and `PLAN.md` (what is left). None of them carries history.
+## Try it
 
 ```sh
 bun install
-bun run dev          # OP on 3001, demo client on 3000
-bun run typecheck
-bun run lint
-````
+bun run dev     # the reference provider on :3001, a Vue application signing in against it on :3000
+```
 
-This is a scaffold. The workspace, toolchain and adapter contract exist; the protocol does not yet
-— see `PLAN.md`.
+Open http://localhost:3000 and sign in as `ada`, `grace` or `admin`; the password is
+`OIDCRAFT_DEMO_PASSWORD` in `.env.example`. The provider's own pages are worth a look too:
+
+- http://localhost:3001/admin: clients, sessions, grants and keys (sign in as an account in `OIDCRAFT_ADMINS`)
+- http://localhost:3001/account: an account's own password, authenticator app and recovery codes
+- http://localhost:3001/device: the screen a TV or CLI sends you to
+
+`.env.example` lists every setting, including the Google client that turns on "Sign in with Google".
+
+## The repository
+
+```
+packages/server     oidcraft: the provider, published with thirteen entry points
+packages/vue        vue-oidc
+packages/react      react-oauth-oidc
+packages/angular    ngx-oauth
+packages/core       the protocol both sides share. Private, compiled into each package
+packages/client     the browser runtime the client libraries share. Private
+packages/ui         the reference screens and their design. Private, demo only
+apps/demo-server    the reference provider: protocol, login screens, admin and account apps
+apps/demo-vue       a Vue application signing in with vue-oidc
+apps/demo-react     a React application with SSR, signing in with react-oauth-oidc
+apps/demo-angular   an Angular application signing in with ngx-oauth
+```
+
+```sh
+bun run verify        # what CI runs: lint, build, typecheck, tests — run it before every commit
+bun run conformance   # the OpenID Foundation suite against the demo server (needs the suite running)
+```
+
+Three root files carry the current state of the project, with no history in them:
+[`ARCHITECTURE.md`](ARCHITECTURE.md) (how it is built), [`REQUIREMENTS.md`](REQUIREMENTS.md) (what
+it must do) and [`PLAN.md`](PLAN.md) (what is left).
 
 ## License
 

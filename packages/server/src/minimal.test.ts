@@ -1,3 +1,4 @@
+/// <reference types="bun" />
 import { describe, expect, test } from 'bun:test'
 import { memoryAdapter } from './adapters/memory'
 import { createProvider } from './provider'
@@ -36,6 +37,12 @@ const provider = createProvider({
 Bun.serve({ port: 3001, fetch: request => provider.handle(request) })`
 
 describe('the smallest usable provider', () => {
+  // The README shows this block and says the suite runs it; a copy that drifted is how it once didn't.
+  test('is the block the README shows', async () => {
+    const readme = await Bun.file(new URL('../README.md', import.meta.url)).text()
+    expect(readme.match(/```ts\n([\s\S]*?)\n```/)?.[1]).toBe(EXAMPLE)
+  })
+
   test('fits in under 30 lines, as NFR-D1 says', () => {
     const lines = EXAMPLE.split('\n').filter(line => line.trim()).length
     expect({ lines, under30: lines < 30 }).toEqual({ lines, under30: true })

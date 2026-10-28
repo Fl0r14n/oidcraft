@@ -31,6 +31,8 @@ describe('resolveConfig', () => {
 
   test('allows http on loopback but nowhere else', () => {
     expect(resolveConfig({ ...base, issuer: 'http://localhost:3001' }).issuer).toBe('http://localhost:3001')
+    expect(resolveConfig({ ...base, issuer: 'http://acme.localhost:3001' }).issuer).toBe('http://acme.localhost:3001')
+    expect(problemsOf(() => resolveConfig({ ...base, issuer: 'http://localhost.example.com' }))?.join()).toContain('must be https')
     expect(problemsOf(() => resolveConfig({ ...base, issuer: 'http://op.example.com' }))?.join()).toContain('must be https')
   })
 

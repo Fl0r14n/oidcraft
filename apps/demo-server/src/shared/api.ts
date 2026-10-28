@@ -25,4 +25,4 @@ export const useApi = (prefix: string) => {
 export const failureMessage = (failure: unknown, fallback: string) => (failure instanceof ApiError ? failure.message : fallback)
 
 /** Plain http only against a provider on this machine, where `bun run dev` serves one. */
-export const allowInsecure = (issuer: string) => ['localhost', '127.0.0.1', '[::1]'].includes(new URL(issuer).hostname)
+export const allowInsecure = (issuer: string) => /^(localhost|.+\.localhost|127\.0\.0\.1|\[::1\])$/.test(new URL(issuer).hostname)

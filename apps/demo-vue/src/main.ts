@@ -7,7 +7,7 @@ const issuerPath = process.env.OIDCRAFT_PUBLIC_ISSUER || 'http://localhost:3001'
 const clientId = process.env.OIDCRAFT_PUBLIC_CLIENT_ID || 'demo-client'
 const scope = process.env.OIDCRAFT_PUBLIC_SCOPE || 'openid profile email offline_access'
 // Plain http only against a provider on this machine, where `bun run dev` serves one.
-const allowInsecure = ['localhost', '127.0.0.1', '[::1]'].includes(new URL(issuerPath).hostname)
+const allowInsecure = /^(localhost|.+\.localhost|127\.0\.0\.1|\[::1\])$/.test(new URL(issuerPath).hostname)
 
 export const createApp = () => {
   const app = bootstrapApp(App, [

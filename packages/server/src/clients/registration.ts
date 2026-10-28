@@ -21,13 +21,17 @@ const FORBIDDEN_SCHEMES = ['javascript:', 'data:', 'vbscript:', 'file:']
 type UriCode = 'invalid_client_metadata' | 'invalid_redirect_uri'
 
 /** A URI the browser is sent to: absolute, matchable, no script, https unless on a loopback IP. */
-const browserUri = (raw: unknown, name: string, code: UriCode = 'invalid_client_metadata') => {
+const browserUri = (raw: unknown, name: string, code: UriCode = 'invalid_client_metadata', native = false) => {
   if (typeof raw !== 'string' || !URL.canParse(raw)) throw invalid(`${name} ${String(raw)} is not an absolute URL`, code)
   const url = new URL(raw)
   // A fragment can never be matched: the browser never sends it (RFC 6749 §3.1.2).
   if (url.hash) throw invalid(`${name} ${raw} must not carry a fragment`, code)
   if (FORBIDDEN_SCHEMES.includes(url.protocol)) throw invalid(`${name} ${raw} uses a scheme that can run script`, code)
-  if (url.protocol === 'http:' && !isLoopbackIp(url)) throw invalid(`${name} ${raw} must be https outside a loopback IP`, code)
+  // A native app listens on this machine, and many say localhost: matched exactly, never by port (NFR-S2).
+  const local = isLoopbackIp(url) || (native && url.hostname === 'localhost')
+  if (url.protocol === 'http:' && !local) {
+    throw invalid(`${name} ${raw} must be https outside a loopback IP${native ? ' or localhost' : ''}`, code)
+  }
   return raw
 }
 
@@ -58,10 +62,16 @@ const uriList = (value: unknown, name: string) => {
  * Registration is the one endpoint that lets a stranger write to the client store, so the metadata
  * it accepts is checked as strictly as anything a human would have registered (NFR-S2).
  */
-const validateRedirectUris = (uris: unknown) => {
+const validateRedirectUris = (uris: unknown, native: boolean) => {
   if (!Array.isArray(uris) || uris.length === 0)
     throw invalid('redirect_uris is required and must be a non-empty array', 'invalid_redirect_uri')
-  return uris.map(each => browserUri(each, 'redirect_uri', 'invalid_redirect_uri'))
+  return uris.map(each => browserUri(each, 'redirect_uri', 'invalid_redirect_uri', native))
+}
+
+/** OIDC DCR 1.0 §2: `web` when omitted. MCP clients must send it (MCP 2026-07-28). */
+const applicationTypeFrom = (raw: unknown) => {
+  if (raw === undefined || raw === 'web' || raw === 'native') return raw ?? 'web'
+  throw invalid(`application_type ${String(raw)} is neither web nor native`)
 }
 
 /** FR-T1: `none` never, and never an algorithm the provider holds no key for. */
@@ -157,7 +167,8 @@ const assertRegistrable = async (config: ResolvedConfig, client: Client) => {
 }
 
 const metadataFrom = (config: ResolvedConfig, body: Record<string, unknown>): Client => {
-  const redirectUris = validateRedirectUris(body.redirect_uris)
+  const applicationType = applicationTypeFrom(body.application_type)
+  const redirectUris = validateRedirectUris(body.redirect_uris, applicationType === 'native')
   const method = (body.token_endpoint_auth_method as ClientAuthMethod | undefined) ?? 'client_secret_basic'
   if (!config.clientAuthMethods.includes(method)) throw invalid(`token_endpoint_auth_method ${method} is not offered by this provider`)
 
@@ -172,6 +183,7 @@ const metadataFrom = (config: ResolvedConfig, body: Record<string, unknown>): Cl
     clientId: randomString(),
     ...(method !== 'none' && { clientSecret: randomString() }),
     ...(typeof body.client_name === 'string' && { clientName: body.client_name }),
+    applicationType,
     redirectUris,
     ...(body.post_logout_redirect_uris !== undefined && {
       postLogoutRedirectUris: uriList(body.post_logout_redirect_uris, 'post_logout_redirect_uri')
@@ -203,6 +215,7 @@ export const clientResponse = (config: ResolvedConfig, client: Client) => ({
   ...(client.clientSecret && { client_secret: client.clientSecret }),
   ...(client.clientName && { client_name: client.clientName }),
   redirect_uris: client.redirectUris,
+  application_type: client.applicationType ?? 'web',
   grant_types: client.grantTypes,
   response_types: client.responseTypes,
   scope: client.scopes.join(' '),

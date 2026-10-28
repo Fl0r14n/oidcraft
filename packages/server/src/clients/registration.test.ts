@@ -91,8 +91,39 @@ describe('dynamic client registration', () => {
     expect((await register({ redirect_uris: ['http://127.0.0.1:8080/cb'] })).status).toBe(201)
   })
 
+  // MCP 2026-07-28: an MCP client says which it is, and a native one commonly listens on localhost.
+  test('a native client may redirect to http://localhost, matched exactly; a web client may not', async () => {
+    const native = await register({ ...valid, application_type: 'native', redirect_uris: ['http://localhost:8080/cb'] })
+    expect(native.status).toBe(201)
+    const body = await native.json()
+    expect(body.application_type).toBe('native')
+    expect((await register({ ...valid, application_type: 'web', redirect_uris: ['http://localhost:8080/cb'] })).status).toBe(400)
+
+    const authorize = (port: string) =>
+      provider.handle(
+        new Request(
+          `${ISSUER}/authorize?${new URLSearchParams({
+            client_id: body.client_id,
+            redirect_uri: `http://localhost:${port}/cb`,
+            response_type: 'code',
+            scope: 'openid',
+            code_challenge: 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM',
+            code_challenge_method: 'S256'
+          })}`
+        )
+      )
+    expect((await authorize('8080')).status).toBe(303)
+    // The port is free only for an IP literal (NFR-S2); localhost is matched as registered.
+    expect((await authorize('9999')).status).toBe(400)
+  })
+
+  test('application_type defaults to web and must be web or native', async () => {
+    expect((await (await register(valid)).json()).application_type).toBe('web')
+    expect((await register({ ...valid, application_type: 'desktop' })).status).toBe(400)
+  })
+
   // RFC 8252 §8.3: loopback is the IP literal; `localhost` can resolve somewhere else.
-  test('http on localhost is refused, and so are schemes that run script', async () => {
+  test('http on localhost is refused for a web client, and so are schemes that run script', async () => {
     for (const uri of ['http://localhost:8080/cb', 'javascript:alert(1)', 'data:text/html,hi']) {
       const response = await register({ redirect_uris: [uri] })
       expect({ uri, status: response.status }).toEqual({ uri, status: 400 })

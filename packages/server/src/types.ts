@@ -50,6 +50,8 @@ export type Client = {
   backchannelClientNotificationEndpoint?: string
   frontchannelLogoutUri?: string
   registrationAccessToken?: string
+  /** OIDC DCR 1.0 §2. `native` may redirect to `http://localhost`; `web`, the default, may not (NFR-S2). */
+  applicationType?: 'web' | 'native'
   /**
    * May introspect access tokens issued to other clients, unless a token is restricted to another
    * audience (FR-C8). Never set by dynamic registration: it is the operator's to grant.

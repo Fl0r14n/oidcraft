@@ -355,7 +355,9 @@ PKCE nor a `nonce` is refused (FR-C3, OAuth 2.1 §7.5.1.1), which OIDC Core woul
 
 **NFR-S2** — Redirect URIs match by exact string comparison. No wildcards, no prefix matching. The
 one exception is the port of an `http` loopback IP literal (`127.0.0.1`, `[::1]`), which a native app
-chooses per request (RFC 8252 §7.3, RFC 9700 §2.1). The hostname `localhost` gets no exception.
+chooses per request (RFC 8252 §7.3, RFC 9700 §2.1). The hostname `localhost` gets no port exception;
+a client registered as `application_type: native` may use `http://localhost` redirect URIs, matched
+exactly, because MCP clients do (MCP 2026-07-28). A `web` client, the default, may not.
 
 **NFR-S3** — Every token, code and identifier is generated with `crypto.getRandomValues` at ≥ 256
 bits of entropy and compared in constant time where compared at all — except a code a person types

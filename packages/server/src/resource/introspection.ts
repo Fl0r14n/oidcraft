@@ -29,16 +29,19 @@ const audiencesOf = (artifact: Artifact) =>
   [artifact.payload.aud, artifact.payload.resource].filter((value): value is string => typeof value === 'string')
 
 /**
- * The token's own client may always ask. A resource server may ask about access tokens — a refresh
- * token is never presented to it — unless the token was restricted to some other audience (FR-C8).
+ * The token's own client may always ask. Of access tokens — a refresh token is never presented to a
+ * resource — the server a configured resource names may ask about those issued for that resource,
+ * and nothing else (FR-C19); a client flagged `resourceServer` about any not restricted to some other
+ * audience (FR-C8).
  */
 const mayIntrospect = (config: ResolvedConfig, client: Client, artifact: Artifact, kind: ArtifactKind) => {
   if (artifact.clientId === client.clientId) return true
-  if (!client.resourceServer || kind !== 'access_token') return false
+  if (kind !== 'access_token') return false
   const audiences = audiencesOf(artifact)
-  // FR-C19: a token issued for a resource is that resource's server's to see, and no other's.
   const served = config.resources.filter(resource => resource.resourceServer === client.clientId).map(resource => resource.uri)
-  return audiences.length === 0 || audiences.some(audience => audience === client.clientId || served.includes(audience))
+  if (audiences.some(audience => served.includes(audience))) return true
+  if (!client.resourceServer) return false
+  return audiences.length === 0 || audiences.includes(client.clientId)
 }
 
 /**

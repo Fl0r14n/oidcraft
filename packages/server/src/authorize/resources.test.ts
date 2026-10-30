@@ -121,6 +121,16 @@ describe('resource indicators (RFC 8707, FR-C19)', () => {
     expect(await introspect(tokens.access_token, 'api-server')).toEqual({ active: false })
   })
 
+  // Naming a client as a resource's server is the whole grant: it needs no FR-C8 flag, and so gets
+  // no view of tokens that were never for its resource.
+  test("a resource server named only by its resource sees that resource's tokens and nothing else", async () => {
+    await adapter.clients.upsert?.(client({ clientId: 'mcp-server', resourceServer: false, redirectUris: [], grantTypes: [] }))
+    const forMcp = await (await redeem(await codeFor([MCP]))).json()
+    expect((await introspect(forMcp.access_token, 'mcp-server')).aud).toBe(MCP)
+    const unrestricted = await (await redeem(await codeFor([], 'jwt-rp'), undefined, 'jwt-rp')).json()
+    expect(await introspect(unrestricted.access_token, 'mcp-server')).toEqual({ active: false })
+  })
+
   test('the resource named at authorization is the audience when the token request repeats none', async () => {
     const tokens = await (await redeem(await codeFor([MCP]))).json()
     expect((await introspect(tokens.access_token, 'rp')).aud).toBe(MCP)

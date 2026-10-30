@@ -188,8 +188,9 @@ on their own; the profile builds on both.
   proof on the PAR push supplies it (§10.1); the code remembers it, and only a proof by that key
   redeems it, checked before the consume so a thief's attempt does not burn the code. No discovery
   metadata: RFC 9449 defines none for it. Landed 2026-10-30
-- [ ] Session-bound refresh tokens (FR-T6): issued without `offline_access` to a client with the
-  `refresh_token` grant, expiring no later than the session, revoked when it ends. Rotating as ever
+- [x] Session-bound refresh tokens (FR-T6): issued without `offline_access` to a client with the
+  `refresh_token` grant, expiring no later than the session, refused once it ends. Rotating as ever.
+  Code grant only: a device or CIBA approval's session is the approver's browser. Landed 2026-10-30
 - [ ] The FAPI 2.0 profile (FR-C21), opt-in per provider or per client, refusing everything that
   requirement lists. Most of it is checks on what already exists: `requirePushedAuthorizationRequests`,
   the assertion audience in `clients/assertion.ts` (the issuer only; outside the profile the token

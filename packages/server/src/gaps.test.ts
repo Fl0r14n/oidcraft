@@ -770,6 +770,46 @@ describe('refresh token lifetime', () => {
   })
 })
 
+describe('FR-T6: a refresh token without offline_access is bound to the session', () => {
+  const refresh = (provider: Provider, token: string) =>
+    provider.handle(
+      new Request(`${ISSUER}/token`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded', authorization: basic() },
+        body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: token }).toString()
+      })
+    )
+
+  test('it is issued, rotates, and dies when the session ends', async () => {
+    await adapter.clients.upsert?.(client())
+    const provider = build()
+    const issued = await tokensFor(provider, 'rp')
+    expect(issued.refresh_token).toBeTruthy()
+
+    const rotated = await (await refresh(provider, issued.refresh_token)).json()
+    expect(rotated.refresh_token).toBeTruthy()
+    expect(rotated.refresh_token).not.toBe(issued.refresh_token)
+
+    const session = (await adapter.sessions.listForAccount('ada'))[0]
+    await adapter.sessions.destroy(session?.id as string)
+    expect((await (await refresh(provider, rotated.refresh_token)).json()).error).toBe('invalid_grant')
+  })
+
+  test('it expires no later than the session, however long its own lifetime', async () => {
+    await adapter.clients.upsert?.(client())
+    const issued = await tokensFor(build({ ttl: { session: 600, refreshToken: 86_400 } }), 'rp')
+    const stored = await adapter.artifacts.find('refresh_token', issued.refresh_token)
+    const session = (await adapter.sessions.listForAccount('ada'))[0]
+    expect(stored?.expiresAt.getTime()).toBeLessThanOrEqual(session?.expiresAt.getTime() as number)
+  })
+
+  test('a client not registered for the refresh_token grant gets none', async () => {
+    await adapter.clients.upsert?.(client({ grantTypes: ['authorization_code'] }))
+    const issued = await tokensFor(build(), 'rp')
+    expect(issued.refresh_token).toBeUndefined()
+  })
+})
+
 describe('discovery advertises what verification accepts', () => {
   test('client-side algorithm lists are what clients may sign with, not what the provider signs with', async () => {
     const provider = build({

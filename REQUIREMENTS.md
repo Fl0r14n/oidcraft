@@ -206,7 +206,9 @@ code twice revokes the grant it belongs to.
 misses a prune cycle still cannot serve an expired token.
 
 **FR-T6** — A refresh token without `offline_access` is bound to the session it was issued in: it
-expires no later than that session and dies when the session ends, logout included. It rotates as
+expires no later than that session and dies when the session ends, logout included. Only the
+authorization code grant issues one, to a client registered for `refresh_token`; a device or CIBA
+approval's session is the approver's browser, not the client's, so those still need `offline_access`. It rotates as
 FR-T3 says. One with `offline_access` outlives the session (OIDC Core §11), within `refreshToken`
 idle and `refreshTokenFamily` absolute lifetimes. A browser client renews without a third-party
 cookie, and a stolen session-bound token is good only while the session lasts.

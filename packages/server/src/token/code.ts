@@ -63,6 +63,7 @@ export const authorizationCodeGrant = async (config: ResolvedConfig, client: Cli
     nonce: artifact.payload.nonce as string | undefined,
     binding,
     authorizationDetails: artifact.payload.authorizationDetails as unknown[] | undefined,
+    sessionBound: true,
     audience,
     resources: resourcesOf(artifact)
   })
@@ -102,6 +103,7 @@ export const refreshTokenGrant = async (config: ResolvedConfig, client: Client, 
   return issueTokens(config, client, grant, session, requested?.length ? requested : granted, {
     binding: { jkt: bound?.jkt ?? binding.jkt, x5t: binding.x5t },
     refreshScopes: granted,
+    sessionBound: artifact.payload.sessionBound === true,
     familyExpiresAt: artifact.payload.familyExpiresAt as number | undefined,
     audience,
     resources: resourcesOf(artifact)

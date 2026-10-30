@@ -19,6 +19,7 @@ export const issueTokens = async (
     binding = {},
     authorizationDetails,
     refreshScopes = scopes,
+    sessionBound = false,
     familyExpiresAt,
     audience,
     resources = []
@@ -28,6 +29,11 @@ export const issueTokens = async (
     authorizationDetails?: unknown[] | undefined
     /** RFC 6749 §6: a rotated refresh token keeps its own scope even when the access token is narrowed. */
     refreshScopes?: string[]
+    /**
+     * FR-T6: a refresh token even without offline_access, living no longer than the session. Only the
+     * code grant passes it: a device or CIBA approval's session is the approver's browser, not the client's.
+     */
+    sessionBound?: boolean
     /** Epoch seconds; carried from the token being rotated so the family's lifetime never slides. */
     familyExpiresAt?: number | undefined
     /** RFC 8707: the one resource this access token is for (FR-C19). */
@@ -58,11 +64,13 @@ export const issueTokens = async (
 
   const refreshX5t = client.tokenEndpointAuthMethod === 'none' ? binding.x5t : undefined
   let refreshToken: string | undefined
-  // Only when the client asked for it: a refresh token nobody requested is a credential nobody guards.
-  if (refreshScopes.includes('offline_access') && client.grantTypes.includes('refresh_token')) {
+  const offline = refreshScopes.includes('offline_access')
+  // Only for a client registered for the grant: a refresh token nobody asked for is a credential nobody guards.
+  if ((offline || sessionBound) && client.grantTypes.includes('refresh_token')) {
     refreshToken = randomString()
     const now = Math.floor(Date.now() / 1000)
     const familyEnd = familyExpiresAt ?? now + config.ttl.refreshTokenFamily
+    const sessionEnd = offline ? familyEnd : Math.floor(session.expiresAt.getTime() / 1000)
     await config.adapter.artifacts.upsert({
       id: refreshToken,
       kind: 'refresh_token',
@@ -76,13 +84,14 @@ export const issueTokens = async (
         iat: now,
         scopes: refreshScopes,
         sessionId: session.id,
-        // offline_access is for when the user is gone: the sign-in it rests on travels with it.
-        signIn: snapshotOf(session),
+        // offline_access is for when the user is gone: the sign-in it rests on travels with it. Without
+        // it there is no snapshot, so the token dies with the session (FR-T6).
+        ...(offline ? { signIn: snapshotOf(session) } : { sessionBound: true }),
         familyExpiresAt: familyEnd,
         ...(resources.length && { resources }),
         ...((jkt || refreshX5t) && { cnf: confirmationOf({ jkt, x5t: refreshX5t }) })
       },
-      expiresAt: new Date(Math.min(now + config.ttl.refreshToken, familyEnd) * 1000)
+      expiresAt: new Date(Math.min(now + config.ttl.refreshToken, familyEnd, sessionEnd) * 1000)
     })
   }
 

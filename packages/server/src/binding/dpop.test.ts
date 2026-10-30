@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
 import { randomString, sha256 } from '@oidcraft/core'
-import { base64url, exportJWK, generateKeyPair, SignJWT } from 'jose'
+import { base64url, calculateJwkThumbprint, exportJWK, generateKeyPair, SignJWT } from 'jose'
 import { memoryAdapter } from '../adapters/memory'
 import type { Adapter, Client } from '../index'
 import { createProvider, type Provider } from '../provider'
@@ -66,15 +66,18 @@ const proof = async (
   return builder.sign(key.privateKey)
 }
 
-const codeFor = async (clientId = 'rp') => {
-  const params = new URLSearchParams({
+const authorizationParams = (clientId = 'rp', extra: Record<string, string> = {}) =>
+  new URLSearchParams({
     client_id: clientId,
     redirect_uri: REDIRECT,
     response_type: 'code',
     scope: 'openid offline_access',
     code_challenge: challenge,
-    code_challenge_method: 'S256'
+    code_challenge_method: 'S256',
+    ...extra
   })
+
+const codeFor = async (clientId = 'rp', params = authorizationParams(clientId)) => {
   let response = await provider.handle(new Request(`${ISSUER}/authorize?${params}`))
   let cookie = ''
   for (let i = 0; i < 3; i++) {
@@ -284,6 +287,70 @@ describe('DPoP through refresh', () => {
       })
     )
     expect((await response.json()).error_description).toContain('bound to a different key')
+  })
+})
+
+describe('dpop_jkt', () => {
+  const thumbprint = async (key = keyPair) => calculateJwkThumbprint(await exportJWK(key.publicKey))
+  const tokenProof = (key = keyPair) => proof('POST', `${ISSUER}/token`, { key })
+
+  test('a code bound by dpop_jkt is redeemed by a proof from that key', async () => {
+    const code = await codeFor('rp', authorizationParams('rp', { dpop_jkt: await thumbprint() }))
+    const response = await exchange(code, { dpop: await tokenProof() })
+    expect(response.status).toBe(200)
+    expect((await response.json()).token_type).toBe('DPoP')
+  })
+
+  test('a different key or no proof is refused, and the code survives for its own key', async () => {
+    const code = await codeFor('rp', authorizationParams('rp', { dpop_jkt: await thumbprint() }))
+    const thief = await generateKeyPair('ES256', { extractable: true })
+    expect((await (await exchange(code, { dpop: await tokenProof(thief) })).json()).error_description).toContain('different DPoP key')
+    expect((await (await exchange(code)).json()).error_description).toContain('present a proof')
+    expect((await exchange(code, { dpop: await tokenProof() })).status).toBe(200)
+  })
+
+  test('a malformed dpop_jkt is refused', async () => {
+    const response = await provider.handle(
+      new Request(`${ISSUER}/authorize?${authorizationParams('rp', { dpop_jkt: 'not-a-thumbprint' })}`)
+    )
+    expect(new URL(response.headers.get('location') as string).searchParams.get('error')).toBe('invalid_request')
+  })
+
+  describe('through PAR', () => {
+    const push = (params: URLSearchParams, dpop?: string) =>
+      provider.handle(
+        new Request(`${ISSUER}/request`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/x-www-form-urlencoded', ...(dpop && { dpop }) },
+          body: params.toString()
+        })
+      )
+
+    beforeEach(() => {
+      provider = createProvider({
+        issuer: ISSUER,
+        adapter,
+        interactionUrl: `${ISSUER}/interaction`,
+        features: { dpop: true, pushedAuthorizationRequests: true }
+      })
+    })
+
+    test('a proof on the push binds the code to its key', async () => {
+      const pushed = await (await push(authorizationParams(), await proof('POST', `${ISSUER}/request`))).json()
+      const code = await codeFor('rp', new URLSearchParams({ client_id: 'rp', request_uri: pushed.request_uri }))
+      const thief = await generateKeyPair('ES256', { extractable: true })
+      expect((await exchange(code, { dpop: await tokenProof(thief) })).status).toBe(400)
+      expect((await exchange(code, { dpop: await tokenProof() })).status).toBe(200)
+    })
+
+    test('a push whose dpop_jkt names another key than its proof is refused', async () => {
+      const other = await generateKeyPair('ES256', { extractable: true })
+      const response = await push(
+        authorizationParams('rp', { dpop_jkt: await thumbprint(other) }),
+        await proof('POST', `${ISSUER}/request`)
+      )
+      expect((await response.json()).error).toBe('invalid_dpop_proof')
+    })
   })
 })
 

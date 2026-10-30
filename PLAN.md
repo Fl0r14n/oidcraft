@@ -184,8 +184,10 @@ management API a conditional type and flip what `Adapter` means, all to move one
 After the adapter typing, before Postgres. In order: `dpop_jkt` and session-bound refresh tokens stand
 on their own; the profile builds on both.
 
-- [ ] `dpop_jkt` (RFC 9449 §10): the authorization request carries the DPoP key's thumbprint, the code
-  remembers it, and the token request's proof must match. Advertised in discovery
+- [x] `dpop_jkt` (RFC 9449 §10): the authorization request carries the DPoP key's thumbprint, or a
+  proof on the PAR push supplies it (§10.1); the code remembers it, and only a proof by that key
+  redeems it, checked before the consume so a thief's attempt does not burn the code. No discovery
+  metadata: RFC 9449 defines none for it. Landed 2026-10-30
 - [ ] Session-bound refresh tokens (FR-T6): issued without `offline_access` to a client with the
   `refresh_token` grant, expiring no later than the session, revoked when it ends. Rotating as ever
 - [ ] The FAPI 2.0 profile (FR-C21), opt-in per provider or per client, refusing everything that

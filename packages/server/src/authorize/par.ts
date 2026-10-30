@@ -1,6 +1,7 @@
 import { randomString } from '@oidcraft/core'
+import { verifyDpopProof } from '../binding/dpop'
 import { authenticateClient } from '../clients/authenticate'
-import type { ResolvedConfig } from '../config'
+import { publicUrl, type ResolvedConfig } from '../config'
 import type { ClientCertificate } from '../context'
 import { OAuthError } from '../errors'
 import { parseAuthorizationRequest, validateAuthorizationRequest } from './authorization'
@@ -44,6 +45,21 @@ export const pushedAuthorizationRequestEndpoint = async (
     throw new OAuthError('invalid_request', { description: 'client_id does not match the authenticated client', spec: 'RFC 9126 §2.1' })
   }
   params.set('client_id', client.clientId)
+
+  // RFC 9449 §10.1: a proof on the push binds the code to its key, exactly as dpop_jkt would.
+  if (config.features.dpop && request.headers.has('dpop')) {
+    const { jkt } = await verifyDpopProof(config, request, {
+      htu: publicUrl(config, request),
+      requireNonceFor: config.features.dpopNonces ? client.clientId : undefined
+    })
+    if (params.has('dpop_jkt') && params.get('dpop_jkt') !== jkt) {
+      throw new OAuthError('invalid_dpop_proof', {
+        description: 'dpop_jkt names a different key from the DPoP proof',
+        spec: 'RFC 9449 §10.1'
+      })
+    }
+    params.set('dpop_jkt', jkt)
+  }
 
   // Validating now means a malformed request fails on this authenticated call rather than later,
   // in a browser redirect where the user sees it (§2.2).

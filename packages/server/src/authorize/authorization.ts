@@ -26,6 +26,8 @@ export type AuthorizationRequest = {
   authorizationDetails: AuthorizationDetail[] | undefined
   /** RFC 8707: the resources the token is for; each one configured, or the request is refused (FR-C19). */
   resources: string[]
+  /** RFC 9449 §10: the DPoP key the code is for; only a proof made with it may redeem the code. */
+  dpopJkt: string | undefined
   /**
    * The request exactly as it arrived. Resuming after an interaction replays this rather than
    * rebuilding from the fields above: a hand-maintained list silently drops every parameter nobody
@@ -153,8 +155,20 @@ export const validateAuthorizationRequest = (
     uiLocales: params.get('ui_locales') ? list(params.get('ui_locales')) : undefined,
     authorizationDetails: parseAuthorizationDetails(config, params.get('authorization_details')),
     resources: requestedResources(config, params),
+    dpopJkt: config.features.dpop ? dpopJktOf(params.get('dpop_jkt')) : undefined,
     raw: params.toString()
   }
+}
+
+// An RFC 7638 SHA-256 thumbprint: 32 bytes, base64url without padding.
+const JKT = /^[A-Za-z0-9_-]{43}$/
+
+const dpopJktOf = (value: string | null) => {
+  if (value === null) return undefined
+  if (!JKT.test(value)) {
+    throw new OAuthError('invalid_request', { description: 'dpop_jkt is not a SHA-256 JWK thumbprint', spec: 'RFC 9449 §10' })
+  }
+  return value
 }
 
 const parseAuthorizationDetails = (config: ResolvedConfig, raw: string | null) => {
@@ -359,7 +373,8 @@ const issueCode = async (config: ResolvedConfig, request: AuthorizationRequest, 
       sessionId: session.id,
       ...(request.nonce && { nonce: request.nonce }),
       ...(request.authorizationDetails && { authorizationDetails: request.authorizationDetails }),
-      ...(request.resources.length && { resources: request.resources })
+      ...(request.resources.length && { resources: request.resources }),
+      ...(request.dpopJkt && { dpopJkt: request.dpopJkt })
     },
     expiresAt: new Date(Date.now() + config.ttl.authorizationCode * 1000)
   })

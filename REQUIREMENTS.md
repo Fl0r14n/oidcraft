@@ -125,8 +125,9 @@ the core does not perform (FR-A1, FR-R4). A host that needs it supplies `resolve
 resolution and pushes the result. A `request_uri` issued by PAR is a different thing: it references
 this provider's own storage.
 
-**FR-C13 — Sender-constrained tokens.** DPoP (RFC 9449) with nonce support, and mTLS
-certificate-bound tokens (RFC 8705 §3).
+**FR-C13 — Sender-constrained tokens.** DPoP (RFC 9449) with nonce support and `dpop_jkt`, binding
+the authorization code to the client's key, from the request or from a proof on its push (§10); and
+mTLS certificate-bound tokens (RFC 8705 §3).
 
 **FR-C14 — `iss` in the authorization response** (RFC 9207), always, unconditionally.
 

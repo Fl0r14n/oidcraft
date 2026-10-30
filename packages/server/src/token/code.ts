@@ -42,6 +42,17 @@ export const authorizationCodeGrant = async (config: ResolvedConfig, client: Cli
     })
   }
 
+  // RFC 9449 §10: checked before the consume, so a thief's attempt does not burn the client's code.
+  const dpopJkt = artifact.payload.dpopJkt as string | undefined
+  if (dpopJkt && binding.jkt !== dpopJkt) {
+    throw new OAuthError('invalid_grant', {
+      description: binding.jkt
+        ? 'this authorization code is bound to a different DPoP key'
+        : 'this authorization code is bound to a DPoP key; present a proof made with it',
+      spec: 'RFC 9449 §10'
+    })
+  }
+
   await verifyChallenge(form.get('code_verifier'), artifact.payload.codeChallenge as string | undefined)
   const audience = audienceFor(requestedResources(config, form), resourcesOf(artifact))
   // The read above can be stale by now; only the atomic consume decides who redeemed it (NFR-S4).

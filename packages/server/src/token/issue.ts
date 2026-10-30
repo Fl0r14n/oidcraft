@@ -65,7 +65,9 @@ export const issueTokens = async (
   })
   const accessToken = access.token
 
-  const refreshX5t = client.tokenEndpointAuthMethod === 'none' ? binding.x5t : undefined
+  const publicClient = client.tokenEndpointAuthMethod === 'none'
+  const refreshJkt = publicClient ? jkt : undefined
+  const refreshX5t = publicClient ? binding.x5t : undefined
   let refreshToken: string | undefined
   const offline = refreshScopes.includes('offline_access')
   // Only for a client registered for the grant: a refresh token nobody asked for is a credential nobody guards.
@@ -81,9 +83,9 @@ export const issueTokens = async (
       clientId: client.clientId,
       accountId: session.accountId,
       grantId: grant.id,
-      // The binding must survive rotation, or it evaporates on the first refresh (RFC 9449 §5). A
-      // certificate binds a refresh token only for a public client; a confidential one is held to
-      // its certificate by authenticating with it (RFC 8705 §4).
+      // The binding must survive rotation, or it evaporates on the first refresh. Only a public
+      // client's refresh token is bound, to a DPoP key or a certificate: a confidential one is
+      // already held to its client by authentication (RFC 9449 §5, RFC 8705 §4).
       payload: {
         iat: now,
         scopes: refreshScopes,
@@ -93,7 +95,7 @@ export const issueTokens = async (
         ...(offline ? { signIn: snapshotOf(session) } : { sessionBound: true }),
         familyExpiresAt: familyEnd,
         ...(resources.length && { resources }),
-        ...((jkt || refreshX5t) && { cnf: confirmationOf({ jkt, x5t: refreshX5t }) })
+        ...((refreshJkt || refreshX5t) && { cnf: confirmationOf({ jkt: refreshJkt, x5t: refreshX5t }) })
       },
       expiresAt: new Date(Math.min(now + config.ttl.refreshToken, familyEnd, sessionEnd) * 1000)
     })

@@ -45,12 +45,6 @@ export const authorizationCodeGrant = async (config: ResolvedConfig, client: Cli
 
   // RFC 9449 §10: checked before the consume, so a thief's attempt does not burn the client's code.
   const dpopJkt = artifact.payload.dpopJkt as string | undefined
-  if (underFapi(config, client) && binding.jkt && !dpopJkt) {
-    throw new OAuthError('invalid_grant', {
-      description: 'under FAPI 2.0 a DPoP-bound code must name its key: send dpop_jkt, or a DPoP proof on the push',
-      spec: 'FAPI 2.0 Security Profile §5.3.2.2, RFC 9449 §10'
-    })
-  }
   if (dpopJkt && binding.jkt !== dpopJkt) {
     throw new OAuthError('invalid_grant', {
       description: binding.jkt

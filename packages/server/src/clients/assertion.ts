@@ -63,6 +63,9 @@ export const verifyClientAssertion = async (config: ResolvedConfig, client: Clie
     throw unauthorized('the client assertion does not verify')
   })
 
+  if (fapi && payload.aud !== config.issuer) {
+    throw unauthorized('under FAPI 2.0 the assertion audience must be the issuer alone, as a string', 'FAPI 2.0 Security Profile §5.3.2.1')
+  }
   const jti = payload.jti
   if (typeof jti !== 'string' || !jti) throw unauthorized('the client assertion has no jti', 'RFC 7523 §3')
   if (!payload.exp) throw unauthorized('the client assertion has no exp', 'RFC 7523 §3')

@@ -75,10 +75,10 @@ const assertion = async (over: { aud?: string; iat?: number; nbf?: number; key?:
     .sign((over.key ?? clientKey).privateKey)
 }
 
-const dpop = async (method: string, uri: string, key = dpopKey) =>
+const dpop = async (method: string, uri: string, key = dpopKey, iat = Math.floor(Date.now() / 1000)) =>
   new SignJWT({ jti: randomString(), htm: method, htu: uri })
     .setProtectedHeader({ alg: 'ES256', typ: 'dpop+jwt', jwk: await exportJWK(key.publicKey) })
-    .setIssuedAt()
+    .setIssuedAt(iat)
     .sign(key.privateKey)
 
 const post = (path: string, body: Record<string, string>, headers: Record<string, string> = {}) =>
@@ -141,9 +141,9 @@ const redeem = async (code: string, withDpop = true) =>
     withDpop ? { dpop: await dpop('POST', `${ISSUER}/token`) } : {}
   )
 
-const refresh = async (token: string) =>
+const refresh = async (token: string, key = dpopKey) =>
   post('/token', await authenticated({ grant_type: 'refresh_token', refresh_token: token }), {
-    dpop: await dpop('POST', `${ISSUER}/token`)
+    dpop: await dpop('POST', `${ISSUER}/token`, key)
   })
 
 describe('FR-C21: a provider under FAPI 2.0 refuses to start without what the profile needs', () => {
@@ -212,9 +212,26 @@ describe('FR-C21: the flow under the profile', () => {
     expect((await (await redeem(code, false)).json()).error_description).toContain('sender-constrained')
   })
 
-  test('a DPoP token request for a code the push did not bind to a key is refused', async () => {
+  // FAPI 2.0 has the server support dpop_jkt, not require it: the suite's own happy flow sends none.
+  test('a code the push did not bind to a key is still redeemed with DPoP', async () => {
     const code = await codeFor((await push(false)).request_uri)
-    expect((await (await redeem(code)).json()).error_description).toContain('dpop_jkt')
+    expect((await (await redeem(code)).json()).token_type).toBe('DPoP')
+  })
+
+  // RFC 9449 §5: a confidential client's refresh token is held to it by authentication, not to a key.
+  test('a refresh may present a new DPoP key, and the new access token is bound to it', async () => {
+    const issued = await (await redeem(await codeFor((await push()).request_uri))).json()
+    const rotatedKey = await generateKeyPair('ES256', { extractable: true })
+    const refreshed = await refresh(issued.refresh_token, rotatedKey)
+    expect(refreshed.status).toBe(200)
+    expect((await refreshed.json()).token_type).toBe('DPoP')
+  })
+
+  test('a DPoP proof issued up to ten seconds ahead is accepted', async () => {
+    const pushed = await post('/request', await authenticated(await authorizationParams()), {
+      dpop: await dpop('POST', `${ISSUER}/request`, dpopKey, Math.floor(Date.now() / 1000) + 8)
+    })
+    expect(pushed.status).toBe(201)
   })
 
   // FR-T3's one exception: the client keeps one refresh token, so a dropped response loses nothing.
@@ -235,6 +252,19 @@ describe('FR-C21: client assertions under the profile', () => {
   test('the audience must be the issuer alone, not the token endpoint', async () => {
     expect((await pushWith(await assertion({ aud: `${ISSUER}/token` }))).status).toBe(401)
     expect((await pushWith(await assertion())).status).toBe(201)
+  })
+
+  test('an audience array is refused even when it holds the issuer', async () => {
+    const now = Math.floor(Date.now() / 1000)
+    const arrayAud = await new SignJWT({ jti: randomString() })
+      .setProtectedHeader({ alg: 'ES256' })
+      .setIssuer('bank')
+      .setSubject('bank')
+      .setAudience([ISSUER, `${ISSUER}/token`])
+      .setIssuedAt(now)
+      .setExpirationTime(now + 60)
+      .sign(clientKey.privateKey)
+    expect((await pushWith(arrayAud)).status).toBe(401)
   })
 
   test('an iat up to ten seconds ahead is accepted, an nbf over a minute old is not', async () => {

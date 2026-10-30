@@ -4,7 +4,7 @@ import { publicUrl, type ResolvedConfig } from '../config'
 import type { ClientCertificate } from '../context'
 import { OAuthError } from '../errors'
 import { signingKey } from '../keys/keys'
-import { defaultSigningAlg } from '../profile/fapi'
+import { defaultSigningAlg, FAPI_ALGS, FAPI_IAT_SKEW, underFapi } from '../profile/fapi'
 import { resolveAccessToken } from '../token/access-token'
 import type { Client } from '../types'
 
@@ -80,11 +80,14 @@ export const userinfoEndpoint = async (config: ResolvedConfig, request: Request,
     if (presented.scheme !== 'dpop') {
       throw unauthorized('this access token is DPoP-bound and must be presented with the DPoP scheme', 'DPoP')
     }
+    const fapi = underFapi(config, await config.adapter.clients.find(artifact.clientId))
     await verifyDpopProof(config, request, {
       htu: publicUrl(config, request),
       accessToken: presented.token,
       expectedJkt: confirmation.jkt,
-      requireNonceFor: config.features.dpopNonces ? artifact.clientId : undefined
+      requireNonceFor: config.features.dpopNonces ? artifact.clientId : undefined,
+      algorithms: fapi ? FAPI_ALGS : undefined,
+      futureSkew: fapi ? FAPI_IAT_SKEW : undefined
     })
   }
 

@@ -172,10 +172,12 @@ client's host, the host the person returns to, and warns when that is this compu
 **FR-C21 — FAPI 2.0 Security Profile**, opt-in per provider or per client, never a change of the
 defaults. Under it the provider refuses what it otherwise only supports: a public client; client
 authentication other than `private_key_jwt` or mTLS; an authorization request not pushed (PAR,
-`request_uri` under 600 s); a token that is not sender-constrained (DPoP or mTLS), and DPoP without
-`dpop_jkt` binding the code (RFC 9449 §10); signing algorithms other than PS256, ES256 and EdDSA; a
+`request_uri` under 600 s); a token that is not sender-constrained (DPoP or mTLS); signing
+algorithms other than PS256, ES256 and EdDSA; a
 client assertion whose `aud` is not exactly the issuer; an assertion outside the 10 s `iat` / 60 s
-`nbf` window; an `http` redirect for a client that is not native. Refresh tokens follow FR-T3's
+`nbf` window; an `http` redirect for a client that is not native. `dpop_jkt` (FR-C13) is supported
+but not required: the profile asks the server to offer code binding, and its conformance plan's own
+happy flow sends none. Refresh tokens follow FR-T3's
 exception. It is one switch, never assembled from individual settings: under it the provider refuses
 to start on a configuration that cannot meet it (NFR-D2), a client that cannot meet it is refused at
 registration and upsert, and discovery advertises only what it allows. Verified by the OpenID Foundation's FAPI 2.0 test plan in CI, as NFR-C1 does for `basic`

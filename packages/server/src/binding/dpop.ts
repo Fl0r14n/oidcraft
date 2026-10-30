@@ -47,6 +47,13 @@ const requireNonce = async (config: ResolvedConfig, clientId: string, presented:
 const invalid = (description: string, spec = 'RFC 9449 §4.3') =>
   new OAuthError('invalid_dpop_proof', { description, spec, headers: { 'www-authenticate': 'DPoP error="invalid_dpop_proof"' } })
 
+/** §4.3: the query and fragment are ignored, and scheme and host compare as URLs do, case-insensitively. */
+const comparableHtu = (uri: unknown) => {
+  if (typeof uri !== 'string' || !URL.canParse(uri)) return undefined
+  const url = new URL(uri)
+  return `${url.origin}${url.pathname}`
+}
+
 /** The URI the proof must be bound to: scheme, host and path — never the query or fragment (§4.3). */
 export const htu = (request: Request) => {
   const url = new URL(request.url)
@@ -69,6 +76,8 @@ export type VerifyOptions = {
   htu?: string | undefined
   /** Narrower than every asymmetric algorithm, as FAPI 2.0 requires of its clients (FR-C21). */
   algorithms?: string[] | undefined
+  /** Seconds an `iat` may run ahead of this clock; FAPI 2.0 requires accepting ten (FR-C21). */
+  futureSkew?: number | undefined
 }
 
 /**
@@ -102,23 +111,26 @@ export const verifyDpopProof = async (config: ResolvedConfig, request: Request, 
     throw invalid('the DPoP proof jwk is unusable')
   })
 
-  const { payload } = await jwtVerify(proof, key, { algorithms: [header.alg], clockTolerance: SKEW }).catch(() => {
+  const skew = options.futureSkew ?? SKEW
+  const { payload } = await jwtVerify(proof, key, { algorithms: [header.alg], clockTolerance: skew }).catch(() => {
     throw invalid('the DPoP proof signature does not verify')
   })
 
   if (payload.htm !== request.method) throw invalid(`the DPoP proof is bound to ${String(payload.htm)}, not ${request.method}`)
   const expectedHtu = options.htu ?? htu(request)
-  if (payload.htu !== expectedHtu) throw invalid(`the DPoP proof is bound to ${String(payload.htu)}, not ${expectedHtu}`)
+  if (comparableHtu(payload.htu) !== comparableHtu(expectedHtu)) {
+    throw invalid(`the DPoP proof is bound to ${String(payload.htu)}, not ${expectedHtu}`)
+  }
 
   const iat = payload.iat
   if (typeof iat !== 'number') throw invalid('the DPoP proof has no iat')
   const age = Math.floor(Date.now() / 1000) - iat
-  if (age > MAX_AGE || age < -SKEW) throw invalid('the DPoP proof is too old or not yet valid')
+  if (age > MAX_AGE || age < -skew) throw invalid('the DPoP proof is too old or not yet valid')
 
   const jti = payload.jti
   if (typeof jti !== 'string' || !jti) throw invalid('the DPoP proof has no jti')
   // NFR-S5: one proof, one use. Without this a captured proof is replayable for its whole window.
-  if (!(await config.adapter.replay.claim('dpop', jti, MAX_AGE + SKEW))) throw invalid('this DPoP proof has already been used')
+  if (!(await config.adapter.replay.claim('dpop', jti, MAX_AGE + skew))) throw invalid('this DPoP proof has already been used')
 
   if (options.requireNonceFor) {
     const presented = payload.nonce

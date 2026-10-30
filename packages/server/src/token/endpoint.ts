@@ -5,7 +5,7 @@ import { authenticateClient } from '../clients/authenticate'
 import { publicUrl, type ResolvedConfig } from '../config'
 import type { ClientCertificate } from '../context'
 import { OAuthError } from '../errors'
-import { FAPI_ALGS, underFapi } from '../profile/fapi'
+import { FAPI_ALGS, FAPI_IAT_SKEW, underFapi } from '../profile/fapi'
 import type { Client } from '../types'
 import { clientCredentialsGrant } from './client-credentials'
 import { authorizationCodeGrant, refreshTokenGrant } from './code'
@@ -28,7 +28,8 @@ const bindingFor = async (config: ResolvedConfig, client: Client, request: Reque
     await verifyDpopProof(config, request, {
       htu: publicUrl(config, request),
       requireNonceFor: config.features.dpopNonces ? client.clientId : undefined,
-      algorithms: underFapi(config, client) ? FAPI_ALGS : undefined
+      algorithms: underFapi(config, client) ? FAPI_ALGS : undefined,
+      futureSkew: underFapi(config, client) ? FAPI_IAT_SKEW : undefined
     })
   ).jkt
 }

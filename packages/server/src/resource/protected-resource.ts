@@ -1,5 +1,6 @@
 import type { ResolvedConfig } from '../config'
 import { CLIENT_SIGNING_ALGS } from '../keys/algorithms'
+import { FAPI_ALGS } from '../profile/fapi'
 
 /**
  * RFC 9728 §3.2: what a resource server publishes so a client can find the provider that issues its
@@ -14,7 +15,7 @@ export const protectedResourceMetadata = (config: ResolvedConfig, uri: string) =
     authorization_servers: [config.issuer],
     bearer_methods_supported: ['header'],
     ...(resource.scopes && { scopes_supported: resource.scopes }),
-    ...(config.features.dpop && { dpop_signing_alg_values_supported: CLIENT_SIGNING_ALGS })
+    ...(config.features.dpop && { dpop_signing_alg_values_supported: config.profile === 'fapi2' ? FAPI_ALGS : CLIENT_SIGNING_ALGS })
   }
 }
 

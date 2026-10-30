@@ -262,6 +262,16 @@ describe('DPoP at the resource', () => {
   })
 })
 
+// RFC 9449 §4.3: the query and fragment are not part of the match, and scheme and host are case-insensitive.
+test('htu is matched as a URL: query and fragment ignored, scheme and host in any case', async () => {
+  const withQuery = await exchange(await codeFor(), { dpop: await proof('POST', `${ISSUER}/token?x=1#y`) })
+  expect(withQuery.status).toBe(200)
+  const shouting = await exchange(await codeFor(), { dpop: await proof('POST', `${ISSUER.toUpperCase()}/token`) })
+  expect(shouting.status).toBe(200)
+  const otherPath = await exchange(await codeFor(), { dpop: await proof('POST', `${ISSUER}/TOKEN`) })
+  expect(otherPath.status).toBe(400)
+})
+
 describe('DPoP through refresh', () => {
   test('the binding survives rotation', async () => {
     const first = await (await exchange(await codeFor(), { dpop: await proof('POST', `${ISSUER}/token`) })).json()

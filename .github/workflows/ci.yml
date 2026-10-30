@@ -19,7 +19,7 @@ jobs:
     # against real ones, the same images compose.yml starts locally.
     services:
       redis:
-        image: redis:7-alpine
+        image: redis:alpine
         ports:
           - 6379:6379
       postgres:
@@ -120,7 +120,7 @@ jobs:
       - if: always()
         run: cp "$RUNNER_TEMP/op.log" conformance/results/ || true
       - if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: conformance-results-${{ matrix.plan }}
           path: conformance/results/

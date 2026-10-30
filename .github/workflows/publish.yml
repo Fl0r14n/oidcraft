@@ -17,9 +17,9 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version: latest
           registry-url: https://registry.npmjs.org # points npm at the registry, independent of how it authenticates
       - run: bun install --frozen-lockfile
       - run: bunx biome ci .
@@ -31,16 +31,16 @@ jobs:
         run: |
           tag='${{ github.event.release.tag_name }}'
           [ -z "$tag" ] && { echo "no tag (workflow_dispatch) — skipping"; exit 0; }
-          version=$(node -p "require('./packages/oidcraft/package.json').version")
+          version=$(node -p "require('./packages/server/package.json').version")
           if [ "$tag" != "v$version" ]; then
             echo "::error::release tag $tag does not match package.json $version"
             exit 1
           fi
-      # trusted publishing needs npm >= 11.5.1; node 24 ships 11.x but the exact patch drifts
+      # trusted publishing needs npm >= 11.5.1; the npm bundled with node drifts, so take the latest
       - run: npm install -g npm@latest
       # No NODE_AUTH_TOKEN: a trusted publisher registered for this repo and workflow exchanges the
       # OIDC token above for publish rights, and provenance comes with it. Register it once with
       #   npm trust github oidcraft --file publish.yml --repo Fl0r14n/oidcraft --allow-publish
       # npm, not bun: bun publish cannot do trusted publishing or provenance.
       - run: npm publish --access public
-        working-directory: packages/oidcraft
+        working-directory: packages/server

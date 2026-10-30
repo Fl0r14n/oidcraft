@@ -19,6 +19,6 @@ services:
       interval: 2s
       retries: 15
   redis:
-    image: redis:7-alpine
+    image: redis:alpine
     ports:
       - ${REDIS_PORT:-56379}:6379

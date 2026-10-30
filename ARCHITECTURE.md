@@ -567,6 +567,14 @@ own, re-registered at each start. With an http issuer it is not seeded, as FAPI 
 redirect for a web client. `OIDCRAFT_PROFILE=fapi2` puts the whole provider under the profile for
 the FAPI conformance plan, which refuses the public admin and account apps.
 
+**MCP is opt-in (`OIDCRAFT_MCP=on`, FR-C19, FR-C20).** `src/mcp/server.ts` serves an MCP server at
+`/mcp` with one tool, `whoami`, through the official SDK's web-standard transport, stateless. A request
+without a token gets the RFC 9728 401 that points at its resource metadata. A token must be one this OP
+issued for `/mcp`, which the MCP server checks by introspecting in-process as the resource's named
+server — never as a `resourceServer` client, which could see more. It also turns on registration and a
+metadata-document resolver, so an MCP client can register either way. Checked with OpenCode, which
+uses the metadata document.
+
 ### 8.2 `apps/demo-vue` — the demo relying party
 
 Vue 3 + `vue-oidc`, ported from that library's own sample app, and now resolving it from the

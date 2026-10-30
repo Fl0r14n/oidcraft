@@ -7,6 +7,7 @@ import { adminApi } from './src/admin/api'
 import { fapiDemoRoutes } from './src/fapi/demo'
 import { brokerCallback } from './src/interaction/broker'
 import { routesFor } from './src/interaction/routes'
+import { mcpEnabled, mcpRoutes } from './src/mcp/server'
 import { optional } from './src/op/env'
 import { control } from './src/op/provider'
 import { realms, realmsEnabled, siteOf } from './src/op/realms'
@@ -53,6 +54,10 @@ const server = serve({
     if (url.pathname === '/reset') return routes.resetRoutes(request, url)
     if (url.pathname === '/federation/callback' && site.brokering) {
       const response = await brokerCallback(request, url)
+      if (response) return response
+    }
+    if (mcpEnabled && site === control) {
+      const response = await mcpRoutes(provider, request, url)
       if (response) return response
     }
     if (url.pathname.startsWith('/fapi-demo') && site === control) {

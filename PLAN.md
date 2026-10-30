@@ -142,8 +142,13 @@ an earlier one.
 - [x] `application_type` at registration; a `native` client may register `http://localhost` (NFR-S2)
 - [x] Client ID Metadata Documents (FR-C20) through a host-supplied resolver, with the consent screen
   showing the client's host and where the person returns
-- [ ] The demo server as an MCP authorization server: a configured MCP resource and a resolver
-- [ ] An end-to-end run with a real MCP client against the demo, rather than only this suite's tests
+- [x] The demo server as an MCP authorization server: a configured MCP resource and a resolver
+- [x] An end-to-end run with a real MCP client against the demo, rather than only this suite's tests
+  — OpenCode 2.2.1, 2026-10-31, signing in through Chrome. It followed the 401 to RFC 9728 and RFC 8414
+  metadata, chose a Client ID Metadata Document (`https://opencode.ai/oauth/opencode/client.json`) over
+  registration, sent PKCE S256 and `resource` on authorization, code and refresh, and returned to a
+  loopback IP with an ephemeral port. It found one bug, fixed: a resource's named server could not
+  introspect that resource's tokens without also holding the broad FR-C8 `resourceServer` flag
 
 ## Adapter typing and the brokering rename
 

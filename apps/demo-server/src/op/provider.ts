@@ -2,6 +2,7 @@
 import { createProvider, staticKeyStore } from 'oidcraft'
 import { seedFapiDemoClient } from '../fapi/demo'
 import { screens } from '../interaction/screens'
+import { mcpEnabled, mcpResources, resolveClientMetadata, seedMcpResourceServer } from '../mcp/server'
 import { accountStore, createDemoAccounts, seedDemoAccounts } from './accounts'
 import { issuer, optional } from './env'
 import { seedFirstPartyClients } from './first-party'
@@ -39,6 +40,7 @@ await seedFirstPartyClients(adapter, issuer())
 await seedConformanceClients(adapter)
 await seedFapiConformanceClients(adapter)
 await seedFapiDemoClient(adapter, issuer())
+await seedMcpResourceServer(adapter)
 
 // OIDCRAFT_PROFILE=fapi2 puts every client under FAPI 2.0, as its conformance plan expects (FR-C21).
 // Off, only the FAPI demo client is, beside the public ones.
@@ -55,7 +57,9 @@ export const provider = createProvider({
   // Descriptors only: the admin API lists these, and an upstream's client secret is not for it.
   upstreams: upstreams.map(({ id, label, domains }) => ({ id, ...(label && { label }), ...(domains && { domains }) })),
   // The reference deployment turns these on so the screens below have something to drive.
-  features: { deviceFlow: true, pushedAuthorizationRequests: true, dpop: true }
+  features: { deviceFlow: true, pushedAuthorizationRequests: true, dpop: true, dynamicRegistration: mcpEnabled },
+  // An MCP client registers itself, or names a metadata document it serves (FR-C9, FR-C20).
+  ...(mcpEnabled && { resources: mcpResources(), resolveClientMetadata })
 })
 
 /** The issuer at OIDCRAFT_ISSUER. With realms on, it is the control plane the operator signs in through. */

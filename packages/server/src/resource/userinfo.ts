@@ -4,6 +4,7 @@ import { publicUrl, type ResolvedConfig } from '../config'
 import type { ClientCertificate } from '../context'
 import { OAuthError } from '../errors'
 import { signingKey } from '../keys/keys'
+import { defaultSigningAlg } from '../profile/fapi'
 import { resolveAccessToken } from '../token/access-token'
 import type { Client } from '../types'
 
@@ -31,7 +32,7 @@ const unauthorized = (description: string, scheme = 'Bearer', code: 'invalid_req
  */
 const asJwt = async (config: ResolvedConfig, client: Client, subject: string, claims: Record<string, unknown>) => {
   const keys = await config.adapter.keys.active()
-  const alg = client.userinfoSignedResponseAlg ?? keys[0]?.alg
+  const alg = client.userinfoSignedResponseAlg ?? defaultSigningAlg(config, client, keys)
   const key = alg ? signingKey(keys, alg) : undefined
   if (!key || !alg) throw new OAuthError('server_error', { description: 'no key is available to sign the UserInfo response' })
 

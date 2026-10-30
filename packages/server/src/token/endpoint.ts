@@ -5,6 +5,7 @@ import { authenticateClient } from '../clients/authenticate'
 import { publicUrl, type ResolvedConfig } from '../config'
 import type { ClientCertificate } from '../context'
 import { OAuthError } from '../errors'
+import { FAPI_ALGS, underFapi } from '../profile/fapi'
 import type { Client } from '../types'
 import { clientCredentialsGrant } from './client-credentials'
 import { authorizationCodeGrant, refreshTokenGrant } from './code'
@@ -26,7 +27,8 @@ const bindingFor = async (config: ResolvedConfig, client: Client, request: Reque
   return (
     await verifyDpopProof(config, request, {
       htu: publicUrl(config, request),
-      requireNonceFor: config.features.dpopNonces ? client.clientId : undefined
+      requireNonceFor: config.features.dpopNonces ? client.clientId : undefined,
+      algorithms: underFapi(config, client) ? FAPI_ALGS : undefined
     })
   ).jkt
 }
@@ -42,9 +44,16 @@ export const tokenEndpoint = async (config: ResolvedConfig, request: Request, ce
   }
 
   const jkt = await bindingFor(config, client, request)
+  const fapi = underFapi(config, client)
   // RFC 8705 §3: binding to the certificate the client already presented costs nothing extra and
   // makes a stolen token useless without the private key behind it.
-  const binding = { jkt, x5t: client.certificateBoundAccessTokens ? certificate?.thumbprint : undefined }
+  const binding = { jkt, x5t: client.certificateBoundAccessTokens || fapi ? certificate?.thumbprint : undefined }
+  if (fapi && !binding.jkt && !binding.x5t) {
+    throw new OAuthError('invalid_request', {
+      description: `client ${client.clientId} is under FAPI 2.0, whose tokens are sender-constrained: present a DPoP proof or a client certificate`,
+      spec: 'FAPI 2.0 Security Profile §5.3.2.1'
+    })
+  }
 
   const body = await (async () => {
     switch (grantType) {

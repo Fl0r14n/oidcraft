@@ -2,6 +2,7 @@ import { createLocalJWKSet, type JSONWebKeySet, jwtVerify } from 'jose'
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
 import { CLIENT_SIGNING_ALGS } from '../keys/algorithms'
+import { FAPI_ALGS, underFapi } from '../profile/fapi'
 import type { Client } from '../types'
 
 /** RFC 9101 §8.2: `none` would make the object unauthenticated, which is the whole point of it. */
@@ -47,7 +48,7 @@ export const applyRequestObject = async (config: ResolvedConfig, client: Client,
     issuer: client.clientId,
     audience: config.issuer,
     // RFC 9101 §8.2: never none, never a shared secret; exactly what discovery advertises.
-    algorithms: CLIENT_SIGNING_ALGS
+    algorithms: underFapi(config, client) ? FAPI_ALGS : CLIENT_SIGNING_ALGS
   }).catch(error => {
     if (error instanceof OAuthError) throw error
     throw invalid('the request object does not verify against the keys registered for this client')

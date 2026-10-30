@@ -2,6 +2,7 @@ import { randomString } from '@oidcraft/core'
 import { decodeJwt, importJWK, SignJWT } from 'jose'
 import type { ResolvedConfig } from '../config'
 import { signingKey } from '../keys/keys'
+import { defaultSigningAlg } from '../profile/fapi'
 import type { Artifact, ArtifactKind, Client } from '../types'
 
 export const JWT_ACCESS_TOKEN_TYPE = 'at+jwt'
@@ -101,7 +102,7 @@ export type AccessTokenInput = {
  */
 export const mintJwtAccessToken = async (config: ResolvedConfig, input: AccessTokenInput) => {
   const keys = await config.adapter.keys.active()
-  const alg = keys[0]?.alg
+  const alg = defaultSigningAlg(config, input.client, keys)
   const key = alg ? signingKey(keys, alg) : undefined
   if (!key || !alg) throw new Error('no signing key is available for a JWT access token')
 

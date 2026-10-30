@@ -20,6 +20,7 @@ export const issueTokens = async (
     authorizationDetails,
     refreshScopes = scopes,
     sessionBound = false,
+    keepRefreshToken,
     familyExpiresAt,
     audience,
     resources = []
@@ -34,6 +35,8 @@ export const issueTokens = async (
      * code grant passes it: a device or CIBA approval's session is the approver's browser, not the client's.
      */
     sessionBound?: boolean
+    /** FR-T3's one exception: the refresh token presented stays the client's, and no new one is minted. */
+    keepRefreshToken?: string | undefined
     /** Epoch seconds; carried from the token being rotated so the family's lifetime never slides. */
     familyExpiresAt?: number | undefined
     /** RFC 8707: the one resource this access token is for (FR-C19). */
@@ -66,7 +69,8 @@ export const issueTokens = async (
   let refreshToken: string | undefined
   const offline = refreshScopes.includes('offline_access')
   // Only for a client registered for the grant: a refresh token nobody asked for is a credential nobody guards.
-  if ((offline || sessionBound) && client.grantTypes.includes('refresh_token')) {
+  if (keepRefreshToken) refreshToken = keepRefreshToken
+  else if ((offline || sessionBound) && client.grantTypes.includes('refresh_token')) {
     refreshToken = randomString()
     const now = Math.floor(Date.now() / 1000)
     const familyEnd = familyExpiresAt ?? now + config.ttl.refreshTokenFamily

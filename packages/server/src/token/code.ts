@@ -2,6 +2,7 @@ import { verifyChallenge } from '../authorize/pkce'
 import { audienceFor, requestedResources } from '../authorize/resources'
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
+import { underFapi } from '../profile/fapi'
 import type { Artifact, Client } from '../types'
 import { type Binding, issueTokens, loadGrantAndSession, loadGrantAndSignIn } from './issue'
 
@@ -44,6 +45,12 @@ export const authorizationCodeGrant = async (config: ResolvedConfig, client: Cli
 
   // RFC 9449 §10: checked before the consume, so a thief's attempt does not burn the client's code.
   const dpopJkt = artifact.payload.dpopJkt as string | undefined
+  if (underFapi(config, client) && binding.jkt && !dpopJkt) {
+    throw new OAuthError('invalid_grant', {
+      description: 'under FAPI 2.0 a DPoP-bound code must name its key: send dpop_jkt, or a DPoP proof on the push',
+      spec: 'FAPI 2.0 Security Profile §5.3.2.2, RFC 9449 §10'
+    })
+  }
   if (dpopJkt && binding.jkt !== dpopJkt) {
     throw new OAuthError('invalid_grant', {
       description: binding.jkt
@@ -96,14 +103,20 @@ export const refreshTokenGrant = async (config: ResolvedConfig, client: Client, 
     throw new OAuthError('invalid_grant', { description: 'this refresh token is bound to a different certificate', spec: 'RFC 8705 §4' })
   }
 
-  // FR-T3: rotation is unconditional, which is what makes the replay rule above meaningful.
-  if (!(await config.adapter.artifacts.consume('refresh_token', presented))) await revokeOnReplay(config, artifact, 'refresh token')
+  // FR-T3: rotation is what makes the replay rule above meaningful. Its one exception is a FAPI client:
+  // confidential and sender-constrained, so the token is useless without its key, and rotating would
+  // only lose the grant to a dropped response (FAPI 2.0 Security Profile §5.3.2.1).
+  const rotate = !underFapi(config, client)
+  if (rotate && !(await config.adapter.artifacts.consume('refresh_token', presented))) {
+    await revokeOnReplay(config, artifact, 'refresh token')
+  }
 
   // RFC 8705 §3: the new access token is bound to the certificate presented now, as at issuance.
   return issueTokens(config, client, grant, session, requested?.length ? requested : granted, {
     binding: { jkt: bound?.jkt ?? binding.jkt, x5t: binding.x5t },
     refreshScopes: granted,
     sessionBound: artifact.payload.sessionBound === true,
+    ...(!rotate && { keepRefreshToken: presented }),
     familyExpiresAt: artifact.payload.familyExpiresAt as number | undefined,
     audience,
     resources: resourcesOf(artifact)

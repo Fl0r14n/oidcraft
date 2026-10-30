@@ -2,6 +2,7 @@ import { createLocalJWKSet, type JSONWebKeySet, jwtVerify } from 'jose'
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
 import { CLIENT_SECRET_ALGS, CLIENT_SIGNING_ALGS } from '../keys/algorithms'
+import { FAPI_ALGS, FAPI_IAT_SKEW, FAPI_NBF_MAX_AGE, underFapi } from '../profile/fapi'
 import type { Client } from '../types'
 
 export const ASSERTION_TYPE = 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer'
@@ -37,7 +38,9 @@ const keysFor = async (config: ResolvedConfig, client: Client) => {
  */
 export const verifyClientAssertion = async (config: ResolvedConfig, client: Client, assertion: string) => {
   const method = client.tokenEndpointAuthMethod
-  const audience = [config.issuer, `${config.issuer}${config.routes.token}`]
+  const fapi = underFapi(config, client)
+  // OIDC Core §9 says the audience SHOULD be the token endpoint; FAPI 2.0 accepts the issuer alone (§5.3.2.1).
+  const audience = fapi ? [config.issuer] : [config.issuer, `${config.issuer}${config.routes.token}`]
 
   const key =
     method === 'client_secret_jwt'
@@ -53,7 +56,8 @@ export const verifyClientAssertion = async (config: ResolvedConfig, client: Clie
     subject: client.clientId,
     audience,
     // Confusing the two is how a shared secret gets accepted where a public key was registered.
-    algorithms: method === 'client_secret_jwt' ? CLIENT_SECRET_ALGS : CLIENT_SIGNING_ALGS
+    algorithms: method === 'client_secret_jwt' ? CLIENT_SECRET_ALGS : fapi ? FAPI_ALGS : CLIENT_SIGNING_ALGS,
+    ...(fapi && { clockTolerance: FAPI_IAT_SKEW })
   }).catch(error => {
     if (error instanceof OAuthError) throw error
     throw unauthorized('the client assertion does not verify')
@@ -65,7 +69,12 @@ export const verifyClientAssertion = async (config: ResolvedConfig, client: Clie
   // Measured from now, not from the client's own iat: an iat it chose a year ahead would otherwise
   // make a year-long assertion look five minutes old.
   const now = Math.floor(Date.now() / 1000)
-  if (payload.iat !== undefined && payload.iat > now + SKEW) throw unauthorized('the client assertion was issued in the future')
+  if (payload.iat !== undefined && payload.iat > now + (fapi ? FAPI_IAT_SKEW : SKEW)) {
+    throw unauthorized('the client assertion was issued in the future')
+  }
+  if (fapi && payload.nbf !== undefined && payload.nbf < now - FAPI_NBF_MAX_AGE) {
+    throw unauthorized(`the client assertion's nbf is more than ${FAPI_NBF_MAX_AGE} seconds old`, 'FAPI 2.0 Security Profile §5.3.2.1')
+  }
   const remaining = payload.exp - now
   if (remaining > MAX_LIFETIME + SKEW) throw unauthorized(`a client assertion may not live longer than ${MAX_LIFETIME} seconds`)
 

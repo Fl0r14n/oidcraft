@@ -67,6 +67,8 @@ export type VerifyOptions = {
    * the URL the client used; behind a proxy, pass the public one (NFR-S6).
    */
   htu?: string | undefined
+  /** Narrower than every asymmetric algorithm, as FAPI 2.0 requires of its clients (FR-C21). */
+  algorithms?: string[] | undefined
 }
 
 /**
@@ -89,7 +91,8 @@ export const verifyDpopProof = async (config: ResolvedConfig, request: Request, 
   }
 
   if (header.typ !== 'dpop+jwt') throw invalid(`the DPoP proof must have typ "dpop+jwt", got ${String(header.typ)}`)
-  if (!header.alg || !CLIENT_SIGNING_ALGS.includes(header.alg)) throw invalid(`${String(header.alg)} is not an acceptable DPoP algorithm`)
+  if (!header.alg || !(options.algorithms ?? CLIENT_SIGNING_ALGS).includes(header.alg))
+    throw invalid(`${String(header.alg)} is not an acceptable DPoP algorithm`)
   const jwk = header.jwk as JWK | undefined
   if (!jwk) throw invalid('the DPoP proof carries no jwk')
   // A private member in the header means the client leaked its own key; refuse rather than use it.

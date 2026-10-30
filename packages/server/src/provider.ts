@@ -20,6 +20,7 @@ import { discoveryEndpoint } from './discovery'
 import { errorResponse, OAuthError } from './errors'
 import { jwksEndpoint } from './keys/jwks'
 import { management } from './management'
+import { assertFapiClient, underFapi } from './profile/fapi'
 import { introspectionEndpoint } from './resource/introspection'
 import { revocationEndpoint } from './resource/revocation'
 import { userinfoEndpoint } from './resource/userinfo'
@@ -88,11 +89,13 @@ const authorizationHandler: Handler = async (config, request) => {
   // Before a redirect is safe; after it, a failure goes back to the client (RFC 6749 §4.1.2.1).
   const { client, redirectUri } = await parseAuthorizationRequest(config, params)
 
+  const fapi = underFapi(config, client)
+  if (fapi) assertFapiClient(config, client)
   // A client registered for PAR must not be able to fall back to the front channel (RFC 9126 §2).
-  if (client.requirePushedAuthorizationRequests && !raw.has('request_uri')) {
+  if ((client.requirePushedAuthorizationRequests || fapi) && !raw.has('request_uri')) {
     throw new OAuthError('invalid_request', {
       description: `client ${client.clientId} must push its authorization requests`,
-      spec: 'RFC 9126 §2'
+      spec: fapi ? 'FAPI 2.0 Security Profile §5.3.2.2' : 'RFC 9126 §2'
     })
   }
 

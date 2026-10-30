@@ -20,6 +20,8 @@ export type Client = {
   responseTypes: string[]
   scopes: string[]
   tokenEndpointAuthMethod: ClientAuthMethod
+  /** FR-C21: this client alone under the FAPI 2.0 Security Profile, when the provider is not. Never set by dynamic registration. */
+  profile?: 'fapi2'
   jwks?: { keys: unknown[] }
   jwksUri?: string
   requirePkce?: boolean

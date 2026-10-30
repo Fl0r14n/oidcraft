@@ -4,6 +4,7 @@ import { authenticateClient } from '../clients/authenticate'
 import { publicUrl, type ResolvedConfig } from '../config'
 import type { ClientCertificate } from '../context'
 import { OAuthError } from '../errors'
+import { FAPI_ALGS, underFapi } from '../profile/fapi'
 import { parseAuthorizationRequest, validateAuthorizationRequest } from './authorization'
 import { applyRequestObject } from './request-object'
 
@@ -50,7 +51,8 @@ export const pushedAuthorizationRequestEndpoint = async (
   if (config.features.dpop && request.headers.has('dpop')) {
     const { jkt } = await verifyDpopProof(config, request, {
       htu: publicUrl(config, request),
-      requireNonceFor: config.features.dpopNonces ? client.clientId : undefined
+      requireNonceFor: config.features.dpopNonces ? client.clientId : undefined,
+      algorithms: underFapi(config, client) ? FAPI_ALGS : undefined
     })
     if (params.has('dpop_jkt') && params.get('dpop_jkt') !== jkt) {
       throw new OAuthError('invalid_dpop_proof', {

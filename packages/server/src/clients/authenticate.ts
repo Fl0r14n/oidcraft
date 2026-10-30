@@ -4,6 +4,7 @@ import { matchesRegisteredCertificate, matchesSubjectDn } from '../binding/mtls'
 import type { ResolvedConfig } from '../config'
 import type { ClientCertificate } from '../context'
 import { OAuthError } from '../errors'
+import { assertFapiClient } from '../profile/fapi'
 import type { Client } from '../types'
 import { ASSERTION_TYPE, verifyClientAssertion } from './assertion'
 
@@ -74,6 +75,7 @@ export const authenticateClient = async (
   if (!config.clientAuthMethods.includes(method)) {
     throw unauthorized(`client ${clientId} is registered for ${method}, which this provider does not offer`)
   }
+  assertFapiClient(config, client)
 
   if (method === 'none') {
     if (basic || postSecret || assertion) throw unauthorized(`client ${clientId} is public and must not present a credential`)

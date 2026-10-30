@@ -5,6 +5,7 @@ import type { ResolvedConfig } from '../config'
 import { supportedGrantTypes } from '../discovery'
 import { OAuthError } from '../errors'
 import { signingAlgorithms } from '../keys/keys'
+import { fapiClientProblems } from '../profile/fapi'
 import type { Client, ClientAuthMethod } from '../types'
 
 const DEFAULT_GRANTS = ['authorization_code']
@@ -164,6 +165,8 @@ const subjectTypeFrom = (config: ResolvedConfig, requested: unknown) => {
 const assertRegistrable = async (config: ResolvedConfig, client: Client) => {
   await assertSignable(config, client)
   await assertSector(config, client)
+  const fapi = fapiClientProblems(config, client)
+  if (fapi.length) throw invalid(`FAPI 2.0: ${fapi.join('; ')}`)
 }
 
 const metadataFrom = (config: ResolvedConfig, body: Record<string, unknown>): Client => {

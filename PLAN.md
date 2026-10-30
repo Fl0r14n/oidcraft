@@ -191,14 +191,15 @@ on their own; the profile builds on both.
 - [x] Session-bound refresh tokens (FR-T6): issued without `offline_access` to a client with the
   `refresh_token` grant, expiring no later than the session, refused once it ends. Rotating as ever.
   Code grant only: a device or CIBA approval's session is the approver's browser. Landed 2026-10-30
-- [ ] The FAPI 2.0 profile (FR-C21), opt-in per provider or per client, refusing everything that
+- [x] The FAPI 2.0 profile (FR-C21), opt-in per provider or per client, refusing everything that
   requirement lists. Most of it is checks on what already exists: `requirePushedAuthorizationRequests`,
   the assertion audience in `clients/assertion.ts` (the issuer only; outside the profile the token
   endpoint URL stays accepted, because OIDC Core §9 says the audience SHOULD be it),
   the `iat`/`nbf` window, `application_type` for `http` redirects
-- [ ] FR-T3's exception: under the profile a refresh token is not rotated, still expires and is still
-  revoked with its grant. The only place rotation is skipped, and a test that a public client still
-  rotates under a provider-wide profile
+- [x] FR-T3's exception: under the profile a refresh token is not rotated, still expires and is still
+  revoked with its grant. The only place rotation is skipped. A public client cannot be under a
+  provider-wide profile at all, so the test that rotation is untouched is a per-client profile beside
+  ordinary clients. Landed 2026-10-30, `src/profile/fapi.ts` (ARCHITECTURE.md §3.3)
 - [ ] The demo server stays mixed: its SPAs public as now, plus one seeded `fapi-demo` client under
   the profile — `private_key_jwt`, DPoP, PAR — driven by a small server-side script or route, since a
   FAPI client cannot be a browser app. DPoP only: Bun exposes no client certificate (G-8)

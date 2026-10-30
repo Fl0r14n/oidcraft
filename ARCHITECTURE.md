@@ -261,6 +261,20 @@ timers, no background sweeps, no connection pool, no process-level cache that su
 (FR-A1, NFR-P3). Two processes behind a load balancer behave identically to one, which is the
 property that makes horizontal scaling and serverless hosting the same thing.
 
+### 3.3 The FAPI 2.0 profile
+
+`src/profile/fapi.ts` is the whole of FR-C21: the algorithms and authentication methods it allows,
+what a provider and a client must be, and `underFapi(config, client)`, which every enforcement
+point asks. `profile: 'fapi2'` sets it for the provider or for one client; there is no other way in,
+and nothing in it is a separate setting. It is checked three times, because each catches what the
+others cannot: at construction for a provider-wide profile (NFR-D2), at registration and in the
+management API for a client, and on every request, since a client can reach storage by neither.
+
+Signing keys are only readable asynchronously, so a provider whose key set holds no PS256, ES256 or
+EdDSA key is refused at its first signature rather than at construction. A provider-wide profile
+narrows discovery; a per-client one cannot, since discovery speaks for every client. Its refresh
+tokens are the one place rotation is skipped (FR-T3).
+
 ## 4. The adapter layer
 
 `packages/server/src/adapter.ts` is the contract. Storage is **a set of narrow capability stores**,

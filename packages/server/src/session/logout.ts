@@ -2,6 +2,7 @@ import { randomString } from '@oidcraft/core'
 import { importJWK, SignJWT } from 'jose'
 import type { ResolvedConfig } from '../config'
 import { signingKey } from '../keys/keys'
+import { defaultSigningAlg } from '../profile/fapi'
 import { subjectFor } from '../token/subjects'
 import type { Session } from '../types'
 
@@ -41,7 +42,7 @@ export const frontChannelLogouts = async (config: ResolvedConfig, session: Sessi
  */
 export const logoutTokens = async (config: ResolvedConfig, session: Session): Promise<LogoutNotification[]> => {
   const keys = await config.adapter.keys.active()
-  const alg = keys[0]?.alg
+  const alg = defaultSigningAlg(config, undefined, keys)
   const key = alg ? signingKey(keys, alg) : undefined
   if (!key || !alg) return []
 

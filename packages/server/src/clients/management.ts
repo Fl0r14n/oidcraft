@@ -1,11 +1,17 @@
 import { randomString } from '@oidcraft/core'
 import { audit } from '../audit'
 import type { ResolvedConfig } from '../config'
+import { fapiClientProblems } from '../profile/fapi'
 import type { Client } from '../types'
 import { clientResponse } from './registration'
 
 export type ManagementClientInput = Omit<Client, 'createdAt' | 'updatedAt' | 'registrationAccessToken'> & {
   clientId?: string
+}
+
+const assertProfile = (config: ResolvedConfig, client: Client) => {
+  const problems = fapiClientProblems(config, client)
+  if (problems.length) throw new Error(`client ${client.clientId} does not meet FAPI 2.0: ${problems.join('; ')} (FR-C21)`)
 }
 
 export const clientManagement = (config: ResolvedConfig) => ({
@@ -31,6 +37,7 @@ export const clientManagement = (config: ResolvedConfig) => ({
       createdAt: now,
       updatedAt: now
     }
+    assertProfile(config, client)
     if (await config.adapter.clients.find(client.clientId)) throw new Error(`client ${client.clientId} already exists`)
     await config.adapter.clients.upsert(client)
     await audit(config, 'client.create', { clientId: client.clientId })
@@ -41,7 +48,9 @@ export const clientManagement = (config: ResolvedConfig) => ({
     if (!config.adapter.clients.upsert) throw new Error('this adapter cannot update clients')
     const existing = await config.adapter.clients.find(clientId)
     if (!existing) throw new Error(`client ${clientId} does not exist`)
-    await config.adapter.clients.upsert({ ...existing, ...patch, clientId, updatedAt: new Date() })
+    const updated = { ...existing, ...patch, clientId, updatedAt: new Date() }
+    assertProfile(config, updated)
+    await config.adapter.clients.upsert(updated)
     await audit(config, 'client.update', { clientId, detail: { fields: Object.keys(patch) } })
   },
 

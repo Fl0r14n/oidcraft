@@ -1,5 +1,6 @@
 import type { Adapter } from './adapter'
 import { ConfigurationError } from './errors'
+import { fapiProviderProblems } from './profile/fapi'
 import type { ExchangePolicy } from './token/exchange'
 import type { Client, ClientAuthMethod, Seconds } from './types'
 import type { UpstreamDescriptor } from './upstreams/selection'
@@ -109,6 +110,13 @@ export const DEFAULT_FEATURES: Features = {
 export type ProviderConfig = {
   issuer: string
   adapter: Adapter
+  /**
+   * The FAPI 2.0 Security Profile for every client (FR-C21). Off, a client opts in by its own
+   * `profile`. Either way it is one switch: the provider refuses what the profile forbids, and the
+   * refresh tokens of its clients do not rotate (FR-T3).
+   */
+  profile?: 'fapi2'
+
   /** Where the authorization endpoint sends a browser when it cannot decide alone (FR-I1). */
   interactionUrl?: string
   routes?: Partial<Routes>
@@ -219,6 +227,7 @@ export type ResolvedConfig = {
   issuer: string
   issuerUrl: URL
   adapter: Adapter
+  profile: 'fapi2' | undefined
   interactionUrl: string | undefined
   routes: Routes
   ttl: Ttl
@@ -354,6 +363,12 @@ export const resolveConfig = (config: ProviderConfig): ResolvedConfig => {
     )
   }
 
+  if (config.profile !== undefined && config.profile !== 'fapi2')
+    problems.push(`profile ${String(config.profile)} is not one this provider knows`)
+  if (config.profile === 'fapi2') {
+    problems.push(...fapiProviderProblems({ features, ttl, clientAuthMethods, clientCertificate: capabilities.clientCertificate }))
+  }
+
   if (features.deviceFlow && !config.adapter?.artifacts.findByUserCode) {
     problems.push('features.deviceFlow needs an adapter whose artifacts store implements findByUserCode (FR-C7)')
   }
@@ -364,6 +379,7 @@ export const resolveConfig = (config: ProviderConfig): ResolvedConfig => {
     issuer: stripTrailingSlash(config.issuer),
     issuerUrl: issuerUrl as URL,
     adapter: config.adapter,
+    profile: config.profile,
     interactionUrl: config.interactionUrl,
     routes,
     ttl,

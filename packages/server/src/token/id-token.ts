@@ -2,6 +2,7 @@ import { base64url, importJWK, SignJWT } from 'jose'
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
 import { signingKey } from '../keys/keys'
+import { defaultSigningAlg } from '../profile/fapi'
 import type { Client, Session } from '../types'
 
 export type IdTokenInput = {
@@ -26,7 +27,7 @@ const halfHash = async (value: string, alg: string) => {
 
 export const mintIdToken = async (config: ResolvedConfig, input: IdTokenInput) => {
   const keys = await config.adapter.keys.active()
-  const alg = input.client.idTokenSignedResponseAlg ?? keys[0]?.alg
+  const alg = input.client.idTokenSignedResponseAlg ?? defaultSigningAlg(config, input.client, keys)
   const key = alg ? signingKey(keys, alg) : undefined
   if (!key || !alg) {
     throw new OAuthError('server_error', { description: `no ${alg ?? ''} signing key is available; the provider cannot issue an ID token` })

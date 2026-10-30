@@ -1,6 +1,7 @@
 import type { ResolvedConfig } from './config'
 import { CLIENT_SECRET_ALGS, CLIENT_SIGNING_ALGS } from './keys/algorithms'
 import { signingAlgorithms } from './keys/keys'
+import { FAPI_ALGS, FAPI_AUTH_METHODS } from './profile/fapi'
 import type { ClientAuthMethod } from './types'
 
 const MTLS_METHODS: ClientAuthMethod[] = ['tls_client_auth', 'self_signed_tls_client_auth']
@@ -18,12 +19,19 @@ export const supportedGrantTypes = ({ features, exchangePolicy }: ResolvedConfig
   ...(features.ciba ? ['urn:openid:params:grant-type:ciba'] : [])
 ]
 
-export const metadata = (config: ResolvedConfig, algorithms: string[]) => {
+export const metadata = (config: ResolvedConfig, signing: string[]) => {
   const url = (path: string) => `${config.issuer}${path}`
   const { features, routes } = config
+  // FR-C21: a provider-wide profile advertises only what it accepts. A per-client one cannot narrow
+  // discovery, which speaks for every client.
+  const fapi = config.profile === 'fapi2'
+  const algorithms = fapi ? signing.filter(alg => FAPI_ALGS.includes(alg)) : signing
+  const clientAlgs = fapi ? FAPI_ALGS : CLIENT_SIGNING_ALGS
 
   const mtlsAvailable = config.capabilities.clientCertificate
-  const authMethods = config.clientAuthMethods.filter(method => mtlsAvailable || !MTLS_METHODS.includes(method))
+  const authMethods = config.clientAuthMethods.filter(
+    method => (mtlsAvailable || !MTLS_METHODS.includes(method)) && (!fapi || FAPI_AUTH_METHODS.includes(method))
+  )
 
   return {
     issuer: config.issuer,
@@ -38,7 +46,7 @@ export const metadata = (config: ResolvedConfig, algorithms: string[]) => {
     ...(features.deviceFlow && { device_authorization_endpoint: url(routes.deviceAuthorization) }),
     ...(features.pushedAuthorizationRequests && {
       pushed_authorization_request_endpoint: url(routes.pushedAuthorizationRequest),
-      require_pushed_authorization_requests: false
+      require_pushed_authorization_requests: fapi
     }),
     ...(features.ciba && {
       backchannel_authentication_endpoint: url(routes.backchannelAuthentication),
@@ -57,7 +65,7 @@ export const metadata = (config: ResolvedConfig, algorithms: string[]) => {
     // What clients may sign assertions with, not what this provider signs with.
     ...(authMethods.some(method => method === 'private_key_jwt' || method === 'client_secret_jwt') && {
       token_endpoint_auth_signing_alg_values_supported: [
-        ...(authMethods.includes('private_key_jwt') ? CLIENT_SIGNING_ALGS : []),
+        ...(authMethods.includes('private_key_jwt') ? clientAlgs : []),
         ...(authMethods.includes('client_secret_jwt') ? CLIENT_SECRET_ALGS : [])
       ]
     }),
@@ -68,7 +76,7 @@ export const metadata = (config: ResolvedConfig, algorithms: string[]) => {
     // FR-C14: unconditional.
     authorization_response_iss_parameter_supported: true,
     ...(config.resolveClientMetadata && { client_id_metadata_document_supported: true }),
-    ...(features.dpop && { dpop_signing_alg_values_supported: CLIENT_SIGNING_ALGS }),
+    ...(features.dpop && { dpop_signing_alg_values_supported: clientAlgs }),
     // RFC 8705 §3.3, only where a certificate can actually reach us (FR-R5, G-8).
     ...(mtlsAvailable && { tls_client_certificate_bound_access_tokens: true }),
     // OIDC Core §5.3.2 (FR-C5) and the logout session parameters (FR-C11).
@@ -81,7 +89,7 @@ export const metadata = (config: ResolvedConfig, algorithms: string[]) => {
     request_parameter_supported: true,
     request_uri_parameter_supported: false,
     require_request_uri_registration: false,
-    request_object_signing_alg_values_supported: CLIENT_SIGNING_ALGS,
+    request_object_signing_alg_values_supported: clientAlgs,
     claims_parameter_supported: false,
     frontchannel_logout_supported: true,
     backchannel_logout_supported: true

@@ -1,7 +1,7 @@
 import {
   type AccountStore,
-  type Adapter,
   type FromKvOptions,
+  type FullAdapter,
   fromKv,
   generatedKeyStore,
   type KeyStore,
@@ -12,7 +12,6 @@ import {
 export type MemoryAdapterOptions = {
   keys?: KeyStore
   accounts?: AccountStore
-  federation?: boolean
 }
 
 /** Everything lives in one process and dies with it. Development and tests only (FR-A4). */
@@ -59,11 +58,10 @@ export const memoryKv = (): KvStore & { size: () => number } => {
   }
 }
 
-export const memoryAdapter = async (options: MemoryAdapterOptions = {}): Promise<Adapter> => {
+export const memoryAdapter = async (options: MemoryAdapterOptions = {}): Promise<FullAdapter> => {
   const from: FromKvOptions = {
     keys: options.keys ?? (await generatedKeyStore()),
-    ...(options.accounts && { accounts: options.accounts }),
-    ...(options.federation !== undefined && { federation: options.federation })
+    ...(options.accounts && { accounts: options.accounts })
   }
   return fromKv(memoryKv(), from)
 }

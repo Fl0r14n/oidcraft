@@ -1,5 +1,5 @@
 import { createLocalJWKSet, decodeJwt, type JSONWebKeySet, jwtVerify } from 'jose'
-import type { Adapter, Session } from 'oidcraft'
+import type { BrokeringAdapter, Session } from 'oidcraft'
 import type { UpstreamProvider } from './types'
 
 /** How old a logout token may be, and so how long its jti is remembered. */
@@ -18,7 +18,7 @@ export type UpstreamLogout = {
  * without that index there is no way back from "their session ended" to "these are ours".
  */
 export const upstreamLogout = async (
-  adapter: Adapter,
+  adapter: BrokeringAdapter,
   provider: UpstreamProvider,
   logoutToken: string,
   jwks: JSONWebKeySet
@@ -54,14 +54,14 @@ export const upstreamLogout = async (
   }
 
   const sessions = sid
-    ? ((await adapter.sessions.findByUpstreamSession?.(provider.id, sid)) ?? [])
+    ? await adapter.sessions.findByUpstreamSession(provider.id, sid)
     : await sessionsForUpstreamSubject(adapter, provider.id, sub as string)
 
   return { provider: provider.id, sessions }
 }
 
-const sessionsForUpstreamSubject = async (adapter: Adapter, providerId: string, subject: string) => {
-  const identity = await adapter.identities?.find(providerId, subject)
+const sessionsForUpstreamSubject = async (adapter: BrokeringAdapter, providerId: string, subject: string) => {
+  const identity = await adapter.identities.find(providerId, subject)
   if (!identity) return []
   const sessions = await adapter.sessions.listForAccount(identity.accountId)
   return sessions.filter(session => session.idp === providerId)

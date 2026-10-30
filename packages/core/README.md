@@ -9,7 +9,7 @@ verification. `jose` is its only dependency, it touches no framework, and it per
 writes to no storage — where the handoff lives is the caller's decision, and that decision is the one
 thing that differs between a browser app and a confidential client.
 
-Its consumers are `oidcraft/federation`, which is a relying party at every upstream it brokers to,
+Its consumers are `oidcraft/broker`, which is a relying party at every upstream it brokers to,
 and this workspace's framework client libraries — `vue-oidc`, `react-oauth-oidc` and `ngx-oauth`,
 which publish under their own names. One implementation of the protocol, not four.
 

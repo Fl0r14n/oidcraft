@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import type { Adapter } from '../adapter'
+import type { FullAdapter } from '../adapter'
 import type { Artifact, Client, Grant, Realm, Session } from '../types'
 
 /**
@@ -7,7 +7,7 @@ import type { Artifact, Client, Grant, Realm, Session } from '../types'
  * than merely similar (ARCHITECTURE.md §10). An adapter that passes this is usable; one that does
  * not is a bug in the adapter, not in the core.
  */
-export const adapterConformance = (name: string, create: () => Promise<Adapter>) => {
+export const adapterConformance = (name: string, create: () => Promise<FullAdapter>) => {
   const soon = (seconds = 60) => new Date(Date.now() + seconds * 1000)
 
   const client = (clientId: string): Client => ({
@@ -196,7 +196,7 @@ export const adapterConformance = (name: string, create: () => Promise<Adapter>)
     const adapter = await create()
     await adapter.sessions.upsert(session({ idp: 'entra', upstreamSessionId: 'up-1' }))
     await adapter.sessions.upsert(session({ id: 's2', idp: 'entra', upstreamSessionId: 'up-2' }))
-    const found = await adapter.sessions.findByUpstreamSession?.('entra', 'up-1')
+    const found = await adapter.sessions.findByUpstreamSession('entra', 'up-1')
     expect(found?.map(s => s.id)).toEqual(['s1'])
   })
 
@@ -237,9 +237,8 @@ export const adapterConformance = (name: string, create: () => Promise<Adapter>)
   })
 
   // FR-F5: linking is by (provider, subject) and nothing else.
-  test(`${name}: a federated identity is kept and removed by provider and subject`, async () => {
+  test(`${name}: a linked identity is kept and removed by provider and subject`, async () => {
     const adapter = await create()
-    if (!adapter.identities) return
     await adapter.identities.upsert({ accountId: 'u1', provider: 'google', subject: 'g-1', claims: {}, linkedAt: new Date() })
     expect((await adapter.identities.find('google', 'g-1'))?.accountId).toBe('u1')
     expect(await adapter.identities.find('entra', 'g-1')).toBeUndefined()
@@ -260,8 +259,7 @@ export const adapterConformance = (name: string, create: () => Promise<Adapter>)
   // FR-I7: a username belongs to one account, even when two sign-ups race for it.
   test(`${name}: a credential is created once per account and per username, atomically`, async () => {
     const adapter = await create()
-    if (!adapter.credentials) return
-    const results = await Promise.all(Array.from({ length: 8 }, (_, i) => adapter.credentials?.create(credential(`a${i}`, 'ada'))))
+    const results = await Promise.all(Array.from({ length: 8 }, (_, i) => adapter.credentials.create(credential(`a${i}`, 'ada'))))
     expect(results.filter(Boolean)).toHaveLength(1)
     const winner = (await adapter.credentials.findByUsername('ada'))?.accountId as string
     expect(await adapter.credentials.create(credential(winner, 'grace'))).toBe(false)
@@ -270,7 +268,6 @@ export const adapterConformance = (name: string, create: () => Promise<Adapter>)
 
   test(`${name}: a credential round-trips, by account and by username`, async () => {
     const adapter = await create()
-    if (!adapter.credentials) return
     expect(await adapter.credentials.create(credential('a1', 'ada'))).toBe(true)
     const totp = { secret: 'v1.iv.ct', confirmedAt: new Date(3_000) }
     await adapter.credentials.upsert({
@@ -307,15 +304,13 @@ export const adapterConformance = (name: string, create: () => Promise<Adapter>)
   // FR-M4: two operators creating one realm must not both provision it.
   test(`${name}: a realm is created once, atomically`, async () => {
     const adapter = await create()
-    if (!adapter.realms) return
-    const results = await Promise.all(Array.from({ length: 8 }, () => adapter.realms?.create(realm('acme'))))
+    const results = await Promise.all(Array.from({ length: 8 }, () => adapter.realms.create(realm('acme'))))
     expect(results.filter(Boolean)).toHaveLength(1)
     expect(await adapter.realms.create(realm('acme'))).toBe(false)
   })
 
   test(`${name}: a realm round-trips, lists and is removed`, async () => {
     const adapter = await create()
-    if (!adapter.realms) return
     await adapter.realms.create(realm('acme'))
     const { displayName: _, ...globex } = { ...realm('globex'), enabled: false }
     await adapter.realms.create(globex)

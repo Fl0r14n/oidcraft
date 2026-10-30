@@ -2,14 +2,14 @@ import { and, eq, gt, isNull, lte } from 'drizzle-orm'
 import type { SQLiteAsyncDatabase } from 'drizzle-orm/sqlite-core'
 import type {
   AccountStore,
-  Adapter,
   Artifact,
   ArtifactKind,
   Client,
   Credential,
-  FederatedIdentity,
+  FullAdapter,
   Grant,
   KeyStore,
+  LinkedIdentity,
   Realm,
   Session
 } from 'oidcraft'
@@ -22,7 +22,6 @@ export type DrizzleAdapterOptions = {
   keys: KeyStore
   /** Omitted, every account lookup misses: the host composes one in later, as `oidcraft/accounts` does. */
   accounts?: AccountStore
-  federation?: boolean
 }
 
 const now = () => new Date()
@@ -30,7 +29,7 @@ const now = () => new Date()
 /** FR-T5: enforced by the query, so a missed prune still cannot serve an expired row. */
 const live = (column: typeof artifacts.expiresAt) => gt(column, now())
 
-export const drizzleAdapter = (options: DrizzleAdapterOptions): Adapter => {
+export const drizzleAdapter = (options: DrizzleAdapterOptions): FullAdapter => {
   const db = options.db
 
   const toArtifact = (row: typeof artifacts.$inferSelect): Artifact => ({
@@ -66,8 +65,6 @@ export const drizzleAdapter = (options: DrizzleAdapterOptions): Adapter => {
     createdAt: row.createdAt,
     ...(row.expiresAt && { expiresAt: row.expiresAt })
   })
-
-  const federation = options.federation !== false
 
   return {
     clients: {
@@ -314,38 +311,36 @@ export const drizzleAdapter = (options: DrizzleAdapterOptions): Adapter => {
       }
     },
 
-    ...(federation && {
-      identities: {
-        async find(provider: string, subject: string) {
-          const [row] = await db
-            .select()
-            .from(identities)
-            .where(and(eq(identities.provider, provider), eq(identities.subject, subject)))
-            .limit(1)
-          return row ? toIdentity(row) : undefined
-        },
-        async listForAccount(accountId: string) {
-          return (await db.select().from(identities).where(eq(identities.accountId, accountId))).map(toIdentity)
-        },
-        async upsert(identity: FederatedIdentity) {
-          const row = {
-            provider: identity.provider,
-            subject: identity.subject,
-            accountId: identity.accountId,
-            email: identity.email ?? null,
-            claims: identity.claims,
-            linkedAt: identity.linkedAt
-          }
-          await db
-            .insert(identities)
-            .values(row)
-            .onConflictDoUpdate({ target: [identities.provider, identities.subject], set: row })
-        },
-        async destroy(provider: string, subject: string) {
-          await db.delete(identities).where(and(eq(identities.provider, provider), eq(identities.subject, subject)))
+    identities: {
+      async find(provider: string, subject: string) {
+        const [row] = await db
+          .select()
+          .from(identities)
+          .where(and(eq(identities.provider, provider), eq(identities.subject, subject)))
+          .limit(1)
+        return row ? toIdentity(row) : undefined
+      },
+      async listForAccount(accountId: string) {
+        return (await db.select().from(identities).where(eq(identities.accountId, accountId))).map(toIdentity)
+      },
+      async upsert(identity: LinkedIdentity) {
+        const row = {
+          provider: identity.provider,
+          subject: identity.subject,
+          accountId: identity.accountId,
+          email: identity.email ?? null,
+          claims: identity.claims,
+          linkedAt: identity.linkedAt
         }
+        await db
+          .insert(identities)
+          .values(row)
+          .onConflictDoUpdate({ target: [identities.provider, identities.subject], set: row })
+      },
+      async destroy(provider: string, subject: string) {
+        await db.delete(identities).where(and(eq(identities.provider, provider), eq(identities.subject, subject)))
       }
-    })
+    }
   }
 }
 
@@ -403,7 +398,7 @@ const toRealm = (row: typeof realms.$inferSelect): Realm => ({
   updatedAt: row.updatedAt
 })
 
-const toIdentity = (row: typeof identities.$inferSelect): FederatedIdentity => ({
+const toIdentity = (row: typeof identities.$inferSelect): LinkedIdentity => ({
   accountId: row.accountId,
   provider: row.provider,
   subject: row.subject,

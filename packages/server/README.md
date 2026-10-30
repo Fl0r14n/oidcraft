@@ -139,7 +139,7 @@ upstreams without touching them.
 
 ```ts
 import { createProvider } from 'oidcraft'
-import { createBroker, linkIdentity, localSubject, pickClaims, type UpstreamProvider } from 'oidcraft/federation'
+import { createBroker, linkIdentity, localSubject, pickClaims, type UpstreamProvider } from 'oidcraft/broker'
 
 const google: UpstreamProvider = {
   id: 'google',
@@ -159,13 +159,13 @@ const provider = createProvider({
   upstreams: [{ id: 'google', label: 'Google', domains: ['gmail.com'] }] // no secrets here
 })
 
-const broker = createBroker({ adapter: storage, callbackUri: 'https://auth.example.com/federation/callback', providers: [google] })
+const broker = createBroker({ adapter: storage, callbackUri: 'https://auth.example.com/broker/callback', providers: [google] })
 
 // the "Sign in with Google" button on your login screen
 const { url, setCookie } = await broker.start(id, 'google', { prompt: view.prompt })
 // redirect to url, setting setCookie
 
-// GET /federation/callback
+// GET /broker/callback
 const back = await broker.complete(new URL(request.url), request.headers.get('cookie'))
 const linked = await linkIdentity(storage, back.identity, {
   createAccount: async identity => localSubject(identity.provider, identity.subject)

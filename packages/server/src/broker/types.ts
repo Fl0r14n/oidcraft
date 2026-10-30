@@ -1,5 +1,5 @@
 import type { TokenAuthMethod } from '@oidcraft/core'
-import type { FederatedIdentity } from 'oidcraft'
+import type { LinkedIdentity } from 'oidcraft'
 
 /** An upstream OP this provider brokers to. Discovery is by issuer; nothing is hardcoded (FR-F1). */
 export type UpstreamProvider = {
@@ -46,14 +46,14 @@ export type Handoff = {
 }
 
 /** How the upstream round trip ended, for the host to act on. */
-export type FederationCallback = {
+export type BrokerCallback = {
   interactionId: string
   identity: BrokeredIdentity
   /** Clears the binding cookie `start` set; the host sends it with whatever response it makes. */
   setCookie: string
 }
 
-export type BrokeredIdentity = Omit<FederatedIdentity, 'accountId' | 'linkedAt'> & {
+export type BrokeredIdentity = Omit<LinkedIdentity, 'accountId' | 'linkedAt'> & {
   /** Present only when the upstream issued one and `retainTokens` is set. */
   upstreamTokens?: { accessToken: string; refreshToken?: string; expiresAt?: Date }
   upstreamSessionId?: string

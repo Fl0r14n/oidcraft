@@ -122,7 +122,7 @@ export type ProviderConfig = {
   /** Default subject type for clients that declare none. @default 'public' */
   /**
    * The upstreams this deployment brokers to, for home-realm discovery (FR-F4). Descriptions only:
-   * the credentials live with the broker in `oidcraft/federation`, because using them is I/O.
+   * the credentials live with the broker in `oidcraft/broker`, because using them is I/O.
    */
   upstreams?: UpstreamDescriptor[]
   /**

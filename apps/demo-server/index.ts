@@ -4,7 +4,7 @@ import { serve } from 'bun'
 import { bunContext } from 'oidcraft/runtimes/bun'
 import { accountApi } from './src/account/api'
 import { adminApi } from './src/admin/api'
-import { federationCallback } from './src/interaction/federation'
+import { brokerCallback } from './src/interaction/broker'
 import { routesFor } from './src/interaction/routes'
 import { optional } from './src/op/env'
 import { control } from './src/op/provider'
@@ -48,8 +48,8 @@ const server = serve({
       if (response) return response
     }
     if (url.pathname === '/reset') return routes.resetRoutes(request, url)
-    if (url.pathname === '/federation/callback' && site.federation) {
-      const response = await federationCallback(request, url)
+    if (url.pathname === '/federation/callback' && site.brokering) {
+      const response = await brokerCallback(request, url)
       if (response) return response
     }
     if (url.pathname === '/device' || url.pathname === '/device/decide') {

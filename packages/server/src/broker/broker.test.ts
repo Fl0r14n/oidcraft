@@ -1,7 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { selectUpstream } from 'oidcraft'
 import { memoryAdapter } from '../adapters/memory'
-import type { Adapter } from '../index'
 import { localSubject, pickClaims, renameClaims } from './claims'
 import { linkIdentity } from './link'
 import type { BrokeredIdentity, UpstreamProvider } from './types'
@@ -107,11 +106,11 @@ describe('claim mapping', () => {
 })
 
 describe('account linking', () => {
-  const fresh = async () => (await memoryAdapter()) as Adapter
+  const fresh = () => memoryAdapter()
 
   test('an existing (provider, subject) link is reused', async () => {
     const adapter = await fresh()
-    await adapter.identities?.upsert({ accountId: 'u1', provider: 'entra', subject: 'up-1', claims: {}, linkedAt: new Date() })
+    await adapter.identities.upsert({ accountId: 'u1', provider: 'entra', subject: 'up-1', claims: {}, linkedAt: new Date() })
     expect(await linkIdentity(adapter, identity())).toEqual({ accountId: 'u1', created: false })
   })
 
@@ -119,7 +118,7 @@ describe('account linking', () => {
     const adapter = await fresh()
     const result = await linkIdentity(adapter, identity(), { createAccount: async () => 'new-1' })
     expect(result).toEqual({ accountId: 'new-1', created: true })
-    expect((await adapter.identities?.find('entra', 'up-1'))?.accountId).toBe('new-1')
+    expect((await adapter.identities.find('entra', 'up-1'))?.accountId).toBe('new-1')
   })
 
   test('an unknown identity with no createAccount is refused rather than silently made', async () => {
@@ -163,12 +162,13 @@ describe('account linking', () => {
       createAccount: async () => 'new-1'
     })
     expect(result).toEqual({ needsInteraction: 'link', candidate: 'existing-user' })
-    expect(await adapter.identities?.find('entra', 'up-1')).toBeUndefined()
+    expect(await adapter.identities.find('entra', 'up-1')).toBeUndefined()
   })
 
-  test('an adapter without a FederatedIdentityStore is refused', async () => {
-    const adapter = await memoryAdapter({ federation: false })
-    expect(linkIdentity(adapter, identity())).rejects.toThrow(/FederatedIdentityStore/)
+  test('an adapter without a LinkedIdentityStore does not type-check', async () => {
+    const { identities: _, ...adapter } = await memoryAdapter()
+    // @ts-expect-error linking needs a BrokeringAdapter (FR-F5)
+    expect(linkIdentity(adapter, identity())).rejects.toThrow()
   })
 })
 

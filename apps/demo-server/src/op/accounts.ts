@@ -1,5 +1,5 @@
 /// <reference types="bun" />
-import type { AccountStore, Adapter } from 'oidcraft'
+import type { AccountStore, Adapter, CredentialsAdapter } from 'oidcraft'
 import { type Accounts, createAccounts, generateSecretKey } from 'oidcraft/accounts'
 import { bunPasswordHasher } from 'oidcraft/runtimes/bun'
 import { optional, withDefault } from './env'
@@ -22,7 +22,7 @@ const totpKey = () => {
   return generatedTotpKey
 }
 
-export const createDemoAccounts = (adapter: Adapter, issuerName: string) =>
+export const createDemoAccounts = (adapter: CredentialsAdapter, issuerName: string) =>
   createAccounts({
     adapter,
     hasher: bunPasswordHasher,

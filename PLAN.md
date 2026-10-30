@@ -149,31 +149,35 @@ an earlier one.
 
 Before Postgres, which would otherwise be built on the old names. `createBroker` and
 `createAccounts` take any `Adapter` today, so one without `identities` or `credentials` compiles and
-throws on first use (`federation/link.ts:23`). The fix is a requirement at those entry points, not a
+threw on first use (in `link.ts`). The fix is a requirement at those entry points, not a
 split of `Adapter`: making it the full set would turn `ProviderConfig` into a union, give the
 management API a conditional type and flip what `Adapter` means, all to move one check
 (`upstreams`, config.ts:350) that construction already catches.
 
-- [ ] `Adapter` unchanged: the seven required stores, `identities`/`credentials`/`realms` optional.
+- [x] `Adapter` unchanged: the seven required stores, `identities`/`credentials`/`realms` optional.
   Beside it, `BrokeringAdapter` (`identities` and `sessions.findByUpstreamSession` required),
   `CredentialsAdapter`, `RealmsAdapter`, and `FullAdapter` as their intersection
-- [ ] `createBroker` takes a `BrokeringAdapter`, `createAccounts` a `CredentialsAdapter`;
+- [x] `createBroker` takes a `BrokeringAdapter`, `createAccounts` a `CredentialsAdapter`;
   `createProvider` keeps `Adapter` and its construction-time check for `upstreams` (NFR-D2).
   The guard in `link.ts` goes, since the type now makes it unreachable
-- [ ] The first-party adapters (memory, `fromKv`, Drizzle, Kysely, TypeORM, Redis) return
+- [x] The first-party adapters (memory, `fromKv`, Drizzle, Kysely, TypeORM, Redis) return
   `FullAdapter`, and their `federation: boolean` option goes: an adapter that omitted `identities`
   would make that type a lie, and an unused store costs an empty table. The demo's realms stop
   passing `federation: false`
-- [ ] Optional methods tied to `features.*` flags (`findByUserCode`, `prune`, the client writes and
+- [x] Optional methods tied to `features.*` flags (`findByUserCode`, `prune`, the client writes and
   `list`) stay optional with their construction-time checks; typing each flag would make
   `ProviderConfig` a union per flag
-- [ ] "Federation" means OpenID Federation 1.0 (`G-1`, ARCHITECTURE.md §5.1), so brokering stops using
+- [x] "Federation" means OpenID Federation 1.0 (`G-1`, ARCHITECTURE.md §5.1), so brokering stops using
   the word: `oidcraft/federation` → `oidcraft/broker`, `FederatedIdentity`/`FederatedIdentityStore` →
   `LinkedIdentity`/`LinkedIdentityStore`, `FederationCallback` → `BrokerCallback`, and the
   `src/federation` directory with them. The table stays `oidc_identities`. CLAUDE.md, ARCHITECTURE.md
   §2.1 and §5, `verify-entries.ts` and `exports.test.ts` name the entry and move together
-- [ ] ARCHITECTURE.md §4: `Adapter` is what a custom adapter implements; the feature types are what
+- [x] ARCHITECTURE.md §4: `Adapter` is what a custom adapter implements; the feature types are what
   an entry point requires
+- [x] Landed 2026-10-30. The demo's upstream callback stays at `/federation/callback`: it is the
+  redirect URI registered with Google (`.env.example`), and renaming a URL people have registered
+  breaks their sign-in for a word. The new types found the demo handing `provider.config.adapter`
+  (a plain `Adapter`) to the broker; it now passes its storage, which is a `FullAdapter`
 
 ## Refresh tokens and FAPI 2.0
 
@@ -282,7 +286,7 @@ What is _not_ claimed: see the status section. Implemented is not the same as ce
 1. ~~Fix what the server review found~~ — done 2026-10-13, every finding below. The review was by
    agents reading the code against REQUIREMENTS.md, so it narrowed the search rather than ending it.
 2. ~~The conformance suite in CI~~ (NFR-C1) — the `conformance` job, pinned by `SUITE_VERSION`.
-3. **Adapter typing and the brokering rename.**
+3. ~~Adapter typing and the brokering rename~~ — done 2026-10-30.
 4. **Refresh tokens and FAPI 2.0.**
 5. **Postgres.**
 6. **The MCP demo**, then a real MCP client (opencode) against it.

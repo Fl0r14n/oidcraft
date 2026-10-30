@@ -1,4 +1,4 @@
-import type { Adapter, FederatedIdentity } from 'oidcraft'
+import type { BrokeringAdapter, LinkedIdentity } from 'oidcraft'
 import type { BrokeredIdentity, LinkPolicy } from './types'
 
 export type LinkResult = { accountId: string; created: boolean } | { needsInteraction: 'link'; candidate: string }
@@ -19,9 +19,11 @@ export type LinkOptions = {
  * user change one, so `verified-email` additionally demands `email_verified` from the upstream, and
  * `interactive` refuses to decide and hands the question back (NFR-S8).
  */
-export const linkIdentity = async (adapter: Adapter, identity: BrokeredIdentity, options: LinkOptions = {}): Promise<LinkResult> => {
-  if (!adapter.identities) throw new Error('this adapter has no FederatedIdentityStore; brokering needs one (FR-F5)')
-
+export const linkIdentity = async (
+  adapter: BrokeringAdapter,
+  identity: BrokeredIdentity,
+  options: LinkOptions = {}
+): Promise<LinkResult> => {
   const existing = await adapter.identities.find(identity.provider, identity.subject)
   if (existing) return { accountId: existing.accountId, created: false }
 
@@ -49,8 +51,8 @@ export const linkIdentity = async (adapter: Adapter, identity: BrokeredIdentity,
   return { accountId, created: true }
 }
 
-const link = async (adapter: Adapter, identity: BrokeredIdentity, accountId: string) => {
-  const record: FederatedIdentity = {
+const link = async (adapter: BrokeringAdapter, identity: BrokeredIdentity, accountId: string) => {
+  const record: LinkedIdentity = {
     accountId,
     provider: identity.provider,
     subject: identity.subject,
@@ -58,5 +60,5 @@ const link = async (adapter: Adapter, identity: BrokeredIdentity, accountId: str
     claims: identity.claims,
     linkedAt: new Date()
   }
-  await adapter.identities?.upsert(record)
+  await adapter.identities.upsert(record)
 }

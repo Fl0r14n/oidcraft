@@ -1,7 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { exportJWK, generateKeyPair, SignJWT } from 'jose'
 import { memoryAdapter } from '../adapters/memory'
-import type { Adapter } from '../index'
 import { issuerOf, upstreamLogout } from './logout'
 import type { UpstreamProvider } from './types'
 
@@ -27,7 +26,7 @@ const logoutToken = (claims: Record<string, unknown>, over: { issuer?: string; a
     .sign(signing.privateKey)
 
 const withSessions = async () => {
-  const adapter: Adapter = await memoryAdapter()
+  const adapter = await memoryAdapter()
   await adapter.sessions.upsert({
     id: 'local-1',
     accountId: 'ada',
@@ -59,7 +58,7 @@ describe('upstream back-channel logout', () => {
 
   test('falls back to the linked account when only sub is given', async () => {
     const adapter = await withSessions()
-    await adapter.identities?.upsert({ accountId: 'ada', provider: 'entra', subject: 'up-sub', claims: {}, linkedAt: new Date() })
+    await adapter.identities.upsert({ accountId: 'ada', provider: 'entra', subject: 'up-sub', claims: {}, linkedAt: new Date() })
     const result = await upstreamLogout(adapter, provider, await logoutToken({ sub: 'up-sub' }), jwks)
     expect(result.sessions.map(session => session.id)).toEqual(['local-1'])
   })

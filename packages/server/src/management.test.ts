@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
 import { memoryAdapter } from './adapters/memory'
-import type { Adapter, AuditEvent, Client } from './index'
+import type { AuditEvent, Client, FullAdapter } from './index'
 import { createProvider, type Provider } from './provider'
 
 const ISSUER = 'https://op.example.com'
@@ -15,7 +15,7 @@ const input = (over: Partial<Client> = {}) => ({
   ...over
 })
 
-let adapter: Adapter
+let adapter: FullAdapter
 let provider: Provider
 let audit: AuditEvent[]
 let delivered: { clientId: string }[]
@@ -148,8 +148,8 @@ describe('management', () => {
     expect(JSON.stringify(keys)).not.toContain('"d"')
   })
 
-  test('unlinks a federated identity', async () => {
-    await adapter.identities?.upsert({ accountId: 'u1', provider: 'entra', subject: 'up-1', claims: {}, linkedAt: new Date() })
+  test('unlinks a linked identity', async () => {
+    await adapter.identities.upsert({ accountId: 'u1', provider: 'entra', subject: 'up-1', claims: {}, linkedAt: new Date() })
     expect(await provider.management.identities.listForAccount('u1')).toHaveLength(1)
     await provider.management.identities.unlink('u1', 'entra')
     expect(await provider.management.identities.listForAccount('u1')).toHaveLength(0)

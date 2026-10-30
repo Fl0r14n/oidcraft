@@ -1,13 +1,13 @@
 import type {
   AccountStore,
-  Adapter,
   Artifact,
   ArtifactKind,
   Client,
   Credential,
-  FederatedIdentity,
+  FullAdapter,
   Grant,
   KeyStore,
+  LinkedIdentity,
   Realm,
   Session
 } from 'oidcraft'
@@ -36,7 +36,6 @@ export type TypeormAdapterOptions = {
   keys: KeyStore
   /** Omitted, every account lookup misses: the host composes one in later, as `oidcraft/accounts` does. */
   accounts?: AccountStore
-  federation?: boolean
 }
 
 const now = () => Date.now()
@@ -106,7 +105,7 @@ const toCredential = (row: CredentialRow): Credential => ({
   updatedAt: new Date(row.updated_at)
 })
 
-const toIdentity = (row: IdentityRow): FederatedIdentity => ({
+const toIdentity = (row: IdentityRow): LinkedIdentity => ({
   accountId: row.account_id,
   provider: row.provider,
   subject: row.subject,
@@ -171,7 +170,7 @@ const insertIfAbsent = async <T extends object>(repository: Repository<T>, row: 
  * The same contract as the Drizzle and Kysely adapters, on the host's TypeORM `DataSource` (FR-A6).
  * The queries are dialect-agnostic; the schema shipped and tested is SQLite's, as for the others.
  */
-export const typeormAdapter = (options: TypeormAdapterOptions): Adapter => {
+export const typeormAdapter = (options: TypeormAdapterOptions): FullAdapter => {
   const { dataSource } = options
   const missing = OIDCRAFT_ENTITIES.filter(entity => !dataSource.hasMetadata(entity as EntitySchema))
   if (missing.length) {
@@ -179,7 +178,6 @@ export const typeormAdapter = (options: TypeormAdapterOptions): Adapter => {
       `the DataSource does not know ${missing.map(entity => entity.options.name).join(', ')}: add OIDCRAFT_ENTITIES to its entities`
     )
   }
-  const federation = options.federation !== false
   const clients = dataSource.getRepository(ClientEntity)
   const artifactRows = dataSource.getRepository(ArtifactEntity)
   const sessions = dataSource.getRepository(SessionEntity)
@@ -429,31 +427,29 @@ export const typeormAdapter = (options: TypeormAdapterOptions): Adapter => {
       }
     },
 
-    ...(federation && {
-      identities: {
-        async find(provider: string, subject: string) {
-          const row = await identities.findOneBy({ provider, subject })
-          return row ? toIdentity(row) : undefined
-        },
-        async listForAccount(accountId: string) {
-          return (await identities.findBy({ account_id: accountId })).map(toIdentity)
-        },
-        async upsert(identity: FederatedIdentity) {
-          const row: IdentityRow = {
-            provider: identity.provider,
-            subject: identity.subject,
-            account_id: identity.accountId,
-            email: identity.email ?? null,
-            claims: json(identity.claims),
-            linked_at: identity.linkedAt.getTime()
-          }
-          await upsert(identities, row, ['provider', 'subject'])
-        },
-        async destroy(provider: string, subject: string) {
-          await identities.delete({ provider, subject })
+    identities: {
+      async find(provider: string, subject: string) {
+        const row = await identities.findOneBy({ provider, subject })
+        return row ? toIdentity(row) : undefined
+      },
+      async listForAccount(accountId: string) {
+        return (await identities.findBy({ account_id: accountId })).map(toIdentity)
+      },
+      async upsert(identity: LinkedIdentity) {
+        const row: IdentityRow = {
+          provider: identity.provider,
+          subject: identity.subject,
+          account_id: identity.accountId,
+          email: identity.email ?? null,
+          claims: json(identity.claims),
+          linked_at: identity.linkedAt.getTime()
         }
+        await upsert(identities, row, ['provider', 'subject'])
+      },
+      async destroy(provider: string, subject: string) {
+        await identities.delete({ provider, subject })
       }
-    })
+    }
   }
 }
 

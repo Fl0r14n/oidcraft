@@ -1,6 +1,6 @@
 /**
  * Choosing which upstream to broker to is a decision, not I/O, so it belongs in the core (FR-F4).
- * Performing the round trip is I/O, so it does not: `oidcraft/federation` does that, driven by the
+ * Performing the round trip is I/O, so it does not: `oidcraft/broker` does that, driven by the
  * host, the same division as the device flow and CIBA.
  */
 export type UpstreamDescriptor = {

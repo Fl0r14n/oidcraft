@@ -1,6 +1,6 @@
 import { DEFAULT_MAX_LENGTH, oauthFieldError, randomString } from '@oidcraft/core'
 import { base64url } from 'jose'
-import type { AccountStore, Adapter, Credential, CredentialStore, Seconds } from 'oidcraft'
+import type { AccountStore, Credential, CredentialsAdapter, Seconds } from 'oidcraft'
 import { importSecretKey, open, seal } from './sealed'
 import { base32, matchingCounter, otpauthUri, TOTP_PERIOD } from './totp'
 
@@ -27,7 +27,7 @@ export type AccountsPolicy = {
 }
 
 export type AccountsOptions = {
-  adapter: Adapter
+  adapter: CredentialsAdapter
   hasher: PasswordHasher
   /** 32 random bytes, base64url, that seal TOTP secrets at rest. `generateSecretKey()` makes one. */
   secretKey: string
@@ -104,8 +104,7 @@ const RECOVERY_TOMBSTONE: Seconds = 10 * 365 * 24 * 3600
  * mounts: a deployment without sign-up simply never calls `register`.
  */
 export const createAccounts = (options: AccountsOptions) => {
-  const credentials = options.adapter.credentials as CredentialStore
-  if (!credentials) throw new Error('oidcraft/accounts needs an adapter with a credentials store')
+  const { credentials } = options.adapter
   const { adapter, hasher } = options
   const policy: AccountsPolicy = {
     minPasswordLength: 8,

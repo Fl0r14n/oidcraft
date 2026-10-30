@@ -3,7 +3,7 @@ import { Database } from 'bun:sqlite'
 import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { drizzle } from 'drizzle-orm/bun-sqlite'
-import { type Adapter, generatedKeyStore, type KeyStore } from 'oidcraft'
+import { type FullAdapter, generatedKeyStore, type KeyStore } from 'oidcraft'
 import { drizzleAdapter, SQLITE_MIGRATIONS } from 'oidcraft/adapters/drizzle'
 import { memoryAdapter } from 'oidcraft/adapters/memory'
 import { withDefault } from './env'
@@ -29,22 +29,22 @@ const migrate = (sqlite: Database) => {
   }
 }
 
-type StorageOptions = { federation: boolean; keys: KeyStore | undefined }
+type StorageOptions = { keys: KeyStore | undefined }
 
 /** A SQLite file at `location`, migrated, or nothing kept at all when it is `memory`. */
-export const openAdapter = async (location: string, { federation, keys }: StorageOptions): Promise<Adapter> => {
-  if (location === 'memory') return memoryAdapter({ federation, ...(keys && { keys }) })
+export const openAdapter = async (location: string, { keys }: StorageOptions): Promise<FullAdapter> => {
+  if (location === 'memory') return memoryAdapter({ ...(keys && { keys }) })
   mkdirSync(dirname(location), { recursive: true })
   const sqlite = new Database(location, { create: true })
   sqlite.run('pragma journal_mode = wal')
   migrate(sqlite)
-  return drizzleAdapter({ db: drizzle({ client: sqlite }), federation, keys: keys ?? (await generatedKeyStore()) })
+  return drizzleAdapter({ db: drizzle({ client: sqlite }), keys: keys ?? (await generatedKeyStore()) })
 }
 
 /** OIDCRAFT_DB names a SQLite file; `memory` keeps nothing, which is what a conformance run wants. */
 export const storageLocation = () => withDefault('OIDCRAFT_DB', 'data/oidcraft.sqlite')
 
-export const openStorage = async (options: StorageOptions): Promise<Adapter> => {
+export const openStorage = async (options: StorageOptions): Promise<FullAdapter> => {
   const location = storageLocation()
   if (location !== 'memory') console.log(`[oidcraft] storing in ${location}`)
   return openAdapter(location, options)

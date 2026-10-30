@@ -1,18 +1,18 @@
 import type {
   AccountStore,
-  Adapter,
   ArtifactStore,
+  BrokeringAdapter,
   ClientStore,
   CredentialStore,
   EntityStore,
-  FederatedIdentityStore,
+  FullAdapter,
   GrantStore,
   KeyStore,
+  LinkedIdentityStore,
   RealmStore,
-  ReplayGuard,
-  SessionStore
+  ReplayGuard
 } from '../adapter'
-import type { Artifact, Credential, FederatedIdentity, Grant, Realm, Seconds, Session } from '../types'
+import type { Artifact, Credential, Grant, LinkedIdentity, Realm, Seconds, Session } from '../types'
 
 export type KvEntry = { key: string; value: string; ttl?: Seconds }
 
@@ -32,8 +32,6 @@ export type FromKvOptions = {
   keys: KeyStore
   /** Omitted, every account lookup misses: the host composes one in later, as `oidcraft/accounts` does. */
   accounts?: AccountStore
-  /** Without one, `identities` is absent and a brokering deployment will not start (FR-F5). */
-  federation?: boolean
 }
 
 const noAccounts: AccountStore = {
@@ -71,7 +69,7 @@ const collect = async <T>(kv: KvStore, prefix: string, revived: (raw: string) =>
  * Correct, not fast: revocation and the by-account lookups are prefix scans, because a key-value
  * store has no secondary index. A relational adapter must use real columns instead (FR-A5).
  */
-export const fromKv = (kv: KvStore, options: FromKvOptions): Adapter => {
+export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
   const read = async (key: string) => (await kv.find(key))?.value
   const artifactKey = (kind: string, id: string) => `artifact/${kind}/${id}`
   // Kept apart from the artifact so an upsert cannot overwrite it (FR-T3, NFR-S4).
@@ -155,7 +153,7 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): Adapter => {
   }
   const allSessions = () => collect(kv, 'session/', raw => revive(JSON.parse(raw) as Session, ['authTime', 'expiresAt']))
 
-  const sessions: SessionStore = {
+  const sessions: BrokeringAdapter['sessions'] = {
     async find(id) {
       const session = dec<Session>(await read(`session/${id}`))
       if (!session) return undefined
@@ -212,13 +210,13 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): Adapter => {
     }
   }
 
-  const identities: FederatedIdentityStore = {
+  const identities: LinkedIdentityStore = {
     async find(provider, subject) {
-      const identity = dec<FederatedIdentity>(await read(`identity/${provider}/${subject}`))
+      const identity = dec<LinkedIdentity>(await read(`identity/${provider}/${subject}`))
       return identity ? revive(identity, ['linkedAt']) : undefined
     },
     async listForAccount(accountId) {
-      const all = await collect(kv, 'identity/', raw => revive(JSON.parse(raw) as FederatedIdentity, ['linkedAt']))
+      const all = await collect(kv, 'identity/', raw => revive(JSON.parse(raw) as LinkedIdentity, ['linkedAt']))
       return all.filter(identity => identity.accountId === accountId)
     },
     async upsert(identity) {
@@ -298,6 +296,6 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): Adapter => {
     realms,
     keys: options.keys,
     replay,
-    ...(options.federation !== false && { identities })
+    identities
   }
 }

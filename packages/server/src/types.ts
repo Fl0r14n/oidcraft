@@ -95,7 +95,7 @@ export type Grant = {
 
 export type ArtifactKind =
   | 'interaction'
-  | 'federation_handoff'
+  | 'broker_handoff'
   | 'authorization_code'
   | 'access_token'
   | 'refresh_token'
@@ -153,7 +153,7 @@ export type Realm = {
   updatedAt: Date
 }
 
-export type FederatedIdentity = {
+export type LinkedIdentity = {
   accountId: string
   provider: string
   subject: string

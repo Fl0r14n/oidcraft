@@ -19,7 +19,7 @@
     "authorization-server",
     "identity-provider",
     "sso",
-    "federation",
+    "identity-broker",
     "pkce",
     "dpop",
     "bun",
@@ -36,9 +36,9 @@
       "types": "./dist/index.d.mts",
       "import": "./dist/index.mjs"
     },
-    "./federation": {
-      "types": "./dist/federation.d.mts",
-      "import": "./dist/federation.mjs"
+    "./broker": {
+      "types": "./dist/broker.d.mts",
+      "import": "./dist/broker.mjs"
     },
     "./accounts": {
       "types": "./dist/accounts.d.mts",

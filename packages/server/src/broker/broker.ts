@@ -13,10 +13,10 @@ import {
   sha256
 } from '@oidcraft/core'
 import { base64url } from 'jose'
-import type { Adapter } from 'oidcraft'
+import type { BrokeringAdapter } from 'oidcraft'
 import { OAuthError, type SelectionHints, selectUpstream } from 'oidcraft'
 import { pickClaims } from './claims'
-import type { BrokeredIdentity, FederationCallback, Handoff, UpstreamProvider } from './types'
+import type { BrokerCallback, BrokeredIdentity, Handoff, UpstreamProvider } from './types'
 
 /**
  * OIDC Core §5.4: with an access token issued, scope claims come from UserInfo, not the ID token.
@@ -31,7 +31,7 @@ const userInfoOf = async (resolved: OpenIdConfig, token: OAuthToken | undefined,
 }
 
 export type BrokerConfig = {
-  adapter: Adapter
+  adapter: BrokeringAdapter
   providers: UpstreamProvider[]
   /** Where the upstream sends the browser back. Must be registered with every upstream. */
   callbackUri: string
@@ -245,7 +245,7 @@ export const createBroker = (config: BrokerConfig) => {
 
       await config.adapter.artifacts.upsert({
         id: handoff.state,
-        kind: 'federation_handoff',
+        kind: 'broker_handoff',
         clientId: provider.id,
         payload: handoff as unknown as Record<string, unknown>,
         expiresAt: handoff.expiresAt
@@ -259,11 +259,11 @@ export const createBroker = (config: BrokerConfig) => {
      * Completes the upstream leg and yields the identity plus the interaction to resume. `cookieHeader`
      * is the callback request's `Cookie` header: the handoff completes only in the browser it began in.
      */
-    async complete(currentUrl: URL, cookieHeader: string | null | undefined): Promise<FederationCallback> {
+    async complete(currentUrl: URL, cookieHeader: string | null | undefined): Promise<BrokerCallback> {
       const state = currentUrl.searchParams.get('state')
       if (!state) throw new Error('the upstream returned no state; this sign-in did not start here')
 
-      const stored = await config.adapter.artifacts.find('federation_handoff', state)
+      const stored = await config.adapter.artifacts.find('broker_handoff', state)
       if (!stored) throw new Error('this sign-in did not start here, or it expired')
       // Checked before the handoff is spent, so a stranger holding the callback URL cannot burn it.
       const presented = cookieValue(cookieHeader, bindingCookie(state))
@@ -272,8 +272,8 @@ export const createBroker = (config: BrokerConfig) => {
         throw new Error('this sign-in did not start in this browser')
       }
       // Single-use: a replayed callback must not mint a second identity.
-      if (!(await config.adapter.artifacts.consume('federation_handoff', state))) throw new Error('this sign-in was already completed')
-      await config.adapter.artifacts.destroy('federation_handoff', state)
+      if (!(await config.adapter.artifacts.consume('broker_handoff', state))) throw new Error('this sign-in was already completed')
+      await config.adapter.artifacts.destroy('broker_handoff', state)
 
       const handoff = stored.payload as unknown as Handoff
       const provider = required(handoff.provider)

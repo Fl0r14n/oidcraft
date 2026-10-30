@@ -4,8 +4,8 @@ import { type InteractionRequest, oauthFieldError } from 'oidcraft/interaction'
 import { optional } from '../op/env'
 import { FIRST_PARTY } from '../op/first-party'
 import type { Site } from '../op/site'
+import { startUpstream, upstreamLabels } from './broker'
 import { knownAccounts, pendingSecondFactor } from './cookies'
-import { startUpstream, upstreamLabels } from './federation'
 
 const seeOther = (location: string, ...cookies: (string | undefined)[]) => {
   const headers = new Headers({ location, 'cache-control': 'no-store' })
@@ -144,7 +144,7 @@ const build = (site: Site) => {
         return screens.message('Check your email', 'If that username has an account here, a link to reset its password is on its way.')
       }
 
-      if (request.method === 'POST' && action === 'upstream' && site.federation) {
+      if (request.method === 'POST' && action === 'upstream' && site.brokering) {
         const response = await startUpstream(id, request)
         if (response) return response
       }

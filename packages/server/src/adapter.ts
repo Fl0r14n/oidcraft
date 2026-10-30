@@ -1,8 +1,9 @@
-import type { Account, Artifact, ArtifactKind, Client, Credential, FederatedIdentity, Grant, Realm, Seconds, Session } from './types'
+import type { Account, Artifact, ArtifactKind, Client, Credential, Grant, LinkedIdentity, Realm, Seconds, Session } from './types'
 
 /**
  * Storage is a set of narrow capability stores, not one stringly-typed table (ARCHITECTURE.md §4).
- * Implement the ones a deployment needs; `fromKv` derives all of them from a single key-value store.
+ * This is what a custom adapter implements: the seven every provider reads, and whichever optional
+ * store a feature it uses needs. `fromKv` derives all of them from a single key-value store.
  */
 export type Adapter = {
   clients: ClientStore
@@ -12,12 +13,27 @@ export type Adapter = {
   accounts: AccountStore
   keys: KeyStore
   replay: ReplayGuard
-  identities?: FederatedIdentityStore
+  identities?: LinkedIdentityStore
   /** Only `oidcraft/accounts` reads this; a host with its own `AccountStore` never needs it (FR-I7). */
   credentials?: CredentialStore
   /** Only `createRealms` reads this, from the control plane's adapter; a single issuer never needs it (FR-M4). */
   realms?: RealmStore
 }
+
+/** What `oidcraft/broker` requires: linking and upstream logout need both (FR-F5, FR-F8). */
+export type BrokeringAdapter = Adapter & {
+  identities: LinkedIdentityStore
+  sessions: SessionStore & Required<Pick<SessionStore, 'findByUpstreamSession'>>
+}
+
+/** What `oidcraft/accounts` requires (FR-I7). */
+export type CredentialsAdapter = Adapter & { credentials: CredentialStore }
+
+/** What a realm control plane's adapter holds (FR-M4). */
+export type RealmsAdapter = Adapter & { realms: RealmStore }
+
+/** What every first-party adapter returns, so it satisfies every entry point. */
+export type FullAdapter = BrokeringAdapter & CredentialsAdapter & RealmsAdapter
 
 /**
  * What every record-holding store shares. `Id` is a tuple so a composite key reads as arguments:
@@ -84,8 +100,8 @@ export type ReplayGuard = {
   claim(namespace: string, value: string, ttl: Seconds): Promise<boolean>
 }
 
-export type FederatedIdentityStore = EntityStore<FederatedIdentity, [provider: string, subject: string]> & {
-  listForAccount(accountId: string): Promise<FederatedIdentity[]>
+export type LinkedIdentityStore = EntityStore<LinkedIdentity, [provider: string, subject: string]> & {
+  listForAccount(accountId: string): Promise<LinkedIdentity[]>
 }
 
 export type CredentialStore = EntityStore<Credential> & {

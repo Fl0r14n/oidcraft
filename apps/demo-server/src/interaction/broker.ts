@@ -1,11 +1,9 @@
-import { createBroker, linkIdentity, localSubject } from 'oidcraft/federation'
-import { provider } from '../op/provider'
+import { createBroker, linkIdentity, localSubject } from 'oidcraft/broker'
+import { controlAdapter, provider } from '../op/provider'
 import { callbackUri, upstreams } from '../op/upstreams'
 import { screens } from './screens'
 
-const broker = upstreams.length
-  ? createBroker({ adapter: provider.config.adapter, callbackUri: callbackUri(), providers: upstreams })
-  : undefined
+const broker = upstreams.length ? createBroker({ adapter: controlAdapter, callbackUri: callbackUri(), providers: upstreams }) : undefined
 
 const seeOther = (location: string, cookies: (string | undefined)[]) => {
   const headers = new Headers({ location, 'cache-control': 'no-store' })
@@ -38,11 +36,11 @@ export const startUpstream = async (interactionId: string, request: Request) => 
  * Where the upstream sends the browser back. Linking is by `(provider, subject)` and nothing else
  * (FR-F5); the local account id says where it came from, so it never collides with a typed username.
  */
-export const federationCallback = async (request: Request, url: URL) => {
+export const brokerCallback = async (request: Request, url: URL) => {
   if (!broker) return undefined
   try {
     const { interactionId, identity, setCookie: clearBinding } = await broker.complete(url, request.headers.get('cookie'))
-    const linked = await linkIdentity(provider.config.adapter, identity, {
+    const linked = await linkIdentity(controlAdapter, identity, {
       createAccount: async brokered => localSubject(brokered.provider, brokered.subject)
     })
     if (!('accountId' in linked)) return screens.error('access_denied', 'this account needs linking by hand')

@@ -71,7 +71,7 @@ packages/vue/               vue-oidc
 packages/react/             react-oauth-oidc
 packages/server/            one published package, thirteen entries — publishes as `oidcraft`
   src/index.ts              .                     the OP. fetch in, fetch out, no I/O
-  src/federation/           ./federation          the relying-party leg — upstream brokering
+  src/broker/               ./broker              the relying-party leg — upstream brokering
   src/interaction/          ./interaction         login/consent policy types
   src/accounts/             ./accounts            local accounts: passwords, TOTP, recovery codes, reset (FR-I7)
   src/runtimes/node/        ./runtimes/node       node:http bridge + request context
@@ -104,7 +104,7 @@ src/session/      the OP session cookie, RP-initiated logout, logout notificatio
 src/resource/     what a resource server calls: UserInfo, introspection, revocation
 src/keys/         the key store and the JWKS endpoint
 src/upstreams/    upstream selection (FR-F4) and the linked identities — the root's side of
-                  brokering; the relying-party leg is the `./federation` entry
+                  brokering; the relying-party leg is the `./broker` entry
 ```
 
 The management API (FR-M1) follows the same split: each folder's `management.ts` holds its
@@ -137,7 +137,7 @@ half built on it: storage, the token lifecycle, refresh, the authorized fetch, t
 
 The split is the consumer list. `@oidcraft/core` has two kinds of consumer that share nothing else:
 
-- `oidcraft/federation`, because brokering _is_ being a relying party at the upstream (§5);
+- `oidcraft/broker`, because brokering _is_ being a relying party at the upstream (§5);
 - the framework client libraries — `vue-oidc`, `react-oauth-oidc`, `ngx-oauth` — which publish under
   their own names and whose users have no OP at all.
 
@@ -153,7 +153,7 @@ on the two agreeing.
 
 They are compiled _into_ each publisher rather than published beside them. That is what makes them
 free: no npm names to own, no trusted-publishing bootstrap, and NFR-D4 stays literally true —
-`dist/federation.mjs` imports `oidcraft` and `jose` and nothing else. A consumer never learns either
+`dist/broker.mjs` imports `oidcraft` and `jose` and nothing else. A consumer never learns either
 package exists.
 
 Between themselves the two stay _external_: `@oidcraft/client` does not bundle `@oidcraft/core`.
@@ -172,7 +172,7 @@ The provider compiles in what it uses of `@oidcraft/core` too — `sha256`, `ran
 `constantTimeEquals` — so each primitive exists once, and the server has no `random.ts` of its own.
 Encoding is `jose`'s `base64url`, which both halves already depend on. That is the provider
 depending on the protocol, never the reverse. The cost is that the root and an entry such as
-`./federation` each carry their own bundled copy of a helper; `verify-entries.ts` tolerates that
+`./broker` each carry their own bundled copy of a helper; `verify-entries.ts` tolerates that
 deliberately and says why (§2.2).
 
 What a package split was never buying is a hard wall stopping the core from importing its optional
@@ -266,16 +266,16 @@ property that makes horizontal scaling and serverless hosting the same thing.
 `packages/server/src/adapter.ts` is the contract. Storage is **a set of narrow capability stores**,
 not one table keyed by a model-name string:
 
-| Store                    | Holds                                                                                                         |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------- |
-| `ClientStore`            | Registered clients. `create`/`update`/`destroy` are optional — omitting them disables DCR at runtime (FR-C9). |
-| `ArtifactStore`          | Codes, access and refresh tokens, device codes, PAR and CIBA requests, registration access tokens.            |
-| `SessionStore`           | The end-user's authenticated session at the OP, including its upstream provenance (FR-F6).                    |
-| `GrantStore`             | Durable consent: what an account allowed a client, surviving token revocation (FR-I4).                        |
-| `AccountStore`           | The host's users. Claims are resolved per request, never cached at login (FR-C5).                             |
-| `KeyStore`               | Signing keys, newest first (FR-C10).                                                                          |
-| `ReplayGuard`            | One-shot values: `jti`, DPoP proofs, upstream nonces (NFR-S5).                                                |
-| `FederatedIdentityStore` | `(provider, subject) → account` links. Optional; only brokering deployments need it.                          |
+| Store                 | Holds                                                                                                         |
+| --------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `ClientStore`         | Registered clients. `create`/`update`/`destroy` are optional — omitting them disables DCR at runtime (FR-C9). |
+| `ArtifactStore`       | Codes, access and refresh tokens, device codes, PAR and CIBA requests, registration access tokens.            |
+| `SessionStore`        | The end-user's authenticated session at the OP, including its upstream provenance (FR-F6).                    |
+| `GrantStore`          | Durable consent: what an account allowed a client, surviving token revocation (FR-I4).                        |
+| `AccountStore`        | The host's users. Claims are resolved per request, never cached at login (FR-C5).                             |
+| `KeyStore`            | Signing keys, newest first (FR-C10).                                                                          |
+| `ReplayGuard`         | One-shot values: `jti`, DPoP proofs, upstream nonces (NFR-S5).                                                |
+| `LinkedIdentityStore` | `(provider, subject) → account` links. Optional; only brokering deployments need it.                          |
 
 The record-holding stores — clients, artifacts, sessions, grants, identities — share one shape,
 `EntityStore<T, Id>`: `find`, `upsert` and `destroy`, with a composite key passed as arguments
@@ -283,6 +283,15 @@ The record-holding stores — clients, artifacts, sessions, grants, identities �
 extras are the point of the split. Client writes are optional, so a fixed client list is a valid
 deployment. `AccountStore`, `KeyStore` and `ReplayGuard` are not record stores and keep their own
 shapes: the host's users read-only, signing keys newest first, and one atomic claim.
+
+`Adapter` is what a custom adapter implements: the seven stores above that every provider reads,
+with `identities`, `credentials` and `realms` optional. An entry point that needs one of those says
+so in its type rather than at runtime — `createBroker` and `linkIdentity` take a `BrokeringAdapter`
+(`identities` and `sessions.findByUpstreamSession` present), `createAccounts` a
+`CredentialsAdapter`, and `RealmsAdapter` names a realm control plane's. Every first-party adapter
+returns `FullAdapter`, all three at once, so it satisfies each of them. `createProvider` takes a
+plain `Adapter` and refuses `upstreams` without the brokering stores when it is constructed
+(NFR-D2), since one union per optional feature would make its config type unreadable.
 
 The Drizzle adapter is the demonstration: `explain query plan` in its test suite asserts that
 revoking by grant and looking up a device's user code both hit an index rather than scanning, which
@@ -322,7 +331,7 @@ rather than a runner, so the host applies them with whatever tool it already use
 tests build their database from it, so the shipped schema is the tested one. `apps/demo-server`
 applies it at boot, which is safe there only because it is one process.
 
-## 5. Federation
+## 5. Identity brokering
 
 ### 5.1 Two things named federation
 
@@ -341,7 +350,7 @@ across a multilateral trust fabric — is a different protocol solving a differe
 ```
   client ──authorization request──▶ oidcraft ──▶ interaction: which upstream? (FR-F4)
                                        │
-                                       ├── oidcraft/federation is the RP:
+                                       ├── oidcraft/broker is the RP:
                                        │     authorization request ──▶ upstream OP
                                        │     callback ◀── code + state + PKCE verifier
                                        │
@@ -351,7 +360,7 @@ across a multilateral trust fabric — is a different protocol solving a differe
   client ◀──────code──────────────────┘  the downstream interaction resumes
 ```
 
-The handoff (`src/federation/types.ts`) carries `state`, `nonce`, the PKCE verifier and **the id of
+The handoff (`src/broker/types.ts`) carries `state`, `nonce`, the PKCE verifier and **the id of
 the downstream interaction it resumes**. That last field is what makes this a suspend/resume of one
 authorization request rather than two unrelated flows stapled together — and it is why the handoff
 must be single-use, expiring and bound to the browser that started it (FR-F3).
@@ -639,7 +648,7 @@ clone.
   every advertised endpoint answers, every advertised algorithm has a key, a disabled feature is
   neither advertised nor routed. It catches metadata drifting from behaviour, which is the failure
   the real suite finds most. It is not certification and must not be described as such.
-- **Federation** — a second oidcraft instance is the upstream in tests. Brokering to ourselves
+- **Brokering** — a second oidcraft instance is the upstream in tests. Brokering to ourselves
   exercises both legs without depending on Google being up.
 
 ## 11. Publishing

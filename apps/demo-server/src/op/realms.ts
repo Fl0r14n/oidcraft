@@ -1,5 +1,5 @@
 /// <reference types="bun" />
-import { type ActiveKey, type Adapter, createRealms, generateKey, type Realm, staticKeyStore } from 'oidcraft'
+import { type ActiveKey, createRealms, type FullAdapter, generateKey, type Realm, staticKeyStore } from 'oidcraft'
 import { screensFor } from '../interaction/screens'
 import { accountStore, createDemoAccounts } from './accounts'
 import { issuer, optional } from './env'
@@ -37,11 +37,11 @@ const writeKeys = async (id: string, keys: ActiveKey[]) => {
   else await Bun.write(file(id, 'jwks.json'), JSON.stringify(keys))
 }
 
-const storages = new Map<string, Adapter>()
+const storages = new Map<string, FullAdapter>()
 const storageOf = async (id: string) => {
   let storage = storages.get(id)
   if (!storage) {
-    storage = await openAdapter(memory ? 'memory' : file(id, 'sqlite'), { federation: false, keys: staticKeyStore(await readKeys(id)) })
+    storage = await openAdapter(memory ? 'memory' : file(id, 'sqlite'), { keys: staticKeyStore(await readKeys(id)) })
     storages.set(id, storage)
   }
   return storage
@@ -51,13 +51,13 @@ const sites = new Map<string, Omit<Site, 'provider'>>()
 
 export const realms = realmsEnabled
   ? createRealms({
-      store: controlAdapter.realms as NonNullable<Adapter['realms']>,
+      store: controlAdapter.realms,
       realmOf,
       configure: async (realm: Realm) => {
         const storage = await storageOf(realm.id)
         const name = realm.displayName ?? realm.id
         const accounts = createDemoAccounts(storage, name)
-        sites.set(realm.id, { accounts, screens: screensFor(name, realmIssuer(realm.id)), federation: false })
+        sites.set(realm.id, { accounts, screens: screensFor(name, realmIssuer(realm.id)), brokering: false })
         return {
           issuer: realmIssuer(realm.id),
           adapter: { ...storage, accounts: accountStore(storage, accounts) },

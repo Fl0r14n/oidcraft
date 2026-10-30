@@ -24,7 +24,7 @@ const keys = () => {
   return staticKeyStore(JSON.parse(raw))
 }
 
-const storage = await openStorage({ federation: upstreams.length > 0, keys: keys() })
+const storage = await openStorage({ keys: keys() })
 
 export const accounts = createDemoAccounts(storage, optional('OIDCRAFT_BRAND_NAME') ?? 'oidcraft')
 await seedDemoAccounts(accounts, storage)
@@ -49,6 +49,6 @@ export const provider = createProvider({
 })
 
 /** The issuer at OIDCRAFT_ISSUER. With realms on, it is the control plane the operator signs in through. */
-export const control: Site = { provider, accounts, screens, federation: upstreams.length > 0 }
+export const control: Site = { provider, accounts, screens, brokering: upstreams.length > 0 }
 
 export { adapter as controlAdapter }

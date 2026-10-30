@@ -218,7 +218,7 @@ survives a request, so two processes behind a load balancer behave identically t
 
 **FR-A2** — An adapter is a set of narrow, typed stores (`ClientStore`, `ArtifactStore`,
 `SessionStore`, `GrantStore`, `AccountStore`, `KeyStore`, `ReplayGuard`, and optionally
-`FederatedIdentityStore`) — not one stringly-typed blob table keyed by model name.
+`LinkedIdentityStore`) — not one stringly-typed blob table keyed by model name.
 
 **FR-A3** — A `KvStore` implementation (`find`/`upsert`/`destroy`/`insert`/`scan`) is sufficient to
 derive a complete `Adapter`, so a new backend is a day's work rather than a week's. `insert` must
@@ -449,7 +449,7 @@ change.
 
 **NFR-D4** — Zero runtime dependencies beyond `jose`. `drizzle-orm`, `kysely` and `typeorm` are optional peers
 confined to their own subpath entries, so importing the core pulls neither. The relying-party code
-`oidcraft/federation` needs is this workspace's own and is bundled into that entry rather than
+`oidcraft/broker` needs is this workspace's own and is bundled into that entry rather than
 depended on, so brokering adds no third-party package either.
 
 ## 11. Open questions — `G-*`

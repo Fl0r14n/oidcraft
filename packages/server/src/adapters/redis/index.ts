@@ -1,4 +1,4 @@
-import { type Adapter, type FromKvOptions, fromKv, type KvEntry, type KvStore } from 'oidcraft'
+import { type FromKvOptions, type FullAdapter, fromKv, type KvEntry, type KvStore } from 'oidcraft'
 
 /**
  * One Redis command, as the host's client sends it. Taking a function rather than a client keeps
@@ -73,7 +73,7 @@ export const redisKv = (send: RedisCommand, options: RedisKvOptions = {}): KvSto
 }
 
 /** A complete `Adapter` over Redis: `fromKv` over `redisKv` (FR-A3). */
-export const redisAdapter = (send: RedisCommand, options: RedisAdapterOptions): Adapter => {
+export const redisAdapter = (send: RedisCommand, options: RedisAdapterOptions): FullAdapter => {
   const { prefix, scanCount, ...kv } = options
   return fromKv(redisKv(send, { ...(prefix !== undefined && { prefix }), ...(scanCount !== undefined && { scanCount }) }), kv)
 }

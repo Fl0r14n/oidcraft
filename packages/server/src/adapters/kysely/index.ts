@@ -1,14 +1,14 @@
 import type { Kysely, Selectable } from 'kysely'
 import type {
   AccountStore,
-  Adapter,
   Artifact,
   ArtifactKind,
   Client,
   Credential,
-  FederatedIdentity,
+  FullAdapter,
   Grant,
   KeyStore,
+  LinkedIdentity,
   Realm,
   Session
 } from 'oidcraft'
@@ -19,7 +19,6 @@ export type KyselyAdapterOptions = {
   keys: KeyStore
   /** Omitted, every account lookup misses: the host composes one in later, as `oidcraft/accounts` does. */
   accounts?: AccountStore
-  federation?: boolean
 }
 
 const now = () => Date.now()
@@ -116,7 +115,7 @@ const toRealm = (row: Selectable<RealmsTable>): Realm => ({
   updatedAt: new Date(row.updated_at)
 })
 
-const toIdentity = (row: Selectable<IdentitiesTable>): FederatedIdentity => ({
+const toIdentity = (row: Selectable<IdentitiesTable>): LinkedIdentity => ({
   accountId: row.account_id,
   provider: row.provider,
   subject: row.subject,
@@ -129,9 +128,8 @@ const toIdentity = (row: Selectable<IdentitiesTable>): FederatedIdentity => ({
  * The same contract as the Drizzle adapter, on a query builder rather than an ORM (FR-A4). Both run
  * the one conformance suite, which is what makes "interchangeable" checkable rather than asserted.
  */
-export const kyselyAdapter = (options: KyselyAdapterOptions): Adapter => {
+export const kyselyAdapter = (options: KyselyAdapterOptions): FullAdapter => {
   const { db } = options
-  const federation = options.federation !== false
 
   const artifacts = {
     async upsert(artifact: Artifact) {
@@ -427,40 +425,38 @@ export const kyselyAdapter = (options: KyselyAdapterOptions): Adapter => {
       }
     },
 
-    ...(federation && {
-      identities: {
-        async find(provider: string, subject: string) {
-          const row = await db
-            .selectFrom('oidc_identities')
-            .selectAll()
-            .where('provider', '=', provider)
-            .where('subject', '=', subject)
-            .executeTakeFirst()
-          return row ? toIdentity(row) : undefined
-        },
-        async listForAccount(accountId: string) {
-          return (await db.selectFrom('oidc_identities').selectAll().where('account_id', '=', accountId).execute()).map(toIdentity)
-        },
-        async upsert(identity: FederatedIdentity) {
-          const row = {
-            provider: identity.provider,
-            subject: identity.subject,
-            account_id: identity.accountId,
-            email: identity.email ?? null,
-            claims: json(identity.claims),
-            linked_at: identity.linkedAt.getTime()
-          }
-          await db
-            .insertInto('oidc_identities')
-            .values(row)
-            .onConflict(conflict => conflict.columns(['provider', 'subject']).doUpdateSet(row))
-            .execute()
-        },
-        async destroy(provider: string, subject: string) {
-          await db.deleteFrom('oidc_identities').where('provider', '=', provider).where('subject', '=', subject).execute()
+    identities: {
+      async find(provider: string, subject: string) {
+        const row = await db
+          .selectFrom('oidc_identities')
+          .selectAll()
+          .where('provider', '=', provider)
+          .where('subject', '=', subject)
+          .executeTakeFirst()
+        return row ? toIdentity(row) : undefined
+      },
+      async listForAccount(accountId: string) {
+        return (await db.selectFrom('oidc_identities').selectAll().where('account_id', '=', accountId).execute()).map(toIdentity)
+      },
+      async upsert(identity: LinkedIdentity) {
+        const row = {
+          provider: identity.provider,
+          subject: identity.subject,
+          account_id: identity.accountId,
+          email: identity.email ?? null,
+          claims: json(identity.claims),
+          linked_at: identity.linkedAt.getTime()
         }
+        await db
+          .insertInto('oidc_identities')
+          .values(row)
+          .onConflict(conflict => conflict.columns(['provider', 'subject']).doUpdateSet(row))
+          .execute()
+      },
+      async destroy(provider: string, subject: string) {
+        await db.deleteFrom('oidc_identities').where('provider', '=', provider).where('subject', '=', subject).execute()
       }
-    })
+    }
   }
 }
 

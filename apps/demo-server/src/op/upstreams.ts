@@ -1,5 +1,5 @@
 /// <reference types="bun" />
-import { pickClaims, type UpstreamProvider } from 'oidcraft/federation'
+import { pickClaims, type UpstreamProvider } from 'oidcraft/broker'
 import { issuer, optional } from './env'
 
 /** Where every upstream sends the browser back; the handoff's state says which one it was. */

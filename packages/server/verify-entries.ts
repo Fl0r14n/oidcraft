@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs'
 
 const ENTRIES = {
   index: { owns: [] as string[], runtime: undefined },
-  federation: { owns: [] as string[], runtime: undefined },
+  broker: { owns: [] as string[], runtime: undefined },
   interaction: { owns: [], runtime: undefined },
   accounts: { owns: [], runtime: undefined },
   'runtimes/node': { owns: [], runtime: 'node' },

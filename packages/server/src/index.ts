@@ -2,12 +2,16 @@ export type {
   AccountStore,
   Adapter,
   ArtifactStore,
+  BrokeringAdapter,
   ClientStore,
   CredentialStore,
-  FederatedIdentityStore,
+  CredentialsAdapter,
+  FullAdapter,
   GrantStore,
   KeyStore,
+  LinkedIdentityStore,
   RealmStore,
+  RealmsAdapter,
   ReplayGuard,
   SessionStore
 } from './adapter'
@@ -46,8 +50,8 @@ export type {
   Client,
   ClientAuthMethod,
   Credential,
-  FederatedIdentity,
   Grant,
+  LinkedIdentity,
   Realm,
   Seconds,
   Session

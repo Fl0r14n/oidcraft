@@ -119,7 +119,9 @@ here, or under any load.
 - [x] Admin: sessions and grants by account, with revoke and end-session
 - [x] Admin: upstream providers shown read-only, since they are deployment configuration
 - [x] First manual publish: `oidcraft@0.0.1` claimed the name — the similarity check cleared
-- [ ] `npm trust github` registration, so releases publish from CI (ARCHITECTURE.md §11)
+- [x] `npm trust github` registration, so releases publish from CI (ARCHITECTURE.md §11) — registered
+  2026-10-31 for `Fl0r14n/oidcraft`, `publish.yml`. Nothing published from CI yet: the first release
+  run is the real test
 - [ ] Docs site — **after** the review and the conformance run; requirements below
 - [x] `oidcraft/accounts` (FR-I7): passwords through an injected argon2id hasher (`bunPasswordHasher`,
   `nodePasswordHasher`, interoperable PHC strings), TOTP with sealed secrets, recovery codes,
@@ -309,7 +311,7 @@ What is _not_ claimed: see the status section. Implemented is not the same as ce
 4. ~~Refresh tokens and FAPI 2.0~~ — done 2026-10-30, the FAPI 2.0 plan green in CI.
 5. ~~Postgres~~ — done 2026-10-31, on Postgres 19rc1.
 6. ~~The MCP demo, then a real MCP client~~ — done 2026-10-31, OpenCode calling a tool end to end.
-7. **`npm trust` and the docs site**, once the work above is done.
+7. ~~`npm trust`~~ — registered 2026-10-31. **The docs site** is what is left.
 
 ## Server review — 2026-10-10
 

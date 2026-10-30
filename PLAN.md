@@ -122,6 +122,16 @@ here, or under any load.
 - [x] `npm trust github` registration, so releases publish from CI (ARCHITECTURE.md §11) — registered
   2026-10-31 for `Fl0r14n/oidcraft`, `publish.yml`. Nothing published from CI yet: the first release
   run is the real test
+- [ ] The client libraries publish from here too, when chosen: `publish.yml` already maps
+  `vue-oidc@…`, `react-oauth-oidc@…` and `ngx-oauth@…` tags to their packages, and their versions
+  here are the next majors (7.0.0, 2.0.0, 9.0.0). What is missing is per package: `npm trust github
+  <name> --repo Fl0r14n/oidcraft --file publish.yml --allow-publish`, which also cuts its old
+  repository off. Archive each old repository only after its first publish from here, pointing at
+  `packages/<dir>`, or the npm page links to an archive with no newer source
+- [ ] Claim the npm org `oidcraft` (free for public packages), checked unclaimed 2026-10-31: nothing
+  needs it yet, but whoever owns it could publish an `@oidcraft/core` or `@oidcraft/client`, the
+  names this workspace keeps unpublished. A move to `@oidcraft/vue` and the like would start there;
+  npm has no rename, so the old names would get `npm deprecate` and a last re-exporting version
 - [ ] Docs site — **after** the review and the conformance run; requirements below
 - [x] `oidcraft/accounts` (FR-I7): passwords through an injected argon2id hasher (`bunPasswordHasher`,
   `nodePasswordHasher`, interoperable PHC strings), TOTP with sealed secrets, recovery codes,

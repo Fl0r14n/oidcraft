@@ -1,9 +1,15 @@
 name: publish
 
+# One workflow for every published package, so each package's trusted publisher names this file.
+# The release tag says which: <name>@<version>, e.g. oidcraft@0.0.2 or vue-oidc@7.0.0.
 on:
   release:
     types: [ published ]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: The release to publish, as <name>@<version>
+        required: true
 
 permissions:
   contents: read
@@ -21,26 +27,37 @@ jobs:
         with:
           node-version: latest
           registry-url: https://registry.npmjs.org # points npm at the registry, independent of how it authenticates
+      # Before the build, so a wrong tag fails in seconds rather than after all of it.
+      - name: Which package, and does the tag match it
+        id: target
+        env:
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: |
+          case "$TAG" in
+            oidcraft@*) dir=packages/server ;;
+            vue-oidc@*) dir=packages/vue ;;
+            react-oauth-oidc@*) dir=packages/react ;;
+            ngx-oauth@*) dir=packages/angular ;;
+            *) echo "::error::tag $TAG names no published package; expected <name>@<version>"; exit 1 ;;
+          esac
+          actual=$(node -p "const p = require('./$dir/package.json'); p.name + '@' + p.version")
+          if [ "$TAG" != "$actual" ]; then
+            echo "::error::tag $TAG does not match $dir/package.json, which is $actual"
+            exit 1
+          fi
+          echo "dir=$dir" >> "$GITHUB_OUTPUT"
       - run: bun install --frozen-lockfile
       - run: bunx biome ci .
       - run: bun run build
       - run: bun run typecheck
       - run: bun test
-      # the release tag must match the package, or a mismatch only surfaces after the whole build
-      - name: Assert the tag matches package.json
-        run: |
-          tag='${{ github.event.release.tag_name }}'
-          [ -z "$tag" ] && { echo "no tag (workflow_dispatch) — skipping"; exit 0; }
-          version=$(node -p "require('./packages/server/package.json').version")
-          if [ "$tag" != "v$version" ]; then
-            echo "::error::release tag $tag does not match package.json $version"
-            exit 1
-          fi
       # trusted publishing needs npm >= 11.5.1; the npm bundled with node drifts, so take the latest
       - run: npm install -g npm@latest
-      # No NODE_AUTH_TOKEN: a trusted publisher registered for this repo and workflow exchanges the
-      # OIDC token above for publish rights, and provenance comes with it. Register it once with
-      #   npm trust github oidcraft --file publish.yml --repo Fl0r14n/oidcraft --allow-publish
+      # No NODE_AUTH_TOKEN: each package's trusted publisher names this repo and this file, and
+      # exchanges the OIDC token above for publish rights, with provenance. Register a package once:
+      #   npm trust github <name> --repo Fl0r14n/oidcraft --file publish.yml --allow-publish
+      # oidcraft is registered; vue-oidc, react-oauth-oidc and ngx-oauth still publish from their
+      # old repositories until they are registered here too.
       # npm, not bun: bun publish cannot do trusted publishing or provenance.
       - run: npm publish --access public
-        working-directory: packages/server
+        working-directory: ${{ steps.target.outputs.dir }}

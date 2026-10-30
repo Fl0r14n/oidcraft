@@ -5,7 +5,10 @@ This file is working state: tick items off and add notes as work lands.
 
 ## Status
 
-**Every `FR-*` on the plan is implemented, recorded 2026-10-28.** 924 tests, and `bun run verify` is the gate.
+**Implemented, as of 2026-10-30**, with 1012 passing tests and `bun run verify` as the gate — everything
+below. **Not yet:** FR-T6 (session-bound refresh tokens), FR-C21 (the FAPI 2.0 profile, with
+`dpop_jkt` and FR-T3's exception) and FR-A4's Postgres, decided 2026-10-30 and planned under
+_Next, in this order_.
 
 The authorization code grant with mandatory PKCE, interaction suspend/resume, token issuance with
 rotation and replay revocation, UserInfo, revocation, introspection, logout in both directions,
@@ -28,10 +31,9 @@ here, or under any load.
 - **JAR by reference** (`request_uri` pointing at the client's own server) — resolving it means the
   core fetching a URL the client chose, which is outbound I/O it does not do (FR-A1). A host that
   needs it resolves and pushes the result. See `REQUIREMENTS.md` FR-C12.
-- **A Postgres schema shipped untested** — the Drizzle adapter's query logic is dialect-agnostic but
-  its schema module is not, and shipping a `pg-core` schema nothing has executed would be a claim
-  rather than a feature. SQLite is tested in-process; Postgres is a schema file away for whoever
-  needs it and can run it.
+- **Kysely on MySQL** — removed from FR-A4. MySQL has no `on conflict … do update` and no
+  `returning`, which the Kysely adapter uses for every upsert and insert-if-absent, so it needs its
+  own code paths, and promising a database nothing tests is a claim rather than a feature.
 - **Editing upstream providers from the admin UI** — an issuer and client credentials are deployment
   configuration, not runtime state. The admin shows what is configured.
 - **CIBA push mode**, **OpenID Federation 1.0** trust chains (`G-1`, unless a deployment needs it), and
@@ -143,6 +145,95 @@ an earlier one.
 - [ ] The demo server as an MCP authorization server: a configured MCP resource and a resolver
 - [ ] An end-to-end run with a real MCP client against the demo, rather than only this suite's tests
 
+## Adapter typing and the brokering rename
+
+Before Postgres, which would otherwise be built on the old names. `createBroker` and
+`createAccounts` take any `Adapter` today, so one without `identities` or `credentials` compiles and
+throws on first use (`federation/link.ts:23`). The fix is a requirement at those entry points, not a
+split of `Adapter`: making it the full set would turn `ProviderConfig` into a union, give the
+management API a conditional type and flip what `Adapter` means, all to move one check
+(`upstreams`, config.ts:350) that construction already catches.
+
+- [ ] `Adapter` unchanged: the seven required stores, `identities`/`credentials`/`realms` optional.
+  Beside it, `BrokeringAdapter` (`identities` and `sessions.findByUpstreamSession` required),
+  `CredentialsAdapter`, `RealmsAdapter`, and `FullAdapter` as their intersection
+- [ ] `createBroker` takes a `BrokeringAdapter`, `createAccounts` a `CredentialsAdapter`;
+  `createProvider` keeps `Adapter` and its construction-time check for `upstreams` (NFR-D2).
+  The guard in `link.ts` goes, since the type now makes it unreachable
+- [ ] The first-party adapters (memory, `fromKv`, Drizzle, Kysely, TypeORM, Redis) return
+  `FullAdapter`, and their `federation: boolean` option goes: an adapter that omitted `identities`
+  would make that type a lie, and an unused store costs an empty table. The demo's realms stop
+  passing `federation: false`
+- [ ] Optional methods tied to `features.*` flags (`findByUserCode`, `prune`, the client writes and
+  `list`) stay optional with their construction-time checks; typing each flag would make
+  `ProviderConfig` a union per flag
+- [ ] "Federation" means OpenID Federation 1.0 (`G-1`, ARCHITECTURE.md §5.1), so brokering stops using
+  the word: `oidcraft/federation` → `oidcraft/broker`, `FederatedIdentity`/`FederatedIdentityStore` →
+  `LinkedIdentity`/`LinkedIdentityStore`, `FederationCallback` → `BrokerCallback`, and the
+  `src/federation` directory with them. The table stays `oidc_identities`. CLAUDE.md, ARCHITECTURE.md
+  §2.1 and §5, `verify-entries.ts` and `exports.test.ts` name the entry and move together
+- [ ] ARCHITECTURE.md §4: `Adapter` is what a custom adapter implements; the feature types are what
+  an entry point requires
+
+## Refresh tokens and FAPI 2.0
+
+After the adapter typing, before Postgres. In order: `dpop_jkt` and session-bound refresh tokens stand
+on their own; the profile builds on both.
+
+- [ ] `dpop_jkt` (RFC 9449 §10): the authorization request carries the DPoP key's thumbprint, the code
+  remembers it, and the token request's proof must match. Advertised in discovery
+- [ ] Session-bound refresh tokens (FR-T6): issued without `offline_access` to a client with the
+  `refresh_token` grant, expiring no later than the session, revoked when it ends. Rotating as ever
+- [ ] The FAPI 2.0 profile (FR-C21), opt-in per provider or per client, refusing everything that
+  requirement lists. Most of it is checks on what already exists: `requirePushedAuthorizationRequests`,
+  the assertion audience in `clients/assertion.ts` (the issuer only; outside the profile the token
+  endpoint URL stays accepted, because OIDC Core §9 says the audience SHOULD be it),
+  the `iat`/`nbf` window, `application_type` for `http` redirects
+- [ ] FR-T3's exception: under the profile a refresh token is not rotated, still expires and is still
+  revoked with its grant. The only place rotation is skipped, and a test that a public client still
+  rotates under a provider-wide profile
+- [ ] The demo server stays mixed: its SPAs public as now, plus one seeded `fapi-demo` client under
+  the profile — `private_key_jwt`, DPoP, PAR — driven by a small server-side script or route, since a
+  FAPI client cannot be a browser app. DPoP only: Bun exposes no client certificate (G-8)
+- [ ] `OIDCRAFT_PROFILE=fapi2` starts the demo with the profile provider-wide, the way
+  `OIDCRAFT_DB=memory` already sets up a conformance run, so the suite never meets discovery that
+  has to describe public clients too
+- [ ] The OpenID Foundation FAPI 2.0 test plan as a CI job beside `basic` and `config` (NFR-C1), against
+  the demo in that mode, with its refusals listed the same way
+
+## Postgres (FR-A4)
+
+After the adapter typing and rename above.
+
+FR-A4 already promises Drizzle on Postgres and Kysely on Postgres; what shipped is SQLite only, and
+the Drizzle adapter cannot even be handed a Postgres database (`DrizzleDatabase` is
+`SQLiteAsyncDatabase`). It was once decided against as "a Postgres schema shipped untested"; the
+point was _untested_, and the fix is testing it. When it lands, choosing
+the dialect and how a realm is scoped (schema or database) is the host's, in `configure` (G-6).
+
+- [ ] `POSTGRES_MIGRATIONS` in `adapters/sql/postgres.ts`: the same ids and tables as
+  `SQLITE_MIGRATIONS`, `bigint` milliseconds, JSON kept as `text` so every adapter serialises as
+  today. Unqualified table names, so they land in whatever schema the host migrates into.
+  Exported beside `SQLITE_MIGRATIONS` from the drizzle, kysely and typeorm entries
+- [ ] Kysely: coerce every `Millis` with `Number()` in the row mappers. `pg` returns `int8` as a
+  string, and `new Date('1730000000000')` is an Invalid Date — a real bug on Postgres today
+- [ ] Drizzle: a `pg-core` schema with columns matching `POSTGRES_MIGRATIONS`, and an adapter that
+  takes either dialect's tables. Drizzle binds a schema name when a table is _defined_, so the
+  Postgres tables come from a factory, `postgresTables(schema?)`, or a realm cannot get its own
+  schema. Same `./adapters/drizzle` entry: `pg-core` ships inside `drizzle-orm`, so no new peer
+- [ ] TypeORM: `TYPEORM_POSTGRES_MIGRATIONS` from the same statements. Its `millis` transformer
+  already numbers a string `bigint`; `insertIfAbsent` gets a lost-race test on Postgres, where a
+  failed insert would abort an enclosing transaction
+- [ ] The adapter conformance suite on Postgres for all three, on a `postgres` CI service with
+  `POSTGRES_URL`, skipped without it — the pattern `REDIS_URL` already uses. `pg` as the one dev
+  dependency: Kysely's `PostgresDialect`, `drizzle-orm/node-postgres` and TypeORM's driver all take it
+- [ ] Realm isolation, which is the G-6 claim: two schemas in one database, the suite on each, and
+  nothing written through one visible through the other — via `withSchema`, `postgresTables(schema)`
+  and TypeORM's `schema` option
+- [ ] ARCHITECTURE.md §4.2 (two migration sets) and §7.1 (a Postgres schema per realm as the
+  example)
+- [ ] Optional, last: `OIDCRAFT_DB=postgres://…` in the demo server, a schema per realm
+
 ## Demo server
 
 `apps/demo-server` is reworked into one coherent demo before the docs site, in this order. TOTP
@@ -191,7 +282,11 @@ What is _not_ claimed: see the status section. Implemented is not the same as ce
 1. ~~Fix what the server review found~~ — done 2026-10-13, every finding below. The review was by
    agents reading the code against REQUIREMENTS.md, so it narrowed the search rather than ending it.
 2. ~~The conformance suite in CI~~ (NFR-C1) — the `conformance` job, pinned by `SUITE_VERSION`.
-3. **The docs site.**
+3. **Adapter typing and the brokering rename.**
+4. **Refresh tokens and FAPI 2.0.**
+5. **Postgres.**
+6. **The MCP demo**, then a real MCP client (opencode) against it.
+7. **`npm trust` and the docs site**, once the work above is done.
 
 ## Server review — 2026-10-10
 
@@ -334,12 +429,10 @@ building a worse site to preserve a rule that was about something else.
 
 ## Decisions waiting on an answer
 
-- `G-6` multi-tenancy — realms (FR-M4) on the `realms` branch, storage per realm; shared tables still open.
-- `G-3` FAPI 2.0 — an opt-in profile, after `dpop_jkt`; waiting on narrowing FR-T3 for confidential,
-  sender-constrained clients under that profile.
+None.
 
-Decided: `G-1` OpenID Federation 1.0 not planned unless a deployment needs it · `G-4` upstream SAML
-not in-tree · `G-8` mTLS unavailable on Bun until Bun exposes the certificate.
+Decided: `G-3` FAPI 2.0 as an opt-in profile (FR-C21), with FR-T3's exception for its clients · `G-1` OpenID Federation 1.0 not planned unless a deployment needs it · `G-4` upstream SAML
+not in-tree · `G-6` storage per realm, never shared tables · `G-8` mTLS unavailable on Bun until Bun exposes the certificate.
 
 ## Federation moved off `openid-client`
 

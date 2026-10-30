@@ -80,7 +80,7 @@ packages/server/            one published package, thirteen entries — publishe
   src/runtimes/workerd/     ./runtimes/workerd    request context for Cloudflare Workers
   src/adapters/memory/      ./adapters/memory     tests and development only
   src/adapters/drizzle/     ./adapters/drizzle    Postgres, SQLite
-  src/adapters/kysely/      ./adapters/kysely     Postgres, SQLite, MySQL
+  src/adapters/kysely/      ./adapters/kysely     Postgres, SQLite
   src/adapters/typeorm/     ./adapters/typeorm    a TypeORM DataSource; SQLite schema shipped as migrations
   src/adapters/redis/       ./adapters/redis      any Redis client, through one command function
 apps/

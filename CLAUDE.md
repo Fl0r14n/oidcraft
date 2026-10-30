@@ -48,8 +48,9 @@ These are the ones where a plausible-looking change is a security bug:
   `Adapter` (FR-A1).
 - **PKCE is required except for the one OAuth 2.1 exemption** — a confidential client the host
   opted out, on a request carrying a `nonce` — and never for a public client, nor for a dynamically
-  registered one the host's `onRegister` did not vouch for. Refresh tokens always rotate, and replaying a single-use artifact revokes its grant;
-  neither is a configuration flag (FR-C3, FR-T3, FR-T4).
+  registered one the host's `onRegister` did not vouch for. Refresh tokens rotate — the only exception
+  is a client under the FAPI 2.0 profile, confidential and sender-constrained — and replaying a
+  single-use artifact revokes its grant; neither is a configuration flag (FR-C3, FR-T3, FR-T4, FR-C21).
 - **Account linking defaults to `(provider, subject)`.** Never add email matching as a default —
   it is an account-takeover primitive against any upstream that does not verify addresses
   (FR-F5, NFR-S8).

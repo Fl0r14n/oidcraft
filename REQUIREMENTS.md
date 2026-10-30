@@ -168,6 +168,18 @@ URIs that are the client's registration, `http://localhost` among them unless it
 PKCE is always required. A stored client with the same id wins. The consent screen shows the
 client's host, the host the person returns to, and warns when that is this computer.
 
+**FR-C21 — FAPI 2.0 Security Profile**, opt-in per provider or per client, never a change of the
+defaults. Under it the provider refuses what it otherwise only supports: a public client; client
+authentication other than `private_key_jwt` or mTLS; an authorization request not pushed (PAR,
+`request_uri` under 600 s); a token that is not sender-constrained (DPoP or mTLS), and DPoP without
+`dpop_jkt` binding the code (RFC 9449 §10); signing algorithms other than PS256, ES256 and EdDSA; a
+client assertion whose `aud` is not exactly the issuer; an assertion outside the 10 s `iat` / 60 s
+`nbf` window; an `http` redirect for a client that is not native. Refresh tokens follow FR-T3's
+exception. It is one switch, never assembled from individual settings: under it the provider refuses
+to start on a configuration that cannot meet it (NFR-D2), a client that cannot meet it is refused at
+registration and upsert, and discovery advertises only what it allows. Verified by the OpenID Foundation's FAPI 2.0 test plan in CI, as NFR-C1 does for `basic`
+and `config`. Message Signing is a separate profile and not part of this.
+
 ## 4. Tokens — `FR-T*`
 
 **FR-T1** — ID tokens are always JWS; `none` never. An `RS256` key is mandatory in every key set
@@ -180,13 +192,23 @@ server is configured for it. Opaque is the default because a revoked opaque toke
 immediately and a revoked JWT does not.
 
 **FR-T3** — Refresh tokens rotate on every use. Reuse of a consumed refresh token revokes the
-entire grant (RFC 9700 §4.14.2). This is not configurable.
+entire grant (RFC 9700 §4.14.2). This is not configurable. The one exception is a client under the
+FAPI 2.0 profile (FR-C21): confidential, authenticating with a key, and holding sender-constrained
+tokens, so its refresh token is useless without that key and rotation would only lose grants to a
+dropped response (FAPI 2.0 Security Profile §5.3.2.1). Its refresh token does not rotate; it still
+expires, and is still revoked with its grant.
 
 **FR-T4** — Authorization codes are single-use with the same consequence on replay: consuming a
 code twice revokes the grant it belongs to.
 
 **FR-T5** — Every artifact carries an absolute expiry that storage enforces, so a store that
 misses a prune cycle still cannot serve an expired token.
+
+**FR-T6** — A refresh token without `offline_access` is bound to the session it was issued in: it
+expires no later than that session and dies when the session ends, logout included. It rotates as
+FR-T3 says. One with `offline_access` outlives the session (OIDC Core §11), within `refreshToken`
+idle and `refreshTokenFamily` absolute lifetimes. A browser client renews without a third-party
+cookie, and a stolen session-bound token is good only while the session lasts.
 
 ## 5. Storage — `FR-A*`
 
@@ -204,7 +226,7 @@ write only if the key is absent, atomically: single use (FR-T3, FR-T4, NFR-S4) c
 a read followed by a write, so an eventually consistent store cannot back a provider.
 
 **FR-A4** — First-party adapters ship for **Drizzle** (Postgres and SQLite), **Kysely**
-(Postgres, SQLite, MySQL) and **TypeORM** (FR-A6), plus an in-memory one for tests. Each ships its schema as migrations
+(Postgres, SQLite) and **TypeORM** (FR-A6), plus an in-memory one for tests. Each ships its schema as migrations
 the host runs, never as something the library applies at boot.
 
 **FR-A5** — Adapters that own their schema must expose real columns and indexes for every value
@@ -440,20 +462,12 @@ of those ecosystems needs it. Resolving a trust chain is outbound fetching the c
 (FR-A1), so it would arrive as its own entry with a host-supplied fetcher, and nothing in the core
 assumes it away.
 
-**G-3 — FAPI 2.0.** Target: an opt-in profile, per client or per provider, never a change of the
-defaults. Most of what the Security Profile (Final, 2025-02-22) requires is built — PKCE S256,
-`response_type=code`, RFC 9207 `iss`, single-use codes of ≤ 60 s, PAR with `request_uri` < 600 s,
-`private_key_jwt`, DPoP with nonces. Missing: Authorization Code Binding to DPoP Key (`dpop_jkt`,
-RFC 9449 §10), which it requires of DPoP; and enforcing what is now only supported — confidential
-clients only, PAR required, PS256/ES256/EdDSA only, client-assertion `aud` exactly the issuer, the
-10 s/60 s `iat`/`nbf` window, `http` redirects for native clients only. **It conflicts with FR-T3**:
-§5.3.2.1 says the server "shall not use refresh token rotation except in extraordinary
-circumstances", because for a confidential client with sender-constrained tokens rotation adds no
-security and loses grants whenever a client misses the new token. The proposal is to narrow FR-T3
-for exactly that case under the profile — the refresh token is useless without the client's key,
-and RFC 9700 §4.14.2 requires rotation or sender-constraining only of public clients — rather than
-FAPI's alternative of rotation with a retry window. Waiting on that decision. Verified by the
-OpenID Foundation's FAPI 2.0 test plan in CI, as NFR-C1 does for `basic` and `config`.
+**G-3 — FAPI 2.0.** Decided: the Security Profile as FR-C21. Its conflict with FR-T3 — §5.3.2.1
+says the server "shall not use refresh token rotation except in extraordinary circumstances" — is
+resolved by FR-T3's exception for exactly the clients the profile allows, which RFC 9700 §4.14.2
+permits (rotation or sender-constraining, and only of public clients), rather than by FAPI's
+alternative of rotation with a retry window, which would weaken reuse detection for everyone in the
+profile.
 
 **G-4 — Upstream SAML.** Decided against, in-tree. Validating XML signatures is a history of
 signature-wrapping and canonicalisation vulnerabilities, it would bring a large XML-crypto
@@ -461,9 +475,11 @@ dependency, and the enterprise IdPs that once needed it (ADFS, Entra ID, Okta, P
 host that must accept SAML puts a SAML-to-OIDC bridge upstream and brokers to it as an OIDC
 provider, or implements `UpstreamProvider` itself.
 
-**G-6 — Multi-tenancy.** Answered by FR-M4, with storage per realm. Still open: realms sharing
-tables through a realm column in every table and query, for a deployment with more realms than it
-wants databases or schemas. Additive — an optional `realm` on each adapter — when someone needs it.
+**G-6 — Multi-tenancy.** Answered by FR-M4, with storage per realm. Shared tables — a realm column
+in every table and query — are decided against: isolation would then rest on every query of five
+adapters remembering a filter, and one that forgets serves another realm's clients, grants or
+identities. Per-realm storage makes that structural. A deployment with more realms than it wants
+databases scopes one backend instead: a Redis `prefix`, a Postgres schema, a SQLite file each.
 
 **G-8 — mTLS on Bun.** `Bun.serve` accepts `tls.requestCert`, so the handshake can ask for a client
 certificate, but its `Server` interface exposes only `requestIP`, `timeout`, `upgrade`, `publish`

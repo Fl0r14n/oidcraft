@@ -200,10 +200,10 @@ on their own; the profile builds on both.
   revoked with its grant. The only place rotation is skipped. A public client cannot be under a
   provider-wide profile at all, so the test that rotation is untouched is a per-client profile beside
   ordinary clients. Landed 2026-10-30, `src/profile/fapi.ts` (ARCHITECTURE.md §3.3)
-- [ ] The demo server stays mixed: its SPAs public as now, plus one seeded `fapi-demo` client under
+- [x] The demo server stays mixed: its SPAs public as now, plus one seeded `fapi-demo` client under
   the profile — `private_key_jwt`, DPoP, PAR — driven by a small server-side script or route, since a
   FAPI client cannot be a browser app. DPoP only: Bun exposes no client certificate (G-8)
-- [ ] `OIDCRAFT_PROFILE=fapi2` starts the demo with the profile provider-wide, the way
+- [x] `OIDCRAFT_PROFILE=fapi2` starts the demo with the profile provider-wide, the way
   `OIDCRAFT_DB=memory` already sets up a conformance run, so the suite never meets discovery that
   has to describe public clients too
 - [ ] The OpenID Foundation FAPI 2.0 test plan as a CI job beside `basic` and `config` (NFR-C1), against

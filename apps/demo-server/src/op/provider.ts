@@ -1,6 +1,6 @@
 /// <reference types="bun" />
-
 import { createProvider, staticKeyStore } from 'oidcraft'
+import { seedFapiDemoClient } from '../fapi/demo'
 import { screens } from '../interaction/screens'
 import { accountStore, createDemoAccounts, seedDemoAccounts } from './accounts'
 import { issuer, optional } from './env'
@@ -37,10 +37,16 @@ setInterval(() => void adapter.artifacts.prune?.(new Date(), 1000), 10 * 60_000)
 await seedDemoClient(adapter)
 await seedFirstPartyClients(adapter, issuer())
 await seedConformanceClients(adapter)
+await seedFapiDemoClient(adapter, issuer())
+
+// OIDCRAFT_PROFILE=fapi2 puts every client under FAPI 2.0, as its conformance plan expects (FR-C21).
+// Off, only the FAPI demo client is, beside the public ones.
+const profile = optional('OIDCRAFT_PROFILE')
 
 export const provider = createProvider({
   issuer: issuer(),
   adapter,
+  ...(profile && { profile: profile as 'fapi2' }),
   interactionUrl: `${issuer()}/interaction`,
   // Descriptors only: the admin API lists these, and an upstream's client secret is not for it.
   upstreams: upstreams.map(({ id, label, domains }) => ({ id, ...(label && { label }), ...(domains && { domains }) })),

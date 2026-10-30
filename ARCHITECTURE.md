@@ -545,6 +545,14 @@ The admin's realm panel creates, disables and deletes realms, and `?realm=` aims
 call at one realm's management, so the panels for clients, accounts and keys are the same code. The
 admin and account apps themselves are the control plane's only.
 
+**FAPI 2.0 is mixed by default (FR-C21).** With an https issuer, `src/fapi/demo.ts` seeds
+`fapi-demo` under the profile beside the public clients and plays its part on the server, since a
+FAPI client is confidential: `/fapi-demo` pushes the request with a client assertion and a DPoP
+proof, and its callback redeems the code with DPoP and calls UserInfo. Its keys are the process's
+own, re-registered at each start. With an http issuer it is not seeded, as FAPI refuses an http
+redirect for a web client. `OIDCRAFT_PROFILE=fapi2` puts the whole provider under the profile for
+the FAPI conformance plan, which refuses the public admin and account apps.
+
 ### 8.2 `apps/demo-vue` — the demo relying party
 
 Vue 3 + `vue-oidc`, ported from that library's own sample app, and now resolving it from the

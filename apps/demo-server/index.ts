@@ -4,6 +4,7 @@ import { serve } from 'bun'
 import { bunContext } from 'oidcraft/runtimes/bun'
 import { accountApi } from './src/account/api'
 import { adminApi } from './src/admin/api'
+import { fapiDemoRoutes } from './src/fapi/demo'
 import { brokerCallback } from './src/interaction/broker'
 import { routesFor } from './src/interaction/routes'
 import { optional } from './src/op/env'
@@ -50,6 +51,10 @@ const server = serve({
     if (url.pathname === '/reset') return routes.resetRoutes(request, url)
     if (url.pathname === '/federation/callback' && site.brokering) {
       const response = await brokerCallback(request, url)
+      if (response) return response
+    }
+    if (url.pathname.startsWith('/fapi-demo') && site === control) {
+      const response = await fapiDemoRoutes(provider, url)
       if (response) return response
     }
     if (url.pathname === '/device' || url.pathname === '/device/decide') {

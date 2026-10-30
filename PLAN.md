@@ -247,7 +247,7 @@ the dialect and how a realm is scoped (schema or database) is the host's, in `co
   and TypeORM's `schema` option
 - [x] ARCHITECTURE.md §4.2 (two migration sets) and §7.1 (a Postgres schema per realm as the
   example)
-- [ ] Optional, last: `OIDCRAFT_DB=postgres://…` in the demo server, a schema per realm
+- [x] `OIDCRAFT_DB=postgres://…` in the demo server, a schema per realm (`realm_<id>`), through Drizzle on Bun.sql
 - Landed 2026-10-31, on Postgres 19rc1 (the newest image; 19 is not released). Drizzle runs on both
   `pg` and Bun.sql. Both drivers return `bigint` as a string on 19 as on 17, so the Kysely conversion
   is needed either way; the conformance suite fails three tests without it

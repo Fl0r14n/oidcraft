@@ -552,6 +552,9 @@ only site that brokers upstream — and each realm is a subdomain of it, `acme.l
 its accounts and its branded screens), so the same interaction, device and reset code serves every
 realm. `provision` gives a realm its own SQLite file and key pair under `data/realms/` and
 registers the demo relying party, so a new realm can be signed in to at once; `retire` deletes them.
+With `OIDCRAFT_DB=postgres://…` the control plane is the database's `public` schema and a realm is
+`realm_<id>` beside it, migrated at `provision` and dropped at `retire` — one database, one pool,
+storage still per realm (G-6).
 The admin's realm panel creates, disables and deletes realms, and `?realm=` aims every other admin
 call at one realm's management, so the panels for clients, accounts and keys are the same code. The
 admin and account apps themselves are the control plane's only.

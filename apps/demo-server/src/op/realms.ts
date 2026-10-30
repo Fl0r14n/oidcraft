@@ -6,7 +6,7 @@ import { issuer, optional } from './env'
 import { control, controlAdapter } from './provider'
 import { seedDemoClient } from './seed'
 import type { Site } from './site'
-import { openAdapter, storageLocation } from './storage'
+import { dropPostgresSchema, isPostgres, openAdapter, storageLocation } from './storage'
 
 /** Off unless OIDCRAFT_REALMS=on: the demo is one issuer, as most deployments are (FR-M4). */
 export const realmsEnabled = optional('OIDCRAFT_REALMS') === 'on'
@@ -23,8 +23,12 @@ const realmOf = (request: Request) => {
 export const realmIssuer = (id: string) => `${controlUrl.protocol}//${id}.${controlUrl.host}`
 
 const memory = storageLocation() === 'memory'
-// Beside the control plane's database: data/oidcraft.sqlite keeps its realms in data/realms/.
-const directory = `${storageLocation().replace(/[^/]*$/, '')}realms`
+const postgres = isPostgres(storageLocation())
+// Beside the control plane's database: data/oidcraft.sqlite keeps its realms in data/realms/. On
+// Postgres a realm is a schema in the same database, and only its keys are files.
+const directory = postgres ? 'data/realms' : `${storageLocation().replace(/[^/]*$/, '')}realms`
+// A realm id is a DNS label, so this is injective and needs no quoting: no id holds an underscore.
+const schemaOf = (id: string) => `realm_${id.replaceAll('-', '_')}`
 const file = (id: string, extension: string) => `${directory}/${id}.${extension}`
 
 // Each realm's own keys, never generatedKeyStore(): its RSA key is one per process, and createRealms
@@ -41,7 +45,11 @@ const storages = new Map<string, FullAdapter>()
 const storageOf = async (id: string) => {
   let storage = storages.get(id)
   if (!storage) {
-    storage = await openAdapter(memory ? 'memory' : file(id, 'sqlite'), { keys: staticKeyStore(await readKeys(id)) })
+    const keys = staticKeyStore(await readKeys(id))
+    storage = await openAdapter(memory ? 'memory' : postgres ? storageLocation() : file(id, 'sqlite'), {
+      keys,
+      ...(postgres && { schema: schemaOf(id) })
+    })
     storages.set(id, storage)
   }
   return storage
@@ -75,6 +83,7 @@ export const realms = realmsEnabled
         sites.delete(realm.id)
         keysInMemory.delete(realm.id)
         if (memory) return
+        if (postgres) await dropPostgresSchema(storageLocation(), schemaOf(realm.id))
         for (const extension of ['sqlite', 'sqlite-wal', 'sqlite-shm', 'jwks.json']) {
           const target = Bun.file(file(realm.id, extension))
           if (await target.exists()) await target.delete()

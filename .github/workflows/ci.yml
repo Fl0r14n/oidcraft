@@ -44,6 +44,21 @@ jobs:
     needs: check
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # NFR-C1's basic and config plans, and FAPI 2.0's (FR-C21) against the same demo under the profile.
+    # The FAPI run gives sessions a few seconds, so each module starts signed out (conformance/README.md).
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - plan: oidc
+            args: ""
+            profile: ""
+            session_ttl: ""
+          - plan: fapi
+            args: fapi
+            profile: fapi2
+            session_ttl: "3"
+    name: conformance (${{ matrix.plan }})
     env:
       # The checkout and the images move together; bump both by changing this one value.
       SUITE_VERSION: release-v5.3.2
@@ -55,6 +70,8 @@ jobs:
       SERVER_TLS_KEY: ../../conformance/tls/key.pem
       # Every run starts from nothing, so a module never sees state another one left behind.
       OIDCRAFT_DB: memory
+      OIDCRAFT_PROFILE: ${{ matrix.profile }}
+      OIDCRAFT_SESSION_TTL: ${{ matrix.session_ttl }}
     steps:
       - uses: actions/checkout@v6
       - uses: oven-sh/setup-bun@v2
@@ -87,7 +104,7 @@ jobs:
           done
           cat "$RUNNER_TEMP/op.log"
           exit 1
-      - run: bun run conformance
+      - run: bun run conformance ${{ matrix.args }}
         env:
           CONFORMANCE_SUITE_DIR: ${{ env.SUITE_DIR }}
       - if: always()
@@ -95,6 +112,6 @@ jobs:
       - if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: conformance-results
+          name: conformance-results-${{ matrix.plan }}
           path: conformance/results/
           if-no-files-found: ignore

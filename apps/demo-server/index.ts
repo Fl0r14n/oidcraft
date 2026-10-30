@@ -14,6 +14,8 @@ import { realms, realmsEnabled, siteOf } from './src/op/realms'
 const port = Number(Bun.env.SERVER_PORT ?? 3001)
 // Discovery 1.0 §3 and RFC 8414 §2 require an https issuer even on loopback.
 const cert = optional('SERVER_TLS_CERT')
+// TLS 1.2 limited to the four suites FAPI 2.0 permits (BCP 195); TLS 1.3 suites are all acceptable.
+const TLS12_CIPHERS = 'ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384'
 const key = optional('SERVER_TLS_KEY')
 
 // A route, not a file read: only the bundler substitutes the script and style tags.
@@ -24,7 +26,7 @@ const account = (await import('./src/account/index.html')).default
 // provider for what Request does not carry (ARCHITECTURE.md §3.1).
 const server = serve({
   port,
-  ...(cert && key && { tls: { cert: Bun.file(cert), key: Bun.file(key) } }),
+  ...(cert && key && { tls: { cert: Bun.file(cert), key: Bun.file(key), ciphers: TLS12_CIPHERS } }),
   routes: {
     // More specific than '/admin/*', so the API is not swallowed by the SPA shell.
     '/admin/api/*': request =>

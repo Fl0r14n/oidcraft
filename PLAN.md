@@ -206,8 +206,15 @@ on their own; the profile builds on both.
 - [x] `OIDCRAFT_PROFILE=fapi2` starts the demo with the profile provider-wide, the way
   `OIDCRAFT_DB=memory` already sets up a conformance run, so the suite never meets discovery that
   has to describe public clients too
-- [ ] The OpenID Foundation FAPI 2.0 test plan as a CI job beside `basic` and `config` (NFR-C1), against
-  the demo in that mode, with its refusals listed the same way
+- [x] The OpenID Foundation FAPI 2.0 test plan in CI (NFR-C1), a second entry of the `conformance`
+  job's matrix against the demo with `OIDCRAFT_PROFILE=fapi2`. Green locally 2026-10-30, 53 modules,
+  5 REVIEW, 1 expected skip (conformance/README.md). Running it found, and this fixed:
+  - FR-C21 had the profile _require_ `dpop_jkt`; FAPI 2.0 only has the server support it
+  - a confidential client's refresh token was bound to its DPoP key, which RFC 9449 §5 says it is not
+  - DPoP `htu` compared as a string; §4.3 ignores the query and fragment and the case of scheme and host
+  - under the profile: a DPoP `iat` 10 s ahead refused, FAPI's algorithms not applied at UserInfo, and
+    an assertion `aud` array holding the issuer accepted
+  - the demo's TLS 1.2 accepted ciphers BCP 195 does not recommend, and its login had no Cancel
 
 ## Postgres (FR-A4)
 

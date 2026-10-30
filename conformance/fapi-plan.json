@@ -1,0 +1,207 @@
+{
+  "alias": "oidcraft-fapi",
+  "description": "oidcraft OP, FAPI 2.0 Security Profile: private_key_jwt, DPoP, OpenID Connect",
+  "server": {
+    "discoveryUrl": "https://localhost:3001/.well-known/openid-configuration"
+  },
+  "client": {
+    "client_id": "fapi-conformance-client",
+    "scope": "openid profile offline_access",
+    "jwks": {
+      "keys": [
+        {
+          "d": "KLl7v8bwv3Am4wQ8F4HdgkA3OQX4hBRmdQnI19n95IhW_ysf70zbY-myFBomrpAcNFYiYQFHVbRvzZkLnRZup0ORHRtHZ-BF6bPX9L4f3H8NaQfdxYLDof98B9JqO8j3yTbCnjlcnBoxWUylbOm_qTCXA-K9wpm4YNSVL38YsASO2Xa1ZbVYjmFT5qAdMMdPC8sneN2U7bbQsjX3hAzuHicwPng972udMlagjfenoHHLp7mA5dVeoETS4Jkp4bPHdoC0f1jZh-PRX5Uxn8WWGk35tDBA0m_M8275NCGhmBRBm1qDWT19RgYI0EOGaokR0zvfYzRXKfDcWjnjpuQJsQ",
+          "dp": "oqrg92PwO_ASkApFm2i1SM6qO8jCW3p2r5oEIy2CB4ixgPlQtQ4JM0_7T-h8WSoyWvCOQFpmYC73MNVu-d0fgufF-HhfAuM2Om2g_FL4Swj85j2a7allzrJix4vIQVH9loInQ8JGVs6CFnuVRGeBkFBr8GR4wV5XYQNh1N-ujB0",
+          "dq": "bMLE713olX9zHxpQmbKfqYTCYLe__T6Nv9ae5TPlxeakvvbFoDomnBNeDSNghfxOL57LIVXsF3PG11DzrWdURpCuegzHjmgub1V9WdcRDvL7ywZOnX39s7F00OjHTSCfh88aqmHTp456eJZK2YemCQrXyONfbHkR1_GMrItGStE",
+          "e": "AQAB",
+          "kty": "RSA",
+          "n": "zUgBhXFvTi1kVXoSDPmSTyD69EdE09fr8cneqFi34DmQfFNFbPNh53fIvutKqzhv2SN3S3maPdeG_FgyIinB6U092Y2XXsWLxOzTNPU7SgDYRujFjrvYhEy2g1JVwQkE-a4vQXqTuUoImDQxX7n-WEZ-jqZGfz8YpyXfxNtPrZHUvi5xWqeA8SIvQeGs1V-EpgYH-bSiBltM4_WuClgSdBhrCmMDilNaCW9jeA2QspOlFzVApVwNIb2N2twyUW6kpFcMJZ2NLf8WFfBFiYZqPfFDvBBq3WPTpZXA0QS2INI2Ozb8dsLOmxnQlzixWV_eWa97yjMg2yczsaU-C_2i7Q",
+          "p": "6O9hJ-di4z7KV3oCl_eizCzsCgScIOUIz2mqkh-44NTI0VlJvekoSWTcXOWEFvhcs-Hp0jFFpgeXsLtQ1BXpewPTRnx52ILC1R_obbNQ3bDUGmSoKQ74kRNM58Qrl1LcwgFXV8EvWv65XVZ1RjhcRSt1LDJqXbWTj1EMty-gNwU",
+          "q": "4Zui3hKBo9rtNLp94qEP9rOOq4FHImzUJprRcJpdx7zM8vulPZA0TB4YR7SHGdrLFozIwZF9Q6hICvQMXiWDbTekbZOIXRU4T4ENAfbZ4nD5rgyOchenViiM8XGvHfarwCOK8VaBfng6yU_wDV-ofsy_lJ1kMrH004sIbXwTsMk",
+          "qi": "FbSolWdu4Z866lsNrJ8pKSpzwMFfQWnV6gl6YYhxAPBYktOqT31oBYHiVHivnSy1mlymFfx9gPT0_KS3sOc_D071gnhvovAxhUJA5OaNj4jfKN3BcIXJqba2D_iWjiq2OXJAByunlVzryquNMb4dwCrPje4Bh6YoTzz5e6iWVvo",
+          "alg": "PS256",
+          "use": "sig",
+          "kid": "caRKp1UO9_A_iCyvL6sbIbyf3_qxUOy9bq-xIpaWEBo"
+        }
+      ]
+    }
+  },
+  "client2": {
+    "client_id": "fapi-conformance-client-2",
+    "scope": "openid profile offline_access",
+    "jwks": {
+      "keys": [
+        {
+          "crv": "P-256",
+          "d": "acBIAnr9JNlriGd9_cnqhOi2fidYxzxzsV1alIXdFVI",
+          "kty": "EC",
+          "x": "tsMw2-EeinBCrbnUUBsE5gTIu82r2IdAXAP-1jErHEE",
+          "y": "zEfvaHFoI4Rns7nGiTua47I16ReTIcwjwm8U-CrkjmM",
+          "alg": "ES256",
+          "use": "sig",
+          "kid": "hZHGYAkOPQqOSpQJi_JOg6MkbG2nK92OHFVGW_1soxM"
+        }
+      ]
+    }
+  },
+  "resource": {
+    "resourceUrl": "https://localhost:3001/userinfo"
+  },
+  "browser": [
+    {
+      "match": "https://localhost:3001/authorize*",
+      "tasks": [
+        {
+          "task": "Sign in, or pick the signed-in account",
+          "optional": true,
+          "match": "https://localhost:3001/interaction/*",
+          "commands": [
+            ["text", "id", "u", "conformance-user", "optional"],
+            ["text", "id", "p", "conformance-password", "optional"],
+            ["click", "css", "button[type=submit]"]
+          ]
+        },
+        {
+          "task": "Consent",
+          "optional": true,
+          "match": "https://localhost:3001/interaction/*",
+          "commands": [["click", "css", "button[value=allow]"]]
+        },
+        {
+          "task": "Verify Complete",
+          "match": "*/test/*/callback*",
+          "commands": [["wait", "id", "submission_complete", 10]]
+        }
+      ]
+    }
+  ],
+  "override": {
+    "fapi2-security-profile-final-user-rejects-authentication": {
+      "browser": [
+        {
+          "match": "https://localhost:3001/authorize*",
+          "tasks": [
+            {
+              "task": "Cancel the sign-in",
+              "match": "https://localhost:3001/interaction/*",
+              "commands": [["click", "css", "button[value=cancel]"]]
+            },
+            {
+              "task": "Verify Complete",
+              "match": "*/test/*/callback*",
+              "commands": [["wait", "id", "submission_complete", 10]]
+            }
+          ]
+        }
+      ]
+    },
+    "fapi2-security-profile-final-ensure-unsigned-authorization-request-without-using-par-fails": {
+      "browser": [
+        {
+          "match": "https://localhost:3001/authorize*",
+          "tasks": [
+            {
+              "task": "Expect the error page",
+              "match": "https://localhost:3001/authorize*",
+              "commands": [["wait", "xpath", "//*", 10, "cannot continue", "update-image-placeholder"]]
+            }
+          ]
+        }
+      ]
+    },
+    "fapi2-security-profile-final-par-attempt-to-use-expired-request_uri": {
+      "browser": [
+        {
+          "match": "https://localhost:3001/authorize*",
+          "tasks": [
+            {
+              "task": "Expect the error page",
+              "match": "https://localhost:3001/authorize*",
+              "commands": [["wait", "xpath", "//*", 10, "cannot continue", "update-image-placeholder"]]
+            }
+          ]
+        }
+      ]
+    },
+    "fapi2-security-profile-final-par-attempt-reuse-request_uri": {
+      "browser": [
+        {
+          "match": "https://localhost:3001/authorize*",
+          "tasks": [
+            {
+              "task": "Sign in, or pick the signed-in account",
+              "optional": true,
+              "match": "https://localhost:3001/interaction/*",
+              "commands": [
+                ["text", "id", "u", "conformance-user", "optional"],
+                ["text", "id", "p", "conformance-password", "optional"],
+                ["click", "css", "button[type=submit]"]
+              ]
+            },
+            {
+              "task": "Consent",
+              "optional": true,
+              "match": "https://localhost:3001/interaction/*",
+              "commands": [["click", "css", "button[value=allow]"]]
+            },
+            {
+              "task": "Verify Complete",
+              "match": "*/test/*/callback*",
+              "commands": [["wait", "id", "submission_complete", 10]]
+            }
+          ],
+          "match-limit": 1
+        },
+        {
+          "match": "https://localhost:3001/authorize*",
+          "tasks": [
+            {
+              "task": "Expect the error page",
+              "match": "https://localhost:3001/authorize*",
+              "commands": [["wait", "xpath", "//*", 10, "cannot continue", "update-image-placeholder"]]
+            }
+          ]
+        }
+      ]
+    },
+    "fapi2-security-profile-final-par-ensure-reused-request-uri-prior-to-auth-completion-succeeds": {
+      "browser": [
+        {
+          "match": "https://localhost:3001/authorize*",
+          "tasks": [
+            {
+              "task": "See the sign-in page, without signing in",
+              "match": "https://localhost:3001/interaction/*",
+              "commands": [["wait", "xpath", "//*", 10, "Sign in"]]
+            }
+          ],
+          "match-limit": 1
+        },
+        {
+          "match": "https://localhost:3001/authorize*",
+          "tasks": [
+            {
+              "task": "Expect the error page",
+              "match": "https://localhost:3001/authorize*",
+              "commands": [["wait", "xpath", "//*", 10, "cannot continue", "update-image-placeholder"]]
+            }
+          ]
+        }
+      ]
+    },
+    "fapi2-security-profile-final-par-attempt-to-use-request_uri-for-different-client": {
+      "browser": [
+        {
+          "match": "https://localhost:3001/authorize*",
+          "tasks": [
+            {
+              "task": "Expect the error page",
+              "match": "https://localhost:3001/authorize*",
+              "commands": [["wait", "xpath", "//*", 10, "cannot continue", "update-image-placeholder"]]
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

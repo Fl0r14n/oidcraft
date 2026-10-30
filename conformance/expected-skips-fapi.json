@@ -1,0 +1,7 @@
+[
+  {
+    "test-name": "fapi2-security-profile-final-test-claims-parameter-identity-claims",
+    "variant": "*",
+    "configuration-filename": "*"
+  }
+]

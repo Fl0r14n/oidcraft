@@ -84,6 +84,12 @@ const build = (site: Site) => {
 
       if (request.method === 'POST' && action === 'login') {
         const body = await form(request)
+        if (body.get('decision') === 'cancel') {
+          const { redirectTo, setCookie } = await provider.interactions.complete(id, {
+            error: { error: 'access_denied', description: 'the user cancelled the sign-in' }
+          })
+          return seeOther(redirectTo, setCookie)
+        }
         const username = body.get('username') ?? ''
         const password = body.get('password') ?? ''
         const errors = { username: oauthFieldError(username), password: oauthFieldError(password) }

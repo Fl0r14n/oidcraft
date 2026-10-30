@@ -17,7 +17,14 @@ describe('the conformance browser contract', () => {
     expect(html).toContain('Sign in')
     expect(firstButton(html)).toContain('type="submit"')
     expect(firstButton(html)).not.toContain('name="provider"')
+    expect(firstButton(html)).not.toContain('value="cancel"')
     expect(html).not.toContain('<script>')
+  })
+
+  // conformance/fapi-plan.json rejects authentication with it; formnovalidate lets it post empty fields.
+  test('login can be cancelled without filling it in', async () => {
+    const html = await (await screens.login(view, { upstreams: [], forgot: false, register: false })).text()
+    expect(html).toMatch(/<button[^>]*value="cancel"[^>]*formnovalidate|<button[^>]*formnovalidate[^>]*value="cancel"/)
   })
 
   test('account selection says so and submits on the first button', async () => {

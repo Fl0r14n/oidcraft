@@ -77,6 +77,36 @@ screenshot": `oidcc-prompt-login` and `oidcc-max-age-1` (the second login page) 
 `oidcc-ensure-registered-redirect-uri` (the error page). `plan.json` takes those screenshots
 automatically; certification still means someone reviews them.
 
+## FAPI 2.0
+
+`fapi2-security-profile-final-test-plan` with `openid_connect`, `private_key_jwt`, `dpop` and
+`plain_fapi` (FR-C21) runs as the second entry of the same CI job. **Green locally, 2026-10-30:** 53
+modules, no failures, no warnings. It runs against the demo with the whole provider under the profile:
+
+```sh
+OIDCRAFT_PROFILE=fapi2       # every client under FAPI 2.0; seeds fapi-plan.json's two clients
+OIDCRAFT_SESSION_TTL=3       # each module starts signed out, so there is a sign-in to cancel
+bun run dev:server
+CONFORMANCE_SUITE_DIR=<the suite checkout> bun run conformance fapi
+```
+
+`fapi-plan.json` carries both clients' private keys, as `plan.json` carries its secrets: they exist
+only for this suite. The first is PS256, so the module that signs an assertion with RS256 runs.
+
+The short session is the suite's need, not the profile's. Its browser keeps cookies between modules,
+so without it the earlier modules leave a session and remembered consent (FR-I4), and the module in
+which the user rejects authentication finds nothing to reject. It rejects with the login screen's
+Cancel instead, which answers `access_denied`.
+
+Five modules end in **REVIEW**, each an error page the plan screenshots: an authorization request
+not pushed, a `request_uri` reused, expired, or used by another client, and a `request_uri` visited a
+second time before sign-in completed. That last one is FAPI 2.0 §5.3.2.2 Note 3, a recommendation
+that a `request_uri` stay usable until authorization completes. oidcraft spends it on the first visit,
+as RFC 9126 §7.3 asks; the suite records the choice as a review, not a failure.
+
+`fapi2-security-profile-final-test-claims-parameter-identity-claims` is skipped
+(`expected-skips-fapi.json`): the `claims` parameter is not supported, as in the basic plan.
+
 ## What runs today instead
 
 `packages/server/src/metadata.test.ts` checks the published discovery document against the

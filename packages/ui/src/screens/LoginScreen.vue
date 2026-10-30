@@ -22,6 +22,7 @@
         :maxlength="maxLength"
         :error="errors.password" />
       <UiButton type="submit" class="w-full">Sign in</UiButton>
+      <UiButton type="submit" variant="secondary" name="decision" value="cancel" formnovalidate class="w-full">Cancel</UiButton>
       <p v-if="forgotUrl || registerUrl" class="flex justify-between gap-3 text-sm">
         <UiLink v-if="forgotUrl" :href="forgotUrl">Forgot your password?</UiLink>
         <UiLink v-if="registerUrl" :href="registerUrl">Create an account</UiLink>

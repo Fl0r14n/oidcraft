@@ -62,3 +62,34 @@ export const seedConformanceClients = async (adapter: Adapter) => {
   }
   console.log(`[oidcraft] registered the conformance suite's clients -> ${callback}`)
 }
+
+type FapiPlanClient = { client_id: string; scope: string; jwks: { keys: Record<string, unknown>[] } }
+
+/**
+ * The FAPI 2.0 plan's two clients, under OIDCRAFT_PROFILE=fapi2 for the suite (FR-C21). The plan
+ * holds their private keys; only the public halves are registered here.
+ */
+export const seedFapiConformanceClients = async (adapter: Adapter) => {
+  const suite = optional('OIDCRAFT_CONFORMANCE_SUITE')
+  if (!suite || optional('OIDCRAFT_PROFILE') !== 'fapi2') return
+  const plan = await Bun.file(new URL('../../../../conformance/fapi-plan.json', import.meta.url)).json()
+  const callback = `${suite.replace(/\/$/, '')}/test/a/${plan.alias}/callback`
+  // The plan's second client returns to the callback with a query string, which must match exactly (NFR-S2).
+  const redirects = [[callback], [`${callback}?dummy1=lorem&dummy2=ipsum`]]
+  for (const [index, entry] of ([plan.client, plan.client2] as FapiPlanClient[]).entries()) {
+    const keys = entry.jwks.keys.map(({ d: _, ...publicPart }) => publicPart)
+    await adapter.clients.upsert?.({
+      clientId: entry.client_id,
+      clientName: `FAPI conformance suite (${entry.client_id})`,
+      redirectUris: redirects[index] as string[],
+      grantTypes: ['authorization_code', 'refresh_token'],
+      responseTypes: ['code'],
+      scopes: entry.scope.split(' '),
+      tokenEndpointAuthMethod: 'private_key_jwt',
+      jwks: { keys },
+      createdAt: new Date(),
+      updatedAt: new Date()
+    })
+  }
+  console.log(`[oidcraft] registered the FAPI conformance suite's clients -> ${callback}`)
+}

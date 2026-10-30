@@ -306,9 +306,9 @@ What is _not_ claimed: see the status section. Implemented is not the same as ce
    agents reading the code against REQUIREMENTS.md, so it narrowed the search rather than ending it.
 2. ~~The conformance suite in CI~~ (NFR-C1) — the `conformance` job, pinned by `SUITE_VERSION`.
 3. ~~Adapter typing and the brokering rename~~ — done 2026-10-30.
-4. **Refresh tokens and FAPI 2.0.**
-5. **Postgres.**
-6. **The MCP demo**, then a real MCP client (opencode) against it.
+4. ~~Refresh tokens and FAPI 2.0~~ — done 2026-10-30, the FAPI 2.0 plan green in CI.
+5. ~~Postgres~~ — done 2026-10-31, on Postgres 19rc1.
+6. ~~The MCP demo, then a real MCP client~~ — done 2026-10-31, OpenCode calling a tool end to end.
 7. **`npm trust` and the docs site**, once the work above is done.
 
 ## Server review — 2026-10-10

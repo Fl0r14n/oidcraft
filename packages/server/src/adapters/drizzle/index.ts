@@ -1,4 +1,6 @@
-import { and, eq, gt, isNull, lte } from 'drizzle-orm'
+import { type AnyRelations, and, eq, gt, isNull, lte } from 'drizzle-orm'
+import type { PgQueryResultHKT } from 'drizzle-orm/pg-core'
+import type { PgAsyncDatabase } from 'drizzle-orm/pg-core/async'
 import type { SQLiteAsyncDatabase } from 'drizzle-orm/sqlite-core'
 import type {
   AccountStore,
@@ -13,16 +15,20 @@ import type {
   Realm,
   Session
 } from 'oidcraft'
-import { artifacts, clients, credentials, grants, identities, realms, replay, sessions } from './schema'
+import type { PostgresTables } from './postgres-schema'
+import { type artifacts, type credentials, type identities, type realms, schema } from './schema'
 
 export type DrizzleDatabase = SQLiteAsyncDatabase<'sync' | 'async', unknown>
 
 export type DrizzleAdapterOptions = {
-  db: DrizzleDatabase
   keys: KeyStore
   /** Omitted, every account lookup misses: the host composes one in later, as `oidcraft/accounts` does. */
   accounts?: AccountStore
-}
+} & (
+  | { db: DrizzleDatabase; tables?: undefined }
+  /** Postgres: the tables come from `postgresTables(schema?)`, which is where a realm's schema is chosen (G-6). */
+  | { db: PgAsyncDatabase<PgQueryResultHKT, AnyRelations>; tables: PostgresTables }
+)
 
 const now = () => new Date()
 
@@ -30,7 +36,10 @@ const now = () => new Date()
 const live = (column: typeof artifacts.expiresAt) => gt(column, now())
 
 export const drizzleAdapter = (options: DrizzleAdapterOptions): FullAdapter => {
-  const db = options.db
+  // Every query here is one both dialects' builders accept, over tables with the same columns and the
+  // same JS values; typing them as SQLite's once is what lets one body serve both (FR-A4).
+  const db = options.db as DrizzleDatabase
+  const { clients, artifacts, sessions, grants, identities, replay, credentials, realms } = (options.tables ?? schema) as typeof schema
 
   const toArtifact = (row: typeof artifacts.$inferSelect): Artifact => ({
     id: row.id,
@@ -407,6 +416,8 @@ const toIdentity = (row: typeof identities.$inferSelect): LinkedIdentity => ({
   linkedAt: row.linkedAt
 })
 
+export { POSTGRES_MIGRATIONS } from '../sql/postgres'
 export { type Migration, SQLITE_MIGRATIONS } from '../sql/sqlite'
+export { type PostgresTables, postgresTables } from './postgres-schema'
 export * from './schema'
 export { schema } from './schema'

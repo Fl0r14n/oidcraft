@@ -453,5 +453,6 @@ export const typeormAdapter = (options: TypeormAdapterOptions): FullAdapter => {
   }
 }
 
+export { POSTGRES_MIGRATIONS } from '../sql/postgres'
 export { type Migration, SQLITE_MIGRATIONS } from '../sql/sqlite'
 export * from './schema'

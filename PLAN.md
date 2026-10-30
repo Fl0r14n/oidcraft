@@ -226,28 +226,31 @@ the Drizzle adapter cannot even be handed a Postgres database (`DrizzleDatabase`
 point was _untested_, and the fix is testing it. When it lands, choosing
 the dialect and how a realm is scoped (schema or database) is the host's, in `configure` (G-6).
 
-- [ ] `POSTGRES_MIGRATIONS` in `adapters/sql/postgres.ts`: the same ids and tables as
+- [x] `POSTGRES_MIGRATIONS` in `adapters/sql/postgres.ts`: the same ids and tables as
   `SQLITE_MIGRATIONS`, `bigint` milliseconds, JSON kept as `text` so every adapter serialises as
   today. Unqualified table names, so they land in whatever schema the host migrates into.
   Exported beside `SQLITE_MIGRATIONS` from the drizzle, kysely and typeorm entries
-- [ ] Kysely: coerce every `Millis` with `Number()` in the row mappers. `pg` returns `int8` as a
+- [x] Kysely: coerce every `Millis` with `Number()` in the row mappers. `pg` returns `int8` as a
   string, and `new Date('1730000000000')` is an Invalid Date — a real bug on Postgres today
-- [ ] Drizzle: a `pg-core` schema with columns matching `POSTGRES_MIGRATIONS`, and an adapter that
+- [x] Drizzle: a `pg-core` schema with columns matching `POSTGRES_MIGRATIONS`, and an adapter that
   takes either dialect's tables. Drizzle binds a schema name when a table is _defined_, so the
   Postgres tables come from a factory, `postgresTables(schema?)`, or a realm cannot get its own
   schema. Same `./adapters/drizzle` entry: `pg-core` ships inside `drizzle-orm`, so no new peer
-- [ ] TypeORM: `TYPEORM_POSTGRES_MIGRATIONS` from the same statements. Its `millis` transformer
+- [x] TypeORM: `TYPEORM_POSTGRES_MIGRATIONS` from the same statements. Its `millis` transformer
   already numbers a string `bigint`; `insertIfAbsent` gets a lost-race test on Postgres, where a
   failed insert would abort an enclosing transaction
-- [ ] The adapter conformance suite on Postgres for all three, on a `postgres` CI service with
+- [x] The adapter conformance suite on Postgres for all three, on a `postgres` CI service with
   `POSTGRES_URL`, skipped without it — the pattern `REDIS_URL` already uses. `pg` as the one dev
   dependency: Kysely's `PostgresDialect`, `drizzle-orm/node-postgres` and TypeORM's driver all take it
-- [ ] Realm isolation, which is the G-6 claim: two schemas in one database, the suite on each, and
+- [x] Realm isolation, which is the G-6 claim: two schemas in one database, the suite on each, and
   nothing written through one visible through the other — via `withSchema`, `postgresTables(schema)`
   and TypeORM's `schema` option
-- [ ] ARCHITECTURE.md §4.2 (two migration sets) and §7.1 (a Postgres schema per realm as the
+- [x] ARCHITECTURE.md §4.2 (two migration sets) and §7.1 (a Postgres schema per realm as the
   example)
 - [ ] Optional, last: `OIDCRAFT_DB=postgres://…` in the demo server, a schema per realm
+- Landed 2026-10-31, on Postgres 19rc1 (the newest image; 19 is not released). Drizzle runs on both
+  `pg` and Bun.sql. Both drivers return `bigint` as a string on 19 as on 17, so the Kysely conversion
+  is needed either way; the conformance suite fails three tests without it
 
 ## Demo server
 

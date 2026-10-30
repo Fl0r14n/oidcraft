@@ -22,6 +22,8 @@ export type KyselyAdapterOptions = {
 }
 
 const now = () => Date.now()
+// Postgres returns int8 as a string, which `new Date` would read as a date string, not milliseconds.
+const at = (millis: number | string) => new Date(Number(millis))
 const json = (value: unknown) => JSON.stringify(value)
 const parse = <T>(value: string) => JSON.parse(value) as T
 
@@ -32,20 +34,20 @@ const toArtifact = (row: Selectable<ArtifactsTable>): Artifact => ({
   ...(row.account_id && { accountId: row.account_id }),
   ...(row.grant_id && { grantId: row.grant_id }),
   payload: parse<Record<string, unknown>>(row.payload),
-  ...(row.consumed_at && { consumedAt: new Date(row.consumed_at) }),
-  expiresAt: new Date(row.expires_at)
+  ...(row.consumed_at && { consumedAt: at(row.consumed_at) }),
+  expiresAt: at(row.expires_at)
 })
 
 const toSession = (row: Selectable<SessionsTable>): Session => ({
   id: row.id,
   accountId: row.account_id,
-  authTime: new Date(row.auth_time),
+  authTime: at(row.auth_time),
   ...(row.acr && { acr: row.acr }),
   ...(row.amr ? { amr: parse<string[]>(row.amr) } : {}),
   ...(row.idp && { idp: row.idp }),
   ...(row.upstream_session_id && { upstreamSessionId: row.upstream_session_id }),
   clients: parse<string[]>(row.clients),
-  expiresAt: new Date(row.expires_at)
+  expiresAt: at(row.expires_at)
 })
 
 const toGrant = (row: Selectable<GrantsTable>): Grant => ({
@@ -55,8 +57,8 @@ const toGrant = (row: Selectable<GrantsTable>): Grant => ({
   scopes: parse<string[]>(row.scopes),
   claims: parse<string[]>(row.claims),
   resources: parse<Record<string, string[]>>(row.resources),
-  createdAt: new Date(row.created_at),
-  ...(row.expires_at && { expiresAt: new Date(row.expires_at) })
+  createdAt: at(row.created_at),
+  ...(row.expires_at && { expiresAt: at(row.expires_at) })
 })
 
 const noAccounts: AccountStore = {
@@ -88,13 +90,13 @@ const toCredential = (row: Selectable<CredentialsTable>): Credential => ({
   passwordHash: row.password_hash,
   claims: parse<Record<string, unknown>>(row.claims),
   ...(row.totp_secret && {
-    totp: { secret: row.totp_secret, ...(row.totp_confirmed_at && { confirmedAt: new Date(row.totp_confirmed_at) }) }
+    totp: { secret: row.totp_secret, ...(row.totp_confirmed_at && { confirmedAt: at(row.totp_confirmed_at) }) }
   }),
   ...(row.recovery_codes ? { recoveryCodes: parse<string[]>(row.recovery_codes) } : {}),
   failedAttempts: row.failed_attempts,
-  ...(row.locked_until && { lockedUntil: new Date(row.locked_until) }),
-  createdAt: new Date(row.created_at),
-  updatedAt: new Date(row.updated_at)
+  ...(row.locked_until && { lockedUntil: at(row.locked_until) }),
+  createdAt: at(row.created_at),
+  updatedAt: at(row.updated_at)
 })
 
 const realmRow = (realm: Realm) => ({
@@ -111,8 +113,8 @@ const toRealm = (row: Selectable<RealmsTable>): Realm => ({
   ...(row.display_name && { displayName: row.display_name }),
   enabled: Boolean(row.enabled),
   settings: parse<Record<string, unknown>>(row.settings),
-  createdAt: new Date(row.created_at),
-  updatedAt: new Date(row.updated_at)
+  createdAt: at(row.created_at),
+  updatedAt: at(row.updated_at)
 })
 
 const toIdentity = (row: Selectable<IdentitiesTable>): LinkedIdentity => ({
@@ -121,7 +123,7 @@ const toIdentity = (row: Selectable<IdentitiesTable>): LinkedIdentity => ({
   subject: row.subject,
   ...(row.email && { email: row.email }),
   claims: parse<Record<string, unknown>>(row.claims),
-  linkedAt: new Date(row.linked_at)
+  linkedAt: at(row.linked_at)
 })
 
 /**
@@ -212,7 +214,7 @@ export const kyselyAdapter = (options: KyselyAdapterOptions): FullAdapter => {
       async find(clientId) {
         const row = await db.selectFrom('oidc_clients').selectAll().where('client_id', '=', clientId).executeTakeFirst()
         if (!row) return undefined
-        return { ...parse<Client>(row.data), createdAt: new Date(row.created_at), updatedAt: new Date(row.updated_at) }
+        return { ...parse<Client>(row.data), createdAt: at(row.created_at), updatedAt: at(row.updated_at) }
       },
       async upsert(client) {
         const data = json(client)
@@ -231,8 +233,8 @@ export const kyselyAdapter = (options: KyselyAdapterOptions): FullAdapter => {
         return {
           clients: rows.map(row => ({
             ...parse<Client>(row.data),
-            createdAt: new Date(row.created_at),
-            updatedAt: new Date(row.updated_at)
+            createdAt: at(row.created_at),
+            updatedAt: at(row.updated_at)
           }))
         }
       }
@@ -460,6 +462,7 @@ export const kyselyAdapter = (options: KyselyAdapterOptions): FullAdapter => {
   }
 }
 
+export { POSTGRES_MIGRATIONS } from '../sql/postgres'
 export { type Migration, SQLITE_MIGRATIONS } from '../sql/sqlite'
 export type { OidcraftDatabase } from './schema'
 export * from './schema'

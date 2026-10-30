@@ -15,14 +15,24 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-latest
-    # The Redis adapter's conformance tests skip without REDIS_URL; here they run against a real one.
+    # The Redis and Postgres adapter suites skip without REDIS_URL and POSTGRES_URL; here they run
+    # against real ones, the same images compose.yml starts locally.
     services:
       redis:
         image: redis:7-alpine
         ports:
           - 6379:6379
+      postgres:
+        image: postgres:19rc1-alpine
+        env:
+          POSTGRES_PASSWORD: oidcraft
+          POSTGRES_DB: oidcraft
+        ports:
+          - 5432:5432
+        options: --health-cmd "pg_isready -U postgres" --health-interval 2s --health-retries 15
     env:
       REDIS_URL: redis://localhost:6379
+      POSTGRES_URL: postgres://postgres:oidcraft@localhost:5432/oidcraft
     steps:
       - uses: actions/checkout@v6
       - uses: oven-sh/setup-bun@v2

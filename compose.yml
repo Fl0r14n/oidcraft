@@ -1,0 +1,24 @@
+# The services the gated adapter suites run against, as CI's service containers do:
+#
+#   docker compose up -d
+#   POSTGRES_URL=postgres://postgres:oidcraft@localhost:55432/oidcraft REDIS_URL=redis://localhost:56379 bun run test
+#
+# Unusual host ports, so they never collide with a Postgres or Redis already on this machine.
+# Nothing persists: a test makes its own schema or key prefix and drops it.
+services:
+  postgres:
+    # Postgres 19 is not released yet; rc1 is the newest image. Move to 19 when it ships.
+    image: postgres:19rc1-alpine
+    environment:
+      POSTGRES_PASSWORD: oidcraft
+      POSTGRES_DB: oidcraft
+    ports:
+      - ${POSTGRES_PORT:-55432}:5432
+    healthcheck:
+      test: [ CMD, pg_isready, -U, postgres ]
+      interval: 2s
+      retries: 15
+  redis:
+    image: redis:7-alpine
+    ports:
+      - ${REDIS_PORT:-56379}:6379

@@ -1,7 +1,7 @@
 import type { ColumnType, Generated } from 'kysely'
 
-/** Milliseconds since the epoch: SQLite has no date type, and Postgres/MySQL round-trip an integer fine. */
-type Millis = ColumnType<number, number, number>
+/** Milliseconds since the epoch: SQLite has no date type. Postgres keeps them in `bigint`, which it reads back as a string. */
+type Millis = ColumnType<number | string, number, number>
 
 export type ClientsTable = {
   client_id: string

@@ -1,4 +1,5 @@
 import { EntitySchema, type EntitySchemaColumnOptions, type MigrationInterface, type QueryRunner } from 'typeorm'
+import { POSTGRES_MIGRATIONS } from '../sql/postgres'
 import { type Migration, SQLITE_MIGRATIONS } from '../sql/sqlite'
 
 export type ClientRow = { client_id: string; data: string; created_at: number; updated_at: number }
@@ -230,3 +231,6 @@ const asTypeormMigration = (migration: Migration, index: number) => {
 
 /** The shared SQLite schema (FR-A4) as TypeORM migration classes, for the host's `DataSource.migrations`. */
 export const TYPEORM_SQLITE_MIGRATIONS = SQLITE_MIGRATIONS.map(asTypeormMigration)
+
+/** The same, for Postgres; the classes carry the same names, so a host runs one set or the other. */
+export const TYPEORM_POSTGRES_MIGRATIONS = POSTGRES_MIGRATIONS.map(asTypeormMigration)

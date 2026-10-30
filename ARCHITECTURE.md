@@ -81,7 +81,7 @@ packages/server/            one published package, thirteen entries — publishe
   src/adapters/memory/      ./adapters/memory     tests and development only
   src/adapters/drizzle/     ./adapters/drizzle    Postgres, SQLite
   src/adapters/kysely/      ./adapters/kysely     Postgres, SQLite
-  src/adapters/typeorm/     ./adapters/typeorm    a TypeORM DataSource; SQLite schema shipped as migrations
+  src/adapters/typeorm/     ./adapters/typeorm    a TypeORM DataSource; Postgres, SQLite
   src/adapters/redis/       ./adapters/redis      any Redis client, through one command function
 apps/
   demo-server               the reference OP: mounts the core, the login screens and the admin UI
@@ -339,11 +339,21 @@ An adapter ships migrations the host runs. The library never creates or alters a
 a library that migrates a production database on import is a library that migrates it during a
 rolling deploy, from several processes at once.
 
-For SQLite that is `SQLITE_MIGRATIONS`, exported from both `./adapters/drizzle` and
-`./adapters/kysely` because they query the same tables: ordered `{ id, statements }` records, data
-rather than a runner, so the host applies them with whatever tool it already uses. Both adapters'
-tests build their database from it, so the shipped schema is the tested one. `apps/demo-server`
-applies it at boot, which is safe there only because it is one process.
+That is `SQLITE_MIGRATIONS` and `POSTGRES_MIGRATIONS`, exported from `./adapters/drizzle`,
+`./adapters/kysely` and `./adapters/typeorm` because all three query the same tables: ordered
+`{ id, statements }` records with the same ids in both, data rather than a runner, so the host
+applies them with whatever tool it already uses. TypeORM gets them as migration classes too. Every
+adapter's tests build their database from them, so the shipped schema is the tested one — Postgres
+in CI's service container, and through `compose.yml` locally; without `POSTGRES_URL` those suites
+skip, as Redis's do. `apps/demo-server` applies them at boot, which is safe there only because it is
+one process.
+
+The Postgres tables keep milliseconds in `bigint` and JSON in `text`, so every adapter reads and
+writes what it does on SQLite. Both `pg` and Bun.sql return `bigint` as a string, so the adapters
+convert with `Number()` rather than trust the column type. Drizzle fixes a table's schema when the
+table is defined, so its Postgres tables come from `postgresTables(schema?)`, and one adapter body
+serves both dialects. Table names are unqualified everywhere else, so a host picks the schema with
+the search path or Kysely's `withSchema`.
 
 ## 5. Identity brokering
 
@@ -466,7 +476,8 @@ with one issuer never calls it, and a bundler drops it from that deployment's bu
   and an unknown or disabled realm resolves to `undefined` without `configure` running, so a forged
   `Host` header cannot mint an issuer (NFR-S6).
 - **Storage is per realm.** `configure` hands each provider its own adapter — a SQLite file, a
-  Postgres schema, a Redis prefix. The `oidc_realms` table (migration `0003`) is only the registry,
+  Postgres schema in one database (`postgresTables(realm.id)`, `db.withSchema(realm.id)`, or the
+  search path), a Redis prefix. Each adapter's Postgres suite checks that two schemas share nothing. The `oidc_realms` table (migration `0003`) is only the registry,
   in the control plane's storage; no other table gains a realm column (`G-6`).
 - **Keys are per realm, and checked.** A key two realms share would let one realm's token verify
   against the other's JWKS. `generatedKeyStore()` keeps one RSA key per process — fresh keys per store

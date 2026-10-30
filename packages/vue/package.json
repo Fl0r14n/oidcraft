@@ -78,7 +78,7 @@
     "@oidcraft/core": "workspace:*",
     "@tsdown/css": "latest",
     "axios": "^1.21.0",
-    "unplugin-vue": "^8.0.0",
+    "unplugin-vue": "^8.0.1",
     "vue": "^3.5.44",
     "vue-tsgo": "^0.3.0",
     "vuetify": "latest"
@@ -90,6 +90,6 @@
     "node": ">=22"
   },
   "dependencies": {
-    "jose": "^6"
+    "jose": "^6.2.14"
   }
 }

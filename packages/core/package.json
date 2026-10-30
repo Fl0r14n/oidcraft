@@ -21,7 +21,7 @@
     "typecheck": "bun check"
   },
   "dependencies": {
-    "jose": "^6.2.13"
+    "jose": "^6.2.14"
   },
   "engines": {
     "node": ">=22"

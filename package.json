@@ -23,11 +23,11 @@
     "build:angular": "cd apps/demo-angular && bun install && bun run bundle"
   },
   "devDependencies": {
-    "@angular/common": "^22.2.3",
-    "@angular/compiler": "^22.2.3",
-    "@angular/core": "^22.2.3",
-    "@angular/platform-browser": "^22.2.3",
-    "@angular/router": "^22.2.3",
+    "@angular/common": "^22.2.4",
+    "@angular/compiler": "^22.2.4",
+    "@angular/core": "^22.2.4",
+    "@angular/platform-browser": "^22.2.4",
+    "@angular/router": "^22.2.4",
     "@biomejs/biome": "latest",
     "@happy-dom/global-registrator": "latest",
     "@types/bun": "latest",
@@ -36,5 +36,8 @@
   },
   "engines": {
     "bun": ">=1.4.4"
+  },
+  "overrides": {
+    "kysely": "^0.29.7"
   }
 }

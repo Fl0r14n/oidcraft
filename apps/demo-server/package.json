@@ -16,7 +16,7 @@
     "@modelcontextprotocol/sdk": "^1.32.2",
     "@oidcraft/ui": "workspace:*",
     "drizzle-orm": "1.0.0-rc.5",
-    "jose": "^6.2.13",
+    "jose": "^6.2.14",
     "oidcraft": "workspace:*",
     "pg": "^8.23.1",
     "uqr": "^0.1.3",

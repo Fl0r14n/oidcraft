@@ -122,16 +122,48 @@ here, or under any load.
 - [x] `npm trust github` registration, so releases publish from CI (ARCHITECTURE.md §11) — registered
   2026-10-31 for `Fl0r14n/oidcraft`, `publish.yml`. Nothing published from CI yet: the first release
   run is the real test
-- [ ] The client libraries publish from here too, when chosen: `publish.yml` already maps
-  `vue-oidc@…`, `react-oauth-oidc@…` and `ngx-oauth@…` tags to their packages, and their versions
-  here are the next majors (7.0.0, 2.0.0, 9.0.0). What is missing is per package: `npm trust github
-  <name> --repo Fl0r14n/oidcraft --file publish.yml --allow-publish`, which also cuts its old
-  repository off. Archive each old repository only after its first publish from here, pointing at
-  `packages/<dir>`, or the npm page links to an archive with no newer source
-- [ ] Claim the npm org `oidcraft` (free for public packages), checked unclaimed 2026-10-31: nothing
-  needs it yet, but whoever owns it could publish an `@oidcraft/core` or `@oidcraft/client`, the
-  names this workspace keeps unpublished. A move to `@oidcraft/vue` and the like would start there;
-  npm has no rename, so the old names would get `npm deprecate` and a last re-exporting version
+- [x] The npm org `oidcraft`, claimed 2026-10-31. Nothing is published under it yet; owning it is what
+  keeps `@oidcraft/core`, `@oidcraft/client` and `@oidcraft/ui`, the names this workspace keeps
+  unpublished, from being published by anyone else
+- [ ] First real release of `oidcraft`, after a final review: bump `packages/server` past 0.0.1 and
+  publish a GitHub release tagged `oidcraft@<version>`. Its trusted publisher is registered, so CI
+  publishes it
+
+## The move to the `oidcraft` npm org (postponed)
+
+Decided 2026-10-31, then postponed until after the first real `oidcraft` release. Every package moves
+under the scope, so the names say they belong together:
+
+| now                                                     | becomes                |
+| ------------------------------------------------------- | ---------------------- |
+| `oidcraft`                                              | `@oidcraft/server`     |
+| `vue-oidc`                                              | `@oidcraft/vue`        |
+| `react-oauth-oidc`                                      | `@oidcraft/react`      |
+| `ngx-oauth`                                             | `@oidcraft/angular`    |
+| `@oidcraft/core`, `@oidcraft/client` (bundled, private) | published dependencies |
+
+npm has no rename and no redirect, so this is a set of new packages and a deprecation of the old ones:
+
+- [ ] Rename in the workspace: each `package.json`, every import specifier (match `'oidcraft'` and
+  `'oidcraft/…'` only, not the brand, `OIDCRAFT_*` variables or client ids), `bun run --filter`
+  names in scripts and CI, `verify-entries.ts`, tsdown `neverBundle` lists, `publish.yml`'s tag map,
+  CLAUDE.md's "directories name the role" note and the READMEs. The three client renames were done
+  and reverted once already (2026-10-31), so the reference list is known: about 57 files. Package
+  READMEs say which old name each continues; the history in this file keeps the old names
+- [ ] Publish `@oidcraft/core` and `@oidcraft/client` rather than compiling them into each package:
+  one release then fixes all four consumers, and Svelte, Solid or plain JS can use them. The cost is
+  that their exports become semver contracts. `verify-entries.ts` flips from refusing the import to
+  requiring the dependency, NFR-D4 reads "zero third-party dependencies beyond `jose`", and
+  ARCHITECTURE.md §2.1 is rewritten. The `client` boundary stays: the server never depends on it,
+  which is what keeps `localStorage` out of it
+- [ ] First publish of each scoped package by hand (`npm publish --access public`): npm cannot trust
+  a publisher for a package that does not exist yet. Then `npm trust github @oidcraft/<name> --repo
+  Fl0r14n/oidcraft --file publish.yml --allow-publish` for each, and CI publishes from there
+- [ ] `npm deprecate` the old names, pointing at the new ones: `oidcraft` (by then it has users, which
+  is the cost of releasing it first), `vue-oidc`, `react-oauth-oidc`, `ngx-oauth`. Their published
+  versions keep working
+- [ ] Archive the old `vue-oidc`, `react-oauth` and `ngx-oauth` repositories once their packages
+  publish from here, with a README line pointing at `packages/<dir>`
 - [ ] Docs site — **after** the review and the conformance run; requirements below
 - [x] `oidcraft/accounts` (FR-I7): passwords through an injected argon2id hasher (`bunPasswordHasher`,
   `nodePasswordHasher`, interoperable PHC strings), TOTP with sealed secrets, recovery codes,

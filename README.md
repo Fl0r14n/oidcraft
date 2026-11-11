@@ -12,8 +12,8 @@ An OpenID Provider library for TypeScript, and the client libraries that sign in
 - **[`@oidcraft/core`](packages/core/README.md)** and **[`@oidcraft/client`](packages/client/README.md)**:
   the OpenID Connect client those are built on, for a framework without a binding here.
 
-> **Status: early.** The OpenID Foundation conformance suite's `basic` and `config` plans pass in CI,
-> which is a passing run, not a certification. No deployment has used it in production yet.
+> **Status: early.** The OpenID Foundation conformance suite's `basic`, `config` and FAPI 2.0 plans
+> pass in CI, which is a passing run, not a certification. No deployment has used it in production yet.
 
 ## Try it
 

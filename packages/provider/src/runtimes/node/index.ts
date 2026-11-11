@@ -4,7 +4,7 @@ import { Readable } from 'node:stream'
 import type { ClientCertificate, RequestContext } from '@oidcraft/provider'
 
 export type NodeBridgeOptions = {
-  /** Trust `X-Forwarded-*`. Off by default: believing it unconditionally forges the issuer (NFR-S6). */
+  /** Take the client IP from the right-most `X-Forwarded-For` hop. Off by default: the header is attacker-supplied unless your proxy is the only route in (FR-R4); the issuer never comes from a header (NFR-S6). */
   trustProxy?: boolean
 }
 

@@ -231,8 +231,9 @@ write only if the key is absent, atomically: single use (FR-T3, FR-T4, NFR-S4) c
 a read followed by a write, so an eventually consistent store cannot back a provider.
 
 **FR-A4** — First-party adapters ship for **Drizzle** (Postgres and SQLite), **Kysely**
-(Postgres, SQLite) and **TypeORM** (FR-A6), plus an in-memory one for tests. Each ships its schema as migrations
-the host runs, never as something the library applies at boot.
+(Postgres, SQLite) and **TypeORM** (FR-A6), **Redis** through one command function the host supplies,
+plus an in-memory one for tests. Each SQL adapter ships its schema as migrations the host runs, never as
+something the library applies at boot.
 
 **FR-A5** — Adapters that own their schema must expose real columns and indexes for every value
 the core queries by (`grant_id`, `user_code`, `expires_at`, `account_id`, upstream session id). A
@@ -423,11 +424,14 @@ encrypted at rest by the adapter, and are never returned to a downstream client 
 ### Conformance — `NFR-C*`
 
 **NFR-C1** — The OpenID Foundation conformance suite runs in CI against the reference deployment,
-for the `basic` and `config` OP profiles. A red suite is a failed build, except for the modules
+for the `basic` and `config` OP profiles, and for the FAPI 2.0 Security Profile plan against the same
+deployment under FR-C21. A red suite is a failed build, except for the modules
 `conformance/README.md` lists as refused on purpose, each with the clause that requires the refusal.
 `dynamic` is not a target: it tests a Dynamic OpenID Provider, which FR-C1 rules out.
 
-**NFR-C2** — FAPI 2.0 Security Profile is a target for a later milestone, not for 1.0 (`G-3`).
+**NFR-C2** — The FAPI 2.0 Security Profile is an opt-in profile, per provider or per client (FR-C21,
+`G-3`), and its conformance plan gates CI (NFR-C1). It is not a default: a provider that does not
+opt in keeps serving public clients.
 
 **NFR-C3** — Every `FR-C*` requirement has at least one test that exercises the wire format, not
 just the internal function.

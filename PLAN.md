@@ -5,10 +5,10 @@ This file is working state: tick items off and add notes as work lands.
 
 ## Status
 
-**Implemented, as of 2026-10-30**, with 1012 passing tests and `bun run verify` as the gate — everything
-below. **Not yet:** FR-T6 (session-bound refresh tokens), FR-C21 (the FAPI 2.0 profile, with
-`dpop_jkt` and FR-T3's exception) and FR-A4's Postgres, decided 2026-10-30 and planned under
-_Next, in this order_.
+**Implemented, as of 2026-11-11**, with 1068 passing tests and `bun run verify` as the gate — everything
+below, FR-T6, FR-C21 and FR-A4's Postgres included. Published as `@oidcraft/*` (the move below), with
+the docs site at https://fl0r14n.github.io/oidcraft/. **Not yet:** the defects the docs pages found,
+under _Found by the docs pages_.
 
 The authorization code grant with mandatory PKCE, interaction suspend/resume, token issuance with
 rotation and replay revocation, UserInfo, revocation, introspection, logout in both directions,
@@ -19,9 +19,10 @@ conformance suite, four runtime context providers, a management API and an admin
 
 ### What is NOT done, and will not be silently forgotten
 
-**The OpenID Foundation suite's `basic` and `config` plans gate CI** (NFR-C1), with the refusals
-`conformance/README.md` lists. That is a passing run, not certification: three modules end in REVIEW,
-which a person signs off with screenshots only when certifying.
+**The OpenID Foundation suite's `basic`, `config` and FAPI 2.0 plans gate CI** (NFR-C1), with the
+refusals `conformance/README.md` lists. That is a passing run, not certification: three `basic`
+modules and five FAPI ones end in REVIEW, which a person signs off with screenshots only when
+certifying.
 
 **No deployment has run this in production**, against a real relying party that was not also written
 here, or under any load.
@@ -170,7 +171,7 @@ npm has no rename and no redirect, so this is a set of new packages and a deprec
 - [x] Archived the old `vue-oidc`, `react-oauth` and `ngx-oauth` repositories, 2026-11-11, each with a
   README note naming its `@oidcraft/*` package and pointing at `packages/<dir>`. Done: the move is
   complete; what remains is the first CI release, which tests `publish.yml`
-- [ ] Docs site — started 2026-11-11 as `apps/docs`; what is left is under its requirements below
+- [x] Docs site — live 2026-11-11; what it found is under its requirements below
 - [x] `oidcraft/accounts` (FR-I7): passwords through an injected argon2id hasher (`bunPasswordHasher`,
   `nodePasswordHasher`, interoperable PHC strings), TOTP with sealed secrets, recovery codes,
   throttling, reset tokens and sign-up, over a new `credentials` store in every adapter and SQLite
@@ -362,7 +363,9 @@ What is _not_ claimed: see the status section. Implemented is not the same as ce
 7. ~~`npm trust`~~ — registered 2026-10-31, for the unscoped name the move below replaces.
 8. ~~The move to `@oidcraft/*`~~ — done 2026-11-11: six packages published, trusted publishers
    registered, old names deprecated, old repositories archived.
-9. **The docs site** — started 2026-11-11; the pages it still needs are listed under its requirements.
+9. ~~The docs site~~ — live 2026-11-11, every page its requirements listed.
+10. **What the docs pages found** — the defects under the docs site's requirements, the adapter
+    conformance suite first (decided), then the two bugs, `prompt=consent` and Node below 24.7.
 
 ## Server review — 2026-10-10
 
@@ -472,7 +475,39 @@ Started 2026-11-11 as `apps/docs`, VitePress (ARCHITECTURE.md §8.5). Done so fa
 - [x] GitHub Pages on, source "GitHub Actions", 2026-11-11: live at https://fl0r14n.github.io/oidcraft/
 - [x] A React page, from a new `packages/react/README.md` — the package had none, so its npm page
   would have been blank too
-- [ ] The pages below
+- [x] The seven pages below, 2026-11-11: the interaction contract, storage adapters, runtime
+  deployment, security posture and coming from `oidc-provider` under `guide/`; the configuration and
+  error references under `reference/`, generated from the source. Every sample is a region of a test
+  in `apps/docs/samples/` (25 tests). Writing them found the defects listed next
+
+### Found by the docs pages (2026-11-11)
+
+Confirmed against the code; none fixed yet, each needs a decision.
+
+- [ ] **`prompt=consent` is dropped after a login** — `authorizationUrl` in
+  `authorize/interactions.ts` deletes every `prompt` value when it resumes the request, `consent`
+  included, so an account that already holds a covering grant signs in and is never asked. Breaks
+  FR-I5 and OIDC Core §3.1.2.1. `samples/interaction.test.ts` asserts the current behaviour, so it
+  fails once this is fixed and the page needs its warning removed
+- [ ] **`@oidcraft/provider/runtimes/node` cannot load below Node 24.7** — it imports `argon2` from
+  `node:crypto` statically, a link-time `SyntaxError` on older Node, taking `toNodeHandler` down with
+  `nodePasswordHasher`. `engines` and FR-R3 say Node ≥ 22. Published in 0.1.0
+- [ ] The adapter conformance suite is not usable outside this repo — decided: make it
+  runner-agnostic and publish it as `@oidcraft/provider/adapters/conformance`. It also takes a
+  `FullAdapter`, so an adapter without `identities`, `credentials` and `realms` cannot run it
+- [ ] Interaction completion trusts the host for more than FR-I* says: `complete` does not check that
+  `accountId` exists, nor that `consent.scopes` is a subset of what was requested, and after a login
+  the `acr` issued is whatever the host reports (FR-C16 rests on the host). The page states all three
+- [ ] No partial consent: consenting to fewer scopes than requested asks again for the full set;
+  `access_denied` is the only alternative. FR-I2/FR-I4 are silent on it
+- [ ] `nodeContext` supplies a certificate thumbprint but never the subject DN, so `tls_client_auth`
+  cannot succeed on Node; and only when `socket.authorized`, so `self_signed_tls_client_auth` needs
+  the listener's `ca` to trust the certificate. No runtime entry sets `capabilities.clientCertificate`
+- [ ] Smaller: `interaction_required` and `account_selection_required` are declared but never raised;
+  66 of 254 error sites give no `spec` clause (NFR-D3); `clients/registration.ts` names
+  `invalid_redirect_uri` in a clause while sending `invalid_request`; FR-I7 cites NFR-S3 for
+  throttling, which is about token entropy; FR-A2's store list omits `CredentialStore` and
+  `RealmStore`; `runtimes/deno` and `runtimes/workerd` export no argument types
 
 The requirements, as recorded before it started:
 

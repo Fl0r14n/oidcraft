@@ -127,7 +127,6 @@ export type ProviderConfig = {
   clientAuthMethods?: ClientAuthMethod[]
   features?: Partial<Features>
   capabilities?: Partial<Capabilities>
-  /** Default subject type for clients that declare none. @default 'public' */
   /**
    * The upstreams this deployment brokers to, for home-realm discovery (FR-F4). Descriptions only:
    * the credentials live with the broker in `@oidcraft/provider/broker`, because using them is I/O.
@@ -138,6 +137,7 @@ export type ProviderConfig = {
    * token whose audience is that resource alone; one naming anything else is refused (FR-C19).
    */
   resources?: ResourceDescriptor[]
+  /** Default subject type for clients that declare none. @default 'public' */
   subjectType?: 'public' | 'pairwise'
   /**
    * Decides who may act as whom in a token exchange. There is no default, because a library cannot

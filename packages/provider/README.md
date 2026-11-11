@@ -4,8 +4,8 @@ An OpenID Provider library for TypeScript. You bring the server and the login sc
 brings the protocol: authorization, tokens, sessions, logout, and signing people in through Google,
 Microsoft or any other OpenID provider. One build runs on Bun, Node, Deno and Cloudflare Workers.
 
-> **Status: early.** The OpenID Foundation conformance suite's `basic` and `config` plans pass in
-> CI, which is a passing run, not a certification. No deployment has used it in production yet. See
+> **Status: early.** The OpenID Foundation conformance suite's `basic`, `config` and FAPI 2.0 plans
+> pass in CI, which is a passing run, not a certification. No deployment has used it in production yet. See
 > [PLAN.md](https://github.com/Fl0r14n/oidcraft/blob/main/PLAN.md) for exactly what that means.
 - [Install](#install)
 - [The smallest provider](#the-smallest-provider)
@@ -319,8 +319,9 @@ register dynamically are served by `features: { dynamicRegistration: true }`, an
 
 ## Before production
 
-- **Keys.** The adapters generate signing keys in memory when you pass none, and every restart signs
-  everyone out. Generate a key set once, keep it as a secret, and pass it in:
+- **Keys.** The memory adapter generates signing keys when you pass none, and every restart signs
+  everyone out; the other adapters take a key store and generate nothing. Generate a key set once,
+  keep it as a secret, and pass it in:
   `staticKeyStore([await generateKey('ES256'), await generateKey('RS256')])`, persisted as JSON. An
   RS256 key is required: every OpenID provider must offer one.
 - **https.** The issuer must be `https`, except on `localhost`.

@@ -310,7 +310,7 @@ entry and logout confirmation live in the reference deployment, which a host rep
 **FR-I4** — Consent is remembered as a durable `Grant`, so a returning user is not asked again for
 scopes already granted, and revoking the grant re-asks. Consent is all or nothing: an answer covers
 every requested scope not already granted, and names none the request did not ask for, or it is
-refused; declining is `access_denied`.
+refused; declining is `access_denied`. A device or CIBA approval follows the same rule.
 
 **FR-I5** — `prompt=none`, `prompt=login`, `prompt=consent`, `prompt=select_account` are all
 honoured, including the error responses when `none` cannot be satisfied.

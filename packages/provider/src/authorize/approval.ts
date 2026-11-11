@@ -4,8 +4,9 @@ import { OAuthError } from '../errors'
 const refuse = (description: string, spec = 'FR-I4') => new OAuthError('invalid_request', { description, spec, status: 400 })
 
 /**
- * What the host reports back from an out-of-band approval (device, CIBA). The token carries what
- * was approved, never more than was asked, and only for the person the session belongs to.
+ * What the host reports back from an out-of-band approval (device, CIBA): every scope that was asked,
+ * no other, as in the browser (FR-I4), and only for the person the session belongs to. Declining is
+ * `{ denied: true }`.
  */
 export const checkApproval = async (
   config: ResolvedConfig,
@@ -15,6 +16,10 @@ export const checkApproval = async (
 ) => {
   const extra = approval.scopes.filter(scope => !requested.includes(scope))
   if (extra.length) throw refuse(`approved scopes were never requested: ${extra.join(', ')}`)
+  const missing = requested.filter(scope => !approval.scopes.includes(scope))
+  if (missing.length) {
+    throw refuse(`an approval must cover every requested scope, or be { denied: true }; it leaves out ${missing.join(', ')}`)
+  }
   if (!approval.scopes.includes('openid')) throw refuse('the approval must keep the openid scope')
   if (expectedAccountId !== undefined && approval.accountId !== expectedAccountId) {
     throw refuse('the approving account is not the one this request was made for', 'OIDC CIBA 1.0 §7.1')

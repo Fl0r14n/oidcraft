@@ -180,7 +180,11 @@ describe('polling', () => {
 
     const session = { id: 's3', accountId: 'ada', authTime: new Date(), clients: ['pinger'], expiresAt: new Date(Date.now() + 60_000) }
     await adapter.sessions.upsert(session)
-    const { ping } = await provider.ciba.resolve(auth_req_id, { accountId: 'ada', sessionId: session.id, scopes: ['openid'] })
+    const { ping } = await provider.ciba.resolve(auth_req_id, {
+      accountId: 'ada',
+      sessionId: session.id,
+      scopes: ['openid', 'profile', 'payments']
+    })
     expect(ping?.clientNotificationToken).toBe('nt')
 
     setSystemTime(new Date(Date.now() + 10_000))
@@ -193,10 +197,12 @@ describe('polling', () => {
 })
 
 describe('resolution', () => {
-  test('the token carries the approved scopes, not the requested ones', async () => {
+  // FR-I4: all or nothing, as in the browser. A refused approval leaves the request pending.
+  test('an approval leaving out a requested scope is refused; a full one is the token', async () => {
     const { auth_req_id } = await (await start()).json()
-    await approve(auth_req_id, ['openid', 'profile'])
-    expect((await (await pollFor(auth_req_id)).json()).scope).toBe('openid profile')
+    await expect(approve(auth_req_id, ['openid', 'profile'])).rejects.toThrow(/every requested scope/)
+    await approve(auth_req_id)
+    expect((await (await pollFor(auth_req_id)).json()).scope).toBe('openid profile payments')
   })
 
   // CIBA §7.1: the hint named the user; someone else answering is not an answer to this request.
@@ -204,9 +210,9 @@ describe('resolution', () => {
     const { auth_req_id } = await (await start()).json()
     const session = { id: 'sm', accountId: 'mallory', authTime: new Date(), clients: [], expiresAt: new Date(Date.now() + 60_000) }
     await adapter.sessions.upsert(session)
-    await expect(provider.ciba.resolve(auth_req_id, { accountId: 'mallory', sessionId: 'sm', scopes: ['openid'] })).rejects.toThrow(
-      /not the one this request was made for/
-    )
+    await expect(
+      provider.ciba.resolve(auth_req_id, { accountId: 'mallory', sessionId: 'sm', scopes: ['openid', 'profile', 'payments'] })
+    ).rejects.toThrow(/not the one this request was made for/)
     await expect(approve(auth_req_id, ['openid', 'admin'])).rejects.toThrow(/never requested/)
   })
 
@@ -215,7 +221,11 @@ describe('resolution', () => {
     const { auth_req_id } = await (await start({ client_notification_token: 'nt' }, 'pinger')).json()
     const session = { id: 's2', accountId: 'ada', authTime: new Date(), clients: ['pinger'], expiresAt: new Date(Date.now() + 60_000) }
     await adapter.sessions.upsert(session)
-    const result = await provider.ciba.resolve(auth_req_id, { accountId: 'ada', sessionId: session.id, scopes: ['openid'] })
+    const result = await provider.ciba.resolve(auth_req_id, {
+      accountId: 'ada',
+      sessionId: session.id,
+      scopes: ['openid', 'profile', 'payments']
+    })
     expect(result).toEqual({
       approved: true,
       ping: { clientId: 'pinger', uri: 'https://rp.example.com/ping', clientNotificationToken: 'nt', authReqId: auth_req_id }

@@ -139,20 +139,21 @@ describe('approval', () => {
     return provider.device.resolve(userCodeTyped, { accountId, sessionId: session.id, scopes })
   }
 
-  // The person may approve less than the device asked for; the token must say what they approved.
-  test('the token carries the approved scopes, not the requested ones', async () => {
+  // FR-I4: all or nothing, as in the browser. A refused approval leaves the code waiting.
+  test('an approval leaving out a requested scope is refused; a full one is the token', async () => {
     const { device_code, user_code } = await start()
-    await approve(user_code, ['openid', 'profile'])
+    await expect(approve(user_code, ['openid', 'profile'])).rejects.toThrow(/every requested scope/)
+    await approve(user_code)
     const body = await (await poll(device_code)).json()
-    expect(body.scope).toBe('openid profile')
-    expect(body.refresh_token).toBeUndefined()
+    expect(body.scope).toBe('openid profile offline_access')
+    expect(body.refresh_token).toBeString()
   })
 
-  test("an approval cannot add scopes, drop openid, or borrow another account's session", async () => {
+  test("an approval cannot add scopes, drop one, or borrow another account's session", async () => {
     const { user_code } = await start()
-    await expect(approve(user_code, ['openid', 'profile', 'email'])).rejects.toThrow(/never requested/)
-    await expect(approve(user_code, ['profile'])).rejects.toThrow(/openid/)
-    await expect(approve(user_code, ['openid'], 'mallory')).rejects.toThrow(/session does not belong/)
+    await expect(approve(user_code, ['openid', 'profile', 'offline_access', 'email'])).rejects.toThrow(/never requested/)
+    await expect(approve(user_code, ['profile', 'offline_access'])).rejects.toThrow(/leaves out openid/)
+    await expect(approve(user_code, undefined, 'mallory')).rejects.toThrow(/session does not belong/)
   })
 
   test('a screen can look up what was typed before approving it', async () => {
@@ -212,7 +213,7 @@ describe('approval', () => {
       clients: [],
       expiresAt: new Date(Date.now() + 60_000)
     })
-    await provider.device.resolve(user_code, { accountId: 'ada', sessionId: 's2', scopes: ['openid'] })
+    await provider.device.resolve(user_code, { accountId: 'ada', sessionId: 's2', scopes: ['openid', 'profile', 'offline_access'] })
     expect((await adapter.sessions.find('s2'))?.clients).toEqual(['tv'])
   })
 
@@ -254,7 +255,7 @@ describe('pairwise subjects', () => {
       clients: ['tv'],
       expiresAt: new Date(Date.now() + 60_000)
     })
-    await provider.device.resolve(user_code, { accountId: 'ada', sessionId: 's1', scopes: ['openid'] })
+    await provider.device.resolve(user_code, { accountId: 'ada', sessionId: 's1', scopes: ['openid', 'profile', 'offline_access'] })
 
     const body = await (await poll(device_code)).json()
     const sub = decodeJwt(body.id_token).sub as string

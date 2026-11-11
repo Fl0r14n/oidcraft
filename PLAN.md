@@ -514,8 +514,9 @@ Confirmed against the code. The unticked ones are open, each needing a decision.
   enforceable, is not implemented
 - [x] Consent is all or nothing, explicitly, 2026-11-11 (decided): an answer leaving out a requested
   scope not already granted is refused rather than stored and asked again, and FR-I4 says so.
-  Device and CIBA approvals (`authorize/approval.ts`) still accept a subset of the scopes; that was
-  left as it is
+  Device and CIBA approvals (`authorize/approval.ts`) follow the same rule since: an approval covers
+  every requested scope or is `{ denied: true }`. A client that asks for a scope gets it or nothing,
+  never a token missing what it needs to work
 - [x] mTLS on Node, 2026-11-11: `ClientCertificate.verified` is required, and `nodeContext` supplies
   every presented certificate with it, its subject and issuer as RFC 4514 names. `tls_client_auth`
   needs `verified` and compares the subject as a name (RFC 4517 `distinguishedNameMatch`);

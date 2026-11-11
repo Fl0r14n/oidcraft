@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
+import { ConfigurationError } from '@oidcraft/adapter'
 import { memoryAdapter } from '@oidcraft/adapter/memory'
 import { resolveConfig } from './config'
-import { ConfigurationError } from './errors'
 
 const adapter = await memoryAdapter()
 const base = { issuer: 'https://op.example.com', adapter, interactionUrl: 'https://op.example.com/interaction' }

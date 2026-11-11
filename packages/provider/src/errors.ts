@@ -98,12 +98,6 @@ const STATUS: Record<OAuthErrorCode, number> = {
   request_uri_not_supported: 400
 }
 
-/**
- * A misconfiguration, raised while building the provider rather than on the first request (NFR-D2).
- * Separate from OAuthError because it is never a response: nobody is waiting for it.
- */
-export { ConfigurationError } from '@oidcraft/adapter'
-
 const NO_STORE = { 'cache-control': 'no-store', pragma: 'no-cache' }
 
 export const errorResponse = (error: unknown) => {

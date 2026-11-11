@@ -27,6 +27,7 @@ export type {
   Session,
   SessionStore
 } from '@oidcraft/adapter'
+export { ConfigurationError } from '@oidcraft/adapter'
 export type { AuthorizationDetail, AuthorizationRequest } from './authorize/authorization'
 export type { CibaDecision, CibaPayload, CibaPing } from './authorize/ciba'
 export type { DeviceApproval, DevicePayload, UserCodeContext } from './authorize/device'
@@ -44,7 +45,7 @@ export type {
   Ttl
 } from './config'
 export type { ClientAuthenticationInput, ClientCertificate, ContextProvider, RequestContext } from './context'
-export { ConfigurationError, errorResponse, OAuthError, type OAuthErrorCode, type OAuthErrorInit } from './errors'
+export { errorResponse, OAuthError, type OAuthErrorCode, type OAuthErrorInit } from './errors'
 export type { Management, ManagementClientInput } from './management'
 export { createProvider, type LogoutDelivery, type Provider } from './provider'
 export { createRealms, isRealmId, type RealmInput, type RealmPatch, type Realms, type RealmsConfig } from './realms'

@@ -1,5 +1,5 @@
 import type { Adapter, Client, ClientAuthMethod, Seconds } from '@oidcraft/adapter'
-import { ConfigurationError } from './errors'
+import { ConfigurationError } from '@oidcraft/adapter'
 import { fapiProviderProblems } from './profile/fapi'
 import type { ExchangePolicy } from './token/exchange'
 import type { UpstreamDescriptor } from './upstreams/selection'

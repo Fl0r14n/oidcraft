@@ -334,7 +334,7 @@ describe('the interaction contract', () => {
     // #endregion remembered
   })
 
-  test('consenting to fewer scopes than requested is asked again', async () => {
+  test('consenting to fewer scopes than requested is refused, and nothing is stored', async () => {
     const accountId = await register('donald')
     const donald = browser()
     const loginId = interactionId(await donald.open(authorizeUrl({ scope: 'openid profile email' })))
@@ -343,15 +343,15 @@ describe('the interaction contract', () => {
     )
 
     // #region partial
-    const { redirectTo } = await provider.interactions.complete(consentId, { consent: { scopes: ['openid', 'profile'] } })
-    const resumed = await donald.open(redirectTo)
-    expect(await provider.interactions.find(interactionId(resumed))).toMatchObject({
-      kind: 'consent',
-      scopes: ['openid', 'profile', 'email']
+    await expect(provider.interactions.complete(consentId, { consent: { scopes: ['openid', 'profile'] } })).rejects.toMatchObject({
+      code: 'invalid_request',
+      spec: 'FR-I4'
     })
+    const { redirectTo } = await provider.interactions.complete(consentId, { consent: { scopes: ['openid', 'profile', 'email'] } })
     // #endregion partial
 
-    expect((await provider.management.grants.listForAccount(accountId))[0]?.scopes).toEqual(['openid', 'profile'])
+    expect(new URL(redirectTo).pathname).toBe('/authorize')
+    expect((await provider.management.grants.listForAccount(accountId))[0]?.scopes).toEqual(['openid', 'profile', 'email'])
   })
 
   test('prompt=none never suspends', async () => {

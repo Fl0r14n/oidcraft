@@ -153,9 +153,10 @@ forever. A pushed request is pushed again rather than replayed by reference (RFC
 
 <<< @/samples/interaction.test.ts#consent{ts}
 
-- **Consent covers every requested scope, or none.** There is no partial grant: a consent answer
-  that leaves a requested scope out is stored, and the resumed request is missing that scope again,
-  so the person is asked again (the sample below). To refuse, answer `access_denied`.
+- **Consent covers every requested scope, or none** (FR-I4). A consent answer that leaves out a
+  requested scope the account has not already granted throws `invalid_request`, and the interaction
+  survives it, so the screen can be shown again. To refuse, answer `access_denied`. A consent naming
+  a scope the request did not ask for throws too.
 - **Authorization details are approved whole.** When the request carried RFC 9396 details,
   `consent.authorizationDetails` must repeat every one of them exactly, or `complete` throws
   `invalid_request`. Unlike scopes, that approval is not remembered: it is spent by the one
@@ -166,7 +167,7 @@ forever. A pushed request is pushed again rather than replayed by reference (RFC
   The reference deployment completes consent without a screen for its own applications
   (`apps/demo-server/src/interaction/routes.ts`); that is a policy, and it is the host's.
 
-Leaving a scope out is not a narrower grant:
+Leaving a scope out is refused, not stored as a narrower grant:
 
 <<< @/samples/interaction.test.ts#partial{ts}
 

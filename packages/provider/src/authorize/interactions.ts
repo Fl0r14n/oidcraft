@@ -64,10 +64,21 @@ export const interactions = (config: ResolvedConfig) => ({
     if (kind === 'logout') return confirmLogout(config, id, artifact.payload, outcome)
     if (artifact.payload.device) return completeDeviceLogin(config, id, artifact.clientId, artifact.payload.device as DeviceLogin, outcome)
     if (outcome.consent) {
-      const unasked = outcome.consent.scopes.filter(scope => !request.scopes.includes(scope))
+      const consented = outcome.consent.scopes
+      const unasked = consented.filter(scope => !request.scopes.includes(scope))
       if (unasked.length) {
         throw new OAuthError('invalid_request', {
           description: `consent grants ${unasked.join(', ')}, which this request did not ask for`,
+          spec: 'FR-I4'
+        })
+      }
+      // All or nothing: a partial consent would be stored, then asked for again in full (FR-I4).
+      const accountId = outcome.login?.accountId ?? artifact.accountId
+      const held = accountId ? await config.adapter.grants.findByAccountAndClient(accountId, request.clientId) : undefined
+      const declined = request.scopes.filter(scope => !consented.includes(scope) && !held?.scopes.includes(scope))
+      if (declined.length) {
+        throw new OAuthError('invalid_request', {
+          description: `consent must approve every requested scope, or answer access_denied; it leaves out ${declined.join(', ')}`,
           spec: 'FR-I4'
         })
       }

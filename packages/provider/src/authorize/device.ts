@@ -38,7 +38,10 @@ export const deviceAuthorizationEndpoint = async (
   const scopes = (form.get('scope') ?? 'openid').split(' ').filter(Boolean)
   const unallowed = scopes.filter(scope => !client.scopes.includes(scope))
   if (unallowed.length)
-    throw new OAuthError('invalid_scope', { description: `client ${client.clientId} may not request: ${unallowed.join(', ')}` })
+    throw new OAuthError('invalid_scope', {
+      description: `client ${client.clientId} may not request: ${unallowed.join(', ')}`,
+      spec: 'RFC 6749 §3.3'
+    })
 
   const deviceCode = randomString()
   const code = userCode()
@@ -89,7 +92,8 @@ const payloadOf = (artifact: Artifact) => artifact.payload as unknown as DeviceP
 const consumeDeviceCode = async (config: ResolvedConfig, deviceCode: string, clientId: string) => {
   const artifact = await config.adapter.artifacts.find('device_code', deviceCode)
   if (!artifact) throw new OAuthError('expired_token', { description: 'the device code is unknown or expired', spec: 'RFC 8628 §3.5' })
-  if (artifact.clientId !== clientId) throw new OAuthError('invalid_grant', { description: 'this device code belongs to another client' })
+  if (artifact.clientId !== clientId)
+    throw new OAuthError('invalid_grant', { description: 'this device code belongs to another client', spec: 'RFC 6749 §5.2' })
   if (artifact.consumedAt)
     throw new OAuthError('invalid_grant', { description: 'this device code was already redeemed', spec: 'RFC 8628 §3.5' })
 
@@ -177,9 +181,10 @@ export const resolveDeviceCode = async (
   context: UserCodeContext = {}
 ) => {
   const found = await findByUserCode(config, typed, context)
-  if (!found) throw new OAuthError('invalid_request', { description: 'that code is not one we are waiting for', status: 404 })
+  if (!found)
+    throw new OAuthError('invalid_request', { description: 'that code is not one we are waiting for', status: 404, spec: 'FR-C7' })
   if (found.payload.status !== 'pending') {
-    throw new OAuthError('invalid_request', { description: 'that code has already been answered', status: 409 })
+    throw new OAuthError('invalid_request', { description: 'that code has already been answered', status: 409, spec: 'FR-C7' })
   }
 
   if ('denied' in outcome) {
@@ -233,7 +238,7 @@ export const deviceSignIn = async (config: ResolvedConfig, typed: string, contex
   }
   const found = await findByUserCode(config, typed, context)
   if (found?.payload.status !== 'pending') {
-    throw new OAuthError('invalid_request', { description: 'that code is not one we are waiting for', status: 404 })
+    throw new OAuthError('invalid_request', { description: 'that code is not one we are waiting for', status: 404, spec: 'FR-C7' })
   }
   const id = randomString()
   await config.adapter.artifacts.upsert({
@@ -248,14 +253,16 @@ export const deviceSignIn = async (config: ResolvedConfig, typed: string, contex
 
 export const deviceCodeGrant = async (config: ResolvedConfig, client: Client, form: URLSearchParams, binding: Binding) => {
   const deviceCode = form.get('device_code')
-  if (!deviceCode) throw new OAuthError('invalid_request', { description: 'device_code is required' })
+  if (!deviceCode) throw new OAuthError('invalid_request', { description: 'device_code is required', spec: 'RFC 8628 §3.4' })
 
   const { payload } = await consumeDeviceCode(config, deviceCode, client.clientId)
-  if (!payload.grantId || !payload.sessionId) throw new OAuthError('invalid_grant', { description: 'this device code was never approved' })
+  if (!payload.grantId || !payload.sessionId)
+    throw new OAuthError('invalid_grant', { description: 'this device code was never approved', spec: 'RFC 6749 §5.2' })
 
   const grant = await config.adapter.grants.find(payload.grantId)
   const session = await config.adapter.sessions.find(payload.sessionId)
-  if (!grant || !session) throw new OAuthError('invalid_grant', { description: 'the grant or session behind this device code is gone' })
+  if (!grant || !session)
+    throw new OAuthError('invalid_grant', { description: 'the grant or session behind this device code is gone', spec: 'RFC 6749 §5.2' })
 
   return issueTokens(config, client, grant, session, payload.scopes, { binding })
 }

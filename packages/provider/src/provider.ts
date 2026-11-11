@@ -72,7 +72,10 @@ const errorValues = (error: OAuthError) => ({ error: error.code, ...(error.descr
 const deliverStoredResponse = async (config: ResolvedConfig, id: string) => {
   const artifact = await config.adapter.artifacts.find('authorization_response', id)
   if (!artifact || !(await config.adapter.artifacts.consume('authorization_response', id))) {
-    throw new OAuthError('invalid_request', { description: 'this authorization response is unknown, expired or already delivered' })
+    throw new OAuthError('invalid_request', {
+      description: 'this authorization response is unknown, expired or already delivered',
+      spec: 'FR-I2'
+    })
   }
   return authorizationResponse(config.issuer, artifact.payload.target as ResponseTarget, artifact.payload.values as Record<string, string>)
 }
@@ -156,7 +159,7 @@ const resolveParameters = async (config: ResolvedConfig, raw: URLSearchParams) =
   const requestUri = raw.get('request_uri')
   if (requestUri) {
     if (!config.features.pushedAuthorizationRequests) {
-      throw new OAuthError('invalid_request', { description: 'request_uri is not supported here' })
+      throw new OAuthError('invalid_request', { description: 'request_uri is not supported here', spec: 'RFC 9101 §7' })
     }
     return resolvePushedRequest(config, requestUri, raw.get('client_id'))
   }

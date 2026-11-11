@@ -141,11 +141,11 @@ const snapshotOf = (session: Session): SignIn => ({
  */
 export const loadGrantAndSignIn = async (config: ResolvedConfig, artifact: Artifact) => {
   const grant = artifact.grantId ? await config.adapter.grants.find(artifact.grantId) : undefined
-  if (!grant) throw new OAuthError('invalid_grant', { description: 'the grant behind this token no longer exists' })
+  if (!grant) throw new OAuthError('invalid_grant', { description: 'the grant behind this token no longer exists', spec: 'RFC 6749 §5.2' })
   const live = await config.adapter.sessions.find(artifact.payload.sessionId as string)
   if (live) return { grant, session: live }
   const signIn = artifact.payload.signIn as SignIn | undefined
-  if (!signIn) throw new OAuthError('invalid_grant', { description: 'the session behind this token has ended' })
+  if (!signIn) throw new OAuthError('invalid_grant', { description: 'the session behind this token has ended', spec: 'RFC 6749 §5.2' })
   const { authTime, ...rest } = signIn
   const session: Session = { ...rest, authTime: new Date(authTime), clients: [], expiresAt: new Date() }
   return { grant, session }
@@ -153,10 +153,10 @@ export const loadGrantAndSignIn = async (config: ResolvedConfig, artifact: Artif
 
 export const loadGrantAndSession = async (config: ResolvedConfig, artifact: Artifact) => {
   const grant = artifact.grantId ? await config.adapter.grants.find(artifact.grantId) : undefined
-  if (!grant) throw new OAuthError('invalid_grant', { description: 'the grant behind this token no longer exists' })
+  if (!grant) throw new OAuthError('invalid_grant', { description: 'the grant behind this token no longer exists', spec: 'RFC 6749 §5.2' })
 
   const session = await config.adapter.sessions.find(artifact.payload.sessionId as string)
-  if (!session) throw new OAuthError('invalid_grant', { description: 'the session behind this token has ended' })
+  if (!session) throw new OAuthError('invalid_grant', { description: 'the session behind this token has ended', spec: 'RFC 6749 §5.2' })
 
   return { grant, session }
 }

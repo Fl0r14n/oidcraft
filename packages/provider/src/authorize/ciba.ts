@@ -76,10 +76,14 @@ export const backchannelAuthenticationEndpoint = async (
   }
 
   const scopes = (form.get('scope') ?? 'openid').split(' ').filter(Boolean)
-  if (!scopes.includes('openid')) throw new OAuthError('invalid_scope', { description: 'scope must include openid' })
+  if (!scopes.includes('openid'))
+    throw new OAuthError('invalid_scope', { description: 'scope must include openid', spec: 'OIDC CIBA 1.0 §7.1' })
   const unallowed = scopes.filter(scope => !client.scopes.includes(scope))
   if (unallowed.length)
-    throw new OAuthError('invalid_scope', { description: `client ${client.clientId} may not request: ${unallowed.join(', ')}` })
+    throw new OAuthError('invalid_scope', {
+      description: `client ${client.clientId} may not request: ${unallowed.join(', ')}`,
+      spec: 'OIDC CIBA 1.0 §13'
+    })
 
   const resolved = await config.resolveCibaUser({
     client,
@@ -119,7 +123,8 @@ export const backchannelAuthenticationEndpoint = async (
 const consumeAuthReqId = async (config: ResolvedConfig, authReqId: string, clientId: string) => {
   const artifact = await config.adapter.artifacts.find('backchannel_authentication_request', authReqId)
   if (!artifact) throw new OAuthError('expired_token', { description: 'that auth_req_id is unknown or expired', spec: 'OIDC CIBA 1.0 §11' })
-  if (artifact.clientId !== clientId) throw new OAuthError('invalid_grant', { description: 'that auth_req_id belongs to another client' })
+  if (artifact.clientId !== clientId)
+    throw new OAuthError('invalid_grant', { description: 'that auth_req_id belongs to another client', spec: 'OIDC CIBA 1.0 §11' })
   if (artifact.consumedAt)
     throw new OAuthError('invalid_grant', { description: 'that auth_req_id was already redeemed', spec: 'OIDC CIBA 1.0 §11' })
 
@@ -172,10 +177,10 @@ export type CibaDecision = { accountId: string; sessionId: string; scopes: strin
 /** What the out-of-band channel calls once the person has answered on their own device. */
 export const resolveBackchannelRequest = async (config: ResolvedConfig, authReqId: string, outcome: CibaDecision) => {
   const artifact = await config.adapter.artifacts.find('backchannel_authentication_request', authReqId)
-  if (!artifact) throw new OAuthError('invalid_request', { description: 'that request is unknown or expired', status: 404 })
+  if (!artifact) throw new OAuthError('invalid_request', { description: 'that request is unknown or expired', status: 404, spec: 'FR-C17' })
   const payload = payloadOf(artifact)
   if (payload.status !== 'pending')
-    throw new OAuthError('invalid_request', { description: 'that request was already answered', status: 409 })
+    throw new OAuthError('invalid_request', { description: 'that request was already answered', status: 409, spec: 'FR-C17' })
 
   if ('denied' in outcome) {
     await config.adapter.artifacts.upsert({
@@ -219,14 +224,16 @@ export const resolveBackchannelRequest = async (config: ResolvedConfig, authReqI
 
 export const cibaGrant = async (config: ResolvedConfig, client: Client, form: URLSearchParams, binding: Binding) => {
   const authReqId = form.get('auth_req_id')
-  if (!authReqId) throw new OAuthError('invalid_request', { description: 'auth_req_id is required' })
+  if (!authReqId) throw new OAuthError('invalid_request', { description: 'auth_req_id is required', spec: 'OIDC CIBA 1.0 §10.1' })
 
   const { payload } = await consumeAuthReqId(config, authReqId, client.clientId)
-  if (!payload.grantId || !payload.sessionId) throw new OAuthError('invalid_grant', { description: 'that request was never approved' })
+  if (!payload.grantId || !payload.sessionId)
+    throw new OAuthError('invalid_grant', { description: 'that request was never approved', spec: 'OIDC CIBA 1.0 §11' })
 
   const grant = await config.adapter.grants.find(payload.grantId)
   const session = await config.adapter.sessions.find(payload.sessionId)
-  if (!grant || !session) throw new OAuthError('invalid_grant', { description: 'the grant or session behind that request is gone' })
+  if (!grant || !session)
+    throw new OAuthError('invalid_grant', { description: 'the grant or session behind that request is gone', spec: 'OIDC CIBA 1.0 §11' })
 
   return issueTokens(config, client, grant, session, payload.scopes, { binding })
 }

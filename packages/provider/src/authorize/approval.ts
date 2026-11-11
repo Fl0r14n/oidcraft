@@ -1,7 +1,7 @@
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
 
-const refuse = (description: string) => new OAuthError('invalid_request', { description, status: 400 })
+const refuse = (description: string, spec = 'FR-I4') => new OAuthError('invalid_request', { description, spec, status: 400 })
 
 /**
  * What the host reports back from an out-of-band approval (device, CIBA). The token carries what
@@ -17,9 +17,9 @@ export const checkApproval = async (
   if (extra.length) throw refuse(`approved scopes were never requested: ${extra.join(', ')}`)
   if (!approval.scopes.includes('openid')) throw refuse('the approval must keep the openid scope')
   if (expectedAccountId !== undefined && approval.accountId !== expectedAccountId) {
-    throw refuse('the approving account is not the one this request was made for')
+    throw refuse('the approving account is not the one this request was made for', 'OIDC CIBA 1.0 §7.1')
   }
   const session = await config.adapter.sessions.find(approval.sessionId)
-  if (!session || session.accountId !== approval.accountId) throw refuse('that session does not belong to the approving account')
+  if (!session || session.accountId !== approval.accountId) throw refuse('that session does not belong to the approving account', 'FR-I2')
   return approval.scopes
 }

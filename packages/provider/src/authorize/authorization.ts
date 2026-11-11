@@ -106,7 +106,10 @@ export const validateAuthorizationRequest = (
     })
   }
   if (!client.responseTypes.includes(responseType)) {
-    throw new OAuthError('unauthorized_client', { description: `client ${client.clientId} may not use response_type ${responseType}` })
+    throw new OAuthError('unauthorized_client', {
+      description: `client ${client.clientId} may not use response_type ${responseType}`,
+      spec: 'RFC 6749 §4.1.2.1'
+    })
   }
 
   const scopes = list(params.get('scope'))
@@ -114,10 +117,13 @@ export const validateAuthorizationRequest = (
     throw new OAuthError('invalid_scope', { description: 'scope must include openid', spec: 'OIDC Core §3.1.2.1' })
   }
   const unknown = scopes.filter(scope => !config.scopes.includes(scope))
-  if (unknown.length) throw new OAuthError('invalid_scope', { description: `unknown scope: ${unknown.join(', ')}` })
+  if (unknown.length) throw new OAuthError('invalid_scope', { description: `unknown scope: ${unknown.join(', ')}`, spec: 'RFC 6749 §3.3' })
   const unallowed = scopes.filter(scope => !client.scopes.includes(scope))
   if (unallowed.length) {
-    throw new OAuthError('invalid_scope', { description: `client ${client.clientId} may not request: ${unallowed.join(', ')}` })
+    throw new OAuthError('invalid_scope', {
+      description: `client ${client.clientId} may not request: ${unallowed.join(', ')}`,
+      spec: 'RFC 6749 §3.3'
+    })
   }
 
   const prompt = list(params.get('prompt'))
@@ -131,12 +137,15 @@ export const validateAuthorizationRequest = (
   const maxAgeRaw = params.get('max_age')
   const maxAge = maxAgeRaw === null ? undefined : Number(maxAgeRaw)
   if (maxAge !== undefined && (!Number.isInteger(maxAge) || maxAge < 0)) {
-    throw new OAuthError('invalid_request', { description: 'max_age must be a non-negative whole number of seconds' })
+    throw new OAuthError('invalid_request', {
+      description: 'max_age must be a non-negative whole number of seconds',
+      spec: 'OIDC Core §3.1.2.1'
+    })
   }
 
   const responseMode = params.get('response_mode') ?? 'query'
   if (!RESPONSE_MODES.includes(responseMode)) {
-    throw new OAuthError('invalid_request', { description: `unsupported response_mode ${responseMode}` })
+    throw new OAuthError('invalid_request', { description: `unsupported response_mode ${responseMode}`, spec: 'OIDC Core §3.1.2.1' })
   }
 
   return {

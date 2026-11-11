@@ -101,7 +101,10 @@ const askToConfirm = async (config: ResolvedConfig, session: Session, client: Cl
 const acceptConfirmation = async (config: ResolvedConfig, id: string, session: Session | undefined) => {
   const artifact = await config.adapter.artifacts.find('interaction', id)
   if (!artifact?.consumedAt || artifact.payload.interactionKind !== 'logout' || artifact.payload.sessionId !== session?.id) {
-    throw new OAuthError('invalid_request', { description: 'this logout confirmation is unknown, expired, or for another session' })
+    throw new OAuthError('invalid_request', {
+      description: 'this logout confirmation is unknown, expired, or for another session',
+      spec: 'OIDC RP-Initiated Logout 1.0 §2'
+    })
   }
   await config.adapter.artifacts.destroy('interaction', id)
 }
@@ -117,7 +120,8 @@ const resolveTarget = (client: Client | undefined, requested: string | null, ver
   }
   if (!client.postLogoutRedirectUris?.includes(requested)) {
     throw new OAuthError('invalid_request', {
-      description: `post_logout_redirect_uri ${requested} is not registered for ${client.clientId}`
+      description: `post_logout_redirect_uri ${requested} is not registered for ${client.clientId}`,
+      spec: 'OIDC RP-Initiated Logout 1.0 §2'
     })
   }
   return requested

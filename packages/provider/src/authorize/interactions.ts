@@ -10,7 +10,8 @@ import { pushParameters } from './par'
 
 const load = async (config: ResolvedConfig, id: string) => {
   const artifact = await config.adapter.artifacts.find('interaction', id)
-  if (!artifact) throw new OAuthError('invalid_request', { description: 'this interaction is unknown or has expired', status: 404 })
+  if (!artifact)
+    throw new OAuthError('invalid_request', { description: 'this interaction is unknown or has expired', status: 404, spec: 'FR-I2' })
   return {
     artifact,
     request: artifact.payload.request as unknown as AuthorizationRequest,
@@ -84,7 +85,7 @@ export const interactions = (config: ResolvedConfig) => ({
     }
     // A double-submitted form must not start two sessions or write two grants (FR-I2).
     if (!(await config.adapter.artifacts.consume('interaction', id))) {
-      throw new OAuthError('invalid_request', { description: 'this interaction was already completed', status: 404 })
+      throw new OAuthError('invalid_request', { description: 'this interaction was already completed', status: 404, spec: 'FR-I2' })
     }
 
     if (outcome.error) {
@@ -118,7 +119,8 @@ export const interactions = (config: ResolvedConfig) => ({
     }
 
     if (outcome.consent) {
-      if (!accountId) throw new OAuthError('invalid_request', { description: 'consent was given without a logged-in account' })
+      if (!accountId)
+        throw new OAuthError('invalid_request', { description: 'consent was given without a logged-in account', spec: 'FR-I2' })
 
       const previous = await config.adapter.grants.findByAccountAndClient(accountId, request.clientId)
       const grant: Grant = {
@@ -186,11 +188,11 @@ const completeDeviceLogin = async (
   outcome: InteractionResult
 ) => {
   if (!outcome.login) {
-    throw new OAuthError('invalid_request', { description: 'a device sign-in is completed only by signing in', status: 400 })
+    throw new OAuthError('invalid_request', { description: 'a device sign-in is completed only by signing in', status: 400, spec: 'FR-I2' })
   }
   await knownAccount(config, outcome.login.accountId)
   if (!(await config.adapter.artifacts.consume('interaction', id))) {
-    throw new OAuthError('invalid_request', { description: 'this interaction was already completed', status: 404 })
+    throw new OAuthError('invalid_request', { description: 'this interaction was already completed', status: 404, spec: 'FR-I2' })
   }
   const { cookie } = await startSession(config, outcome.login, clientId)
   await config.adapter.artifacts.destroy('interaction', id)
@@ -202,10 +204,14 @@ const completeDeviceLogin = async (
 /** The person confirmed; end-session runs again with a single-use proof of it (OIDC RP-Initiated Logout 1.0 §2). */
 const confirmLogout = async (config: ResolvedConfig, id: string, payload: Record<string, unknown>, outcome: InteractionResult) => {
   if (!outcome.logout) {
-    throw new OAuthError('invalid_request', { description: 'a logout interaction is completed only by confirming it', status: 400 })
+    throw new OAuthError('invalid_request', {
+      description: 'a logout interaction is completed only by confirming it',
+      status: 400,
+      spec: 'FR-I2'
+    })
   }
   if (!(await config.adapter.artifacts.consume('interaction', id))) {
-    throw new OAuthError('invalid_request', { description: 'this interaction was already completed', status: 404 })
+    throw new OAuthError('invalid_request', { description: 'this interaction was already completed', status: 404, spec: 'FR-I2' })
   }
   const url = new URL(`${config.issuer}${config.routes.endSession}`)
   url.searchParams.set('logout', id)

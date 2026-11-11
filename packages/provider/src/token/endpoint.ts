@@ -39,9 +39,12 @@ export const tokenEndpoint = async (config: ResolvedConfig, request: Request, ce
   const { client } = await authenticateClient(config, form, request.headers, certificate)
 
   const grantType = form.get('grant_type')
-  if (!grantType) throw new OAuthError('invalid_request', { description: 'grant_type is required' })
+  if (!grantType) throw new OAuthError('invalid_request', { description: 'grant_type is required', spec: 'RFC 6749 §5.2' })
   if (!client.grantTypes.includes(grantType)) {
-    throw new OAuthError('unauthorized_client', { description: `client ${client.clientId} may not use grant_type ${grantType}` })
+    throw new OAuthError('unauthorized_client', {
+      description: `client ${client.clientId} may not use grant_type ${grantType}`,
+      spec: 'RFC 6749 §5.2'
+    })
   }
 
   const jkt = await bindingFor(config, client, request)
@@ -71,7 +74,7 @@ export const tokenEndpoint = async (config: ResolvedConfig, request: Request, ce
       case CIBA_GRANT:
         return cibaGrant(config, client, form, binding)
       default:
-        throw new OAuthError('unsupported_grant_type', { description: `${grantType} is not supported` })
+        throw new OAuthError('unsupported_grant_type', { description: `${grantType} is not supported`, spec: 'RFC 6749 §5.2' })
     }
   })()
 

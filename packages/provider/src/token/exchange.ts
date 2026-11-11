@@ -69,11 +69,14 @@ export const tokenExchange = async (config: ResolvedConfig, client: Client, form
 
   const requestedType = form.get('requested_token_type') ?? ACCESS_TOKEN_TYPE
   if (!SUPPORTED_TOKEN_TYPES.includes(requestedType)) {
-    throw new OAuthError('invalid_request', { description: `requested_token_type ${requestedType} is not supported` })
+    throw new OAuthError('invalid_request', {
+      description: `requested_token_type ${requestedType} is not supported`,
+      spec: 'RFC 8693 §2.1'
+    })
   }
 
   const subject = await resolveToken(config, subjectToken, subjectTokenType, 'subject_token')
-  if (!subject) throw new OAuthError('invalid_grant', { description: 'the subject_token is unknown or expired' })
+  if (!subject) throw new OAuthError('invalid_grant', { description: 'the subject_token is unknown or expired', spec: 'RFC 8693 §2.2.2' })
 
   const actorTokenValue = form.get('actor_token')
   if (actorTokenValue && !form.get('actor_token_type')) {
@@ -83,7 +86,8 @@ export const tokenExchange = async (config: ResolvedConfig, client: Client, form
     })
   }
   const actor = actorTokenValue ? await resolveToken(config, actorTokenValue, form.get('actor_token_type'), 'actor_token') : undefined
-  if (actorTokenValue && !actor) throw new OAuthError('invalid_grant', { description: 'the actor_token is unknown or expired' })
+  if (actorTokenValue && !actor)
+    throw new OAuthError('invalid_grant', { description: 'the actor_token is unknown or expired', spec: 'RFC 8693 §2.2.2' })
 
   const requestedScopes = (form.get('scope') ?? '').split(' ').filter(Boolean)
   const decision = await config.exchangePolicy({
@@ -105,7 +109,10 @@ export const tokenExchange = async (config: ResolvedConfig, client: Client, form
   const held = (subject.payload.scopes as string[] | undefined) ?? []
   const widened = decision.scopes.filter((scope: string) => !held.includes(scope))
   if (widened.length) {
-    throw new OAuthError('invalid_scope', { description: `an exchange cannot add scopes beyond the subject token: ${widened.join(', ')}` })
+    throw new OAuthError('invalid_scope', {
+      description: `an exchange cannot add scopes beyond the subject token: ${widened.join(', ')}`,
+      spec: 'RFC 8693 §2.2.2'
+    })
   }
 
   return { decision, requestedType, subject }
@@ -117,7 +124,10 @@ export const exchangeGrant = async (config: ResolvedConfig, client: Client, form
   // A sender-constrained token is only usable by its holder; exchanging it must not launder that away.
   const bound = subject.payload.cnf as { jkt?: string; 'x5t#S256'?: string } | undefined
   if ((bound?.jkt && bound.jkt !== binding.jkt) || (bound?.['x5t#S256'] && bound['x5t#S256'] !== binding.x5t)) {
-    throw new OAuthError('invalid_grant', { description: 'the subject_token is bound to a key or certificate this request did not prove' })
+    throw new OAuthError('invalid_grant', {
+      description: 'the subject_token is bound to a key or certificate this request did not prove',
+      spec: 'RFC 8693 §2.2.2'
+    })
   }
 
   const access = await issueAccessToken(config, {

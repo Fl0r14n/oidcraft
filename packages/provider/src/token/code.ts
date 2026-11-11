@@ -24,10 +24,11 @@ const resourcesOf = (artifact: Artifact) => (artifact.payload.resources as strin
 
 export const authorizationCodeGrant = async (config: ResolvedConfig, client: Client, form: URLSearchParams, binding: Binding) => {
   const code = form.get('code')
-  if (!code) throw new OAuthError('invalid_request', { description: 'code is required' })
+  if (!code) throw new OAuthError('invalid_request', { description: 'code is required', spec: 'RFC 6749 §4.1.3' })
 
   const artifact = await config.adapter.artifacts.find('authorization_code', code)
-  if (!artifact) throw new OAuthError('invalid_grant', { description: 'the authorization code is unknown or expired' })
+  if (!artifact)
+    throw new OAuthError('invalid_grant', { description: 'the authorization code is unknown or expired', spec: 'RFC 6749 §5.2' })
   if (artifact.consumedAt) await revokeOnReplay(config, artifact, 'authorization code')
 
   // The code was issued to one client; another presenting it is theft, not a mistake.
@@ -72,10 +73,10 @@ export const authorizationCodeGrant = async (config: ResolvedConfig, client: Cli
 
 export const refreshTokenGrant = async (config: ResolvedConfig, client: Client, form: URLSearchParams, binding: Binding) => {
   const presented = form.get('refresh_token')
-  if (!presented) throw new OAuthError('invalid_request', { description: 'refresh_token is required' })
+  if (!presented) throw new OAuthError('invalid_request', { description: 'refresh_token is required', spec: 'RFC 6749 §6' })
 
   const artifact = await config.adapter.artifacts.find('refresh_token', presented)
-  if (!artifact) throw new OAuthError('invalid_grant', { description: 'the refresh token is unknown or expired' })
+  if (!artifact) throw new OAuthError('invalid_grant', { description: 'the refresh token is unknown or expired', spec: 'RFC 6749 §5.2' })
   if (artifact.consumedAt) await revokeOnReplay(config, artifact, 'refresh token')
   if (artifact.clientId !== client.clientId) await revokeOnReplay(config, artifact, 'refresh token presented by the wrong client')
 
@@ -85,7 +86,8 @@ export const refreshTokenGrant = async (config: ResolvedConfig, client: Client, 
   const granted = scopesOf(artifact).filter(scope => grant.scopes.includes(scope))
   // RFC 6749 §6: a refresh may narrow the scope, never widen it.
   const widened = requested?.filter(scope => !granted.includes(scope)) ?? []
-  if (widened.length) throw new OAuthError('invalid_scope', { description: `a refresh cannot add scopes: ${widened.join(', ')}` })
+  if (widened.length)
+    throw new OAuthError('invalid_scope', { description: `a refresh cannot add scopes: ${widened.join(', ')}`, spec: 'RFC 6749 §6' })
   const audience = audienceFor(requestedResources(config, form), resourcesOf(artifact))
 
   // A bound refresh token may only be presented by the key it was bound to (RFC 9449 §5).

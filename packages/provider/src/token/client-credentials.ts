@@ -21,11 +21,17 @@ export const clientCredentialsGrant = async (config: ResolvedConfig, client: Cli
 
   const requested = (form.get('scope') ?? '').split(' ').filter(Boolean)
   if (requested.includes('openid')) {
-    throw new OAuthError('invalid_scope', { description: 'client_credentials identifies no user, so openid is meaningless here' })
+    throw new OAuthError('invalid_scope', {
+      description: 'client_credentials identifies no user, so openid is meaningless here',
+      spec: 'RFC 6749 §3.3'
+    })
   }
   const unallowed = requested.filter(scope => !client.scopes.includes(scope))
   if (unallowed.length)
-    throw new OAuthError('invalid_scope', { description: `client ${client.clientId} may not request: ${unallowed.join(', ')}` })
+    throw new OAuthError('invalid_scope', {
+      description: `client ${client.clientId} may not request: ${unallowed.join(', ')}`,
+      spec: 'RFC 6749 §3.3'
+    })
 
   const scopes = requested.length ? requested : client.scopes.filter(scope => scope !== 'openid' && scope !== 'offline_access')
   // No user consented to anything, so any configured resource may be named (FR-C19).

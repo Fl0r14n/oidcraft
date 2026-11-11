@@ -238,7 +238,7 @@ export const clientResponse = (config: ResolvedConfig, client: Client) => ({
 })
 
 const authorizeRegistrationAccess = async (config: ResolvedConfig, request: Request, clientId: string | null) => {
-  if (!clientId) throw new OAuthError('invalid_request', { description: 'client_id is required', status: 400 })
+  if (!clientId) throw new OAuthError('invalid_request', { description: 'client_id is required', status: 400, spec: 'RFC 7592 §2' })
   const header = request.headers.get('authorization')
   const presented = header?.toLowerCase().startsWith('bearer ') ? header.slice(7).trim() : undefined
   const client = await config.adapter.clients.find(clientId)

@@ -149,7 +149,9 @@ Going one package to several later is mechanical; going several to one is a brea
 every consumer, so the merged shape is the reversible one. And npm's trusted publishing cannot
 bootstrap a _new_ package — the configuration only exists once a version is published — so every
 extra package is another manual first publish and another `npm trust github` run behind a browser
-OTP (§11).
+OTP (§11). The split this defers is decided rather than open: once the contract settles, a
+`@oidcraft/adapter` contract package with each adapter on it, never on the provider — `PLAN.md`,
+"Adapters as packages".
 
 **Core and client are split by consumer.** `@oidcraft/core` has two kinds of consumer that share
 nothing else:

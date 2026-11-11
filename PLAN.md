@@ -367,6 +367,8 @@ What is _not_ claimed: see the status section. Implemented is not the same as ce
 10. **What the docs pages found** — the conformance suite and both bugs, `prompt=consent` and Node
     below 24.7, are fixed on `main`. Next: a `@oidcraft/provider` release carrying all three — the
     first run of `publish.yml` — then the smaller items under the docs site's requirements.
+11. **At 1.0: adapters as packages** — `@oidcraft/adapter` as the contract, with `@oidcraft/drizzle`,
+    `kysely`, `typeorm` and `redis` on it; decided, waiting on the contract to settle (below).
 
 ## Server review — 2026-10-10
 
@@ -559,6 +561,48 @@ will churn at `0.0.x`.
 **Decided 2026-11-11: VitePress**, with its Vite contained in `apps/docs` — the deliberate break from
 ARCHITECTURE.md §1.1, recorded in §8.5. Starlight was the alternative had Vue needed to stay out of
 the docs toolchain; it did not.
+
+## Adapters as packages — at 1.0
+
+Decided 2026-11-11, for when the `Adapter` contract stops churning — 1.0, or earlier if one adapter
+needs a release cadence of its own or brings dependencies that cannot be optional peers. Until then
+the adapters stay `@oidcraft/provider/adapters/*` subpaths, for the reason ARCHITECTURE.md §2.1
+gives: a contract change ships in one release instead of rippling through several.
+
+Asked whether publishing under the scope made a split worth doing now: no. The scope makes names
+like `@oidcraft/drizzle` available; it does not change the coupling, and the optional peers are
+already confined to their entries, so a split would save a user nothing. What did change is that
+the old blocker — a packages-level tsconfig for compiling private packages back in — no longer
+applies to _published_ ones, which build against a sibling's `.d.mts` the way `@oidcraft/vue` does
+against `@oidcraft/core`.
+
+The shape, mirroring the client side (`core` underneath, each binding on it, none on each other):
+
+```
+@oidcraft/adapter      the contract: Adapter and the store types, the records they carry (Client,
+                       Grant, Session, Artifact, Realm…), fromKv, the memory adapter, the
+                       conformance suite; ./sql for SQLITE_MIGRATIONS and POSTGRES_MIGRATIONS
+@oidcraft/provider     depends on @oidcraft/adapter, and re-exports the records it uses
+@oidcraft/drizzle      peer on @oidcraft/adapter and on drizzle-orm
+@oidcraft/kysely       peer on @oidcraft/adapter and on kysely
+@oidcraft/typeorm      peer on @oidcraft/adapter and on typeorm
+@oidcraft/redis        peer on @oidcraft/adapter
+```
+
+- The provider and an adapter never depend on each other; the host installs both and passes one to
+  the other. That is the point: a provider release no longer forces an adapter release.
+- The provider takes `@oidcraft/adapter` as an ordinary dependency, an adapter as a **peer**, so a
+  contract mismatch is an npm warning at install rather than a type error in the host.
+- `@oidcraft/adapter` carries behaviour — `fromKv`, the memory adapter, the conformance suite — not
+  only types, so it clears the bar a split has to meet here.
+- The runtimes stay provider subpaths: `bun`, `deno` and `workerd` are a few dozen lines each, too
+  thin to be packages.
+- Rejected: `@oidcraft/drizzle` and the rest each peering on `@oidcraft/provider` (the version matrix
+  §2.1 describes, five times over), and one `@oidcraft/adapters` package with subpaths (the same
+  coupling, without the decoupling). On npm `@oidcraft/adapter/drizzle` can only be a subpath of
+  `@oidcraft/adapter`, never a package of its own.
+- Cost: five new packages, each a manual first publish and an `npm trust github` run, released in
+  order — `adapter` before the provider and the adapters.
 
 ## Decisions waiting on an answer
 

@@ -24,7 +24,7 @@ const certificate = (cf: IncomingCf): ClientCertificate | undefined => {
   // Workers never see the DER, only its hex SHA-256; without it every client would share one thumbprint (FR-C13).
   const fingerprint = auth.certFingerprintSHA256
   if (!fingerprint || !/^[0-9a-f]{64}$/i.test(fingerprint)) return undefined
-  return { thumbprint: hexToBase64url(fingerprint), subjectDn: auth.certSubjectDN, issuerDn: auth.certIssuerDN }
+  return { thumbprint: hexToBase64url(fingerprint), verified: true, subjectDn: auth.certSubjectDN, issuerDn: auth.certIssuerDN }
 }
 
 /** Cloudflare puts the peer address in a header and the verified client certificate on `request.cf`. */

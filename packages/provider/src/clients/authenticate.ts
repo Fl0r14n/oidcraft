@@ -90,9 +90,8 @@ export const authenticateClient = async (
   if (assertion) throw unauthorized(`client ${clientId} is registered for ${method}, not a client assertion`)
 
   if (method === 'tls_client_auth' || method === 'self_signed_tls_client_auth') {
-    // The certificate must already have been verified by whatever terminated TLS: this establishes
-    // which client it is, not whether to trust it, and the two are only the same when the host did
-    // its half (FR-R4, RFC 8705 §2).
+    // tls_client_auth trusts a subject only on a chain the listener verified; the self-signed method
+    // trusts the registered certificate itself, which the handshake proved the client holds (RFC 8705 §2).
     if (!certificate) throw unauthorized(`client ${clientId} must authenticate with ${method}, and no client certificate was presented`)
     const ok = method === 'tls_client_auth' ? matchesSubjectDn(client, certificate) : matchesRegisteredCertificate(client, certificate)
     if (!ok) throw unauthorized('the client certificate does not match the one registered for this client', 'RFC 8705 §2')

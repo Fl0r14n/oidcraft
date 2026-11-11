@@ -90,15 +90,22 @@ issuer is still your configuration. The lower-level pieces are exported too: `no
 `nodePasswordHasher` uses; CI imports every published entry on Node 24.7 to keep that floor true.
 `@oidcraft/provider` 0.1.0 claimed Node 22, and on Node 22 this entry failed to load at all.
 
-**mTLS on Node.** With an `https` server that requests client certificates, `nodeContext` supplies a
-certificate only when `socket.authorized` is true, which is to say when the chain verified against
-your listener's `ca`; an unverified certificate is a claim, not an identity. It supplies the
-certificate's thumbprint and nothing else. So:
+**mTLS on Node.** With an `https` server that requests client certificates, `nodeContext` supplies
+whatever certificate the client presented — its thumbprint, its subject and issuer as RFC 4514
+names, and `verified`, which is `socket.authorized`: whether the chain checked against your
+listener's `ca`. What each use needs:
 
-- `self_signed_tls_client_auth` and certificate-bound tokens, which match on the thumbprint, work
-  for certificates your listener's `ca` accepts;
-- `tls_client_auth`, which matches the certificate's subject DN against the client's registered
-  one, has no subject DN to match from this entry, and will not authenticate anyone.
+- `tls_client_auth` needs `verified`. It matches the subject against the client's registered
+  `tls_client_auth_subject_dn` as names, not strings (RFC 8705 §2.1.2), so spacing, case and the
+  spelling of an attribute type do not matter, the order of RDNs does. Its alternatives — a
+  subject alternative name instead of the subject — are not supported.
+- `self_signed_tls_client_auth` and certificate-bound tokens (FR-C13) do not. They match the
+  thumbprint, and the handshake already proved the client holds that certificate's key. To accept
+  self-signed certificates the listener must not reject them: `requestCert: true,
+  rejectUnauthorized: false`. That is safe only because `tls_client_auth` checks `verified` itself.
+
+A certificate forwarded by a TLS-terminating proxy in a header is not read by any entry; behind one,
+build the context yourself.
 
 ## Deno
 

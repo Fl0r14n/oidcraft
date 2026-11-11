@@ -211,8 +211,9 @@ not:
 The core performs no I/O and holds no state (FR-A1), and that boundary puts some security work on
 the host:
 
-- **TLS.** The core never terminates TLS. For mTLS it trusts the certificate your server has already
-  verified. It decides which client presented the certificate, not whether to trust it (FR-C4).
+- **TLS.** The core never terminates TLS. For mTLS your context says whether your listener verified
+  the certificate's chain; `tls_client_auth` accepts only a verified one, while the self-signed
+  method and certificate-bound tokens rest on the key the handshake proved (FR-C4, RFC 8705 §2).
 - **Outbound fetches.** `resolveClientJwks`, `resolveSectorIdentifier` and `resolveClientMetadata`
   are yours because each one fetches a URL that someone else chose. Your network policy, size limit
   and caching are what stand between those URLs and your internal network. FR-C20 spells this out

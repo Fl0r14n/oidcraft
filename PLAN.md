@@ -507,19 +507,29 @@ Confirmed against the code. The unticked ones are open, each needing a decision.
   fits. Every first-party suite runs it through `bun-conformance.ts` (272 tests on SQLite, Postgres
   and Redis), and the adapters page runs it against its own `Map`-backed `KvStore`. Ships with the
   next `@oidcraft/provider` release
-- [ ] Interaction completion trusts the host for more than FR-I* says: `complete` does not check that
-  `accountId` exists, nor that `consent.scopes` is a subset of what was requested, and after a login
-  the `acr` issued is whatever the host reports (FR-C16 rests on the host). The page states all three
-- [ ] No partial consent: consenting to fewer scopes than requested asks again for the full set;
-  `access_denied` is the only alternative. FR-I2/FR-I4 are silent on it
-- [ ] `nodeContext` supplies a certificate thumbprint but never the subject DN, so `tls_client_auth`
-  cannot succeed on Node; and only when `socket.authorized`, so `self_signed_tls_client_auth` needs
-  the listener's `ca` to trust the certificate. No runtime entry sets `capabilities.clientCertificate`
-- [ ] Smaller: `interaction_required` and `account_selection_required` are declared but never raised;
-  66 of 254 error sites give no `spec` clause (NFR-D3); `clients/registration.ts` names
-  `invalid_redirect_uri` in a clause while sending `invalid_request`; FR-I7 cites NFR-S3 for
-  throttling, which is about token entropy; FR-A2's store list omits `CredentialStore` and
-  `RealmStore`; `runtimes/deno` and `runtimes/workerd` export no argument types
+- [x] Interaction completion checks the host's answer, 2026-11-11: `complete` refuses a login naming
+  an account the `AccountStore` cannot find (FR-I2) and a consent naming a scope the request did not
+  ask for (FR-I4), before consuming the interaction. The `acr` a login reports stays the host's word:
+  the host is the authenticator, and the `claims` parameter, where an essential `acr` would be
+  enforceable, is not implemented
+- [x] Consent is all or nothing, explicitly, 2026-11-11 (decided): an answer leaving out a requested
+  scope not already granted is refused rather than stored and asked again, and FR-I4 says so.
+  Device and CIBA approvals (`authorize/approval.ts`) still accept a subset of the scopes; that was
+  left as it is
+- [x] mTLS on Node, 2026-11-11: `ClientCertificate.verified` is required, and `nodeContext` supplies
+  every presented certificate with it, its subject and issuer as RFC 4514 names. `tls_client_auth`
+  needs `verified` and compares the subject as a name (RFC 4517 `distinguishedNameMatch`);
+  `self_signed_tls_client_auth` and bound tokens do not need it. Checked over real TLS on Node 26;
+  `bun test` cannot do that (G-8), so the context's own tests carry real certificates on a stub socket.
+  Still not done: the SAN forms of `tls_client_auth`, and a certificate forwarded by a proxy in a
+  header. `capabilities.clientCertificate` stays the host's declaration, deliberately
+- [x] Smaller, 2026-11-11: `interaction_required` and `account_selection_required` removed, as nothing
+  could raise them; registration answers `invalid_redirect_uri` and `invalid_client_metadata`
+  (RFC 7591 §3.2.2); 56 error sites gained a clause (NFR-D3), leaving the eight `server_error`s and
+  the 404/405 refusals without one on purpose; token exchange answers `invalid_request` as RFC 8693
+  §2.2.2 requires; a `request_uri` with PAR off is `request_uri_not_supported`; `prompt=none` no
+  longer suspends when an authorization-details approval was spent; FR-I7 and FR-A2 corrected; the
+  Deno and workerd entries export their argument types
 
 The requirements, as recorded before it started:
 

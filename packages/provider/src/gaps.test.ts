@@ -303,7 +303,7 @@ describe('FR-C11: front-channel logout', () => {
 })
 
 const DER = new Uint8Array([0x30, 0x82, 0x01, 0x0a, 0x02, 0x01, 0x05])
-const certificate = { thumbprint: await certificateThumbprint(DER), subjectDn: 'CN=rp,O=Example' }
+const certificate = { thumbprint: await certificateThumbprint(DER), verified: true, subjectDn: 'CN=rp,O=Example' }
 
 describe('FR-C4 and FR-C13: mTLS', () => {
   const mtlsProvider = () =>

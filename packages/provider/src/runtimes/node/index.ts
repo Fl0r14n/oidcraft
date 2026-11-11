@@ -1,4 +1,4 @@
-import { argon2, createHash, randomBytes, timingSafeEqual } from 'node:crypto'
+import { argon2, createHash, randomBytes, timingSafeEqual, X509Certificate } from 'node:crypto'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { Readable } from 'node:stream'
 import type { ClientCertificate, RequestContext } from '@oidcraft/provider'
@@ -17,11 +17,20 @@ type TlsSocket = {
 
 const socketOf = (request: IncomingMessage) => request.socket as unknown as TlsSocket
 
+/** OpenSSL prints a name one RDN per line, most general first and RFC 2253-escaped; RFC 4514 wants it reversed on one line. */
+const distinguishedName = (printed: string) => printed.split('\n').filter(Boolean).reverse().join(',')
+
 const peerCertificate = (socket: TlsSocket): ClientCertificate | undefined => {
-  // An unverified certificate is a claim, not an identity: only `authorized` means the chain checked.
-  if (!socket.authorized || !socket.getPeerCertificate) return undefined
-  const raw = socket.getPeerCertificate(true).raw
-  return raw ? { thumbprint: createHash('sha256').update(raw).digest('base64url') } : undefined
+  const raw = socket.getPeerCertificate?.(true).raw
+  if (!raw?.length) return undefined
+  const x509 = new X509Certificate(raw)
+  return {
+    thumbprint: createHash('sha256').update(raw).digest('base64url'),
+    // Only `authorized` means the chain checked; an unverified certificate still proves its key (RFC 8705 §2.2).
+    verified: socket.authorized === true,
+    subjectDn: distinguishedName(x509.subject),
+    issuerDn: distinguishedName(x509.issuer)
+  }
 }
 
 /**

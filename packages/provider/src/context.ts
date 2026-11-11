@@ -24,6 +24,13 @@ export type RequestContext = {
 export type ClientCertificate = {
   /** `x5t#S256`: the base64url SHA-256 of the DER certificate (RFC 8705 §3.1). `certificateThumbprint` computes it. */
   thumbprint: string
+  /**
+   * Whether the TLS listener verified the chain to a CA it trusts. `tls_client_auth` requires it;
+   * `self_signed_tls_client_auth` and certificate-bound tokens do not, because the handshake
+   * already proved possession of the key (RFC 8705 §2.2, §3).
+   */
+  verified: boolean
+  /** RFC 4514, most specific first, as `tls_client_auth_subject_dn` is registered. Compared as a name, not a string. */
   subjectDn?: string | undefined
   issuerDn?: string | undefined
   sanDnsNames?: string[] | undefined

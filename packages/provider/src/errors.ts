@@ -22,6 +22,7 @@ export type OAuthErrorCode =
   | 'unknown_user_id'
   | 'invalid_redirect_uri'
   | 'invalid_client_metadata'
+  | 'request_uri_not_supported'
 
 export type OAuthErrorInit = {
   description?: string
@@ -93,7 +94,8 @@ const STATUS: Record<OAuthErrorCode, number> = {
   invalid_authorization_details: 400,
   unknown_user_id: 400,
   invalid_redirect_uri: 400,
-  invalid_client_metadata: 400
+  invalid_client_metadata: 400,
+  request_uri_not_supported: 400
 }
 
 /**

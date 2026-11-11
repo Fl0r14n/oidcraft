@@ -192,7 +192,7 @@ describe('token exchange', () => {
       { grant_type: 'urn:ietf:params:oauth:grant-type:token-exchange', subject_token: 'nope', subject_token_type: ACCESS },
       { authorization: basic() }
     )
-    expect((await response.json()).error).toBe('invalid_grant')
+    expect((await response.json()).error).toBe('invalid_request')
   })
 
   test('an actor_token without its type is refused', async () => {
@@ -505,7 +505,7 @@ describe('what an exchanged token inherits', () => {
     const issued = await tokensFor(provider)
     const stored = await adapter.artifacts.find('access_token', issued.access_token)
     await adapter.artifacts.upsert({ ...(stored as NonNullable<typeof stored>), payload: { ...stored?.payload, cnf: { jkt: 'someone' } } })
-    expect((await (await exchange(provider, issued.access_token)).json()).error).toBe('invalid_grant')
+    expect((await (await exchange(provider, issued.access_token)).json()).error).toBe('invalid_request')
   })
 
   // An ID token is not stored, so asking for one, or declaring one, cannot be honoured truthfully.

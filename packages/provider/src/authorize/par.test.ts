@@ -169,6 +169,14 @@ describe('pushed authorization requests', () => {
     const response = await off.handle(new Request(`${ISSUER}/request`, { method: 'POST' }))
     expect(response.status).toBe(404)
   })
+
+  test('with the feature off, a request_uri is request_uri_not_supported (OIDC Core §3.1.2.6)', async () => {
+    const off = createProvider({ interactionUrl: 'https://op.example.com/interaction', issuer: ISSUER, adapter })
+    const response = await off.handle(
+      new Request(`${ISSUER}/authorize?${new URLSearchParams({ client_id: 'rp', request_uri: 'urn:ietf:params:oauth:request_uri:x' })}`)
+    )
+    expect((await response.json()).error).toBe('request_uri_not_supported')
+  })
 })
 
 describe('request objects (JAR)', () => {

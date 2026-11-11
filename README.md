@@ -6,7 +6,7 @@ An OpenID Provider library for TypeScript, and the client libraries that sign in
   logout, local accounts with TOTP, and signing people in through Google, Microsoft or any other
   OpenID provider. One build runs on Bun, Node, Deno and Cloudflare Workers. **Start with its
   [guide](packages/provider/README.md).**
-- **[`@oidcraft/vue`](packages/vue/README.md)**, **`@oidcraft/react`** and **[`@oidcraft/angular`](packages/angular/README.md)**:
+- **[`@oidcraft/vue`](packages/vue/README.md)**, **[`@oidcraft/react`](packages/react/README.md)** and **[`@oidcraft/angular`](packages/angular/README.md)**:
   sign-in for Vue, React and Angular applications, against oidcraft or any OpenID provider. They
   continue `vue-oidc`, `react-oauth-oidc` and `ngx-oauth`.
 - **[`@oidcraft/core`](packages/core/README.md)** and **[`@oidcraft/client`](packages/client/README.md)**:

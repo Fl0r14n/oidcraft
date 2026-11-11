@@ -468,8 +468,7 @@ Started 2026-11-11 as `apps/docs`, VitePress (ARCHITECTURE.md §8.5). Done so fa
   files and tests citing each one, read at build time — 75 of the 85 ids are cited
 - [x] Local search, dark mode, "tracks `main`" in the footer, and `docs.yml` deploying to GitHub Pages
   on every push to `main`
-- [ ] Turn on GitHub Pages for the repository, with "GitHub Actions" as the source: until then
-  `docs.yml`'s deploy job fails
+- [x] GitHub Pages on, source "GitHub Actions", 2026-11-11: live at https://fl0r14n.github.io/oidcraft/
 - [x] A React page, from a new `packages/react/README.md` — the package had none, so its npm page
   would have been blank too
 - [ ] The pages below

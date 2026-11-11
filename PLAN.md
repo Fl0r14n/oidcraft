@@ -604,6 +604,41 @@ shape and why are ARCHITECTURE.md §2.1.
   (with `TokenAuthMethod` derived from it), and `tokenAuthMethod` renamed `tokenEndpointAuthMethod`
   everywhere, core included, so core goes to `0.2.0`. `@oidcraft/adapter` depends on core for it
 
+## `tls_client_auth` by SAN (RFC 8705 §2.1.2) — planned
+
+Planned 2026-11-11, not started. Today a `tls_client_auth` client can only register
+`tls_client_auth_subject_dn`. RFC 8705 §2.1.2 allows exactly one of five: the subject DN, or a
+`tls_client_auth_san_dns`, `_san_uri`, `_san_ip` or `_san_email` entry the certificate must carry.
+
+- [ ] `Client` in `@oidcraft/adapter` gains `tlsClientAuthSanDns`, `tlsClientAuthSanUri`,
+  `tlsClientAuthSanIp`, `tlsClientAuthSanEmail`. Clients are stored as JSON, so no migration; a
+  minor release of `adapter` and the provider, none of the four adapters
+- [ ] `ClientCertificate` gains `sanIps` and `sanEmails` beside the existing `sanDnsNames` and `sanUris`
+- [ ] `./runtimes/node` fills all four from `X509Certificate.subjectAltName`, which quotes a value
+  containing a comma, so it is parsed rather than split
+- [ ] `binding/mtls.ts` matches each type as it compares: DNS case-insensitive, an IP normalised (one
+  IPv6 address has many spellings), an email's domain case-insensitive and its local part exact, a URI
+  exact. Still only on a `verified` certificate (FR-R4)
+- [ ] Registration (DCR, RFC 7592, the management API) accepts the four, refuses a client with none
+  or more than one of the five, and echoes them; `fapiClientProblems` applies the same rule
+- [ ] Workers expose the subject and issuer but no SANs, and Bun no certificate (G-8): construction
+  refuses a SAN-registered client where the runtime cannot supply SANs, as FR-R5 already does for
+  the mTLS methods where no certificate can be
+- [ ] Tests: each comparison, the exactly-one rule, and Node over real TLS with a certificate per SAN
+  type, as the subject-DN case is tested today. FR-C4 names the five registrations
+
+Not in it: a certificate forwarded by a proxy in a header, which G-8 decided against until an
+mTLS-only deployment on Bun needs it.
+
+### Upstream Bun, checked 2026-11-11
+
+Nothing tracks exposing the client certificate to a `Bun.serve` handler: no issue, no PR. The only
+movement is on `node:https`: oven-sh/bun#16834 (its `req.socket` is not a `TLSSocket`) has a fix
+open, oven-sh/bun#37255, which adds `getPeerCertificate()` to it. Open, unreviewed and in conflict
+with `main`, last touched 2026-11-06. If it lands, mTLS works on Bun through `./runtimes/node`'s
+`toNodeHandler` on a `node:https` server, not through `Bun.serve`, and G-8's re-verification is the
+first thing to repeat.
+
 ## Decisions waiting on an answer
 
 None.

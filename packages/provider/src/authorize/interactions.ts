@@ -18,6 +18,16 @@ const load = async (config: ResolvedConfig, id: string) => {
   }
 }
 
+/** A session for an account the `AccountStore` cannot find would issue tokens for nobody (FR-I2). */
+const knownAccount = async (config: ResolvedConfig, accountId: string) => {
+  if (!(await config.adapter.accounts.find(accountId))) {
+    throw new OAuthError('invalid_request', {
+      description: `login names account ${accountId}, which the AccountStore does not find`,
+      spec: 'FR-I2'
+    })
+  }
+}
+
 export const interactions = (config: ResolvedConfig) => ({
   async find(id: string): Promise<InteractionRequest> {
     const { artifact, request, kind } = await load(config, id)
@@ -52,6 +62,16 @@ export const interactions = (config: ResolvedConfig) => ({
     const { artifact, request, kind } = await load(config, id)
     if (kind === 'logout') return confirmLogout(config, id, artifact.payload, outcome)
     if (artifact.payload.device) return completeDeviceLogin(config, id, artifact.clientId, artifact.payload.device as DeviceLogin, outcome)
+    if (outcome.consent) {
+      const unasked = outcome.consent.scopes.filter(scope => !request.scopes.includes(scope))
+      if (unasked.length) {
+        throw new OAuthError('invalid_request', {
+          description: `consent grants ${unasked.join(', ')}, which this request did not ask for`,
+          spec: 'FR-I4'
+        })
+      }
+    }
+    if (outcome.login) await knownAccount(config, outcome.login.accountId)
     const requestedDetails = request.authorizationDetails
     if (outcome.consent && requestedDetails) {
       const approved = outcome.consent.authorizationDetails
@@ -168,6 +188,7 @@ const completeDeviceLogin = async (
   if (!outcome.login) {
     throw new OAuthError('invalid_request', { description: 'a device sign-in is completed only by signing in', status: 400 })
   }
+  await knownAccount(config, outcome.login.accountId)
   if (!(await config.adapter.artifacts.consume('interaction', id))) {
     throw new OAuthError('invalid_request', { description: 'this interaction was already completed', status: 404 })
   }

@@ -313,6 +313,12 @@ export const authorize = async (
 
   // Spent here, atomically, so one approval yields one code however many replays race for it.
   if (detailsConsent && !(await config.adapter.artifacts.consume('authorization_details_consent', detailsConsent))) {
+    if (request.prompt.includes('none')) {
+      throw new OAuthError('consent_required', {
+        description: 'the authorization details approval was already spent',
+        spec: 'OIDC Core §3.1.2.6'
+      })
+    }
     return { kind: 'interaction', id: await suspend(config, request, 'consent', session), reason: 'consent' }
   }
 

@@ -24,7 +24,7 @@ const client = (over: Partial<Client> = {}): Client => ({
 
 const accounts = {
   async find(accountId: string) {
-    return { accountId, claims: {} }
+    return accountId === 'ghost' ? undefined : { accountId, claims: {} }
   },
   async claims(_accountId: string, scopes: string[]) {
     return scopes.includes('profile') ? { name: 'Ada Lovelace', email: 'ada@example.com' } : {}
@@ -524,6 +524,28 @@ describe('interaction', () => {
 
     const fresh = `${SESSION_COOKIE}=${(login.setCookie as string).split('=')[1]?.split(';')[0]}`
     expect(new URL((await go(login.redirectTo, fresh)).headers.get('location') as string).searchParams.get('code')).toBeString()
+  })
+
+  test('consent cannot grant a scope the request did not ask for, and the refusal burns nothing', async () => {
+    const first = await go(authorizeUrl({ scope: 'openid profile' }))
+    const id = new URL(first.headers.get('location') as string).pathname.split('/').pop() as string
+    const login = { accountId: 'ada' }
+    await expect(
+      provider.interactions.complete(id, { login, consent: { scopes: ['openid', 'profile', 'offline_access'] } })
+    ).rejects.toMatchObject({ code: 'invalid_request', spec: 'FR-I4' })
+    const done = await provider.interactions.complete(id, { login, consent: { scopes: ['openid', 'profile'] } })
+    const cookie = `${SESSION_COOKIE}=${(done.setCookie as string).split('=')[1]?.split(';')[0]}`
+    expect(new URL((await go(done.redirectTo, cookie)).headers.get('location') as string).searchParams.get('code')).toBeString()
+  })
+
+  test('a login naming an account the AccountStore cannot find is refused, and the interaction survives it', async () => {
+    const first = await go(authorizeUrl())
+    const id = new URL(first.headers.get('location') as string).pathname.split('/').pop() as string
+    await expect(provider.interactions.complete(id, { login: { accountId: 'ghost' } })).rejects.toMatchObject({
+      code: 'invalid_request',
+      spec: 'FR-I2'
+    })
+    expect((await provider.interactions.complete(id, { login: { accountId: 'ada' } })).setCookie).toBeString()
   })
 
   test('prompt=none with another value is invalid_request', async () => {

@@ -30,7 +30,7 @@ let signing: { privateKey: CryptoKey; publicKey: CryptoKey }
 const basic = (id = 'rp', secret = SECRET) => `Basic ${btoa(`${id}:${secret}`)}`
 
 beforeEach(async () => {
-  adapter = await memoryAdapter()
+  adapter = await memoryAdapter({ accounts: { find: async accountId => ({ accountId, claims: {} }), claims: async () => ({}) } })
   signing = await generateKeyPair('ES256', { extractable: true })
   await adapter.clients.upsert?.(client())
   await adapter.clients.upsert?.(client({ clientId: 'strict', requirePushedAuthorizationRequests: true }))

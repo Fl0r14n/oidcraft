@@ -5,7 +5,7 @@ This file is working state: tick items off and add notes as work lands.
 
 ## Status
 
-**Implemented, as of 2026-11-11**, with 1104 passing tests (1380 with Postgres and Redis) and `bun run verify` as the gate — everything
+**Implemented, as of 2026-11-11**, with 1107 passing tests (151 more skip without Postgres and Redis) and `bun run verify` as the gate — everything
 below, FR-T6, FR-C21 and FR-A4's Postgres included. Published as `@oidcraft/*` (the move below), with
 the docs site at https://fl0r14n.github.io/oidcraft/. Every numbered item under _Next_ is done; what
 remains is the section below.

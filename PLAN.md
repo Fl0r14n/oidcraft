@@ -129,7 +129,7 @@ here, or under any load.
   first real release is `@oidcraft/provider@0.1.0`, and `oidcraft` stays the 0.0.1 placeholder. Its
   trusted publisher, registered 2026-10-31, is never used
 
-## The move to the `oidcraft` npm org
+## The move to the `oidcraft` npm org (done 2026-11-11)
 
 Decided 2026-10-31, postponed, then brought forward 2026-11-11 to before the first real release —
 the provider and the client libraries go out together under one scope:
@@ -167,8 +167,9 @@ npm has no rename and no redirect, so this is a set of new packages and a deprec
 - [x] `npm deprecate` the old names, pointing at the new ones, 2026-11-11, every version of each:
   `oidcraft` (a placeholder with no users), `vue-oidc`, `react-oauth-oidc`, `ngx-oauth`. Their
   published versions keep working
-- [ ] Archive the old `vue-oidc`, `react-oauth` and `ngx-oauth` repositories once their packages
-  publish from here, with a README line pointing at `packages/<dir>`
+- [x] Archived the old `vue-oidc`, `react-oauth` and `ngx-oauth` repositories, 2026-11-11, each with a
+  README note naming its `@oidcraft/*` package and pointing at `packages/<dir>`. Done: the move is
+  complete; what remains is the first CI release, which tests `publish.yml`
 - [ ] Docs site — started 2026-11-11 as `apps/docs`; what is left is under its requirements below
 - [x] `oidcraft/accounts` (FR-I7): passwords through an injected argon2id hasher (`bunPasswordHasher`,
   `nodePasswordHasher`, interoperable PHC strings), TOTP with sealed secrets, recovery codes,
@@ -359,8 +360,8 @@ What is _not_ claimed: see the status section. Implemented is not the same as ce
 5. ~~Postgres~~ — done 2026-10-31, on Postgres 19rc1.
 6. ~~The MCP demo, then a real MCP client~~ — done 2026-10-31, OpenCode calling a tool end to end.
 7. ~~`npm trust`~~ — registered 2026-10-31, for the unscoped name the move below replaces.
-8. **The move to `@oidcraft/*`** — renamed in the workspace 2026-11-11; the first publish of the six
-   packages, by hand, is next, then their trusted publishers and the deprecations.
+8. ~~The move to `@oidcraft/*`~~ — done 2026-11-11: six packages published, trusted publishers
+   registered, old names deprecated, old repositories archived.
 9. **The docs site** — started 2026-11-11; the pages it still needs are listed under its requirements.
 
 ## Server review — 2026-10-10

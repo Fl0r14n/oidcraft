@@ -22,14 +22,18 @@ export { generatedKeyStore, generateKey, staticKeyStore } from './keys'
 export { type FromKvOptions, fromKv, type KvEntry, type KvStore } from './kv'
 export type {
   Account,
+  AccountOwned,
   Artifact,
   ArtifactKind,
   Client,
   ClientAuthMethod,
   Credential,
+  Entity,
+  Expiring,
   Grant,
   LinkedIdentity,
   Realm,
   Seconds,
-  Session
+  Session,
+  Timestamped
 } from './types'

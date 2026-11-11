@@ -1,11 +1,11 @@
-import type { Client } from '@oidcraft/adapter'
+import type { Client, Timestamped } from '@oidcraft/adapter'
 import { randomString } from '@oidcraft/core'
 import { audit } from '../audit'
 import type { ResolvedConfig } from '../config'
 import { fapiClientProblems } from '../profile/fapi'
 import { clientResponse } from './registration'
 
-export type ManagementClientInput = Omit<Client, 'createdAt' | 'updatedAt' | 'registrationAccessToken'> & {
+export type ManagementClientInput = Omit<Client, keyof Timestamped | 'registrationAccessToken'> & {
   clientId?: string
 }
 

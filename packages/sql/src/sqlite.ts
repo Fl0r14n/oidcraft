@@ -1,9 +1,10 @@
+import type { Migration } from './migration'
+
 /**
- * The SQLite schema both SQL adapters query, as ordered migrations the host applies with its own
+ * The SQLite schema every SQL adapter queries, as ordered migrations the host applies with its own
  * tooling. The library never runs them: a library that migrates on import migrates during a rolling
  * deploy, from several processes at once (ARCHITECTURE.md §4.2, FR-A4).
  */
-export type Migration = { id: string; statements: string[] }
 
 export const SQLITE_MIGRATIONS: Migration[] = [
   {
@@ -39,3 +40,4 @@ export const SQLITE_MIGRATIONS: Migration[] = [
     ]
   }
 ]
+export type { Migration } from './migration'

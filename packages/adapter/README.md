@@ -14,7 +14,6 @@ bun add @oidcraft/adapter
 | `@oidcraft/adapter`             | `Adapter` and its stores, the records (`Client`, `Session`, `Grant`…), `fromKv`, `staticKeyStore`, `generateKey` |
 | `@oidcraft/adapter/memory`      | `memoryAdapter`, for development and tests: everything dies with the process                                     |
 | `@oidcraft/adapter/conformance` | `adapterConformance`, the shared suite as plain checks, for any test runner                                      |
-| `@oidcraft/adapter/sql`         | `SQLITE_MIGRATIONS` and `POSTGRES_MIGRATIONS`, the schema every first-party SQL adapter queries                  |
 
 For a real database: [`@oidcraft/drizzle`](https://www.npmjs.com/package/@oidcraft/drizzle),
 [`@oidcraft/kysely`](https://www.npmjs.com/package/@oidcraft/kysely),

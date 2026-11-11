@@ -75,8 +75,11 @@ packages/adapter/           @oidcraft/adapter   the storage contract (§4)
   src/index.ts              .                   Adapter, its stores and records, fromKv, the key stores
   src/memory/               ./memory            tests and development only
   src/conformance/          ./conformance       the storage guarantees as checks, for any test runner
-  src/sql/                  ./sql               SQLITE_MIGRATIONS and POSTGRES_MIGRATIONS (§4.2)
-  testing/                                      bun:test and Postgres helpers for the adapters' own suites; unpublished
+  testing/                                      the bun:test wrapper for the adapters' own suites; unpublished
+packages/sql/               @oidcraft/sql       private: the schema the SQL adapters share, compiled into each (§4.2)
+  src/sqlite.ts             ./sqlite            SQLITE_MIGRATIONS
+  src/postgres.ts           ./postgres          POSTGRES_MIGRATIONS
+  testing/                  ./testing           Postgres schemas for the adapters' tests
 packages/drizzle/           @oidcraft/drizzle   Postgres, SQLite
 packages/kysely/            @oidcraft/kysely    Postgres, SQLite
 packages/typeorm/           @oidcraft/typeorm   a TypeORM DataSource; Postgres, SQLite
@@ -148,7 +151,7 @@ adapter do not depend on each other; the host installs both and hands one to the
 
 ```
 @oidcraft/adapter      the contract: Adapter and the store types, the records they hold, fromKv,
-                       the key stores, the memory adapter, the conformance suite, ./sql
+                       the key stores, the memory adapter, the conformance suite
 @oidcraft/provider     depends on @oidcraft/adapter, and re-exports its types
 @oidcraft/drizzle      peer on @oidcraft/adapter and on drizzle-orm
 @oidcraft/kysely       peer on @oidcraft/adapter and on kysely
@@ -170,6 +173,13 @@ implement the contract's `KeyStore` and the memory adapter generates one when gi
 does `ConfigurationError`, which they throw; the provider re-exports that one, since it throws it
 as well. What stays in the provider of the keys is what the protocol does with them: choosing the
 signing key, the JWKS body.
+
+The SQL schema the three SQL adapters share is not contract — nothing but those three reads it — so
+it is `@oidcraft/sql`, private, and each compiles in its own copy. It has a build of its own so they
+bundle its `dist`, not its sources: a declaration build reaching a sibling's sources writes stray
+`.d.ts` files beside them. An adapter importing it by name instead fails `verify-entries.ts`, since
+it is only a `devDependency`. One package rather than one per dialect, because every SQL adapter
+serves both and the two lists must keep the same ids (§4.2).
 
 The runtimes stay provider subpaths: `bun`, `deno` and `workerd` are a few dozen lines each, too
 thin to be packages, and each needs the provider's own types.
@@ -372,8 +382,8 @@ An adapter ships migrations the host runs. The library never creates or alters a
 a library that migrates a production database on import is a library that migrates it during a
 rolling deploy, from several processes at once.
 
-That is `SQLITE_MIGRATIONS` and `POSTGRES_MIGRATIONS` in `@oidcraft/adapter/sql`, re-exported from
-`@oidcraft/drizzle`, `@oidcraft/kysely` and `@oidcraft/typeorm` because all three query the same tables: ordered
+That is `SQLITE_MIGRATIONS` and `POSTGRES_MIGRATIONS`, from the private `@oidcraft/sql` (§2.1),
+exported by `@oidcraft/drizzle`, `@oidcraft/kysely` and `@oidcraft/typeorm` because all three query the same tables: ordered
 `{ id, statements }` records with the same ids in both, data rather than a runner, so the host
 applies them with whatever tool it already uses. TypeORM gets them as migration classes too. Every
 adapter's tests build their database from them, so the shipped schema is the tested one — Postgres

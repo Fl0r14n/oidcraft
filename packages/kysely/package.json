@@ -46,6 +46,7 @@
   },
   "devDependencies": {
     "@oidcraft/adapter": "workspace:^",
+    "@oidcraft/sql": "workspace:*",
     "@types/pg": "^8.23.1",
     "kysely": "^0.29.8",
     "kysely-bun-sqlite": "^0.4.0",

@@ -453,5 +453,6 @@ export const typeormAdapter = (options: TypeormAdapterOptions): FullAdapter => {
   }
 }
 
-export { type Migration, POSTGRES_MIGRATIONS, SQLITE_MIGRATIONS } from '@oidcraft/adapter/sql'
+export { POSTGRES_MIGRATIONS } from '@oidcraft/sql/postgres'
+export { type Migration, SQLITE_MIGRATIONS } from '@oidcraft/sql/sqlite'
 export * from './schema'

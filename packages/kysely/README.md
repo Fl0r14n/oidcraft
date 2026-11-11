@@ -15,8 +15,9 @@ const adapter = kyselyAdapter({ db, keys: staticKeyStore(keys) }) // db: Kysely<
 
 Table names are unqualified, so pick a Postgres schema with the search path or `db.withSchema(...)`.
 
-The schema ships as migrations, `SQLITE_MIGRATIONS` and `POSTGRES_MIGRATIONS` (re-exported from
-`@oidcraft/adapter/sql`), which you run with your own tooling before you deploy. The adapter never
+The schema ships as migrations, `SQLITE_MIGRATIONS` and `POSTGRES_MIGRATIONS` — the same tables as
+the other SQL adapters, so one database works with any of them — which you run with your own tooling
+before you deploy. The adapter never
 creates or alters a table at startup.
 
 It returns a `FullAdapter`, so it satisfies every `@oidcraft/provider` entry point: brokering, local

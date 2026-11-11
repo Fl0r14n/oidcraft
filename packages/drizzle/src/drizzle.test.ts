@@ -3,7 +3,7 @@
 import { Database } from 'bun:sqlite'
 import { describe, expect, test } from 'bun:test'
 import { generatedKeyStore } from '@oidcraft/adapter'
-import { SQLITE_MIGRATIONS } from '@oidcraft/adapter/sql'
+import { SQLITE_MIGRATIONS } from '@oidcraft/sql/sqlite'
 import { sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/bun-sqlite'
 import { bunConformance } from '../../adapter/testing/conformance'

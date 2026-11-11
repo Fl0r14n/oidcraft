@@ -1,11 +1,11 @@
 import { afterAll, describe, expect, test } from 'bun:test'
 import { generatedKeyStore } from '@oidcraft/adapter'
+import { dropSchemas, freshSchema, migrateSchema, POSTGRES_URL } from '@oidcraft/sql/testing'
 /// <reference types="bun" />
 import { SQL } from 'bun'
 import { drizzle as drizzleBun } from 'drizzle-orm/bun-sql'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { bunConformance } from '../../adapter/testing/conformance'
-import { dropSchemas, freshSchema, migrateSchema, POSTGRES_URL } from '../../adapter/testing/postgres'
 import { drizzleAdapter, postgresTables } from './index'
 
 const accounts = {

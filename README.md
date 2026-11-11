@@ -46,6 +46,7 @@ packages/angular    @oidcraft/angular, which continues ngx-oauth
 packages/core       @oidcraft/core: the protocol both sides share
 packages/client     @oidcraft/client: the browser runtime the client libraries share
 packages/ui         the reference screens and their design. Private, demo only
+packages/sql        the SQL schema the SQL adapters share, compiled into each. Private
 apps/demo-server    the reference provider: protocol, login screens, admin and account apps
 apps/demo-vue       a Vue application signing in with @oidcraft/vue
 apps/demo-react     a React application with SSR, signing in with @oidcraft/react

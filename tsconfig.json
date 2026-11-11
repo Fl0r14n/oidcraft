@@ -12,6 +12,9 @@
       "path": "./packages/adapter"
     },
     {
+      "path": "./packages/sql"
+    },
+    {
       "path": "./packages/provider"
     },
     {

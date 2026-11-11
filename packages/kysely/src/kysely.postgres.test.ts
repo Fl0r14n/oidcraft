@@ -1,8 +1,8 @@
 import { afterAll, describe, expect, test } from 'bun:test'
 import { generatedKeyStore } from '@oidcraft/adapter'
+import { dropSchemas, freshSchema, migrateSchema, POSTGRES_URL } from '@oidcraft/sql/testing'
 import { Kysely, PostgresDialect } from 'kysely'
 import { bunConformance } from '../../adapter/testing/conformance'
-import { dropSchemas, freshSchema, migrateSchema, POSTGRES_URL } from '../../adapter/testing/postgres'
 import { kyselyAdapter, type OidcraftDatabase } from './index'
 
 const accounts = {

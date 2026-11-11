@@ -7,7 +7,7 @@ const external = ['@oidcraft/adapter', 'jose']
 
 export default defineConfig([
   {
-    entry: { index: 'src/index.ts', sql: 'src/sql/index.ts' },
+    entry: { index: 'src/index.ts' },
     outDir: 'dist',
     format: 'esm',
     deps: { neverBundle: ['jose'] },

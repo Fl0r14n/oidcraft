@@ -4,7 +4,7 @@
  * declare resolves here and nowhere else. Run after `build`. */
 import { readFileSync } from 'node:fs'
 
-const ENTRIES = ['index', 'memory', 'conformance', 'sql'] as const
+const ENTRIES = ['index', 'memory', 'conformance'] as const
 
 const read = (name: string) => readFileSync(`dist/${name}`, 'utf8')
 const imports = (source: string) => [...source.matchAll(/^(?:import|export)\s.*?from\s*["']([^"']+)["']/gm)].map(m => m[1] ?? '')
@@ -59,7 +59,7 @@ for (const entry of ENTRIES) {
   const missing = [...new Set([...undeclared(js), ...undeclared(dts)])]
   check(missing.length === 0, `${entry} imports ${missing.join(', ')}, which package.json does not declare`)
 
-  if (entry === 'index' || entry === 'sql') continue
+  if (entry === 'index') continue
   const inlined = [...new Set([...declares(dts), ...declares(js)])].filter(name => rootNames.has(name))
   check(
     inlined.length === 0,

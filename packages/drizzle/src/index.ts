@@ -416,7 +416,8 @@ const toIdentity = (row: typeof identities.$inferSelect): LinkedIdentity => ({
   linkedAt: row.linkedAt
 })
 
-export { type Migration, POSTGRES_MIGRATIONS, SQLITE_MIGRATIONS } from '@oidcraft/adapter/sql'
+export { POSTGRES_MIGRATIONS } from '@oidcraft/sql/postgres'
+export { type Migration, SQLITE_MIGRATIONS } from '@oidcraft/sql/sqlite'
 export { type PostgresTables, postgresTables } from './postgres-schema'
 export * from './schema'
 export { schema } from './schema'

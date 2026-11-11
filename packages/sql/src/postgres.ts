@@ -1,4 +1,4 @@
-import type { Migration } from './sqlite'
+import type { Migration } from './migration'
 
 /**
  * The same tables as `SQLITE_MIGRATIONS`, with the same ids, for Postgres (FR-A4). Milliseconds are
@@ -40,3 +40,4 @@ export const POSTGRES_MIGRATIONS: Migration[] = [
     ]
   }
 ]
+export type { Migration } from './migration'

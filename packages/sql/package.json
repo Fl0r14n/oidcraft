@@ -1,0 +1,28 @@
+{
+  "name": "@oidcraft/sql",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Internal: the SQL schema @oidcraft/drizzle, @oidcraft/kysely and @oidcraft/typeorm share, compiled into each. Never published.",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    "./sqlite": {
+      "types": "./dist/sqlite.d.mts",
+      "import": "./dist/sqlite.mjs"
+    },
+    "./postgres": {
+      "types": "./dist/postgres.d.mts",
+      "import": "./dist/postgres.mjs"
+    },
+    "./testing": "./testing/postgres.ts",
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "bun check"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.23.1",
+    "pg": "^8.23.1"
+  }
+}

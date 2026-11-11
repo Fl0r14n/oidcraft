@@ -580,7 +580,7 @@ is on npm with the `./adapters/*` subpaths this removes) and the new packages st
 shape and why are ARCHITECTURE.md §2.1.
 
 - [x] `@oidcraft/adapter`: `Adapter`, the stores and the records, `fromKv`, the memory adapter
-  (`./memory`), the suite (`./conformance`), the migrations (`./sql`). The key stores and
+  (`./memory`), the suite (`./conformance`). The key stores and
   `ConfigurationError` moved with it, because the memory adapter generates keys when given none;
   the provider re-exports the types and `ConfigurationError`, not the helpers
 - [x] `@oidcraft/drizzle`, `@oidcraft/kysely`, `@oidcraft/typeorm`, `@oidcraft/redis`, each peering on
@@ -588,8 +588,11 @@ shape and why are ARCHITECTURE.md §2.1.
   never on the provider; each with its own `verify-entries.ts`
 - [x] The provider: eight entries, no peers, `@oidcraft/adapter` a dependency. Its `verify-entries.ts`
   now fails on any storage library in any entry
-- [x] The adapters' shared test helpers — the `bun:test` wrapper and the Postgres schemas — are
-  `packages/adapter/testing/`, unpublished, imported relatively by the adapters' own tests
+- [x] The migrations are `@oidcraft/sql`, private, with `./sqlite`, `./postgres` and `./testing` (the
+  Postgres schemas for tests); Drizzle, Kysely and TypeORM each compile in its built `dist`. Only
+  those three read it, so it is not contract
+- [x] The `bun:test` wrapper for the suite is `packages/adapter/testing/`, unpublished, still imported
+  relatively by the adapters' own tests
 - [x] `publish.yml`, `load-entries.mjs`, the demo and the docs on the new names. FR-A6 and NFR-D4
   reworded: they named the subpaths
 - [ ] **Release, in order**, each first publish by hand (`bun pm pack`, then `npm publish <tgz>

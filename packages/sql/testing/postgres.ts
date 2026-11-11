@@ -1,6 +1,6 @@
 /// <reference types="bun" />
 import pg from 'pg'
-import { POSTGRES_MIGRATIONS } from '../src/sql/postgres'
+import { POSTGRES_MIGRATIONS } from '../src/postgres'
 
 /** Set in CI, which runs a Postgres service. Without it the Postgres suites skip, as Redis's do. */
 export const POSTGRES_URL = Bun.env.POSTGRES_URL

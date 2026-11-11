@@ -1,8 +1,8 @@
 import { afterAll, describe, expect, test } from 'bun:test'
 import { generatedKeyStore } from '@oidcraft/adapter'
+import { dropSchemas, emptySchema, POSTGRES_URL } from '@oidcraft/sql/testing'
 import { DataSource } from 'typeorm'
 import { bunConformance } from '../../adapter/testing/conformance'
-import { dropSchemas, emptySchema, POSTGRES_URL } from '../../adapter/testing/postgres'
 import { OIDCRAFT_ENTITIES, TYPEORM_POSTGRES_MIGRATIONS, typeormAdapter } from './index'
 
 const accounts = {

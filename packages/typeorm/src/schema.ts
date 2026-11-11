@@ -1,4 +1,5 @@
-import { type Migration, POSTGRES_MIGRATIONS, SQLITE_MIGRATIONS } from '@oidcraft/adapter/sql'
+import { POSTGRES_MIGRATIONS } from '@oidcraft/sql/postgres'
+import { type Migration, SQLITE_MIGRATIONS } from '@oidcraft/sql/sqlite'
 import { EntitySchema, type EntitySchemaColumnOptions, type MigrationInterface, type QueryRunner } from 'typeorm'
 
 export type ClientRow = { client_id: string; data: string; created_at: number; updated_at: number }

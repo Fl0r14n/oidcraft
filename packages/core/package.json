@@ -40,7 +40,7 @@
     "prepublishOnly": "bun run build"
   },
   "dependencies": {
-    "jose": "^6.2.14"
+    "jose": "^6.2.17"
   },
   "publishConfig": {
     "access": "public"

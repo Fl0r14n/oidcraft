@@ -87,7 +87,7 @@
     "@testing-library/react": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
-    "axios": "^1.21.0",
+    "axios": "^1.21.1",
     "react": "latest",
     "react-dom": "latest"
   },
@@ -100,6 +100,6 @@
   "dependencies": {
     "@oidcraft/client": "workspace:^",
     "@oidcraft/core": "workspace:^",
-    "jose": "^6.2.14"
+    "jose": "^6.2.17"
   }
 }

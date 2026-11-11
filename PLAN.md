@@ -637,6 +637,7 @@ still accept it, which is what v8's component was for too.
 
 The same question will arrive for `vue-oidc/component` if `@vue/compiler-sfc` ever stops resolving
 what it currently does — that entry already needed two workarounds to ship at all.
+
 - **Order: vue-oidc, then React, then Angular.** vue-oidc is the reference implementation, React is
   the closest in shape and already on tsdown, and Angular goes last so the signal abstraction has
   been validated against two frameworks before it meets the one with its own toolchain.

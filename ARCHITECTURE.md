@@ -10,13 +10,13 @@ How oidcraft is built. `REQUIREMENTS.md` says what it must do; every section her
 | **Bun**              | ≥ 1.4.4    | Workspaces, test runner, bundler and HTTP server in one tool. The _development_ runtime; the published packages target no runtime in particular (FR-R1). |
 | **TypeScript**       | 7.0.x      | `bun check` for `.ts`, `vue-tsgo` for packages with SFCs; `typescript` stays for tsdown's declaration emit.                                              |
 | **Tailwind**         | 4.3.x      | Styling for both apps, via `bun-plugin-tailwind`. No other CSS pipeline.                                                                                 |
-| **@vuetify/v0**      | 1.2.x      | Headless Vue primitives, in the **admin surface only** (§8.1). Vue 3.5 is its only dependency.                                                           |
-| **Biome**            | 2.5.x      | Lint and format. `biome.json` settles formatting; it is not a matter of preference.                                                                      |
+| **@vuetify/v0**      | 1.3.x      | Headless Vue primitives, in the **admin surface only** (§8.1). Vue 3.5 is its only dependency.                                                           |
+| **Biome**            | 2.6.x      | Lint and format. `biome.json` settles formatting; it is not a matter of preference.                                                                      |
 | **jose**             | ^6         | The only third-party runtime dependency. WebCrypto-backed, runtime-agnostic (NFR-D4).                                                                    |
 | **@oidcraft/core**   | workspace  | The protocol, shared by the provider and every client binding (§2.1). Published; a dependency of each.                                                   |
 | **@oidcraft/client** | workspace  | The stateful client runtime, shared by the client bindings only (§2.1). Published; never the server's.                                                   |
 | **tsdown**           | 0.23.x     | Library build: seven ESM entries with `.d.mts` types (§2.2).                                                                                             |
-| **Drizzle / Kysely** | 1.0 / 0.28 | First-party adapters (FR-A4). Optional peers, never bundled (§2.2).                                                                                      |
+| **Drizzle / Kysely** | 1.0 / 0.29 | First-party adapters (FR-A4). Optional peers, never bundled (§2.2).                                                                                      |
 | **TypeORM**          | 1.1        | First-party adapter (FR-A6) over the host's `DataSource`, with `EntitySchema`s rather than decorators. Optional peer, never bundled.                     |
 
 ### 1.1 No bundler, no build step — with one measured exception

@@ -1,10 +1,10 @@
+import type { Artifact, Client } from '@oidcraft/adapter'
 import { randomString } from '@oidcraft/core'
 import { authenticateClient } from '../clients/authenticate'
 import type { ResolvedConfig } from '../config'
 import type { ClientCertificate } from '../context'
 import { OAuthError } from '../errors'
 import { type Binding, issueTokens } from '../token/issue'
-import type { Artifact, Client } from '../types'
 import { checkApproval } from './approval'
 
 export const CIBA_GRANT = 'urn:openid:params:grant-type:ciba'

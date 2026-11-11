@@ -1,9 +1,9 @@
+import type { Artifact, Client } from '@oidcraft/adapter'
 import { verifyChallenge } from '../authorize/pkce'
 import { audienceFor, requestedResources } from '../authorize/resources'
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
 import { underFapi } from '../profile/fapi'
-import type { Artifact, Client } from '../types'
 import { type Binding, issueTokens, loadGrantAndSession, loadGrantAndSignIn } from './issue'
 
 /**

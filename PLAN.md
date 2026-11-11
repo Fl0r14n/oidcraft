@@ -573,47 +573,29 @@ will churn at `0.0.x`.
 ARCHITECTURE.md §1.1, recorded in §8.5. Starlight was the alternative had Vue needed to stay out of
 the docs toolchain; it did not.
 
-## Adapters as packages — at 1.0
+## Adapters as packages
 
-Decided 2026-11-11, for when the `Adapter` contract stops churning — 1.0, or earlier if one adapter
-needs a release cadence of its own or brings dependencies that cannot be optional peers. Until then
-the adapters stay `@oidcraft/provider/adapters/*` subpaths, for the reason ARCHITECTURE.md §2.1
-gives: a contract change ships in one release instead of rippling through several.
+Landed 2026-11-11, ahead of 1.0 at the user's call: the provider stays `0.x` (`0.2.0`, since `0.1.0`
+is on npm with the `./adapters/*` subpaths this removes) and the new packages start at `0.1.0`. The
+shape and why are ARCHITECTURE.md §2.1.
 
-Asked whether publishing under the scope made a split worth doing now: no. The scope makes names
-like `@oidcraft/drizzle` available; it does not change the coupling, and the optional peers are
-already confined to their entries, so a split would save a user nothing. What did change is that
-the old blocker — a packages-level tsconfig for compiling private packages back in — no longer
-applies to _published_ ones, which build against a sibling's `.d.mts` the way `@oidcraft/vue` does
-against `@oidcraft/core`.
-
-The shape, mirroring the client side (`core` underneath, each binding on it, none on each other):
-
-```
-@oidcraft/adapter      the contract: Adapter and the store types, the records they carry (Client,
-                       Grant, Session, Artifact, Realm…), fromKv, the memory adapter, the
-                       conformance suite; ./sql for SQLITE_MIGRATIONS and POSTGRES_MIGRATIONS
-@oidcraft/provider     depends on @oidcraft/adapter, and re-exports the records it uses
-@oidcraft/drizzle      peer on @oidcraft/adapter and on drizzle-orm
-@oidcraft/kysely       peer on @oidcraft/adapter and on kysely
-@oidcraft/typeorm      peer on @oidcraft/adapter and on typeorm
-@oidcraft/redis        peer on @oidcraft/adapter
-```
-
-- The provider and an adapter never depend on each other; the host installs both and passes one to
-  the other. That is the point: a provider release no longer forces an adapter release.
-- The provider takes `@oidcraft/adapter` as an ordinary dependency, an adapter as a **peer**, so a
-  contract mismatch is an npm warning at install rather than a type error in the host.
-- `@oidcraft/adapter` carries behaviour — `fromKv`, the memory adapter, the conformance suite — not
-  only types, so it clears the bar a split has to meet here.
-- The runtimes stay provider subpaths: `bun`, `deno` and `workerd` are a few dozen lines each, too
-  thin to be packages.
-- Rejected: `@oidcraft/drizzle` and the rest each peering on `@oidcraft/provider` (the version matrix
-  §2.1 describes, five times over), and one `@oidcraft/adapters` package with subpaths (the same
-  coupling, without the decoupling). On npm `@oidcraft/adapter/drizzle` can only be a subpath of
-  `@oidcraft/adapter`, never a package of its own.
-- Cost: five new packages, each a manual first publish and an `npm trust github` run, released in
-  order — `adapter` before the provider and the adapters.
+- [x] `@oidcraft/adapter`: `Adapter`, the stores and the records, `fromKv`, the memory adapter
+  (`./memory`), the suite (`./conformance`), the migrations (`./sql`). The key stores and
+  `ConfigurationError` moved with it, because the memory adapter generates keys when given none;
+  the provider re-exports the types and `ConfigurationError`, not the helpers
+- [x] `@oidcraft/drizzle`, `@oidcraft/kysely`, `@oidcraft/typeorm`, `@oidcraft/redis`, each peering on
+  `@oidcraft/adapter` (and a `devDependency`, so `bun run --filter` builds the contract first) and
+  never on the provider; each with its own `verify-entries.ts`
+- [x] The provider: eight entries, no peers, `@oidcraft/adapter` a dependency. Its `verify-entries.ts`
+  now fails on any storage library in any entry
+- [x] The adapters' shared test helpers — the `bun:test` wrapper and the Postgres schemas — are
+  `packages/adapter/testing/`, unpublished, imported relatively by the adapters' own tests
+- [x] `publish.yml`, `load-entries.mjs`, the demo and the docs on the new names. FR-A6 and NFR-D4
+  reworded: they named the subpaths
+- [ ] **Release, in order**, each first publish by hand (`bun pm pack`, then `npm publish <tgz>
+  --access public`), then `npm trust github <name> --repo Fl0r14n/oidcraft --file publish.yml
+  --allow-publish`: `@oidcraft/adapter@0.1.0`; then `@oidcraft/provider@0.2.0` (already trusted,
+  so a release tag is enough) and the four adapters at `0.1.0`
 
 ## Decisions waiting on an answer
 

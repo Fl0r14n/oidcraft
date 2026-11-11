@@ -71,7 +71,17 @@ packages/ui/                @oidcraft/ui        private, consumed from source by
 packages/vue/               @oidcraft/vue
 packages/react/             @oidcraft/react
 packages/angular/           @oidcraft/angular
-packages/provider/            @oidcraft/provider    the provider, fourteen entries
+packages/adapter/           @oidcraft/adapter   the storage contract (§4)
+  src/index.ts              .                   Adapter, its stores and records, fromKv, the key stores
+  src/memory/               ./memory            tests and development only
+  src/conformance/          ./conformance       the storage guarantees as checks, for any test runner
+  src/sql/                  ./sql               SQLITE_MIGRATIONS and POSTGRES_MIGRATIONS (§4.2)
+  testing/                                      bun:test and Postgres helpers for the adapters' own suites; unpublished
+packages/drizzle/           @oidcraft/drizzle   Postgres, SQLite
+packages/kysely/            @oidcraft/kysely    Postgres, SQLite
+packages/typeorm/           @oidcraft/typeorm   a TypeORM DataSource; Postgres, SQLite
+packages/redis/             @oidcraft/redis     any Redis client, through one command function
+packages/provider/            @oidcraft/provider    the provider, eight entries
   src/index.ts              .                     the OP. fetch in, fetch out, no I/O
   src/broker/               ./broker              the relying-party leg — upstream brokering
   src/interaction/          ./interaction         login/consent policy types
@@ -80,12 +90,6 @@ packages/provider/            @oidcraft/provider    the provider, fourteen entri
   src/runtimes/bun/         ./runtimes/bun        request context for Bun.serve
   src/runtimes/deno/        ./runtimes/deno       request context for Deno.serve
   src/runtimes/workerd/     ./runtimes/workerd    request context for Cloudflare Workers
-  src/adapters/memory/      ./adapters/memory     tests and development only
-  src/adapters/drizzle/     ./adapters/drizzle    Postgres, SQLite
-  src/adapters/kysely/      ./adapters/kysely     Postgres, SQLite
-  src/adapters/typeorm/     ./adapters/typeorm    a TypeORM DataSource; Postgres, SQLite
-  src/adapters/redis/       ./adapters/redis      any Redis client, through one command function
-  src/adapters/conformance/ ./adapters/conformance  the storage guarantees as checks, for any test runner
 apps/
   demo-server               the reference OP: mounts the core, the login screens and the admin UI
   demo-vue                  demo relying party: Vue 3 + @oidcraft/vue
@@ -117,7 +121,7 @@ operator functions, and the root `management.ts` only assembles them into `provi
 None of these folders has an `index.ts`: `exports.test.ts` treats a directory with one as a
 published entry, so an import names the file it means.
 
-### 2.1 Six published packages, one scope
+### 2.1 Eleven published packages, one scope
 
 Everything published is under the `@oidcraft` npm org, and each package is named for its directory:
 
@@ -125,7 +129,12 @@ Everything published is under the `@oidcraft` npm org, and each package is named
 | -------------------- | ------------------- | ---------------------------------------------------------------------------------------- |
 | `@oidcraft/core`     | `packages/core`     | the protocol: discovery, PKCE, the authorization round trip, ID token verification       |
 | `@oidcraft/client`   | `packages/client`   | the stateful client on top: storage, token lifecycle, refresh, authorized fetch, profile |
-| `@oidcraft/provider` | `packages/provider` | the OpenID Provider, fourteen subpath entries                                            |
+| `@oidcraft/adapter`  | `packages/adapter`  | the storage contract: stores, records, `fromKv`, key stores, memory, conformance, SQL    |
+| `@oidcraft/provider` | `packages/provider` | the OpenID Provider, eight subpath entries                                               |
+| `@oidcraft/drizzle`  | `packages/drizzle`  | the Drizzle adapter                                                                      |
+| `@oidcraft/kysely`   | `packages/kysely`   | the Kysely adapter                                                                       |
+| `@oidcraft/typeorm`  | `packages/typeorm`  | the TypeORM adapter                                                                      |
+| `@oidcraft/redis`    | `packages/redis`    | the Redis adapter                                                                        |
 | `@oidcraft/vue`      | `packages/vue`      | Vue binding over `@oidcraft/client`                                                      |
 | `@oidcraft/react`    | `packages/react`    | React binding over `@oidcraft/client`                                                    |
 | `@oidcraft/angular`  | `packages/angular`  | Angular binding over `@oidcraft/client`                                                  |
@@ -134,24 +143,39 @@ Everything published is under the `@oidcraft` npm org, and each package is named
 three bindings continue packages published under older names — `vue-oidc`, `react-oauth-oidc`,
 `ngx-oauth` — and their version numbers continue those.
 
-**The provider is one package.** `@oidcraft/provider` ships with subpath exports, and `drizzle-orm`,
-`kysely` and `typeorm` are **optional** peer dependencies — nobody installing it for Kysely pulls
-Drizzle.
+**The adapters are packages, on a contract package, never on the provider.** The provider and an
+adapter do not depend on each other; the host installs both and hands one to the other:
 
-The reason is the adapter contract. It is the part of this library most likely to churn before 1.0,
-and it is exactly the coupling that makes a split painful: separate versioning puts consumers on
-`@oidcraft/provider@0.5` with `@oidcraft/adapter-drizzle@0.3` and a type error they cannot resolve.
-Auth.js lives that; `oidc-provider` and `better-auth` do not, because they are single packages.
-`drizzle-orm` itself is the closest precedent — dozens of driver adapters as subpath exports with
-optional peers, not as separate packages.
+```
+@oidcraft/adapter      the contract: Adapter and the store types, the records they hold, fromKv,
+                       the key stores, the memory adapter, the conformance suite, ./sql
+@oidcraft/provider     depends on @oidcraft/adapter, and re-exports its types
+@oidcraft/drizzle      peer on @oidcraft/adapter and on drizzle-orm
+@oidcraft/kysely       peer on @oidcraft/adapter and on kysely
+@oidcraft/typeorm      peer on @oidcraft/adapter and on typeorm
+@oidcraft/redis        peer on @oidcraft/adapter
+```
 
-Going one package to several later is mechanical; going several to one is a breaking change for
-every consumer, so the merged shape is the reversible one. And npm's trusted publishing cannot
-bootstrap a _new_ package — the configuration only exists once a version is published — so every
-extra package is another manual first publish and another `npm trust github` run behind a browser
-OTP (§11). The split this defers is decided rather than open: once the contract settles, a
-`@oidcraft/adapter` contract package with each adapter on it, never on the provider — `PLAN.md`,
-"Adapters as packages".
+That is the client side's shape (`core` underneath, each binding on it, none on each other), and it
+is what lets a provider release ship without an adapter release. The provider takes the contract as
+an ordinary dependency and an adapter takes it as a **peer**, so a contract mismatch is an install
+warning rather than a type error in the host. An adapter peering on the provider instead would be
+the version matrix Auth.js lives with — `@oidcraft/provider@0.5` against an adapter built for `0.3`
+— once per adapter. One `@oidcraft/adapters` package with subpaths would keep the coupling and lose
+the decoupling; on npm, `@oidcraft/adapter/drizzle` can only ever be a subpath, never a package.
+
+`@oidcraft/adapter` carries behaviour, not only types: `fromKv`, the memory adapter and the suite.
+The key stores (`staticKeyStore`, `generateKey`, `generatedKeyStore`) live there too, because they
+implement the contract's `KeyStore` and the memory adapter generates one when given none, and so
+does `ConfigurationError`, which they throw; the provider re-exports that one, since it throws it
+as well. What stays in the provider of the keys is what the protocol does with them: choosing the
+signing key, the JWKS body.
+
+The runtimes stay provider subpaths: `bun`, `deno` and `workerd` are a few dozen lines each, too
+thin to be packages, and each needs the provider's own types.
+
+The cost is a release order — `adapter` before the provider and the adapters — and for each new
+package a manual first publish and an `npm trust github` run behind a browser OTP (§11).
 
 **Core and client are split by consumer.** `@oidcraft/core` has two kinds of consumer that share
 nothing else:
@@ -169,8 +193,8 @@ all three bindings; an application using a binding and the broker installs one c
 and a framework without a binding here — Svelte, Solid, plain JS — builds on `@oidcraft/client`
 directly. The price is that their exports are semver contracts, and that a binding's release is
 ordered after the `core` and `client` versions it names. NFR-D4 counts third-party dependencies and
-stays true: `dist/broker.mjs` imports `@oidcraft/provider`, `@oidcraft/core` and `jose`, and nothing
-else.
+stays true: `dist/broker.mjs` imports `@oidcraft/provider`, `@oidcraft/adapter`, `@oidcraft/core` and
+`jose`, and nothing else.
 
 `@oidcraft/client` keeps `@oidcraft/core` external like everyone else. Bundling it would put a second
 copy of every protocol type in its declarations, and a binding that imported `OAuthFunctions` from
@@ -184,8 +208,8 @@ The provider uses what it needs of `@oidcraft/core` too — `sha256`, `randomStr
 Encoding is `jose`'s `base64url`, which both halves already depend on. That is the provider
 depending on the protocol, never the reverse.
 
-What a package split was never buying is a hard wall stopping the core from importing its optional
-peers. `verify-entries.ts` does that (§2.2).
+A package boundary does not stop a bundle from importing what it should not, or from compiling a
+sibling in. `verify-entries.ts` does that (§2.2).
 
 ### 2.2 Entry invariants
 
@@ -193,18 +217,22 @@ Each optional peer is confined to the one entry that owns it; that is what keeps
 than a tax on every consumer. Nothing enforces this at build time, and every way of breaking it
 fails silently — a leaked peer surfaces only as a resolution error in a consumer who never installed
 it, and a core type inlined into an entry compiles fine while shipping a second copy that drifts.
+In the provider the same holds for the storage libraries, which belong to the adapter packages: one
+imported there would make every host install it.
 
 The same goes for workspace packages. Every package a bundle imports must be declared in its
 `package.json`: a workspace package imported but undeclared resolves on this machine and nowhere
 else. And the shared ones must stay imported — `@oidcraft/core` by `./broker` and by each binding's
-`./core`, `@oidcraft/client` by the React and Angular `./core` — because a copy compiled in is one
-a `core` release no longer fixes.
+`./core`, `@oidcraft/client` by the React and Angular `./core`, `@oidcraft/adapter` by the provider
+and by every adapter — because a copy compiled in is one a release of it no longer fixes.
 
-`verify-entries.ts` runs after `build` and asserts, per entry: no optional peer it does not own, in
-either the JS or the `.d.mts`; no undeclared import; no `@oidcraft/client` in the provider; no `node:`
-builtin outside the `./runtimes/node` entry (FR-R1); no redeclared core type; and — once an entry has
-runtime code — that it imports the root by package name rather than inlining a second copy of the
-core. Entries that are still types-only compile to `export {};`, so their runtime checks are reported
+Each package's `verify-entries.ts` runs after its `build`. The provider's asserts, per entry: no
+storage library, in either the JS or the `.d.mts`; no undeclared import; no `@oidcraft/client`; no
+`node:` builtin outside the `./runtimes/node` entry (FR-R1); no redeclared core type; and — once an
+entry has runtime code — that it imports the root by package name rather than inlining a second
+copy of the core. `@oidcraft/adapter`'s and each adapter's assert no undeclared import, no runtime
+builtin or global, `@oidcraft/adapter` and the database library imported by name, and a suite that
+imports no test runner. Entries that are still types-only compile to `export {};`, so their runtime checks are reported
 as pending rather than passing quietly.
 
 ## 3. The core
@@ -282,7 +310,7 @@ tokens are the one place rotation is skipped (FR-T3).
 
 ## 4. The adapter layer
 
-`packages/provider/src/adapter.ts` is the contract. Storage is **a set of narrow capability stores**,
+`packages/adapter/src/adapter.ts` is the contract, published as `@oidcraft/adapter` (§2.1). Storage is **a set of narrow capability stores**,
 not one table keyed by a model-name string:
 
 | Store                 | Holds                                                                                                         |
@@ -344,8 +372,8 @@ An adapter ships migrations the host runs. The library never creates or alters a
 a library that migrates a production database on import is a library that migrates it during a
 rolling deploy, from several processes at once.
 
-That is `SQLITE_MIGRATIONS` and `POSTGRES_MIGRATIONS`, exported from `./adapters/drizzle`,
-`./adapters/kysely` and `./adapters/typeorm` because all three query the same tables: ordered
+That is `SQLITE_MIGRATIONS` and `POSTGRES_MIGRATIONS` in `@oidcraft/adapter/sql`, re-exported from
+`@oidcraft/drizzle`, `@oidcraft/kysely` and `@oidcraft/typeorm` because all three query the same tables: ordered
 `{ id, statements }` records with the same ids in both, data rather than a runner, so the host
 applies them with whatever tool it already uses. TypeORM gets them as migration classes too. Every
 adapter's tests build their database from them, so the shipped schema is the tested one — Postgres
@@ -704,14 +732,14 @@ the apps resolve `@oidcraft/provider` through its exports map into `dist/`, whic
 clone.
 
 - **Adapter conformance** — `adapterConformance(create, { implements })`, the published
-  `./adapters/conformance` entry, is one suite every adapter runs, covering the queries the protocol
+  `@oidcraft/adapter/conformance` entry, is one suite every adapter runs, covering the queries the protocol
   actually needs: expiry enforced by storage, `kind` as part of an artifact's identity,
   `revokeByGrantId` removing that grant and nothing else, lookup by user code and by upstream
   session, and the replay guard admitting a value once. An adapter that passes it is
   interchangeable with the others (FR-A4). It returns plain `{ name, run }` checks that throw rather
   than registering tests, so a third-party adapter runs it under whatever runner it uses (FR-A6);
   `verify-entries.ts` fails the build if the entry imports one. The first-party suites wrap it in
-  `bun:test` through `src/adapters/bun-conformance.ts`, which is not an entry. Checks for
+  `bun:test` through `packages/adapter/testing/conformance.ts`, which is not published. Checks for
   `identities`, `credentials` and `realms` run only for the stores `implements` names.
 
 - **Unit** — `bun test` per package. Every `FR-C*` gets a test that exercises the wire format, not
@@ -732,7 +760,7 @@ clone.
 
 ## 11. Publishing
 
-Six packages, `@oidcraft/*` (§2.1), each built by `tsdown` to ESM with `.d.mts` types and published
+Eleven packages, `@oidcraft/*` (§2.1), each built by `tsdown` to ESM with `.d.mts` types and published
 by `.github/workflows/publish.yml` from a GitHub release tagged `<name>@<version>` — for example
 `@oidcraft/provider@0.1.0`. The workflow checks the tag against that package's `package.json` before
 building anything.
@@ -742,8 +770,9 @@ Trusted publishing (OIDC) from GitHub Actions needs `permissions: id-token: writ
 because it rewrites `workspace:^` to the version it names and npm does not; `npm publish` uploads it,
 because only npm does trusted publishing and provenance.
 
-**Order matters.** A binding names a `@oidcraft/client` and `@oidcraft/core` version, and the server a
-`@oidcraft/core` one; those must be on npm before it is.
+**Order matters.** A binding names a `@oidcraft/client` and `@oidcraft/core` version, the provider a
+`@oidcraft/core` and a `@oidcraft/adapter` one, and each adapter a `@oidcraft/adapter` one; those must
+be on npm before it is.
 
 **The first publish of each package is manual**, with a login or token: npm's trusted-publisher
 configuration only exists once a version has been published, so OIDC cannot bootstrap a new package

@@ -81,10 +81,12 @@ bun run docs             # the docs site, VitePress on :5173
 
 - **Every published package is `@oidcraft/<directory>`.** `packages/provider` is `@oidcraft/provider`,
   `packages/vue` is `@oidcraft/vue`. `bun run --filter` matches package names, not directories.
-- **One package, fourteen subpath entries** (`packages/provider`). An optional peer belongs to exactly
-  one entry; `bun run --filter=@oidcraft/provider build` runs `verify-entries.ts`, which fails the build if
-  one leaks, if a core type is inlined, or if `node:` appears outside the `./runtimes/node` entry
-  (ARCHITECTURE.md §2.1–2.2). Do not split this into several packages without reading §2.1.
+- **The provider is eight subpath entries; storage is its own packages** (ARCHITECTURE.md §2.1–2.2).
+  `@oidcraft/adapter` is the contract the provider depends on; `@oidcraft/drizzle`, `kysely`, `typeorm`
+  and `redis` peer on it and **never on the provider** — do not add that edge. Each package's
+  `verify-entries.ts` runs in its `build` and fails on an undeclared import, an inlined sibling, a
+  storage library in the provider, or `node:` outside the `./runtimes/node` entry. Release
+  `adapter` before the provider and the adapters.
 - **`@oidcraft/core` and `@oidcraft/client` are published dependencies, not compiled in.** `core` is
   the protocol, used by `@oidcraft/provider/broker` _and_ by every client binding; `client` is the
   stateful browser-facing half and is for the bindings only — the server never depends on it, which

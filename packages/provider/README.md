@@ -22,17 +22,19 @@ Microsoft or any other OpenID provider. One build runs on Bun, Node, Deno and Cl
 ## Install
 
 ```sh
-bun add @oidcraft/provider        # or npm install @oidcraft/provider
+bun add @oidcraft/provider @oidcraft/adapter       # or npm install
+bun add @oidcraft/drizzle drizzle-orm              # or @oidcraft/kysely, @oidcraft/typeorm, @oidcraft/redis
 ```
 
-The storage adapters use your database library as an optional peer, so you install only the one you
-use: `drizzle-orm`, `kysely` or `typeorm`. The core depends on `jose` and nothing else.
+`@oidcraft/adapter` is the storage contract, with an in-memory adapter for development and tests.
+Each database adapter is its own package, peering on the contract and on your database library, so
+you install only the one you use. The provider depends on `jose` and nothing else from outside.
 
 ## The smallest provider
 
 ```ts
 import { createProvider } from '@oidcraft/provider'
-import { memoryAdapter } from '@oidcraft/provider/adapters/memory'
+import { memoryAdapter } from '@oidcraft/adapter/memory'
 
 const adapter = await memoryAdapter({
   accounts: {
@@ -190,11 +192,11 @@ anyone take over the local account with that address.
 Everything oidcraft keeps goes through an adapter. Pick the one that matches your stack:
 
 ```ts
-import { memoryAdapter } from '@oidcraft/provider/adapters/memory' // development and tests
-import { drizzleAdapter } from '@oidcraft/provider/adapters/drizzle' // Drizzle v1
-import { kyselyAdapter } from '@oidcraft/provider/adapters/kysely' // Kysely
-import { typeormAdapter } from '@oidcraft/provider/adapters/typeorm' // a TypeORM DataSource
-import { redisAdapter } from '@oidcraft/provider/adapters/redis' // any Redis client, through one command function
+import { memoryAdapter } from '@oidcraft/adapter/memory' // development and tests
+import { drizzleAdapter } from '@oidcraft/drizzle' // Drizzle v1
+import { kyselyAdapter } from '@oidcraft/kysely' // Kysely
+import { typeormAdapter } from '@oidcraft/typeorm' // a TypeORM DataSource
+import { redisAdapter } from '@oidcraft/redis' // any Redis client, through one command function
 ```
 
 The SQL adapters ship their schema as migrations (`SQLITE_MIGRATIONS`, and `TYPEORM_SQLITE_MIGRATIONS`
@@ -204,15 +206,15 @@ startup, because several processes starting at once would all try. With Drizzle 
 ```ts
 import { Database } from 'bun:sqlite'
 import { drizzle } from 'drizzle-orm/bun-sqlite'
-import { drizzleAdapter, SQLITE_MIGRATIONS } from '@oidcraft/provider/adapters/drizzle'
+import { drizzleAdapter, SQLITE_MIGRATIONS } from '@oidcraft/drizzle'
 
 const sqlite = new Database('oidcraft.sqlite')
 for (const statement of SQLITE_MIGRATIONS.flatMap(migration => migration.statements)) sqlite.run(statement) // once, in your migration step
 const storage = drizzleAdapter({ db: drizzle({ client: sqlite }), keys })
 ```
 
-Another backend needs only a `KvStore`: five methods, one of them an atomic insert. `fromKv` builds a
-complete adapter from it.
+Another backend needs only a `KvStore`: five methods, one of them an atomic insert. `fromKv`, from
+`@oidcraft/adapter`, builds a complete adapter from it.
 
 ## Node, Deno and Workers
 
@@ -322,7 +324,7 @@ register dynamically are served by `features: { dynamicRegistration: true }`, an
 - **Keys.** The memory adapter generates signing keys when you pass none, and every restart signs
   everyone out; the other adapters take a key store and generate nothing. Generate a key set once,
   keep it as a secret, and pass it in:
-  `staticKeyStore([await generateKey('ES256'), await generateKey('RS256')])`, persisted as JSON. An
+  `staticKeyStore([await generateKey('ES256'), await generateKey('RS256')])` from `@oidcraft/adapter`, persisted as JSON. An
   RS256 key is required: every OpenID provider must offer one.
 - **https.** The issuer must be `https`, except on `localhost`.
 - **Logout delivery.** oidcraft never makes outbound requests itself. Back-channel logout hands you

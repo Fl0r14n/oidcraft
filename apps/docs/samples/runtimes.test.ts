@@ -1,8 +1,8 @@
 /// <reference types="bun" />
 import { afterAll, describe, expect, test } from 'bun:test'
 import { createServer } from 'node:http'
+import { memoryAdapter } from '@oidcraft/adapter/memory'
 import { ConfigurationError, createProvider } from '@oidcraft/provider'
-import { memoryAdapter } from '@oidcraft/provider/adapters/memory'
 import { bunContext, bunPasswordHasher } from '@oidcraft/provider/runtimes/bun'
 import { denoContext } from '@oidcraft/provider/runtimes/deno'
 import { nodePasswordHasher, toNodeHandler } from '@oidcraft/provider/runtimes/node'

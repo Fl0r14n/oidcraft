@@ -9,7 +9,22 @@
       "path": "./packages/client"
     },
     {
+      "path": "./packages/adapter"
+    },
+    {
       "path": "./packages/provider"
+    },
+    {
+      "path": "./packages/drizzle"
+    },
+    {
+      "path": "./packages/kysely"
+    },
+    {
+      "path": "./packages/typeorm"
+    },
+    {
+      "path": "./packages/redis"
     },
     {
       "path": "./packages/vue"

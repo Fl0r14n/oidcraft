@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
+import { memoryAdapter } from '@oidcraft/adapter/memory'
 import { applyDiscovery, type OpenIdConfiguration } from '@oidcraft/core'
-import { memoryAdapter } from './adapters/memory'
 import { resolveConfig } from './config'
 import { metadata } from './discovery'
 

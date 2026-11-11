@@ -1,10 +1,10 @@
+import type { Artifact, ArtifactKind, Client } from '@oidcraft/adapter'
 import { authenticateClient } from '../clients/authenticate'
 import type { ResolvedConfig } from '../config'
 import type { ClientCertificate } from '../context'
 import { OAuthError } from '../errors'
 import { findPresented } from '../token/access-token'
 import { subjectFor } from '../token/subjects'
-import type { Artifact, ArtifactKind, Client } from '../types'
 
 const INTROSPECTABLE: ArtifactKind[] = ['access_token', 'refresh_token']
 

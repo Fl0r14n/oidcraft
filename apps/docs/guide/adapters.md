@@ -11,24 +11,25 @@ There are three ways to give a provider storage:
   `Adapter` from it (FR-A3);
 - implement the `Adapter` yourself, store by store (FR-A2, FR-A6).
 
-The contract is `packages/provider/src/adapter.ts`, and every type on this page is exported from
-`@oidcraft/provider`. Why it is a set of narrow stores rather than one table keyed by model name is
+The contract is its own package, `@oidcraft/adapter`, and every type and helper on this page comes
+from it. The provider depends on it and re-exports its types; a first-party adapter peers on it and
+never on the provider, so the two release independently. Why it is a set of narrow stores rather than one table keyed by model name is
 in [ARCHITECTURE.md §4](/reference/architecture#_4-the-adapter-layer).
 
 ## First-party adapters
 
-| entry                                  | backend                                                               | single use rests on                                  |
-| -------------------------------------- | --------------------------------------------------------------------- | ---------------------------------------------------- |
-| `@oidcraft/provider/adapters/memory`   | a `Map` in this process                                               | the process being single-threaded                    |
-| `@oidcraft/provider/adapters/redis`    | any Redis client, through one `send(command, args)` function          | `SET NX`                                             |
-| `@oidcraft/provider/adapters/drizzle`  | Drizzle v1 (`drizzle-orm@>=1.0.0-rc.5`), SQLite or Postgres           | `UPDATE … WHERE consumed_at IS NULL`                 |
-| `@oidcraft/provider/adapters/kysely`   | Kysely, SQLite or Postgres                                            | `UPDATE … WHERE consumed_at IS NULL`                 |
-| `@oidcraft/provider/adapters/typeorm`  | an initialized TypeORM `DataSource` with `OIDCRAFT_ENTITIES`          | `UPDATE … WHERE consumed_at IS NULL`                 |
+| package                     | backend                                                      | single use rests on                  |
+| --------------------------- | ------------------------------------------------------------ | ------------------------------------ |
+| `@oidcraft/adapter/memory`  | a `Map` in this process                                      | the process being single-threaded    |
+| `@oidcraft/redis`           | any Redis client, through one `send(command, args)` function | `SET NX`                             |
+| `@oidcraft/drizzle`         | Drizzle v1 (`drizzle-orm@>=1.0.0-rc.5`), SQLite or Postgres  | `UPDATE … WHERE consumed_at IS NULL` |
+| `@oidcraft/kysely`          | Kysely, SQLite or Postgres                                   | `UPDATE … WHERE consumed_at IS NULL` |
+| `@oidcraft/typeorm`         | an initialized TypeORM `DataSource` with `OIDCRAFT_ENTITIES` | `UPDATE … WHERE consumed_at IS NULL` |
 
 How to pick:
 
-- **Use the one for the database you already run.** `drizzle-orm`, `kysely` and `typeorm` are
-  optional peers, so only the one you import gets installed.
+- **Use the one for the database you already run.** Each is its own package, peering on
+  `@oidcraft/adapter` and on its database library, so you install only the one you use.
 - **The memory adapter is for development and tests.** Everything in it dies with the process, and
   it is correct only within one process.
 - **Redis** is `fromKv` over a `KvStore` built on `SET NX` and `PX` expiry, so nothing needs
@@ -36,7 +37,7 @@ How to pick:
   issuers.
 - **The SQL adapters** use real columns and indexes for what the core looks up: `grant_id`,
   `user_code`, `expires_at`, `account_id`, the upstream session id (FR-A5). They ship their schema
-  as `SQLITE_MIGRATIONS` and `POSTGRES_MIGRATIONS`, exported from each of the three entries because
+  as `SQLITE_MIGRATIONS` and `POSTGRES_MIGRATIONS`, exported from each of the three packages because
   all three query the same tables (TypeORM also gets them as migration classes,
   `TYPEORM_SQLITE_MIGRATIONS` and `TYPEORM_POSTGRES_MIGRATIONS`). You run them
   with your own tooling: the library never creates or alters a table at startup (FR-A4,
@@ -204,7 +205,7 @@ trusts the answer rather than re-checking it.
 ## Testing your adapter
 
 Every first-party adapter — memory, Drizzle, Kysely, TypeORM, Redis, on SQLite and Postgres — passes
-one shared suite, and so can yours. `@oidcraft/provider/adapters/conformance` exports it as plain
+one shared suite, and so can yours. `@oidcraft/adapter/conformance` exports it as plain
 checks rather than tests: `adapterConformance(create, options)` returns a list of `{ name, run }`,
 where `run` resolves when the adapter keeps that guarantee and throws a `ConformanceError` naming
 what it got when it does not. It imports no test runner, so it runs under `bun test`, Vitest, Jest or

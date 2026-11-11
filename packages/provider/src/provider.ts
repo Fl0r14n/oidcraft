@@ -1,3 +1,4 @@
+import type { Session } from '@oidcraft/adapter'
 import {
   authorizationResponse,
   authorize,
@@ -28,7 +29,6 @@ import { endSessionEndpoint } from './session/end-session'
 import type { LogoutNotification } from './session/logout'
 import { readSession } from './session/session'
 import { tokenEndpoint } from './token/endpoint'
-import type { Session } from './types'
 
 export type Provider = {
   config: ResolvedConfig

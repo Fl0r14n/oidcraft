@@ -1,28 +1,22 @@
 /// <reference types="bun" />
-/** Checks the invariants the build entries rely on. Every one of them fails silently: an optional
- * peer leaking into the root only surfaces as a resolution error in a consumer who never installed
- * it, and a core type inlined into an entry compiles fine while quietly shipping a second copy that
- * drifts. Run after `build`. */
+/** Checks the invariants the build entries rely on. Every one of them fails silently: a `node:`
+ * import in a shared entry makes the package node-only by accident, and a core type inlined into an
+ * entry compiles fine while quietly shipping a second copy that drifts. Run after `build`. */
 import { readFileSync } from 'node:fs'
 
 const ENTRIES = {
-  index: { owns: [] as string[], runtime: undefined },
-  broker: { owns: [] as string[], runtime: undefined },
-  interaction: { owns: [], runtime: undefined },
-  accounts: { owns: [], runtime: undefined },
-  'runtimes/node': { owns: [], runtime: 'node' },
-  'runtimes/bun': { owns: [], runtime: 'bun' },
-  'runtimes/deno': { owns: [], runtime: 'deno' },
-  'runtimes/workerd': { owns: [], runtime: 'workerd' },
-  'adapters/memory': { owns: [], runtime: undefined },
-  'adapters/drizzle': { owns: ['drizzle-orm'], runtime: undefined },
-  'adapters/kysely': { owns: ['kysely'], runtime: undefined },
-  'adapters/typeorm': { owns: ['typeorm'], runtime: undefined },
-  'adapters/redis': { owns: [], runtime: undefined },
-  'adapters/conformance': { owns: [], runtime: undefined }
+  index: undefined,
+  broker: undefined,
+  interaction: undefined,
+  accounts: undefined,
+  'runtimes/node': 'node',
+  'runtimes/bun': 'bun',
+  'runtimes/deno': 'deno',
+  'runtimes/workerd': 'workerd'
 } as const
 
-const OPTIONAL_PEERS = ['drizzle-orm', 'kysely', 'typeorm'] as const
+/** The storage libraries belong to the adapter packages. One imported here would make every host install it (ARCHITECTURE.md §2.1). */
+const STORAGE_LIBRARIES = ['drizzle-orm', 'kysely', 'typeorm', 'pg'] as const
 
 /** The browser-facing half of the client. The provider never depends on it, which is what keeps
  * `localStorage` and a token lifecycle out of the server (ARCHITECTURE.md §2.1). */
@@ -89,16 +83,14 @@ check(
   'could not read the root entry\u2019s export list — the redeclaration checks would pass vacuously'
 )
 
-for (const [entry, { owns, runtime }] of Object.entries(ENTRIES)) {
+for (const [entry, runtime] of Object.entries(ENTRIES)) {
   const js = read(`${entry}.mjs`)
   const dts = read(`${entry}.d.mts`)
 
-  // An optional peer stays optional only while nothing but the entry that owns it pulls it in.
-  for (const peer of OPTIONAL_PEERS) {
-    if ((owns as readonly string[]).includes(peer)) continue
+  for (const library of STORAGE_LIBRARIES) {
     check(
-      !importsPackage(js, peer) && !importsPackage(dts, peer),
-      `${entry} references ${peer} — only the entry that owns it may, or the optional peer becomes required for every consumer`
+      !importsPackage(js, library) && !importsPackage(dts, library),
+      `${entry} references ${library} — storage libraries belong to the adapter packages, never the provider`
     )
   }
 
@@ -151,24 +143,14 @@ for (const [entry, { owns, runtime }] of Object.entries(ENTRIES)) {
     `${entry}.mjs redeclares ${inlinedRuntime.join(', ')} — it has inlined core runtime code instead of importing it from '@oidcraft/provider'`
   )
 
-  if (isTypesOnly(js)) {
-    stubs++
-    continue
-  }
-
-  for (const peer of owns) {
-    // Either bundle counts: an adapter may use its peer for types alone, which is a *stronger*
-    // position — zero runtime coupling — and asserting a runtime import would forbid it.
-    check(
-      importsPackage(js, peer) || importsPackage(dts, peer),
-      `${entry} does not reference ${peer} in either bundle — the entry that owns it has inlined or lost it`
-    )
-  }
+  if (isTypesOnly(js)) stubs++
 }
 
-// The suite exists for adapters tested under any runner; importing one would tie it to that runner.
-const runners = imports(read('adapters/conformance.mjs')).filter(id => /^(bun:|node:test|vitest|@jest\/|jest$)/.test(id))
-check(runners.length === 0, `adapters/conformance imports ${runners.join(', ')} — it must run under any test runner (FR-A6)`)
+// The contract is a package of its own so an adapter release and a provider release stay independent; a compiled-in copy ties them again.
+check(
+  importsPackage(read('index.mjs'), '@oidcraft/adapter'),
+  'index does not import @oidcraft/adapter by name — it has inlined the contract'
+)
 
 // The relying-party leg is the protocol the client bindings depend on too; a compiled-in copy drifts from it.
 check(importsPackage(read('broker.mjs'), '@oidcraft/core'), 'broker does not import @oidcraft/core by name — it has inlined it')
@@ -183,7 +165,7 @@ if (failures.length) {
   process.exit(1)
 }
 
-const note = stubs > 0 ? ` (${stubs} entries still types-only — their peer checks are pending)` : ''
+const note = stubs > 0 ? ` (${stubs} entries still types-only)` : ''
 console.log(
-  `✓ entry invariants hold: optional peers confined, every import declared, no client runtime, no inlined core types, no node: outside /runtimes/node${note}`
+  `✓ entry invariants hold: no storage library, every import declared, no client runtime, no inlined core types, no node: outside /runtimes/node${note}`
 )

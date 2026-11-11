@@ -14,14 +14,16 @@
   "dependencies": {
     "@fontsource-variable/public-sans": "^5.3.0",
     "@modelcontextprotocol/sdk": "^1.32.2",
+    "@oidcraft/adapter": "workspace:*",
+    "@oidcraft/drizzle": "workspace:*",
+    "@oidcraft/provider": "workspace:*",
     "@oidcraft/ui": "workspace:*",
+    "@oidcraft/vue": "workspace:*",
     "drizzle-orm": "1.0.0-rc.5",
     "jose": "^6.2.17",
-    "@oidcraft/provider": "workspace:*",
     "pg": "^8.23.1",
     "uqr": "^0.1.3",
     "vue": "^3.5.45",
-    "@oidcraft/vue": "workspace:*",
     "vue-router": "^5.5.0"
   },
   "devDependencies": {

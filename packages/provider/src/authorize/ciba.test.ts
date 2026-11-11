@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, setSystemTime, test } from 'bun:test'
+import { memoryAdapter } from '@oidcraft/adapter/memory'
 import { decodeJwt } from 'jose'
-import { memoryAdapter } from '../adapters/memory'
 import type { Adapter, Client } from '../index'
 import { createProvider, type Provider } from '../provider'
 

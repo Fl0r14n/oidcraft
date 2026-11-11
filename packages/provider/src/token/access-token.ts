@@ -1,9 +1,9 @@
+import type { Artifact, ArtifactKind, Client } from '@oidcraft/adapter'
 import { randomString } from '@oidcraft/core'
 import { decodeJwt, importJWK, SignJWT } from 'jose'
 import type { ResolvedConfig } from '../config'
 import { signingKey } from '../keys/keys'
 import { defaultSigningAlg } from '../profile/fapi'
-import type { Artifact, ArtifactKind, Client } from '../types'
 
 export const JWT_ACCESS_TOKEN_TYPE = 'at+jwt'
 

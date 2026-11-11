@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { memoryAdapter } from './adapters/memory'
+import { memoryAdapter } from '@oidcraft/adapter/memory'
 import { createProvider } from './provider'
 
 const adapter = await memoryAdapter()

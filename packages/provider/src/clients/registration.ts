@@ -1,3 +1,4 @@
+import type { Client, ClientAuthMethod } from '@oidcraft/adapter'
 import { constantTimeEquals, randomString } from '@oidcraft/core'
 import { audit } from '../audit'
 import { CIBA_GRANT } from '../authorize/ciba'
@@ -6,7 +7,6 @@ import { supportedGrantTypes } from '../discovery'
 import { OAuthError } from '../errors'
 import { signingAlgorithms } from '../keys/keys'
 import { fapiClientProblems } from '../profile/fapi'
-import type { Client, ClientAuthMethod } from '../types'
 
 const DEFAULT_GRANTS = ['authorization_code']
 

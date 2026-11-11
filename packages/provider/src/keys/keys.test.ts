@@ -1,16 +1,11 @@
 import { describe, expect, test } from 'bun:test'
-import { ConfigurationError } from '../errors'
-import { generateKey, jwksResponseBody, publicJwk, signingAlgorithms, signingKey, staticKeyStore } from './keys'
+import { generateKey } from '@oidcraft/adapter'
+import { jwksResponseBody, publicJwk, signingAlgorithms, signingKey } from './keys'
 
 const es256 = await generateKey('ES256')
 const rs256 = await generateKey('RS256')
 
 describe('keys', () => {
-  test('a generated key carries a thumbprint kid and its algorithm', () => {
-    expect(es256.kid).toBeTruthy()
-    expect(es256.alg).toBe('ES256')
-  })
-
   // The whole point of a JWKS: it must never carry the private half.
   test('the public jwk drops every private member', () => {
     const jwk = publicJwk(es256.privateJwk as never)
@@ -37,19 +32,5 @@ describe('keys', () => {
 
   test('advertised algorithms come from the keys that exist', () => {
     expect(signingAlgorithms([es256, rs256]).sort()).toEqual(['ES256', 'RS256'])
-  })
-
-  test('a keystore with no keys is a configuration error, not a runtime surprise', () => {
-    expect(() => staticKeyStore([])).toThrow(ConfigurationError)
-  })
-
-  // FR-T1, OIDC Core §15.1: RS256 is the one algorithm every OP must sign with.
-  test('a key set without RS256 is a configuration error', () => {
-    expect(() => staticKeyStore([es256])).toThrow(ConfigurationError)
-    expect(staticKeyStore([es256, rs256])).toBeTruthy()
-  })
-
-  test('a key without an alg is rejected', () => {
-    expect(() => staticKeyStore([{ ...es256, alg: '' }, rs256])).toThrow(ConfigurationError)
   })
 })

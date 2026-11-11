@@ -1,0 +1,67 @@
+{
+  "name": "@oidcraft/adapter",
+  "version": "0.1.0",
+  "description": "The storage contract of @oidcraft/provider: the Adapter stores and the records they hold, fromKv, key stores, an in-memory adapter, the shared conformance suite and the SQL migrations every first-party adapter runs on.",
+  "license": "MIT",
+  "author": "Fl0r14n <florian.chis@gmail.com>",
+  "homepage": "https://github.com/Fl0r14n/oidcraft/tree/main/packages/adapter",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Fl0r14n/oidcraft",
+    "directory": "packages/adapter"
+  },
+  "keywords": [
+    "oidc",
+    "openid",
+    "oauth2",
+    "authorization-server",
+    "oidcraft",
+    "storage",
+    "adapter"
+  ],
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "main": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    },
+    "./memory": {
+      "types": "./dist/memory.d.mts",
+      "import": "./dist/memory.mjs"
+    },
+    "./conformance": {
+      "types": "./dist/conformance.d.mts",
+      "import": "./dist/conformance.mjs"
+    },
+    "./sql": {
+      "types": "./dist/sql.d.mts",
+      "import": "./dist/sql.mjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "tsdown && bun run verify:entries",
+    "prepublishOnly": "bun run build",
+    "test": "bun test",
+    "typecheck": "bun check",
+    "verify:entries": "bun run verify-entries.ts"
+  },
+  "dependencies": {
+    "jose": "^6.2.17"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.23.1",
+    "pg": "^8.23.1"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=24.7"
+  }
+}

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, setSystemTime, test } from 'bun:test'
+import { memoryAdapter } from '@oidcraft/adapter/memory'
 import { randomString, sha256 } from '@oidcraft/core'
 import { base64url, compactDecrypt, createLocalJWKSet, decodeJwt, decodeProtectedHeader, exportJWK, generateKeyPair, jwtVerify } from 'jose'
-import { memoryAdapter } from './adapters/memory'
 import { certificateThumbprint } from './binding/mtls'
 import type { Adapter, Client, RequestContext } from './index'
 import { createProvider, type Provider } from './provider'

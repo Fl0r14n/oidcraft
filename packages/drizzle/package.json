@@ -1,0 +1,59 @@
+{
+  "name": "@oidcraft/drizzle",
+  "version": "0.1.0",
+  "description": "A Drizzle storage adapter for @oidcraft/provider, on Postgres or SQLite.",
+  "license": "MIT",
+  "author": "Fl0r14n <florian.chis@gmail.com>",
+  "homepage": "https://github.com/Fl0r14n/oidcraft/tree/main/packages/drizzle",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Fl0r14n/oidcraft",
+    "directory": "packages/drizzle"
+  },
+  "keywords": [
+    "oidc",
+    "openid",
+    "oauth2",
+    "authorization-server",
+    "oidcraft",
+    "storage",
+    "adapter",
+    "drizzle"
+  ],
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "main": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "tsdown && bun run verify:entries",
+    "prepublishOnly": "bun run build",
+    "test": "bun test",
+    "typecheck": "bun check",
+    "verify:entries": "bun run verify-entries.ts"
+  },
+  "peerDependencies": {
+    "@oidcraft/adapter": "workspace:^",
+    "drizzle-orm": ">=1.0.0-rc.5"
+  },
+  "devDependencies": {
+    "@oidcraft/adapter": "workspace:^",
+    "@types/pg": "^8.23.1",
+    "drizzle-orm": "1.0.0-rc.5",
+    "pg": "^8.23.1"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=24.7"
+  }
+}

@@ -45,6 +45,8 @@
       "dependencies": {
         "@fontsource-variable/public-sans": "^5.3.0",
         "@modelcontextprotocol/sdk": "^1.32.2",
+        "@oidcraft/adapter": "workspace:*",
+        "@oidcraft/drizzle": "workspace:*",
         "@oidcraft/provider": "workspace:*",
         "@oidcraft/ui": "workspace:*",
         "@oidcraft/vue": "workspace:*",
@@ -82,11 +84,23 @@
       "name": "@oidcraft/docs",
       "version": "0.0.0",
       "devDependencies": {
+        "@oidcraft/adapter": "workspace:*",
         "@oidcraft/core": "workspace:*",
         "@oidcraft/provider": "workspace:*",
         "typescript": "^7.0.2",
         "vitepress": "^1.6.4",
         "vue-tsgo": "^0.3.0",
+      },
+    },
+    "packages/adapter": {
+      "name": "@oidcraft/adapter",
+      "version": "0.1.0",
+      "dependencies": {
+        "jose": "^6.2.17",
+      },
+      "devDependencies": {
+        "@types/pg": "^8.23.1",
+        "pg": "^8.23.1",
       },
     },
     "packages/angular": {
@@ -119,32 +133,43 @@
         "jose": "^6.2.17",
       },
     },
-    "packages/provider": {
-      "name": "@oidcraft/provider",
+    "packages/drizzle": {
+      "name": "@oidcraft/drizzle",
       "version": "0.1.0",
-      "dependencies": {
-        "@oidcraft/core": "workspace:^",
-        "jose": "^6.2.17",
-      },
       "devDependencies": {
+        "@oidcraft/adapter": "workspace:^",
         "@types/pg": "^8.23.1",
         "drizzle-orm": "1.0.0-rc.5",
+        "pg": "^8.23.1",
+      },
+      "peerDependencies": {
+        "@oidcraft/adapter": "workspace:^",
+        "drizzle-orm": ">=1.0.0-rc.5",
+      },
+    },
+    "packages/kysely": {
+      "name": "@oidcraft/kysely",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@oidcraft/adapter": "workspace:^",
+        "@types/pg": "^8.23.1",
         "kysely": "^0.29.8",
         "kysely-bun-sqlite": "^0.4.0",
         "pg": "^8.23.1",
-        "sql.js": "^1.16.0",
-        "typeorm": "^1.1.2",
       },
       "peerDependencies": {
-        "drizzle-orm": ">=1.0.0-rc.5",
+        "@oidcraft/adapter": "workspace:^",
         "kysely": ">=0.28",
-        "typeorm": ">=1.1",
       },
-      "optionalPeers": [
-        "drizzle-orm",
-        "kysely",
-        "typeorm",
-      ],
+    },
+    "packages/provider": {
+      "name": "@oidcraft/provider",
+      "version": "0.2.0",
+      "dependencies": {
+        "@oidcraft/adapter": "workspace:^",
+        "@oidcraft/core": "workspace:^",
+        "jose": "^6.2.17",
+      },
     },
     "packages/react": {
       "name": "@oidcraft/react",
@@ -183,6 +208,31 @@
         "@mui/material",
         "axios",
       ],
+    },
+    "packages/redis": {
+      "name": "@oidcraft/redis",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@oidcraft/adapter": "workspace:^",
+      },
+      "peerDependencies": {
+        "@oidcraft/adapter": "workspace:^",
+      },
+    },
+    "packages/typeorm": {
+      "name": "@oidcraft/typeorm",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@oidcraft/adapter": "workspace:^",
+        "@types/pg": "^8.23.1",
+        "pg": "^8.23.1",
+        "sql.js": "^1.16.0",
+        "typeorm": "^1.1.2",
+      },
+      "peerDependencies": {
+        "@oidcraft/adapter": "workspace:^",
+        "typeorm": ">=1.1",
+      },
     },
     "packages/ui": {
       "name": "@oidcraft/ui",
@@ -470,6 +520,8 @@
 
     "@napi-rs/wasm-runtime": ["@napi-rs/wasm-runtime@1.2.6", "", { "dependencies": { "@tybys/wasm-util": "^0.10.3" }, "peerDependencies": { "@emnapi/core": "^1.7.1 || 2.0.0-beta.2", "@emnapi/runtime": "^1.7.1 || 2.0.0-beta.2" } }, "sha512-mRyDmEw9/fCDXCGfL1sbgIw/GUK0PVxRW4YwgPN61F3LQ+fSyoBFarJVzgGyhF6kRzEQZ0FejDqm4WLXSeqQmw=="],
 
+    "@oidcraft/adapter": ["@oidcraft/adapter@workspace:packages/adapter"],
+
     "@oidcraft/angular": ["@oidcraft/angular@workspace:packages/angular"],
 
     "@oidcraft/client": ["@oidcraft/client@workspace:packages/client"],
@@ -484,9 +536,17 @@
 
     "@oidcraft/docs": ["@oidcraft/docs@workspace:apps/docs"],
 
+    "@oidcraft/drizzle": ["@oidcraft/drizzle@workspace:packages/drizzle"],
+
+    "@oidcraft/kysely": ["@oidcraft/kysely@workspace:packages/kysely"],
+
     "@oidcraft/provider": ["@oidcraft/provider@workspace:packages/provider"],
 
     "@oidcraft/react": ["@oidcraft/react@workspace:packages/react"],
+
+    "@oidcraft/redis": ["@oidcraft/redis@workspace:packages/redis"],
+
+    "@oidcraft/typeorm": ["@oidcraft/typeorm@workspace:packages/typeorm"],
 
     "@oidcraft/ui": ["@oidcraft/ui@workspace:packages/ui"],
 

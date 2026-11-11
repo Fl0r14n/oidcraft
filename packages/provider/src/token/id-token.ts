@@ -1,9 +1,9 @@
+import type { Client, Session } from '@oidcraft/adapter'
 import { base64url, importJWK, SignJWT } from 'jose'
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
 import { signingKey } from '../keys/keys'
 import { defaultSigningAlg } from '../profile/fapi'
-import type { Client, Session } from '../types'
 
 export type IdTokenInput = {
   client: Client

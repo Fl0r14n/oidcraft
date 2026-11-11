@@ -2,7 +2,7 @@ name: publish
 
 # One workflow for every published package, so each package's trusted publisher names this file.
 # The release tag says which: <name>@<version>, e.g. @oidcraft/provider@0.1.0 or @oidcraft/vue@7.0.0.
-# A package depending on @oidcraft/core or @oidcraft/client needs the version it names published first.
+# A package depending on @oidcraft/core, @oidcraft/client or @oidcraft/adapter needs the version it names published first.
 on:
   release:
     types: [ published ]
@@ -37,7 +37,12 @@ jobs:
           case "$TAG" in
             @oidcraft/core@*) dir=packages/core ;;
             @oidcraft/client@*) dir=packages/client ;;
+            @oidcraft/adapter@*) dir=packages/adapter ;;
             @oidcraft/provider@*) dir=packages/provider ;;
+            @oidcraft/drizzle@*) dir=packages/drizzle ;;
+            @oidcraft/kysely@*) dir=packages/kysely ;;
+            @oidcraft/typeorm@*) dir=packages/typeorm ;;
+            @oidcraft/redis@*) dir=packages/redis ;;
             @oidcraft/vue@*) dir=packages/vue ;;
             @oidcraft/react@*) dir=packages/react ;;
             @oidcraft/angular@*) dir=packages/angular ;;

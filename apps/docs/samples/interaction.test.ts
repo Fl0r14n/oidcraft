@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
+import { memoryAdapter } from '@oidcraft/adapter/memory'
 import { createProvider, OAuthError } from '@oidcraft/provider'
 import { createAccounts, generateSecretKey, hotp } from '@oidcraft/provider/accounts'
-import { memoryAdapter } from '@oidcraft/provider/adapters/memory'
 import { type InteractionResult, oauthFieldError } from '@oidcraft/provider/interaction'
 import { bunPasswordHasher } from '@oidcraft/provider/runtimes/bun'
 

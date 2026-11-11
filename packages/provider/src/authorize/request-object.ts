@@ -1,9 +1,9 @@
+import type { Client } from '@oidcraft/adapter'
 import { createLocalJWKSet, type JSONWebKeySet, jwtVerify } from 'jose'
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
 import { CLIENT_SIGNING_ALGS } from '../keys/algorithms'
 import { FAPI_ALGS, underFapi } from '../profile/fapi'
-import type { Client } from '../types'
 
 /** RFC 9101 §8.2: `none` would make the object unauthenticated, which is the whole point of it. */
 

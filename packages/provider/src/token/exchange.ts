@@ -1,6 +1,6 @@
+import type { Artifact, ArtifactKind, Client } from '@oidcraft/adapter'
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
-import type { Artifact, ArtifactKind, Client } from '../types'
 import { type Binding, findPresented, issueAccessToken } from './access-token'
 import { subjectFor } from './subjects'
 

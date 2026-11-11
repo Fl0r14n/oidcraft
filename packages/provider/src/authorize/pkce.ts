@@ -1,7 +1,7 @@
+import type { Client } from '@oidcraft/adapter'
 import { sha256 } from '@oidcraft/core'
 import { base64url } from 'jose'
 import { OAuthError } from '../errors'
-import type { Client } from '../types'
 
 /** FR-C3: `plain` is not accepted, from anyone, ever. */
 export const CODE_CHALLENGE_METHODS = ['S256'] as const

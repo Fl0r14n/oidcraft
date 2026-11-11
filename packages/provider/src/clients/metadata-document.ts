@@ -1,7 +1,6 @@
-import type { Adapter } from '../adapter'
+import type { Adapter, Client, ClientAuthMethod } from '@oidcraft/adapter'
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
-import type { Client, ClientAuthMethod } from '../types'
 import { browserUri, serverUri } from './registration'
 
 const SPEC = 'draft-ietf-oauth-client-id-metadata-document §4.1'

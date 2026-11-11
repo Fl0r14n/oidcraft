@@ -1,9 +1,9 @@
+import type { Client } from '@oidcraft/adapter'
 import { createLocalJWKSet, type JSONWebKeySet, jwtVerify } from 'jose'
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
 import { CLIENT_SECRET_ALGS, CLIENT_SIGNING_ALGS } from '../keys/algorithms'
 import { FAPI_ALGS, FAPI_IAT_SKEW, FAPI_NBF_MAX_AGE, underFapi } from '../profile/fapi'
-import type { Client } from '../types'
 
 export const ASSERTION_TYPE = 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer'
 

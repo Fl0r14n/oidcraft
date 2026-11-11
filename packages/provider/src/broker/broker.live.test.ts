@@ -1,6 +1,6 @@
 /// <reference types="bun" />
 import { afterAll, describe, expect, test } from 'bun:test'
-import { memoryAdapter } from '../adapters/memory'
+import { memoryAdapter } from '@oidcraft/adapter/memory'
 import { createProvider } from '../provider'
 import { SESSION_COOKIE } from '../session/session'
 import { createBroker } from './broker'

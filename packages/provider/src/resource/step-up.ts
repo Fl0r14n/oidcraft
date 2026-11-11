@@ -1,4 +1,4 @@
-import type { Artifact } from '../types'
+import type { Artifact } from '@oidcraft/adapter'
 
 export type StepUpRequirement = {
   /** The authentication strength the resource needs, e.g. `mfa`. */

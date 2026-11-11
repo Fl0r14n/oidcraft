@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { memoryAdapter } from '../adapters/memory'
+import { memoryAdapter } from '@oidcraft/adapter/memory'
 import { createAccounts, generateSecretKey, hotp, type PasswordHasher } from './index'
 import { open } from './sealed'
 import { counterAt, fromBase32 } from './totp'

@@ -1,6 +1,6 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test'
-import { memoryAdapter } from './adapters/memory'
+import { memoryAdapter } from '@oidcraft/adapter/memory'
 import { createProvider } from './provider'
 
 /**
@@ -8,7 +8,7 @@ import { createProvider } from './provider'
  * a number in it is worth counting rather than asserting, so this counts it.
  */
 const EXAMPLE = `import { createProvider } from '@oidcraft/provider'
-import { memoryAdapter } from '@oidcraft/provider/adapters/memory'
+import { memoryAdapter } from '@oidcraft/adapter/memory'
 
 const adapter = await memoryAdapter({
   accounts: {

@@ -1,20 +1,11 @@
 import { describe, expect, test } from 'bun:test'
-import { calculatePKCECodeChallenge, randomPKCECodeVerifier } from '@oidcraft/core'
 // #region imports
-import {
-  type Adapter,
-  createProvider,
-  fromKv,
-  generatedKeyStore,
-  type KvEntry,
-  type KvStore,
-  type Provider,
-  type ReplayGuard
-} from '@oidcraft/provider'
-
+import { type Adapter, fromKv, generatedKeyStore, type KvEntry, type KvStore, type ReplayGuard } from '@oidcraft/adapter'
 // #endregion imports
 // #region conformance-import
-import { adapterConformance } from '@oidcraft/provider/adapters/conformance'
+import { adapterConformance } from '@oidcraft/adapter/conformance'
+import { calculatePKCECodeChallenge, randomPKCECodeVerifier } from '@oidcraft/core'
+import { createProvider, type Provider } from '@oidcraft/provider'
 
 // #endregion conformance-import
 

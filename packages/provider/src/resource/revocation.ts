@@ -1,9 +1,9 @@
+import type { ArtifactKind } from '@oidcraft/adapter'
 import { authenticateClient } from '../clients/authenticate'
 import type { ResolvedConfig } from '../config'
 import type { ClientCertificate } from '../context'
 import { OAuthError } from '../errors'
 import { findPresented } from '../token/access-token'
-import type { ArtifactKind } from '../types'
 
 const REVOCABLE: ArtifactKind[] = ['refresh_token', 'access_token']
 

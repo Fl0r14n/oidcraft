@@ -1,3 +1,4 @@
+import type { Client } from '@oidcraft/adapter'
 import { CompactEncrypt, importJWK, type JWK, SignJWT } from 'jose'
 import { verifyDpopProof } from '../binding/dpop'
 import { publicUrl, type ResolvedConfig } from '../config'
@@ -6,7 +7,6 @@ import { OAuthError } from '../errors'
 import { signingKey } from '../keys/keys'
 import { defaultSigningAlg, FAPI_ALGS, FAPI_IAT_SKEW, underFapi } from '../profile/fapi'
 import { resolveAccessToken } from '../token/access-token'
-import type { Client } from '../types'
 
 const presentedToken = (request: Request, form: URLSearchParams | undefined) => {
   const header = request.headers.get('authorization')

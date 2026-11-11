@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, test } from 'bun:test'
 import { X509Certificate } from 'node:crypto'
 import { createServer } from 'node:http'
-import { memoryAdapter } from '../../adapters/memory'
+import { memoryAdapter } from '@oidcraft/adapter/memory'
 import { certificateThumbprint } from '../../binding/mtls'
 import { createProvider } from '../../provider'
 import { nodeContext, toNodeHandler } from './index'

@@ -1,4 +1,4 @@
-import type { Client } from './types'
+import type { Client } from '@oidcraft/adapter'
 
 /**
  * What a WHATWG `Request` cannot carry, supplied by the host (FR-R4).

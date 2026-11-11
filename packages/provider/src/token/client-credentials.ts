@@ -1,7 +1,7 @@
+import type { Client } from '@oidcraft/adapter'
 import { audienceFor, requestedResources } from '../authorize/resources'
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
-import type { Client } from '../types'
 import { type Binding, issueAccessToken } from './access-token'
 
 /**

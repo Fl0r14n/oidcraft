@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { Client } from '../types'
+import type { Client } from '@oidcraft/adapter'
 import { matchesRegisteredCertificate, matchesSubjectDn, parseDistinguishedName } from './mtls'
 
 const client = (over: Partial<Client> = {}) => ({ clientId: 'rp', ...over }) as Client

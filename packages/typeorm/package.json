@@ -1,0 +1,60 @@
+{
+  "name": "@oidcraft/typeorm",
+  "version": "0.1.0",
+  "description": "A TypeORM storage adapter for @oidcraft/provider, over a DataSource on Postgres or SQLite.",
+  "license": "MIT",
+  "author": "Fl0r14n <florian.chis@gmail.com>",
+  "homepage": "https://github.com/Fl0r14n/oidcraft/tree/main/packages/typeorm",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Fl0r14n/oidcraft",
+    "directory": "packages/typeorm"
+  },
+  "keywords": [
+    "oidc",
+    "openid",
+    "oauth2",
+    "authorization-server",
+    "oidcraft",
+    "storage",
+    "adapter",
+    "typeorm"
+  ],
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "main": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "tsdown && bun run verify:entries",
+    "prepublishOnly": "bun run build",
+    "test": "bun test",
+    "typecheck": "bun check",
+    "verify:entries": "bun run verify-entries.ts"
+  },
+  "peerDependencies": {
+    "@oidcraft/adapter": "workspace:^",
+    "typeorm": ">=1.1"
+  },
+  "devDependencies": {
+    "@oidcraft/adapter": "workspace:^",
+    "@types/pg": "^8.23.1",
+    "pg": "^8.23.1",
+    "sql.js": "^1.16.0",
+    "typeorm": "^1.1.2"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=24.7"
+  }
+}

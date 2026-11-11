@@ -1,8 +1,7 @@
-import type { Adapter } from './adapter'
+import type { Adapter, Client, ClientAuthMethod, Seconds } from '@oidcraft/adapter'
 import { ConfigurationError } from './errors'
 import { fapiProviderProblems } from './profile/fapi'
 import type { ExchangePolicy } from './token/exchange'
-import type { Client, ClientAuthMethod, Seconds } from './types'
 import type { UpstreamDescriptor } from './upstreams/selection'
 
 export type Routes = {

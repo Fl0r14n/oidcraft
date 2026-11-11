@@ -6,6 +6,9 @@ An OpenID Provider library for TypeScript, and the client libraries that sign in
   logout, local accounts with TOTP, and signing people in through Google, Microsoft or any other
   OpenID provider. One build runs on Bun, Node, Deno and Cloudflare Workers. **Start with its
   [guide](packages/provider/README.md).**
+- **[`@oidcraft/adapter`](packages/adapter/README.md)**: its storage contract and an in-memory adapter,
+  with [`@oidcraft/drizzle`](packages/drizzle/README.md), [`@oidcraft/kysely`](packages/kysely/README.md),
+  [`@oidcraft/typeorm`](packages/typeorm/README.md) and [`@oidcraft/redis`](packages/redis/README.md) for real databases.
 - **[`@oidcraft/vue`](packages/vue/README.md)**, **[`@oidcraft/react`](packages/react/README.md)** and **[`@oidcraft/angular`](packages/angular/README.md)**:
   sign-in for Vue, React and Angular applications, against oidcraft or any OpenID provider. They
   continue `vue-oidc`, `react-oauth-oidc` and `ngx-oauth`.
@@ -34,7 +37,9 @@ Open http://localhost:3000 and sign in as `ada`, `grace` or `admin`; the passwor
 ## The repository
 
 ```
-packages/provider   @oidcraft/provider: the provider, published with fourteen entry points
+packages/provider   @oidcraft/provider: the provider, published with eight entry points
+packages/adapter    @oidcraft/adapter: the storage contract, fromKv, the memory adapter, the conformance suite
+packages/drizzle    @oidcraft/drizzle, packages/kysely, packages/typeorm, packages/redis: one adapter each
 packages/vue        @oidcraft/vue, which continues vue-oidc
 packages/react      @oidcraft/react, which continues react-oauth-oidc
 packages/angular    @oidcraft/angular, which continues ngx-oauth

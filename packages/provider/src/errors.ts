@@ -102,15 +102,7 @@ const STATUS: Record<OAuthErrorCode, number> = {
  * A misconfiguration, raised while building the provider rather than on the first request (NFR-D2).
  * Separate from OAuthError because it is never a response: nobody is waiting for it.
  */
-export class ConfigurationError extends Error {
-  readonly problems: string[]
-
-  constructor(problems: string[]) {
-    super(`the provider configuration is not usable:\n${problems.map(p => `  - ${p}`).join('\n')}`)
-    this.name = 'ConfigurationError'
-    this.problems = problems
-  }
-}
+export { ConfigurationError } from '@oidcraft/adapter'
 
 const NO_STORE = { 'cache-control': 'no-store', pragma: 'no-cache' }
 

@@ -240,10 +240,11 @@ something the library applies at boot.
 the core queries by (`grant_id`, `user_code`, `expires_at`, `account_id`, upstream session id). A
 JSON blob with no index is a correctness problem at revocation time, not just a slow one.
 
-**FR-A6** — The TypeORM adapter is first-party: its own `@oidcraft/provider/adapters/typeorm` entry with
-`typeorm` as an optional peer, passing the same conformance suite as the others (FR-A3). A
-third-party adapter is an ordinary package depending on `@oidcraft/provider` and implementing `Adapter`;
-nothing about the contract is internal.
+**FR-A6** — The TypeORM adapter is first-party: its own `@oidcraft/typeorm` package with `typeorm` as a
+peer, passing the same conformance suite as the others (FR-A3). A third-party adapter is an ordinary
+package peering on `@oidcraft/adapter`, the published contract, and implementing `Adapter`, exactly as
+the first-party ones do; nothing about the contract is internal, and no adapter depends on
+`@oidcraft/provider`.
 
 ## 6. Federation — `FR-F*`
 
@@ -460,8 +461,8 @@ with no key, DPoP required with no nonce store — fails at construction, not at
 **NFR-D3** — Errors carry the OAuth error code, the specification clause and what the caller must
 change.
 
-**NFR-D4** — Zero third-party runtime dependencies beyond `jose`. `drizzle-orm`, `kysely` and `typeorm` are optional peers
-confined to their own subpath entries, so importing the core pulls neither. The relying-party code
+**NFR-D4** — Zero third-party runtime dependencies beyond `jose`. `drizzle-orm`, `kysely` and `typeorm` are peers of
+the adapter packages that use them, never of the provider, so installing the provider pulls none. The relying-party code
 `@oidcraft/provider/broker` needs is `@oidcraft/core`, this workspace's own and published from it, so
 brokering adds no third-party package either.
 

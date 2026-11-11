@@ -1,7 +1,7 @@
+import type { Client } from '@oidcraft/adapter'
 import { sha256 } from '@oidcraft/core'
 import { base64url } from 'jose'
 import type { ResolvedConfig } from '../config'
-import type { Client } from '../types'
 
 /**
  * The sector a pairwise subject is scoped to (OIDC Core §8.1).

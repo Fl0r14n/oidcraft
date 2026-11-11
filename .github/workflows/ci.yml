@@ -43,7 +43,7 @@ jobs:
       - run: bunx biome ci .
       # build first: the apps resolve `@oidcraft/provider` through its exports map, which points into
       # packages/provider/dist, so on a fresh clone typecheck cannot resolve the package until it
-      # exists. It also runs verify-entries, which catches an optional peer leaking out of its entry.
+      # exists. It also runs each package's verify-entries, which catches an import leaking across a package.
       - run: bun run build
       - run: bun run typecheck
       - run: bun test
@@ -96,7 +96,7 @@ jobs:
       - run: bun install --frozen-lockfile
       # apps/demo-server runs oidcraft from its build, so the suite tests exactly what was just built.
       # The admin app is bundled at startup, so its @oidcraft/vue has to be built too.
-      - run: bun run --filter=@oidcraft/core --filter=@oidcraft/client --filter=@oidcraft/provider --filter=@oidcraft/vue build
+      - run: bun run --filter=@oidcraft/core --filter=@oidcraft/client --filter=@oidcraft/adapter --filter=@oidcraft/provider --filter=@oidcraft/drizzle --filter=@oidcraft/vue build
       - run: pipx install uv
       - run: git clone --quiet --depth 1 --branch "$SUITE_VERSION" https://gitlab.com/openid/conformance-suite.git "$SUITE_DIR"
       - name: certificate for the https issuer

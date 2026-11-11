@@ -1,3 +1,4 @@
+import type { Client } from '@oidcraft/adapter'
 import { constantTimeEquals } from '@oidcraft/core'
 import { decodeJwt } from 'jose'
 import { matchesRegisteredCertificate, matchesSubjectDn } from '../binding/mtls'
@@ -5,7 +6,6 @@ import type { ResolvedConfig } from '../config'
 import type { ClientCertificate } from '../context'
 import { OAuthError } from '../errors'
 import { assertFapiClient } from '../profile/fapi'
-import type { Client } from '../types'
 import { ASSERTION_TYPE, verifyClientAssertion } from './assertion'
 
 export type AuthenticatedClient = { client: Client; method: string }

@@ -1,7 +1,7 @@
+import type { Artifact, Client, Grant, Session } from '@oidcraft/adapter'
 import { randomString } from '@oidcraft/core'
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
-import type { Artifact, Client, Grant, Session } from '../types'
 import { type Binding, confirmationOf, issueAccessToken } from './access-token'
 import { mintIdToken } from './id-token'
 import { subjectFor } from './subjects'

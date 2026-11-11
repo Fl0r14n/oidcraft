@@ -1,10 +1,10 @@
+import type { Session } from '@oidcraft/adapter'
 import { randomString } from '@oidcraft/core'
 import { importJWK, SignJWT } from 'jose'
 import type { ResolvedConfig } from '../config'
 import { signingKey } from '../keys/keys'
 import { defaultSigningAlg } from '../profile/fapi'
 import { subjectFor } from '../token/subjects'
-import type { Session } from '../types'
 
 export type LogoutNotification = { clientId: string; uri: string; logoutToken: string }
 

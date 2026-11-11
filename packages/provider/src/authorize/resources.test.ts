@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
+import { memoryAdapter } from '@oidcraft/adapter/memory'
 import { randomString, sha256 } from '@oidcraft/core'
 import { base64url, decodeJwt } from 'jose'
-import { memoryAdapter } from '../adapters/memory'
 import { resolveConfig } from '../config'
 import { ConfigurationError } from '../errors'
 import type { Adapter, Client } from '../index'

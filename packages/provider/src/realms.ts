@@ -1,7 +1,6 @@
-import type { RealmStore } from './adapter'
+import type { Realm, RealmStore, Seconds } from '@oidcraft/adapter'
 import type { AuditEvent, ProviderConfig } from './config'
 import { createProvider, type Provider } from './provider'
-import type { Realm, Seconds } from './types'
 
 export type RealmsConfig = {
   /** Where realm records live, usually the control plane's `adapter.realms`. */

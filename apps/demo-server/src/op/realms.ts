@@ -1,5 +1,6 @@
 /// <reference types="bun" />
-import { type ActiveKey, createRealms, type FullAdapter, generateKey, type Realm, staticKeyStore } from '@oidcraft/provider'
+import { type ActiveKey, type FullAdapter, generateKey, type Realm, staticKeyStore } from '@oidcraft/adapter'
+import { createRealms } from '@oidcraft/provider'
 import { screensFor } from '../interaction/screens'
 import { accountStore, createDemoAccounts } from './accounts'
 import { issuer, optional } from './env'

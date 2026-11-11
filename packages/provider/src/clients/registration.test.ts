@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
-import { memoryAdapter } from '../adapters/memory'
+import { memoryAdapter } from '@oidcraft/adapter/memory'
 import { OAuthError } from '../errors'
 import type { Adapter, AuditEvent } from '../index'
 import { createProvider, type Provider } from '../provider'

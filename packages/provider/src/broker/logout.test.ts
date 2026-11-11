@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
+import { memoryAdapter } from '@oidcraft/adapter/memory'
 import { exportJWK, generateKeyPair, SignJWT } from 'jose'
-import { memoryAdapter } from '../adapters/memory'
 import { issuerOf, upstreamLogout } from './logout'
 import type { UpstreamProvider } from './types'
 

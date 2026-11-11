@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
+import { memoryAdapter } from '@oidcraft/adapter/memory'
 import { selectUpstream } from '@oidcraft/provider'
-import { memoryAdapter } from '../adapters/memory'
 import { localSubject, pickClaims, renameClaims } from './claims'
 import { linkIdentity } from './link'
 import type { BrokeredIdentity, UpstreamProvider } from './types'

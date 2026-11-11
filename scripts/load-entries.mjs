@@ -4,7 +4,7 @@
 import { readFileSync } from 'node:fs'
 
 let failed = 0
-for (const dir of ['core', 'client', 'provider']) {
+for (const dir of ['core', 'client', 'adapter', 'provider', 'drizzle', 'kysely', 'typeorm', 'redis']) {
   const { name, exports } = JSON.parse(readFileSync(new URL(`../packages/${dir}/package.json`, import.meta.url), 'utf8'))
   for (const subpath of Object.keys(exports).filter(key => key !== './package.json')) {
     const id = `${name}${subpath.slice(1)}`

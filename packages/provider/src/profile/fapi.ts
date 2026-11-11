@@ -1,7 +1,6 @@
+import type { ActiveKey, Client, ClientAuthMethod } from '@oidcraft/adapter'
 import type { Features, ResolvedConfig, Ttl } from '../config'
 import { OAuthError } from '../errors'
-import type { ActiveKey } from '../keys/keys'
-import type { Client, ClientAuthMethod } from '../types'
 
 /** FAPI 2.0 Security Profile §5.4: what anything under the profile may sign with or be signed with. */
 export const FAPI_ALGS = ['PS256', 'ES256', 'EdDSA']

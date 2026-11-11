@@ -1,6 +1,6 @@
+import type { Session } from '@oidcraft/adapter'
 import { randomString } from '@oidcraft/core'
 import type { ResolvedConfig } from '../config'
-import type { Session } from '../types'
 import { parseCookies, serializeCookie } from './cookies'
 
 export const SESSION_COOKIE = 'oidcraft.sid'

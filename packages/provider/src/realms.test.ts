@@ -1,10 +1,9 @@
 import { describe, expect, test } from 'bun:test'
-import type { Adapter } from './adapter'
-import { memoryAdapter } from './adapters/memory'
+import type { Adapter, Client, Realm } from '@oidcraft/adapter'
+import { generatedKeyStore, generateKey, staticKeyStore } from '@oidcraft/adapter'
+import { memoryAdapter } from '@oidcraft/adapter/memory'
 import type { AuditEvent, ProviderConfig } from './config'
-import { generatedKeyStore, generateKey, staticKeyStore } from './keys/keys'
 import { createRealms, isRealmId, type RealmsConfig } from './realms'
-import type { Client, Realm } from './types'
 
 const SECRET = 'the-same-secret-in-every-realm'
 

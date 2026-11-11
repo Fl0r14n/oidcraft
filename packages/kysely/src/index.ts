@@ -1,0 +1,467 @@
+import type {
+  AccountStore,
+  Artifact,
+  ArtifactKind,
+  Client,
+  Credential,
+  FullAdapter,
+  Grant,
+  KeyStore,
+  LinkedIdentity,
+  Realm,
+  Session
+} from '@oidcraft/adapter'
+import type { Kysely, Selectable } from 'kysely'
+import type { ArtifactsTable, CredentialsTable, GrantsTable, IdentitiesTable, OidcraftDatabase, RealmsTable, SessionsTable } from './schema'
+
+export type KyselyAdapterOptions = {
+  db: Kysely<OidcraftDatabase>
+  keys: KeyStore
+  /** Omitted, every account lookup misses: the host composes one in later, as `@oidcraft/provider/accounts` does. */
+  accounts?: AccountStore
+}
+
+const now = () => Date.now()
+// Postgres returns int8 as a string, which `new Date` would read as a date string, not milliseconds.
+const at = (millis: number | string) => new Date(Number(millis))
+const json = (value: unknown) => JSON.stringify(value)
+const parse = <T>(value: string) => JSON.parse(value) as T
+
+const toArtifact = (row: Selectable<ArtifactsTable>): Artifact => ({
+  id: row.id,
+  kind: row.kind as ArtifactKind,
+  clientId: row.client_id,
+  ...(row.account_id && { accountId: row.account_id }),
+  ...(row.grant_id && { grantId: row.grant_id }),
+  payload: parse<Record<string, unknown>>(row.payload),
+  ...(row.consumed_at && { consumedAt: at(row.consumed_at) }),
+  expiresAt: at(row.expires_at)
+})
+
+const toSession = (row: Selectable<SessionsTable>): Session => ({
+  id: row.id,
+  accountId: row.account_id,
+  authTime: at(row.auth_time),
+  ...(row.acr && { acr: row.acr }),
+  ...(row.amr ? { amr: parse<string[]>(row.amr) } : {}),
+  ...(row.idp && { idp: row.idp }),
+  ...(row.upstream_session_id && { upstreamSessionId: row.upstream_session_id }),
+  clients: parse<string[]>(row.clients),
+  expiresAt: at(row.expires_at)
+})
+
+const toGrant = (row: Selectable<GrantsTable>): Grant => ({
+  id: row.id,
+  accountId: row.account_id,
+  clientId: row.client_id,
+  scopes: parse<string[]>(row.scopes),
+  claims: parse<string[]>(row.claims),
+  resources: parse<Record<string, string[]>>(row.resources),
+  createdAt: at(row.created_at),
+  ...(row.expires_at && { expiresAt: at(row.expires_at) })
+})
+
+const noAccounts: AccountStore = {
+  async find() {
+    return undefined
+  },
+  async claims() {
+    return undefined
+  }
+}
+
+const credentialRow = (credential: Credential) => ({
+  account_id: credential.accountId,
+  username: credential.username,
+  password_hash: credential.passwordHash,
+  claims: json(credential.claims),
+  totp_secret: credential.totp?.secret ?? null,
+  totp_confirmed_at: credential.totp?.confirmedAt?.getTime() ?? null,
+  recovery_codes: credential.recoveryCodes ? json(credential.recoveryCodes) : null,
+  failed_attempts: credential.failedAttempts,
+  locked_until: credential.lockedUntil?.getTime() ?? null,
+  created_at: credential.createdAt.getTime(),
+  updated_at: credential.updatedAt.getTime()
+})
+
+const toCredential = (row: Selectable<CredentialsTable>): Credential => ({
+  accountId: row.account_id,
+  username: row.username,
+  passwordHash: row.password_hash,
+  claims: parse<Record<string, unknown>>(row.claims),
+  ...(row.totp_secret && {
+    totp: { secret: row.totp_secret, ...(row.totp_confirmed_at && { confirmedAt: at(row.totp_confirmed_at) }) }
+  }),
+  ...(row.recovery_codes ? { recoveryCodes: parse<string[]>(row.recovery_codes) } : {}),
+  failedAttempts: row.failed_attempts,
+  ...(row.locked_until && { lockedUntil: at(row.locked_until) }),
+  createdAt: at(row.created_at),
+  updatedAt: at(row.updated_at)
+})
+
+const realmRow = (realm: Realm) => ({
+  id: realm.id,
+  display_name: realm.displayName ?? null,
+  enabled: realm.enabled ? 1 : 0,
+  settings: json(realm.settings),
+  created_at: realm.createdAt.getTime(),
+  updated_at: realm.updatedAt.getTime()
+})
+
+const toRealm = (row: Selectable<RealmsTable>): Realm => ({
+  id: row.id,
+  ...(row.display_name && { displayName: row.display_name }),
+  enabled: Boolean(row.enabled),
+  settings: parse<Record<string, unknown>>(row.settings),
+  createdAt: at(row.created_at),
+  updatedAt: at(row.updated_at)
+})
+
+const toIdentity = (row: Selectable<IdentitiesTable>): LinkedIdentity => ({
+  accountId: row.account_id,
+  provider: row.provider,
+  subject: row.subject,
+  ...(row.email && { email: row.email }),
+  claims: parse<Record<string, unknown>>(row.claims),
+  linkedAt: at(row.linked_at)
+})
+
+/**
+ * The same contract as the Drizzle adapter, on a query builder rather than an ORM (FR-A4). Both run
+ * the one conformance suite, which is what makes "interchangeable" checkable rather than asserted.
+ */
+export const kyselyAdapter = (options: KyselyAdapterOptions): FullAdapter => {
+  const { db } = options
+
+  const artifacts = {
+    async upsert(artifact: Artifact) {
+      const row = {
+        kind: artifact.kind,
+        id: artifact.id,
+        client_id: artifact.clientId,
+        account_id: artifact.accountId ?? null,
+        grant_id: artifact.grantId ?? null,
+        user_code: (artifact.payload.userCode as string | undefined) ?? null,
+        payload: json(artifact.payload),
+        consumed_at: artifact.consumedAt ? artifact.consumedAt.getTime() : null,
+        expires_at: artifact.expiresAt.getTime()
+      }
+      await db
+        .insertInto('oidc_artifacts')
+        .values(row)
+        .onConflict(conflict => conflict.columns(['kind', 'id']).doUpdateSet({ ...row, consumed_at: undefined }))
+        .execute()
+    },
+
+    async find(kind: ArtifactKind, id: string) {
+      const row = await db
+        .selectFrom('oidc_artifacts')
+        .selectAll()
+        .where('kind', '=', kind)
+        .where('id', '=', id)
+        // FR-T5: enforced by the query, so a missed prune still cannot serve an expired token.
+        .where('expires_at', '>', now())
+        .executeTakeFirst()
+      return row ? toArtifact(row) : undefined
+    },
+
+    async findByUserCode(userCode: string) {
+      const row = await db
+        .selectFrom('oidc_artifacts')
+        .selectAll()
+        .where('user_code', '=', userCode)
+        .where('expires_at', '>', now())
+        .executeTakeFirst()
+      return row ? toArtifact(row) : undefined
+    },
+
+    async consume(kind: ArtifactKind, id: string) {
+      const result = await db
+        .updateTable('oidc_artifacts')
+        .set({ consumed_at: now() })
+        .where('kind', '=', kind)
+        .where('id', '=', id)
+        .where('consumed_at', 'is', null)
+        .where('expires_at', '>', now())
+        .returning('id')
+        .executeTakeFirst()
+      return result !== undefined
+    },
+
+    async destroy(kind: ArtifactKind, id: string) {
+      await db.deleteFrom('oidc_artifacts').where('kind', '=', kind).where('id', '=', id).execute()
+    },
+
+    async revokeByGrantId(grantId: string) {
+      // One indexed delete, not a scan (FR-A5).
+      await db.deleteFrom('oidc_artifacts').where('grant_id', '=', grantId).execute()
+    },
+
+    async prune(before: Date, limit: number) {
+      const doomed = await db
+        .selectFrom('oidc_artifacts')
+        .select(['kind', 'id'])
+        .where('expires_at', '<=', before.getTime())
+        .limit(limit)
+        .execute()
+      for (const row of doomed) await artifacts.destroy(row.kind as ArtifactKind, row.id)
+      return doomed.length
+    }
+  }
+
+  return {
+    clients: {
+      async find(clientId) {
+        const row = await db.selectFrom('oidc_clients').selectAll().where('client_id', '=', clientId).executeTakeFirst()
+        if (!row) return undefined
+        return { ...parse<Client>(row.data), createdAt: at(row.created_at), updatedAt: at(row.updated_at) }
+      },
+      async upsert(client) {
+        const data = json(client)
+        const updated_at = client.updatedAt.getTime()
+        await db
+          .insertInto('oidc_clients')
+          .values({ client_id: client.clientId, data, created_at: client.createdAt.getTime(), updated_at })
+          .onConflict(conflict => conflict.column('client_id').doUpdateSet({ data, updated_at }))
+          .execute()
+      },
+      async destroy(clientId) {
+        await db.deleteFrom('oidc_clients').where('client_id', '=', clientId).execute()
+      },
+      async list() {
+        const rows = await db.selectFrom('oidc_clients').selectAll().execute()
+        return {
+          clients: rows.map(row => ({
+            ...parse<Client>(row.data),
+            createdAt: at(row.created_at),
+            updatedAt: at(row.updated_at)
+          }))
+        }
+      }
+    },
+
+    artifacts,
+
+    sessions: {
+      async find(id) {
+        const row = await db.selectFrom('oidc_sessions').selectAll().where('id', '=', id).where('expires_at', '>', now()).executeTakeFirst()
+        return row ? toSession(row) : undefined
+      },
+      async listForAccount(accountId) {
+        const rows = await db
+          .selectFrom('oidc_sessions')
+          .selectAll()
+          .where('account_id', '=', accountId)
+          .where('expires_at', '>', now())
+          .execute()
+        return rows.map(toSession)
+      },
+      async findByUpstreamSession(provider, upstreamSessionId) {
+        const rows = await db
+          .selectFrom('oidc_sessions')
+          .selectAll()
+          .where('idp', '=', provider)
+          .where('upstream_session_id', '=', upstreamSessionId)
+          .execute()
+        return rows.map(toSession)
+      },
+      async upsert(session) {
+        const row = {
+          id: session.id,
+          account_id: session.accountId,
+          auth_time: session.authTime.getTime(),
+          acr: session.acr ?? null,
+          amr: session.amr ? json(session.amr) : null,
+          idp: session.idp ?? null,
+          upstream_session_id: session.upstreamSessionId ?? null,
+          clients: json(session.clients),
+          expires_at: session.expiresAt.getTime()
+        }
+        await db
+          .insertInto('oidc_sessions')
+          .values(row)
+          .onConflict(conflict => conflict.column('id').doUpdateSet(row))
+          .execute()
+      },
+      // Compare-and-swap on the list just read, retried when another writer won: two clients
+      // signing in at once must both be recorded (FR-C11). A lost round means another writer won
+      // it, so each round makes progress; the bound only stops a pathological loop.
+      async addClient(id, clientId) {
+        for (let attempt = 0; attempt < 64; attempt++) {
+          const row = await db.selectFrom('oidc_sessions').select('clients').where('id', '=', id).executeTakeFirst()
+          if (!row) return
+          const current = JSON.parse(row.clients) as string[]
+          if (current.includes(clientId)) return
+          const result = await db
+            .updateTable('oidc_sessions')
+            .set({ clients: json([...current, clientId]) })
+            .where('id', '=', id)
+            .where('clients', '=', row.clients)
+            .executeTakeFirst()
+          if (Number(result.numUpdatedRows) > 0) return
+        }
+        throw new Error(`session ${id} kept changing; its client list could not be updated`)
+      },
+      async destroy(id) {
+        await db.deleteFrom('oidc_sessions').where('id', '=', id).execute()
+      }
+    },
+
+    grants: {
+      async find(id) {
+        const row = await db.selectFrom('oidc_grants').selectAll().where('id', '=', id).executeTakeFirst()
+        return row ? toGrant(row) : undefined
+      },
+      async findByAccountAndClient(accountId, clientId) {
+        const row = await db
+          .selectFrom('oidc_grants')
+          .selectAll()
+          .where('account_id', '=', accountId)
+          .where('client_id', '=', clientId)
+          .executeTakeFirst()
+        return row ? toGrant(row) : undefined
+      },
+      async listForAccount(accountId) {
+        return (await db.selectFrom('oidc_grants').selectAll().where('account_id', '=', accountId).execute()).map(toGrant)
+      },
+      async upsert(grant) {
+        const row = {
+          id: grant.id,
+          account_id: grant.accountId,
+          client_id: grant.clientId,
+          scopes: json(grant.scopes),
+          claims: json(grant.claims),
+          resources: json(grant.resources),
+          created_at: grant.createdAt.getTime(),
+          expires_at: grant.expiresAt ? grant.expiresAt.getTime() : null
+        }
+        await db
+          .insertInto('oidc_grants')
+          .values(row)
+          .onConflict(conflict => conflict.column('id').doUpdateSet(row))
+          .execute()
+      },
+      async destroy(id) {
+        await db.deleteFrom('oidc_grants').where('id', '=', id).execute()
+      }
+    },
+
+    accounts: options.accounts ?? noAccounts,
+
+    credentials: {
+      async find(accountId: string) {
+        const row = await db.selectFrom('oidc_credentials').selectAll().where('account_id', '=', accountId).executeTakeFirst()
+        return row ? toCredential(row) : undefined
+      },
+      async findByUsername(username: string) {
+        const row = await db.selectFrom('oidc_credentials').selectAll().where('username', '=', username).executeTakeFirst()
+        return row ? toCredential(row) : undefined
+      },
+      // Both the key and the username are unique, and DO NOTHING without a target covers either.
+      async create(credential: Credential) {
+        const won = await db
+          .insertInto('oidc_credentials')
+          .values(credentialRow(credential))
+          .onConflict(conflict => conflict.doNothing())
+          .returning('account_id')
+          .executeTakeFirst()
+        return won !== undefined
+      },
+      async upsert(credential: Credential) {
+        const row = credentialRow(credential)
+        await db
+          .insertInto('oidc_credentials')
+          .values(row)
+          .onConflict(conflict => conflict.column('account_id').doUpdateSet(row))
+          .execute()
+      },
+      async destroy(accountId: string) {
+        await db.deleteFrom('oidc_credentials').where('account_id', '=', accountId).execute()
+      }
+    },
+
+    realms: {
+      async find(id: string) {
+        const row = await db.selectFrom('oidc_realms').selectAll().where('id', '=', id).executeTakeFirst()
+        return row ? toRealm(row) : undefined
+      },
+      async list() {
+        return (await db.selectFrom('oidc_realms').selectAll().execute()).map(toRealm)
+      },
+      async create(realm: Realm) {
+        const won = await db
+          .insertInto('oidc_realms')
+          .values(realmRow(realm))
+          .onConflict(conflict => conflict.doNothing())
+          .returning('id')
+          .executeTakeFirst()
+        return won !== undefined
+      },
+      async upsert(realm: Realm) {
+        const row = realmRow(realm)
+        await db
+          .insertInto('oidc_realms')
+          .values(row)
+          .onConflict(conflict => conflict.column('id').doUpdateSet(row))
+          .execute()
+      },
+      async destroy(id: string) {
+        await db.deleteFrom('oidc_realms').where('id', '=', id).execute()
+      }
+    },
+    keys: options.keys,
+
+    replay: {
+      async claim(namespace, value, ttl) {
+        const expires_at = now() + ttl * 1000
+        // One statement: a fresh row is inserted, a lapsed one is taken over, a live one is left alone.
+        const result = await db
+          .insertInto('oidc_replay')
+          .values({ namespace, value, expires_at })
+          .onConflict(conflict =>
+            conflict.columns(['namespace', 'value']).doUpdateSet({ expires_at }).where('oidc_replay.expires_at', '<=', now())
+          )
+          .returning('value')
+          .executeTakeFirst()
+        return result !== undefined
+      }
+    },
+
+    identities: {
+      async find(provider: string, subject: string) {
+        const row = await db
+          .selectFrom('oidc_identities')
+          .selectAll()
+          .where('provider', '=', provider)
+          .where('subject', '=', subject)
+          .executeTakeFirst()
+        return row ? toIdentity(row) : undefined
+      },
+      async listForAccount(accountId: string) {
+        return (await db.selectFrom('oidc_identities').selectAll().where('account_id', '=', accountId).execute()).map(toIdentity)
+      },
+      async upsert(identity: LinkedIdentity) {
+        const row = {
+          provider: identity.provider,
+          subject: identity.subject,
+          account_id: identity.accountId,
+          email: identity.email ?? null,
+          claims: json(identity.claims),
+          linked_at: identity.linkedAt.getTime()
+        }
+        await db
+          .insertInto('oidc_identities')
+          .values(row)
+          .onConflict(conflict => conflict.columns(['provider', 'subject']).doUpdateSet(row))
+          .execute()
+      },
+      async destroy(provider: string, subject: string) {
+        await db.deleteFrom('oidc_identities').where('provider', '=', provider).where('subject', '=', subject).execute()
+      }
+    }
+  }
+}
+
+export { type Migration, POSTGRES_MIGRATIONS, SQLITE_MIGRATIONS } from '@oidcraft/adapter/sql'
+export type { OidcraftDatabase } from './schema'
+export * from './schema'

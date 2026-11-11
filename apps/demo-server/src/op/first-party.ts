@@ -1,5 +1,5 @@
 /// <reference types="bun" />
-import type { Adapter, Provider } from 'oidcraft'
+import type { Adapter, Provider } from '@oidcraft/provider'
 import { optional } from './env'
 
 export const ADMIN_CLIENT_ID = 'oidcraft-admin'

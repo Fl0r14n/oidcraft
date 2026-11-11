@@ -1,5 +1,5 @@
 /// <reference types="bun" />
-import { createProvider, staticKeyStore } from 'oidcraft'
+import { createProvider, staticKeyStore } from '@oidcraft/provider'
 import { seedFapiDemoClient } from '../fapi/demo'
 import { screens } from '../interaction/screens'
 import { mcpEnabled, mcpResources, resolveClientMetadata, seedMcpResourceServer } from '../mcp/server'

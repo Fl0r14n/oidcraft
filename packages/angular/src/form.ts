@@ -19,7 +19,7 @@ export type OAuthForm = Omit<OAuthFormController, 'store' | 'state' | 'view'> & 
  * reactive wrapper and nothing else.
  *
  * Call it in an injection context. v8 shipped this as a Material component under
- * `ngx-oauth/component`; see the README for why that entry is gone.
+ * `@oidcraft/angular/component`; see the README for why that entry is gone.
  */
 export const oauthForm = (options: OAuthFormOptions = {}): OAuthForm => {
   const oauth = inject(OAUTH)

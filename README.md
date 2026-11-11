@@ -2,12 +2,15 @@
 
 An OpenID Provider library for TypeScript, and the client libraries that sign in against it.
 
-- **[`oidcraft`](packages/server/README.md)**: the provider. Authorization, tokens, sessions,
+- **[`@oidcraft/provider`](packages/provider/README.md)**: the provider. Authorization, tokens, sessions,
   logout, local accounts with TOTP, and signing people in through Google, Microsoft or any other
   OpenID provider. One build runs on Bun, Node, Deno and Cloudflare Workers. **Start with its
-  [guide](packages/server/README.md).**
-- **[`vue-oidc`](packages/vue/README.md)**, **`react-oauth-oidc`** and **[`ngx-oauth`](packages/angular/README.md)**:
-  sign-in for Vue, React and Angular applications, against oidcraft or any OpenID provider.
+  [guide](packages/provider/README.md).**
+- **[`@oidcraft/vue`](packages/vue/README.md)**, **`@oidcraft/react`** and **[`@oidcraft/angular`](packages/angular/README.md)**:
+  sign-in for Vue, React and Angular applications, against oidcraft or any OpenID provider. They
+  continue `vue-oidc`, `react-oauth-oidc` and `ngx-oauth`.
+- **[`@oidcraft/core`](packages/core/README.md)** and **[`@oidcraft/client`](packages/client/README.md)**:
+  the OpenID Connect client those are built on, for a framework without a binding here.
 
 > **Status: early.** The OpenID Foundation conformance suite's `basic` and `config` plans pass in CI,
 > which is a passing run, not a certification. No deployment has used it in production yet.
@@ -31,17 +34,17 @@ Open http://localhost:3000 and sign in as `ada`, `grace` or `admin`; the passwor
 ## The repository
 
 ```
-packages/server     oidcraft: the provider, published with thirteen entry points
-packages/vue        vue-oidc
-packages/react      react-oauth-oidc
-packages/angular    ngx-oauth
-packages/core       the protocol both sides share. Private, compiled into each package
-packages/client     the browser runtime the client libraries share. Private
+packages/provider     @oidcraft/provider: the provider, published with thirteen entry points
+packages/vue        @oidcraft/vue, which continues vue-oidc
+packages/react      @oidcraft/react, which continues react-oauth-oidc
+packages/angular    @oidcraft/angular, which continues ngx-oauth
+packages/core       @oidcraft/core: the protocol both sides share
+packages/client     @oidcraft/client: the browser runtime the client libraries share
 packages/ui         the reference screens and their design. Private, demo only
 apps/demo-server    the reference provider: protocol, login screens, admin and account apps
-apps/demo-vue       a Vue application signing in with vue-oidc
-apps/demo-react     a React application with SSR, signing in with react-oauth-oidc
-apps/demo-angular   an Angular application signing in with ngx-oauth
+apps/demo-vue       a Vue application signing in with @oidcraft/vue
+apps/demo-react     a React application with SSR, signing in with @oidcraft/react
+apps/demo-angular   an Angular application signing in with @oidcraft/angular
 ```
 
 ```sh

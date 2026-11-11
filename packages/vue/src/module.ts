@@ -24,13 +24,13 @@ import {
 } from 'vue'
 import { storeRef, writableStoreRef } from './refs'
 
-export const oauthKey: InjectionKey<OAuth> = Symbol('vue-oidc')
+export const oauthKey: InjectionKey<OAuth> = Symbol('@oidcraft/vue')
 
 export const getActiveOAuth = (): OAuth => {
   const instance = hasInjectionContext() && inject(oauthKey, undefined)
   if (!instance) {
     throw new Error(
-      '[vue-oidc]: no OAuth instance in this injection context. Install one with app.use(createOAuth()) and resolve it inside a component/store setup, a navigation guard (before the first await), or app.runWithContext(). Outside a context, hold the instance createOAuth() returned.'
+      '[@oidcraft/vue]: no OAuth instance in this injection context. Install one with app.use(createOAuth()) and resolve it inside a component/store setup, a navigation guard (before the first await), or app.runWithContext(). Outside a context, hold the instance createOAuth() returned.'
     )
   }
   return instance

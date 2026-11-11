@@ -1,11 +1,30 @@
 {
   "name": "@oidcraft/client",
   "version": "0.1.0",
-  "private": true,
-  "description": "Internal: the stateful client runtime shared by the framework bindings. Bundled into each of them; never published.",
+  "description": "The stateful half of an OpenID Connect client, on @oidcraft/core: storage, the token lifecycle, refresh, an authorized fetch and the derived profile. What @oidcraft/vue, @oidcraft/react and @oidcraft/angular are built on.",
   "license": "MIT",
   "author": "Fl0r14n <florian.chis@gmail.com>",
+  "homepage": "https://github.com/Fl0r14n/oidcraft/tree/main/packages/client",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Fl0r14n/oidcraft",
+    "directory": "packages/client"
+  },
+  "keywords": [
+    "oidc",
+    "openid",
+    "openid-connect",
+    "oauth",
+    "oauth2",
+    "oauth2.1",
+    "pkce",
+    "spa",
+    "browser"
+  ],
   "type": "module",
+  "files": [
+    "dist"
+  ],
   "main": "./dist/index.mjs",
   "types": "./dist/index.d.mts",
   "exports": {
@@ -18,10 +37,15 @@
   "scripts": {
     "build": "tsdown",
     "test": "bun test",
-    "typecheck": "bun check"
+    "typecheck": "bun check",
+    "prepublishOnly": "bun run build"
   },
-  "devDependencies": {
-    "@oidcraft/core": "workspace:*"
+  "dependencies": {
+    "@oidcraft/core": "workspace:^",
+    "jose": "^6.2.14"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "engines": {
     "node": ">=22"

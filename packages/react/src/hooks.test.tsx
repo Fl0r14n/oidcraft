@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'bun:test'
+import { createStore, type OAuth, OAuthStatus, OAuthType, type ResourceOwnerConfig, type Subscribable } from '@oidcraft/react/core'
 import { act, cleanup, render, screen } from '@testing-library/react'
 import { renderToString } from 'react-dom/server'
-import { createStore, type OAuth, OAuthStatus, OAuthType, type ResourceOwnerConfig, type Subscribable } from 'react-oauth-oidc/core'
 import {
   useAccessToken,
   useIsAuthorized,

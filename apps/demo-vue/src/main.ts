@@ -1,4 +1,4 @@
-import { createOAuth } from 'vue-oidc'
+import { createOAuth } from '@oidcraft/vue'
 import App from './App.vue'
 import { bootstrapApp } from './app'
 import { oauthCallbackGuard } from './guards'

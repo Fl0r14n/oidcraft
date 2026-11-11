@@ -1,5 +1,5 @@
 import { afterEach, jest } from 'bun:test'
-import { createOAuth as create, type OAuth, type OAuthConfig, type OAuthFunctions } from 'react-oauth-oidc/core'
+import { createOAuth as create, type OAuth, type OAuthConfig, type OAuthFunctions } from '@oidcraft/react/core'
 
 /** Shared test helpers. Not part of the published build — tsdown only follows the four entry points. */
 

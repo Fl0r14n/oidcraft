@@ -1,17 +1,17 @@
-# @oidcraft/core — not published
+# @oidcraft/core
 
-**Nothing on npm resolves this name.** It is compiled into whichever package uses it, so nothing
-outside this workspace may depend on it (ARCHITECTURE.md §2.1). Publishing it is a deferred
-decision, not a closed one — `PLAN.md` records what would reopen it.
+```sh
+bun add @oidcraft/core
+```
 
 The OpenID Connect protocol: discovery, PKCE, the authorization round trip and ID token
 verification. `jose` is its only dependency, it touches no framework, and it performs no redirect and
 writes to no storage — where the handoff lives is the caller's decision, and that decision is the one
 thing that differs between a browser app and a confidential client.
 
-Its consumers are `oidcraft/broker`, which is a relying party at every upstream it brokers to,
-and this workspace's framework client libraries — `vue-oidc`, `react-oauth-oidc` and `ngx-oauth`,
-which publish under their own names. One implementation of the protocol, not four.
+Its consumers are `@oidcraft/provider/broker`, which is a relying party at every upstream it brokers to,
+and the framework bindings — `@oidcraft/vue`, `@oidcraft/react` and `@oidcraft/angular`, through
+`@oidcraft/client`. One implementation of the protocol, not four.
 
 **This package holds no state.** Storage, the token lifecycle, refresh and the derived profile are
 `@oidcraft/client`, which builds on this and which the server never sees.

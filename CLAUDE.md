@@ -78,24 +78,26 @@ bun run conformance      # OpenID Foundation suite against apps/demo-server
 
 ## Gotchas
 
-- **Directories name the role, `package.json` names the artifact.** `packages/server` publishes as
-  `oidcraft`, `packages/vue` as `vue-oidc`, `packages/react` as `react-oauth-oidc`. `bun run --filter`
-  matches package names, not directories.
-- **One package, thirteen subpath entries** (`packages/server`). An optional peer belongs to exactly
-  one entry; `bun run --filter=oidcraft build` runs `verify-entries.ts`, which fails the build if
+- **Every published package is `@oidcraft/<directory>`.** `packages/provider` is `@oidcraft/provider`,
+  `packages/vue` is `@oidcraft/vue`. `bun run --filter` matches package names, not directories.
+- **One package, thirteen subpath entries** (`packages/provider`). An optional peer belongs to exactly
+  one entry; `bun run --filter=@oidcraft/provider build` runs `verify-entries.ts`, which fails the build if
   one leaks, if a core type is inlined, or if `node:` appears outside the `./runtimes/node` entry
   (ARCHITECTURE.md §2.1–2.2). Do not split this into several packages without reading §2.1.
-- **`@oidcraft/core` and `@oidcraft/client` are never published.** `core` is the protocol, used by
-  `oidcraft/broker` _and_ by every client binding; `client` is the stateful browser-facing half
-  and is for the bindings only — that split is what keeps `localStorage` structurally out of the
-  server. Both are **compiled into** each publisher, never depended on; each `verify-entries.ts`
-  fails the build if a published bundle still imports one, because that name resolves to nothing
-  once installed. Do not add either to `peerDependencies` (ARCHITECTURE.md §2.1).
+- **`@oidcraft/core` and `@oidcraft/client` are published dependencies, not compiled in.** `core` is
+  the protocol, used by `@oidcraft/provider/broker` _and_ by every client binding; `client` is the
+  stateful browser-facing half and is for the bindings only — the server never depends on it, which
+  is what keeps `localStorage` structurally out of it. Each `verify-entries.ts` fails the build on an
+  import `package.json` does not declare, on a compiled-in copy, or on `@oidcraft/client` in the
+  server. Do not add either to `peerDependencies` (ARCHITECTURE.md §2.1–2.2).
+- **A sibling is `workspace:^` in `dependencies`, so never `npm publish` from a package directory.**
+  npm ships `workspace:^` verbatim and the package is broken on install; `bun pm pack` rewrites it.
+  Publish the tarball: `bun pm pack` then `npm publish <file>.tgz --access public`, which is what
+  `publish.yml` does. `core` before `client` before the bindings (ARCHITECTURE.md §11).
 - **`@oidcraft/client` must keep `@oidcraft/core` external.** Bundling it puts a second copy of every
   protocol type in `client`'s declarations, and a binding that imports `OAuthFunctions` from one and
-  is handed the other fails its own dts emit with TS4023 "cannot be named". Only the published
-  package compiles both in.
-- **Do not add a `paths` alias in `packages/server/tsconfig.json` for a sibling package.** Pointing
+  is handed the other fails its own dts emit with TS4023 "cannot be named".
+- **Do not add a `paths` alias in `packages/provider/tsconfig.json` for a sibling package.** Pointing
   one at `../<pkg>/src` makes tsdown's declaration emit write `.d.ts` files beside that package's
   sources. Each package type-checks against the built `.d.mts`, which is what a consumer resolves
   anyway; `bun run --filter` builds siblings first.
@@ -110,7 +112,7 @@ bun run conformance      # OpenID Foundation suite against apps/demo-server
   finds 7. Its own `bun install` holds **only** the compiler toolchain; every runtime package,
   `@angular/core` above all, resolves up to the root, because Angular breaks on two copies
   (`_desc is protected …`). Do not add `@angular/core`, `@angular/common`, `@angular/router` or
-  `ngx-oauth` to that app's `package.json` (ARCHITECTURE.md §8.4).
+  `@oidcraft/angular` to that app's `package.json` (ARCHITECTURE.md §8.4).
 - **There is no build step for the apps.** `bun index.html` is the client — Bun bundles Vue, compiles Tailwind
   and inlines `OIDCRAFT_PUBLIC_*` itself. The server runs from source. Do not add a bundler or a
   `dist/`; `build` scripts are typechecks.
@@ -124,7 +126,7 @@ bun run conformance      # OpenID Foundation suite against apps/demo-server
   tsdown emits declarations with it.
 - **The credential form is split by purity, not by consumer.** `@oidcraft/core` holds the rules and
   the view — pure, so the OP's server-rendered login screen validates with the same
-  `oauthFieldError` a browser binding does, and `oidcraft/interaction` re-exports them for a host
+  `oauthFieldError` a browser binding does, and `@oidcraft/provider/interaction` re-exports them for a host
   replacing those screens. `@oidcraft/client` holds only the stateful controller. A binding is a
   reactive wrapper over one `view` and nothing more; do not re-explode it into a property per field.
 - **The screens live in `packages/ui` (`@oidcraft/ui`): private, no build, imported from source.**

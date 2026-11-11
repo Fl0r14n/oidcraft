@@ -96,8 +96,8 @@
 <script setup lang="ts">
 import { mdiAccount, mdiAccountOutline, mdiEmailOutline, mdiEye, mdiEyeOff, mdiLockOutline } from '@mdi/js'
 import type { OAuthParameters } from '@oidcraft/core'
+import { OAuthType, useOAuth, useOAuthForm, useOAuthUser } from '@oidcraft/vue'
 import { computed, shallowRef, watch } from 'vue'
-import { OAuthType, useOAuth, useOAuthForm, useOAuthUser } from 'vue-oidc'
 import { useLocale } from 'vuetify'
 import {
   VAlert,

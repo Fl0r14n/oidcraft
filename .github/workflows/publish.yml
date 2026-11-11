@@ -1,7 +1,8 @@
 name: publish
 
 # One workflow for every published package, so each package's trusted publisher names this file.
-# The release tag says which: <name>@<version>, e.g. oidcraft@0.0.2 or vue-oidc@7.0.0.
+# The release tag says which: <name>@<version>, e.g. @oidcraft/provider@0.1.0 or @oidcraft/vue@7.0.0.
+# A package depending on @oidcraft/core or @oidcraft/client needs the version it names published first.
 on:
   release:
     types: [ published ]
@@ -34,10 +35,12 @@ jobs:
           TAG: ${{ github.event.release.tag_name || inputs.tag }}
         run: |
           case "$TAG" in
-            oidcraft@*) dir=packages/server ;;
-            vue-oidc@*) dir=packages/vue ;;
-            react-oauth-oidc@*) dir=packages/react ;;
-            ngx-oauth@*) dir=packages/angular ;;
+            @oidcraft/core@*) dir=packages/core ;;
+            @oidcraft/client@*) dir=packages/client ;;
+            @oidcraft/provider@*) dir=packages/provider ;;
+            @oidcraft/vue@*) dir=packages/vue ;;
+            @oidcraft/react@*) dir=packages/react ;;
+            @oidcraft/angular@*) dir=packages/angular ;;
             *) echo "::error::tag $TAG names no published package; expected <name>@<version>"; exit 1 ;;
           esac
           actual=$(node -p "const p = require('./$dir/package.json'); p.name + '@' + p.version")
@@ -53,11 +56,14 @@ jobs:
       - run: bun test
       # trusted publishing needs npm >= 11.5.1; the npm bundled with node drifts, so take the latest
       - run: npm install -g npm@latest
-      # No NODE_AUTH_TOKEN: each package's trusted publisher names this repo and this file, and
-      # exchanges the OIDC token above for publish rights, with provenance. Register a package once:
-      #   npm trust github <name> --repo Fl0r14n/oidcraft --file publish.yml --allow-publish
-      # oidcraft is registered; vue-oidc, react-oauth-oidc and ngx-oauth still publish from their
-      # old repositories until they are registered here too.
-      # npm, not bun: bun publish cannot do trusted publishing or provenance.
-      - run: npm publish --access public
+      # bun packs, because npm would ship `workspace:^` verbatim; bun rewrites it to the version.
+      - name: pack
+        id: pack
         working-directory: ${{ steps.target.outputs.dir }}
+        run: echo "tarball=$(bun pm pack --quiet --ignore-scripts --destination "$RUNNER_TEMP")" >> "$GITHUB_OUTPUT"
+      # No NODE_AUTH_TOKEN: each package's trusted publisher names this repo and this file, and
+      # exchanges the OIDC token above for publish rights, with provenance. Register a package once,
+      # after its first publish by hand:
+      #   npm trust github <name> --repo Fl0r14n/oidcraft --file publish.yml --allow-publish
+      # npm, not bun: bun publish cannot do trusted publishing or provenance.
+      - run: npm publish "${{ steps.pack.outputs.tarball }}" --access public

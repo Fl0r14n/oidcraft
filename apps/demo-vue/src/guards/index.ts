@@ -1,4 +1,4 @@
-import { useOAuth } from 'vue-oidc'
+import { useOAuth } from '@oidcraft/vue'
 import type { NavigationGuardWithThis, RouteLocationNormalized, RouteLocationRaw } from 'vue-router'
 
 export const oauthCallbackGuard: NavigationGuardWithThis<undefined> = async (to: RouteLocationNormalized) => {

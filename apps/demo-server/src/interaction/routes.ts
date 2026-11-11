@@ -1,6 +1,6 @@
+import { OAuthError } from '@oidcraft/provider'
+import { type InteractionRequest, oauthFieldError } from '@oidcraft/provider/interaction'
 import { PASSWORD_MESSAGES, type ScreenView } from '@oidcraft/ui'
-import { OAuthError } from 'oidcraft'
-import { type InteractionRequest, oauthFieldError } from 'oidcraft/interaction'
 import { optional } from '../op/env'
 import { FIRST_PARTY } from '../op/first-party'
 import type { Site } from '../op/site'

@@ -1,6 +1,6 @@
-import { createContext, type ReactNode, useContext } from 'react'
 // by package name — see the note in hooks.ts and AGENTS.md
-import type { OAuth } from 'react-oauth-oidc/core'
+import type { OAuth } from '@oidcraft/react/core'
+import { createContext, type ReactNode, useContext } from 'react'
 
 const OAuthContext = createContext<OAuth | undefined>(undefined)
 
@@ -21,7 +21,7 @@ export const useOAuthInstance = (): OAuth => {
   const oauth = useContext(OAuthContext)
   if (!oauth) {
     throw new Error(
-      '[react-oauth-oidc]: no OAuth instance in context. Wrap the tree in <OAuthProvider oauth={createOAuth(...)}>, creating the instance in your bootstrap rather than in the provider.'
+      '[@oidcraft/react]: no OAuth instance in context. Wrap the tree in <OAuthProvider oauth={createOAuth(...)}>, creating the instance in your bootstrap rather than in the provider.'
     )
   }
   return oauth

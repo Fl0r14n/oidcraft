@@ -2,12 +2,12 @@
 import { Database } from 'bun:sqlite'
 import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
+import { type FullAdapter, generatedKeyStore, type KeyStore } from '@oidcraft/provider'
+import { drizzleAdapter, POSTGRES_MIGRATIONS, postgresTables, SQLITE_MIGRATIONS } from '@oidcraft/provider/adapters/drizzle'
+import { memoryAdapter } from '@oidcraft/provider/adapters/memory'
 import { SQL } from 'bun'
 import { drizzle as drizzlePostgres } from 'drizzle-orm/bun-sql'
 import { drizzle } from 'drizzle-orm/bun-sqlite'
-import { type FullAdapter, generatedKeyStore, type KeyStore } from 'oidcraft'
-import { drizzleAdapter, POSTGRES_MIGRATIONS, postgresTables, SQLITE_MIGRATIONS } from 'oidcraft/adapters/drizzle'
-import { memoryAdapter } from 'oidcraft/adapters/memory'
 import { withDefault } from './env'
 
 /**

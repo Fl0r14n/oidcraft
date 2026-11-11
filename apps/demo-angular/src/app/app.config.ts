@@ -1,6 +1,6 @@
 import { type ApplicationConfig, provideZonelessChangeDetection } from '@angular/core'
 import { provideRouter } from '@angular/router'
-import { provideOAuthConfig } from 'ngx-oauth'
+import { provideOAuthConfig } from '@oidcraft/angular'
 import { routes } from './app.routes'
 
 /**

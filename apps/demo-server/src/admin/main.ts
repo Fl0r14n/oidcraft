@@ -1,7 +1,7 @@
 import './styles.css'
 import { BRAND } from '@oidcraft/ui/components'
+import { createOAuth, useOAuth } from '@oidcraft/vue'
 import { createApp } from 'vue'
-import { createOAuth, useOAuth } from 'vue-oidc'
 import { allowInsecure } from '../shared/api'
 import App from './App.vue'
 

@@ -1,9 +1,9 @@
 import { JsonPipe } from '@angular/common'
 import { Component, inject } from '@angular/core'
-import { OAUTH } from 'ngx-oauth'
+import { OAUTH } from '@oidcraft/angular'
 
 /**
- * Written against the `OAUTH` token rather than against `ngx-oauth/component`, which v9 does not
+ * Written against the `OAUTH` token rather than against `@oidcraft/angular/component`, which v9 does not
  * ship (PLAN.md). That makes this the better demo anyway: the signals below are the whole public
  * surface, and a host is expected to bring its own markup.
  */
@@ -12,7 +12,7 @@ import { OAUTH } from 'ngx-oauth'
   imports: [JsonPipe],
   template: `
     <main>
-      <h1>ngx-oauth</h1>
+      <h1>@oidcraft/angular</h1>
       @if (oauth.isAuthorized()) {
         <p>Signed in as {{ oauth.user()?.name ?? oauth.user()?.email ?? oauth.user()?.sub }}</p>
         <pre>{{ oauth.user() | json }}</pre>

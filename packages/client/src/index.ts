@@ -1,6 +1,6 @@
 /**
  * The stateful client half: storage, token lifecycle, refresh, the authorized fetch and the derived
- * profile — everything `vue-oidc`, `ngx-oauth` and `react-oauth-oidc` used to hold three copies of.
+ * profile — everything `@oidcraft/vue`, `@oidcraft/angular` and `@oidcraft/react` used to hold three copies of.
  *
  * Nothing here imports a framework, and nothing may: a binding adapts `Subscribable` from outside.
  * The protocol half is the package root, which this builds on and a server can use alone.

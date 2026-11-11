@@ -1,6 +1,6 @@
 import { inject } from '@angular/core'
 import { type CanActivateFn, Router } from '@angular/router'
-import { OAUTH } from 'ngx-oauth'
+import { OAUTH } from '@oidcraft/angular'
 
 export const oauthCallbackGuard: CanActivateFn = async (_route, state) => {
   const oauth = inject(OAUTH)

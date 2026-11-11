@@ -1,4 +1,4 @@
-import { createBroker, linkIdentity, localSubject } from 'oidcraft/broker'
+import { createBroker, linkIdentity, localSubject } from '@oidcraft/provider/broker'
 import { controlAdapter, provider } from '../op/provider'
 import { callbackUri, upstreams } from '../op/upstreams'
 import { screens } from './screens'

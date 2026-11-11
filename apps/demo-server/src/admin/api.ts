@@ -1,5 +1,5 @@
 /// <reference types="bun" />
-import type { Provider, Realms } from 'oidcraft'
+import type { Provider, Realms } from '@oidcraft/provider'
 import { ADMIN_CLIENT_ID, administrators, callerOf, FIRST_PARTY, json } from '../op/first-party'
 
 const realmsApi = async (realms: Realms | undefined, request: Request, id: string | undefined, action: string | undefined) => {

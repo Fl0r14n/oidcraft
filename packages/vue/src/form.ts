@@ -20,7 +20,7 @@ export type OAuthForm = Omit<OAuthFormController, 'store' | 'state' | 'view' | '
  * `@oidcraft/client`'s, shared with the React and Angular bindings; this is the Vue wrapper.
  *
  * Call it inside a component setup or another effect scope: it subscribes, and the scope is what
- * unsubscribes. OAuth 2.1 removed the grant it drives, so an `oidcraft` provider will not accept it.
+ * unsubscribes. OAuth 2.1 removed the grant it drives, so an `@oidcraft/provider` provider will not accept it.
  */
 export const useOAuthForm = (options: OAuthFormOptions = {}): OAuthForm => {
   const oauth = getActiveOAuth()

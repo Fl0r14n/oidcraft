@@ -1,7 +1,8 @@
 /// <reference types="bun" />
+
+import { bunContext } from '@oidcraft/provider/runtimes/bun'
 import { ASSETS, assets } from '@oidcraft/ui'
 import { serve } from 'bun'
-import { bunContext } from 'oidcraft/runtimes/bun'
 import { accountApi } from './src/account/api'
 import { adminApi } from './src/admin/api'
 import { fapiDemoRoutes } from './src/fapi/demo'

@@ -1,10 +1,10 @@
-# ngx-oauth
+# @oidcraft/angular
 
-A fully OAuth 2.1 compliant Angular library. Published as `ngx-oauth`; the directory is named for its
-framework (PLAN.md).
+A fully OAuth 2.1 compliant Angular library. It continues `ngx-oauth`, whose last
+version was 8; this is 9.
 
 ```ts
-import { provideOAuthConfig } from 'ngx-oauth'
+import { provideOAuthConfig } from '@oidcraft/angular'
 
 bootstrapApplication(App, {
   providers: [
@@ -21,10 +21,10 @@ const { isAuthorized, login, logout } = inject(OAUTH)
 
 ## Entries
 
-|                  |                                                                                                         |
-| ---------------- | ------------------------------------------------------------------------------------------------------- |
-| `ngx-oauth`      | the `OAUTH` instance and its providers. `@angular/core` is the only peer.                               |
-| `ngx-oauth/core` | the protocol and runtime alone, with no Angular in its graph — usable from a route handler or a worker. |
+|                          |                                                                                                         |
+| ------------------------ | ------------------------------------------------------------------------------------------------------- |
+| `@oidcraft/angular`      | the `OAUTH` instance and its providers. `@angular/core` is the only peer.                               |
+| `@oidcraft/angular/core` | the protocol and runtime alone, with no Angular in its graph — usable from a route handler or a worker. |
 
 `verify-entries.ts` asserts both claims after every build, plus that **no decorator reaches the
 output** — that is the property which lets this package build with tsdown like every other package
@@ -40,13 +40,13 @@ here, instead of needing `ng-packagr`.
   shared runtime, from the id_token or `userinfo`, whichever the session actually has.
 - **Protocol functions are configuration, not injection tokens.** Override them with
   `provideOAuthConfig({ functions: { … } })` rather than by providing `OAUTH_REFRESH` and friends.
-- **`ngx-oauth/component` is gone, replaced by `oauthForm()`.** A published Angular _component_ has to
+- **`@oidcraft/angular/component` is gone, replaced by `oauthForm()`.** A published Angular _component_ has to
   be compiled by `ngc` into partial form, and `ngc` requires a TypeScript this workspace does not use
   (ARCHITECTURE.md §8.4). What the Material form was actually worth — the validation, the submit
   lifecycle, the rule that a pristine field does not show an error, the decision to keep the username
   and clear the password on a rejection — is `oauthForm()`, with the markup left to you. It returns
   one `view` signal plus the actions; the rules behind it are `@oidcraft/core`'s and the lifecycle is
-  `@oidcraft/client`'s, both shared with `vue-oidc` and `react-oauth-oidc`.
+  `@oidcraft/client`'s, both shared with `@oidcraft/vue` and `@oidcraft/react`.
 
   Note that it drives the **resource-owner password grant**, which OAuth 2.1 removed: an `oidcraft`
   provider does not advertise it, and this is for the IdPs that still accept it.
@@ -56,9 +56,9 @@ here, instead of needing `ng-packagr`.
 
 ## Where the code lives
 
-Everything above the framework is `@oidcraft/client`, on `@oidcraft/core`, shared with `vue-oidc` and
-`react-oauth-oidc`. Both are compiled in rather than depended on, so installing this pulls
-`@angular/core` and `jose` and nothing else.
+Everything above the framework is `@oidcraft/client`, on `@oidcraft/core`, shared with `@oidcraft/vue` and
+`@oidcraft/react`. Both are ordinary dependencies, so installing this pulls those two, with
+`@angular/core` and `jose` as peers.
 
 What is Angular's here is `signals.ts`: two functions turning the runtime's `Subscribable` into a
 signal. That is the whole binding.

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test'
+import { OAuthType } from '@oidcraft/react/core'
 import { act, cleanup, render, screen } from '@testing-library/react'
-import { OAuthType } from 'react-oauth-oidc/core'
 import { useAuth } from './hooks'
 import { OAuthProvider } from './provider'
 import { createOAuth, installStorage, mockOAuthFunctions, registerOAuthCleanup } from './test-utils'

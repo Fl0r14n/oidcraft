@@ -125,18 +125,18 @@ here, or under any load.
 - [x] The npm org `oidcraft`, claimed 2026-10-31. Nothing is published under it yet; owning it is what
   keeps `@oidcraft/core`, `@oidcraft/client` and `@oidcraft/ui`, the names this workspace keeps
   unpublished, from being published by anyone else
-- [ ] First real release of `oidcraft`, after a final review: bump `packages/server` past 0.0.1 and
-  publish a GitHub release tagged `oidcraft@<version>`. Its trusted publisher is registered, so CI
-  publishes it
+- [x] ~~First real release of `oidcraft`~~ — superseded 2026-11-11: the move below comes first, so the
+  first real release is `@oidcraft/provider@0.1.0`, and `oidcraft` stays the 0.0.1 placeholder. Its
+  trusted publisher, registered 2026-10-31, is never used
 
-## The move to the `oidcraft` npm org (postponed)
+## The move to the `oidcraft` npm org
 
-Decided 2026-10-31, then postponed until after the first real `oidcraft` release. Every package moves
-under the scope, so the names say they belong together:
+Decided 2026-10-31, postponed, then brought forward 2026-11-11 to before the first real release —
+the provider and the client libraries go out together under one scope:
 
-| now                                                     | becomes                |
+| was                                                     | is                     |
 | ------------------------------------------------------- | ---------------------- |
-| `oidcraft`                                              | `@oidcraft/server`     |
+| `oidcraft`                                              | `@oidcraft/provider`   |
 | `vue-oidc`                                              | `@oidcraft/vue`        |
 | `react-oauth-oidc`                                      | `@oidcraft/react`      |
 | `ngx-oauth`                                             | `@oidcraft/angular`    |
@@ -144,24 +144,29 @@ under the scope, so the names say they belong together:
 
 npm has no rename and no redirect, so this is a set of new packages and a deprecation of the old ones:
 
-- [ ] Rename in the workspace: each `package.json`, every import specifier (match `'oidcraft'` and
-  `'oidcraft/…'` only, not the brand, `OIDCRAFT_*` variables or client ids), `bun run --filter`
-  names in scripts and CI, `verify-entries.ts`, tsdown `neverBundle` lists, `publish.yml`'s tag map,
-  CLAUDE.md's "directories name the role" note and the READMEs. The three client renames were done
-  and reverted once already (2026-10-31), so the reference list is known: about 57 files. Package
-  READMEs say which old name each continues; the history in this file keeps the old names
-- [ ] Publish `@oidcraft/core` and `@oidcraft/client` rather than compiling them into each package:
-  one release then fixes all four consumers, and Svelte, Solid or plain JS can use them. The cost is
-  that their exports become semver contracts. `verify-entries.ts` flips from refusing the import to
-  requiring the dependency, NFR-D4 reads "zero third-party dependencies beyond `jose`", and
-  ARCHITECTURE.md §2.1 is rewritten. The `client` boundary stays: the server never depends on it,
-  which is what keeps `localStorage` out of it
-- [ ] First publish of each scoped package by hand (`npm publish --access public`): npm cannot trust
-  a publisher for a package that does not exist yet. Then `npm trust github @oidcraft/<name> --repo
-  Fl0r14n/oidcraft --file publish.yml --allow-publish` for each, and CI publishes from there
-- [ ] `npm deprecate` the old names, pointing at the new ones: `oidcraft` (by then it has users, which
-  is the cost of releasing it first), `vue-oidc`, `react-oauth-oidc`, `ngx-oauth`. Their published
-  versions keep working
+- [x] Rename in the workspace, 2026-11-11: `packages/server` is `packages/provider`, published as
+  `@oidcraft/provider`; manifests, import specifiers, `--filter` names in scripts and
+  CI, `verify-entries.ts`, tsdown `neverBundle` lists, `publish.yml`'s tag map, CLAUDE.md and the
+  READMEs, which say which old name each binding continues. The brand, `OIDCRAFT_*` variables,
+  client ids and this file's history keep `oidcraft` and the old names. The provider goes from 0.0.1 to 0.1.0, beside `core` and `client`; the bindings keep 7.0.0, 2.0.0 and 9.0.0, continuing
+  their old names' majors
+- [x] `@oidcraft/core` and `@oidcraft/client` published rather than compiled in, 2026-11-11: each is a
+  `workspace:^` dependency of its consumers and external in every tsdown build. `verify-entries.ts`
+  now fails an import `package.json` does not declare and a compiled-in copy, and the provider's
+  still refuses `@oidcraft/client`. NFR-D4 reads "zero _third-party_ runtime dependencies", and
+  ARCHITECTURE.md §2.1, §2.2 and §11 are rewritten. `publish.yml` packs with `bun pm pack`, which
+  rewrites `workspace:^`, and uploads the tarball with `npm publish`, which does not
+- [ ] First publish of each scoped package by hand, in dependency order — `core`, `client`, `provider`,
+  then `vue`, `react`, `angular` — because npm cannot trust a publisher for a package that does not
+  exist yet. From the root, after `npm login` and `bun run verify`:
+  `for d in core client provider vue react angular; do (cd packages/$d && f=$(bun pm pack --quiet
+  --ignore-scripts) && npm publish "$f" --access public && rm "$f"); done`. Never a bare
+  `npm publish`: it ships `workspace:^` verbatim
+- [ ] `npm trust github @oidcraft/<name> --repo Fl0r14n/oidcraft --file publish.yml --allow-publish`
+  for each of the six, then releases tagged `@oidcraft/<name>@<version>` publish from CI. The first
+  such run is still the real test of `publish.yml`
+- [ ] `npm deprecate` the old names, pointing at the new ones: `oidcraft` (a placeholder with no users),
+  `vue-oidc`, `react-oauth-oidc`, `ngx-oauth`. Their published versions keep working
 - [ ] Archive the old `vue-oidc`, `react-oauth` and `ngx-oauth` repositories once their packages
   publish from here, with a README line pointing at `packages/<dir>`
 - [ ] Docs site — **after** the review and the conformance run; requirements below
@@ -353,7 +358,10 @@ What is _not_ claimed: see the status section. Implemented is not the same as ce
 4. ~~Refresh tokens and FAPI 2.0~~ — done 2026-10-30, the FAPI 2.0 plan green in CI.
 5. ~~Postgres~~ — done 2026-10-31, on Postgres 19rc1.
 6. ~~The MCP demo, then a real MCP client~~ — done 2026-10-31, OpenCode calling a tool end to end.
-7. ~~`npm trust`~~ — registered 2026-10-31. **The docs site** is what is left.
+7. ~~`npm trust`~~ — registered 2026-10-31, for the unscoped name the move below replaces.
+8. **The move to `@oidcraft/*`** — renamed in the workspace 2026-11-11; the first publish of the six
+   packages, by hand, is next, then their trusted publishers and the deprecations.
+9. **The docs site.**
 
 ## Server review — 2026-10-10
 
@@ -579,7 +587,8 @@ that `ref`, `signal` and `useSyncExternalStore` each satisfy it. Each binding is
 
 **No published package here depends on another published package here.** That property is what
 keeps four publishers out of a version matrix, and `verify-entries.ts` already fails the build if a
-workspace-private package leaks into a published bundle.
+workspace-private package leaks into a published bundle. Reversed 2026-11-11: `core` and `client` are
+published, as ordinary dependencies rather than peers, which is what avoids the matrix.
 
 ### Landed
 
@@ -633,6 +642,8 @@ what it currently does — that entry already needed two workarounds to ship at 
   been validated against two frameworks before it meets the one with its own toolchain.
 
 ### What would make `@oidcraft/core` a published package
+
+Done 2026-11-11, with `@oidcraft/client` — see the move to the `oidcraft` npm org. The reasoning:
 
 It is `private: true` today and that is a deferred decision, not a closed one. What argues for
 publishing, once the client libraries are actually here:

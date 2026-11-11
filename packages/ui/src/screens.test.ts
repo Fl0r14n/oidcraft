@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { InteractionRequest } from 'oidcraft/interaction'
+import type { InteractionRequest } from '@oidcraft/provider/interaction'
 import { createScreens } from './screens'
 
 const screens = createScreens({ brand: { name: 'Acme', host: 'id.acme.test' } })

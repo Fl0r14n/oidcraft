@@ -32,7 +32,7 @@ mkdir -p conformance/tls && openssl req -x509 -newkey rsa:2048 -nodes -days 30 -
   -addext subjectAltName=DNS:localhost,IP:127.0.0.1 -keyout conformance/tls/key.pem -out conformance/tls/cert.pem
 ```
 
-Then, from this repository — `apps/demo-server` runs `oidcraft` from its build, so build after any change
+Then, from this repository — `apps/demo-server` runs `@oidcraft/provider` from its build, so build after any change
 to the core, or the suite tests the previous one — with these in `.env`:
 
 ```sh
@@ -109,7 +109,7 @@ as RFC 9126 §7.3 asks; the suite records the choice as a review, not a failure.
 
 ## What runs today instead
 
-`packages/server/src/metadata.test.ts` checks the published discovery document against the
+`packages/provider/src/metadata.test.ts` checks the published discovery document against the
 requirements in OIDC Discovery 1.0 §3 and RFC 8414 §2, and cross-checks it against what the provider
 actually does — every advertised endpoint answers, every advertised signing algorithm has a key,
 nothing is advertised that the configuration disabled. That catches drift between metadata and

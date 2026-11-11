@@ -1,14 +1,14 @@
-# vue-oidc
+# @oidcraft/vue
 
-A fully OAuth 2.1 compliant Vue library. Published as `vue-oidc`; the directory is named for its
-framework (PLAN.md).
+A fully OAuth 2.1 compliant Vue library. It continues `vue-oidc`, whose last
+version was 6; this is 7.
 
 ```sh
-bun add vue-oidc
+bun add @oidcraft/vue
 ```
 
 ```ts
-import { createOAuth } from 'vue-oidc'
+import { createOAuth } from '@oidcraft/vue'
 
 const oauth = createOAuth({
   config: { issuerPath: 'https://accounts.google.com', clientId: '…', scope: 'openid email', pkce: true }
@@ -18,7 +18,7 @@ app.use(oauth)
 
 ```vue
 <script setup lang="ts">
-import { useOAuth, useOAuthUser } from 'vue-oidc'
+import { useOAuth, useOAuthUser } from '@oidcraft/vue'
 
 const { isAuthorized, login, logout } = useOAuth()
 const user = useOAuthUser()
@@ -27,12 +27,12 @@ const user = useOAuthUser()
 
 ## Entries
 
-|                      |                                                                                              |
-| -------------------- | -------------------------------------------------------------------------------------------- |
-| `vue-oidc`           | the composables and the plugin. `vue` is the only peer.                                      |
-| `vue-oidc/core`      | the protocol alone, with no Vue in its graph — usable from a request handler or a worker.    |
-| `vue-oidc/axios`     | the optional axios adapter. The only entry importing axios, which is what keeps it optional. |
-| `vue-oidc/component` | the optional Vuetify login component, plus `vue-oidc/component.css`.                         |
+|                           |                                                                                              |
+| ------------------------- | -------------------------------------------------------------------------------------------- |
+| `@oidcraft/vue`           | the composables and the plugin. `vue` is the only peer.                                      |
+| `@oidcraft/vue/core`      | the protocol alone, with no Vue in its graph — usable from a request handler or a worker.    |
+| `@oidcraft/vue/axios`     | the optional axios adapter. The only entry importing axios, which is what keeps it optional. |
+| `@oidcraft/vue/component` | the optional Vuetify login component, plus `@oidcraft/vue/component.css`.                    |
 
 `verify-entries.ts` asserts all four claims after every build, because each one fails silently
 otherwise: a leaked peer only surfaces for a consumer who never installed it, and a satellite entry
@@ -42,9 +42,9 @@ importing the root relatively would inline a second `oauthKey` and quietly resol
 
 Everything above the framework — storage, the token lifecycle, refresh, the authorized fetch, the
 derived profile — is `@oidcraft/client`, and the protocol under it is `@oidcraft/core`. Both are
-shared with `ngx-oauth` and `react-oauth-oidc`, and the protocol half is shared with the `oidcraft`
-provider's brokering leg as well. Both are compiled in rather than depended on, so installing this
-package pulls `vue` and nothing else.
+shared with `@oidcraft/angular` and `@oidcraft/react`, and the protocol half is shared with
+`@oidcraft/provider`'s brokering leg as well. Both are ordinary dependencies, so installing this
+package pulls those two and `jose`, with `vue` as the one required peer.
 
 What is Vue's here is `refs.ts`: two functions turning the core's `Subscribable` into a `Ref`. That
 is the whole binding.
@@ -55,7 +55,7 @@ The resource-owner password form as refs, sharing its rules with the React and A
 
 ```vue
 <script setup lang="ts">
-import { useOAuthForm } from 'vue-oidc'
+import { useOAuthForm } from '@oidcraft/vue'
 
 const { view, username, password, submit } = useOAuthForm()
 </script>
@@ -75,8 +75,8 @@ const { view, username, password, submit } = useOAuthForm()
 only at the top level, so `view.username.value` would render the ref rather than the string.
 
 `view.username.error` is a code — `'required'`, `'tooLong'` — not a sentence; the wording is yours.
-`vue-oidc/component` is one way to render it, and the grant it drives is one OAuth 2.1 removed, so an
-`oidcraft` provider will not accept it.
+`@oidcraft/vue/component` is one way to render it, and the grant it drives is one OAuth 2.1 removed, so an
+`@oidcraft/provider` provider will not accept it.
 
 ## SSR
 

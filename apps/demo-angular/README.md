@@ -19,5 +19,5 @@ Its real build is `bundle`, not `build`: under the root's parallel `build` it ra
 them because this app is not a workspace member. `typecheck` keeps the plain name and runs in the
 root `verify`, which happens after the build.
 
-It is written against the `OAUTH` token rather than `ngx-oauth/component`, which v9 does not ship.
+It is written against the `OAUTH` token rather than `@oidcraft/angular/component`, which v9 does not ship.
 That makes it the better demo: the signals it reads are the whole public surface.

@@ -1,5 +1,5 @@
-import type { Provider } from 'oidcraft'
-import type { Accounts } from 'oidcraft/accounts'
+import type { Provider } from '@oidcraft/provider'
+import type { Accounts } from '@oidcraft/provider/accounts'
 import type { Screens } from '../interaction/screens'
 
 /**

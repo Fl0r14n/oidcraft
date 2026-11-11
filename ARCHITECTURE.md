@@ -12,9 +12,9 @@ How oidcraft is built. `REQUIREMENTS.md` says what it must do; every section her
 | **Tailwind**         | 4.3.x      | Styling for both apps, via `bun-plugin-tailwind`. No other CSS pipeline.                                                                                 |
 | **@vuetify/v0**      | 1.2.x      | Headless Vue primitives, in the **admin surface only** (§8.1). Vue 3.5 is its only dependency.                                                           |
 | **Biome**            | 2.5.x      | Lint and format. `biome.json` settles formatting; it is not a matter of preference.                                                                      |
-| **jose**             | ^6         | The only runtime dependency. WebCrypto-backed, runtime-agnostic (NFR-D4).                                                                                |
-| **@oidcraft/core**   | workspace  | The protocol, shared by the provider and every client binding (§2.1). Not published; compiled in.                                                        |
-| **@oidcraft/client** | workspace  | The stateful client runtime, shared by the client bindings only (§2.1). Not published; compiled in.                                                      |
+| **jose**             | ^6         | The only third-party runtime dependency. WebCrypto-backed, runtime-agnostic (NFR-D4).                                                                    |
+| **@oidcraft/core**   | workspace  | The protocol, shared by the provider and every client binding (§2.1). Published; a dependency of each.                                                   |
+| **@oidcraft/client** | workspace  | The stateful client runtime, shared by the client bindings only (§2.1). Published; never the server's.                                                   |
 | **tsdown**           | 0.23.x     | Library build: seven ESM entries with `.d.mts` types (§2.2).                                                                                             |
 | **Drizzle / Kysely** | 1.0 / 0.28 | First-party adapters (FR-A4). Optional peers, never bundled (§2.2).                                                                                      |
 | **TypeORM**          | 1.1        | First-party adapter (FR-A6) over the host's `DataSource`, with `EntitySchema`s rather than decorators. Optional peer, never bundled.                     |
@@ -64,12 +64,13 @@ package stays: tsdown emits the declarations with it, and `bun check` emits none
 ## 2. Workspace
 
 ```
-packages/core/              the protocol.       private, compiled into its consumers (§2.1)
-packages/client/            client runtime.     private, the bindings only
-packages/ui/                screens + design.   private, consumed from source by apps/demo-server (§8.1)
-packages/vue/               vue-oidc
-packages/react/             react-oauth-oidc
-packages/server/            one published package, thirteen entries — publishes as `oidcraft`
+packages/core/              @oidcraft/core      the protocol (§2.1)
+packages/client/            @oidcraft/client    the client runtime, the bindings only
+packages/ui/                @oidcraft/ui        private, consumed from source by apps/demo-server (§8.1)
+packages/vue/               @oidcraft/vue
+packages/react/             @oidcraft/react
+packages/angular/           @oidcraft/angular
+packages/provider/            @oidcraft/provider    the provider, thirteen entries
   src/index.ts              .                     the OP. fetch in, fetch out, no I/O
   src/broker/               ./broker              the relying-party leg — upstream brokering
   src/interaction/          ./interaction         login/consent policy types
@@ -85,9 +86,9 @@ packages/server/            one published package, thirteen entries — publishe
   src/adapters/redis/       ./adapters/redis      any Redis client, through one command function
 apps/
   demo-server               the reference OP: mounts the core, the login screens and the admin UI
-  demo-vue                  demo relying party: Vue 3 + vue-oidc
-  demo-react                demo relying party: React 19 + react-oauth-oidc, with SSR
-  demo-angular              demo relying party: Angular 22 + ngx-oauth. Outside the workspace (§8.4)
+  demo-vue                  demo relying party: Vue 3 + @oidcraft/vue
+  demo-react                demo relying party: React 19 + @oidcraft/react, with SSR
+  demo-angular              demo relying party: Angular 22 + @oidcraft/angular. Outside the workspace (§8.4)
 ```
 
 Inside the root entry, code is grouped by feature, not by HTTP route: a folder holds a flow's
@@ -113,14 +114,30 @@ operator functions, and the root `management.ts` only assembles them into `provi
 None of these folders has an `index.ts`: `exports.test.ts` treats a directory with one as a
 published entry, so an import names the file it means.
 
-### 2.1 One published package, one private one
+### 2.1 Six published packages, one scope
 
-`oidcraft` ships as a single package with subpath exports, and `drizzle-orm`, `kysely` and `typeorm`
-are **optional** peer dependencies — nobody installing it for Kysely pulls Drizzle.
+Everything published is under the `@oidcraft` npm org, and each package is named for its directory:
+
+| package              | directory           | what                                                                                     |
+| -------------------- | ------------------- | ---------------------------------------------------------------------------------------- |
+| `@oidcraft/core`     | `packages/core`     | the protocol: discovery, PKCE, the authorization round trip, ID token verification       |
+| `@oidcraft/client`   | `packages/client`   | the stateful client on top: storage, token lifecycle, refresh, authorized fetch, profile |
+| `@oidcraft/provider` | `packages/provider` | the OpenID Provider, thirteen subpath entries                                            |
+| `@oidcraft/vue`      | `packages/vue`      | Vue binding over `@oidcraft/client`                                                      |
+| `@oidcraft/react`    | `packages/react`    | React binding over `@oidcraft/client`                                                    |
+| `@oidcraft/angular`  | `packages/angular`  | Angular binding over `@oidcraft/client`                                                  |
+
+`@oidcraft/ui` is the one private package, consumed from source by `apps/demo-server` (§8.1). The
+three bindings continue packages published under older names — `vue-oidc`, `react-oauth-oidc`,
+`ngx-oauth` — and their version numbers continue those.
+
+**The provider is one package.** `@oidcraft/provider` ships with subpath exports, and `drizzle-orm`,
+`kysely` and `typeorm` are **optional** peer dependencies — nobody installing it for Kysely pulls
+Drizzle.
 
 The reason is the adapter contract. It is the part of this library most likely to churn before 1.0,
 and it is exactly the coupling that makes a split painful: separate versioning puts consumers on
-`@oidcraft/core@0.5` with `@oidcraft/adapter-drizzle@0.3` and a type error they cannot resolve.
+`@oidcraft/provider@0.5` with `@oidcraft/adapter-drizzle@0.3` and a type error they cannot resolve.
 Auth.js lives that; `oidc-provider` and `better-auth` do not, because they are single packages.
 `drizzle-orm` itself is the closest precedent — dozens of driver adapters as subpath exports with
 optional peers, not as separate packages.
@@ -129,51 +146,38 @@ Going one package to several later is mechanical; going several to one is a brea
 every consumer, so the merged shape is the reversible one. And npm's trusted publishing cannot
 bootstrap a _new_ package — the configuration only exists once a version is published — so every
 extra package is another manual first publish and another `npm trust github` run behind a browser
-OTP.
+OTP (§11).
 
-**Two packages this workspace does not publish.** `@oidcraft/core` is the protocol — discovery,
-PKCE, the authorization round trip, ID token verification — and `@oidcraft/client` is the stateful
-half built on it: storage, the token lifecycle, refresh, the authorized fetch, the derived profile.
+**Core and client are split by consumer.** `@oidcraft/core` has two kinds of consumer that share
+nothing else:
 
-The split is the consumer list. `@oidcraft/core` has two kinds of consumer that share nothing else:
-
-- `oidcraft/broker`, because brokering _is_ being a relying party at the upstream (§5);
-- the framework client libraries — `vue-oidc`, `react-oauth-oidc`, `ngx-oauth` — which publish under
-  their own names and whose users have no OP at all.
+- `@oidcraft/provider/broker`, because brokering _is_ being a relying party at the upstream (§5);
+- the framework bindings — `@oidcraft/vue`, `@oidcraft/react`, `@oidcraft/angular` — whose users have
+  no OP at all.
 
 Only the second kind wants `@oidcraft/client`, and a server that accidentally reached `localStorage`
-would be a bug rather than a nuisance. Keeping them apart is what makes that impossible rather than
-merely discouraged.
+would be a bug rather than a nuisance. The server never depends on it, and `verify-entries.ts` fails
+its build if an entry imports it (§2.2), which makes that impossible rather than merely discouraged.
 
-**Directories name the role; `package.json` names the artifact.** `packages/server` publishes as
-`oidcraft`, `packages/vue` as `vue-oidc`. The published names follow three different conventions
-because they were chosen years apart and cannot change without abandoning their users; the tree does
-not have to inherit that. `bun run --filter` matches package names, so nothing in the build depends
-on the two agreeing.
+**They are dependencies, not compiled in.** One release of `@oidcraft/core` fixes the provider and
+all three bindings; an application using a binding and the broker installs one copy of the protocol;
+and a framework without a binding here — Svelte, Solid, plain JS — builds on `@oidcraft/client`
+directly. The price is that their exports are semver contracts, and that a binding's release is
+ordered after the `core` and `client` versions it names. NFR-D4 counts third-party dependencies and
+stays true: `dist/broker.mjs` imports `@oidcraft/provider`, `@oidcraft/core` and `jose`, and nothing
+else.
 
-They are compiled _into_ each publisher rather than published beside them. That is what makes them
-free: no npm names to own, no trusted-publishing bootstrap, and NFR-D4 stays literally true —
-`dist/broker.mjs` imports `oidcraft` and `jose` and nothing else. A consumer never learns either
-package exists.
+`@oidcraft/client` keeps `@oidcraft/core` external like everyone else. Bundling it would put a second
+copy of every protocol type in its declarations, and a binding that imported `OAuthFunctions` from
+one and was handed the other fails its own dts emit with "cannot be named".
 
-Between themselves the two stay _external_: `@oidcraft/client` does not bundle `@oidcraft/core`.
-Bundling would put a second copy of every protocol type in its declarations, and a binding that
-imported `OAuthFunctions` from one and was handed the other fails its own dts emit with "cannot be
-named". Only the published package compiles both in.
+An entry inside `@oidcraft/provider` could not have done the same job: a Vue application would be
+installing an OpenID Provider to get a login button.
 
-This is deliberately the reversible direction. Not-published to published is additive; the reverse
-breaks anyone who found it. `PLAN.md` records what would flip it, and the client libraries landing
-here are the thing most likely to.
-
-An entry inside `oidcraft` could not have done the same job: a Vue application would be installing
-an OpenID Provider to get a login button.
-
-The provider compiles in what it uses of `@oidcraft/core` too — `sha256`, `randomString`,
+The provider uses what it needs of `@oidcraft/core` too — `sha256`, `randomString`,
 `constantTimeEquals` — so each primitive exists once, and the server has no `random.ts` of its own.
 Encoding is `jose`'s `base64url`, which both halves already depend on. That is the provider
-depending on the protocol, never the reverse. The cost is that the root and an entry such as
-`./broker` each carry their own bundled copy of a helper; `verify-entries.ts` tolerates that
-deliberately and says why (§2.2).
+depending on the protocol, never the reverse.
 
 What a package split was never buying is a hard wall stopping the core from importing its optional
 peers. `verify-entries.ts` does that (§2.2).
@@ -185,22 +189,18 @@ than a tax on every consumer. Nothing enforces this at build time, and every way
 fails silently — a leaked peer surfaces only as a resolution error in a consumer who never installed
 it, and a core type inlined into an entry compiles fine while shipping a second copy that drifts.
 
-It also asserts the opposite for `packages/core`: no entry may _import_ it, because it is never
-published and a surviving import resolves to nothing on a consumer's machine. Bundled is the only
-correct outcome, and the check that it stayed bundled is the same shape as the check that an
-optional peer stayed external.
+The same goes for workspace packages. Every package a bundle imports must be declared in its
+`package.json`: a workspace package imported but undeclared resolves on this machine and nowhere
+else. And the shared ones must stay imported — `@oidcraft/core` by `./broker` and by each binding's
+`./core`, `@oidcraft/client` by the React and Angular `./core` — because a copy compiled in is one
+a `core` release no longer fixes.
 
 `verify-entries.ts` runs after `build` and asserts, per entry: no optional peer it does not own, in
-either the JS or the `.d.mts`; no `node:` builtin outside the `./runtimes/node` entry (FR-R1); no redeclared
-core type; and — once an entry has runtime code — that it imports the root by package name rather
-than inlining a second copy of the core. Entries that are still types-only compile to `export {};`,
-so their runtime checks are reported as pending rather than passing quietly.
-
-**The unscoped name is claimed.** `oidcraft@0.0.1` published on 2026-09-12, which is the only thing
-that actually exercises npm's similarity rule — it runs server-side on the `PUT`, where neither
-`npm view` nor `npm publish --dry-run` sees it coming. It cleared, despite `oidc` being taken and
-`oidc-react` sitting two edits away. Publishing the placeholder early was deliberate: a rejection
-would have cost a rename, and that only gets more expensive.
+either the JS or the `.d.mts`; no undeclared import; no `@oidcraft/client` in the provider; no `node:`
+builtin outside the `./runtimes/node` entry (FR-R1); no redeclared core type; and — once an entry has
+runtime code — that it imports the root by package name rather than inlining a second copy of the
+core. Entries that are still types-only compile to `export {};`, so their runtime checks are reported
+as pending rather than passing quietly.
 
 ## 3. The core
 
@@ -223,7 +223,7 @@ directly.
 **Every runtime needs a context provider**, though — the part that is easy to get wrong. Nothing in
 `RequestContext` is carried by `Request`, and each runtime exposes it differently:
 `server.requestIP(request)` on Bun, `info.remoteAddr` on Deno, `req.socket` on Node, `request.cf`
-plus `CF-Connecting-IP` on workerd. Hence one small entry per runtime under `oidcraft/runtimes/*`,
+plus `CF-Connecting-IP` on workerd. Hence one small entry per runtime under `@oidcraft/provider/runtimes/*`,
 grouped the way the adapters are and for the same reason — each is one interchangeable
 implementation of a single seam. Each touches only its own globals and holds no protocol logic
 (FR-R3). `verify-entries.ts` fails the build if `node:`, `Bun.` or `Deno.` appears outside the entry
@@ -277,7 +277,7 @@ tokens are the one place rotation is skipped (FR-T3).
 
 ## 4. The adapter layer
 
-`packages/server/src/adapter.ts` is the contract. Storage is **a set of narrow capability stores**,
+`packages/provider/src/adapter.ts` is the contract. Storage is **a set of narrow capability stores**,
 not one table keyed by a model-name string:
 
 | Store                 | Holds                                                                                                         |
@@ -361,8 +361,8 @@ the search path or Kysely's `withSchema`.
 
 **Identity brokering** is what oidcraft implements (FR-F*): it is the OP its clients see, and at
 the same time a relying party at one or more upstream OPs. Downstream clients never learn an
-upstream exists. The relying-party leg is `packages/core` — the same code a browser application
-would use against this OP, pointed the other way, and bundled in rather than depended on (§2.1).
+upstream exists. The relying-party leg is `@oidcraft/core` — the same code a browser application
+would use against this OP, pointed the other way (§2.1).
 
 **OpenID Federation 1.0** — entity statements, trust chains, trust anchors, automatic registration
 across a multilateral trust fabric — is a different protocol solving a different problem
@@ -374,7 +374,7 @@ across a multilateral trust fabric — is a different protocol solving a differe
 ```
   client ──authorization request──▶ oidcraft ──▶ interaction: which upstream? (FR-F4)
                                        │
-                                       ├── oidcraft/broker is the RP:
+                                       ├── @oidcraft/provider/broker is the RP:
                                        │     authorization request ──▶ upstream OP
                                        │     callback ◀── code + state + PKCE verifier
                                        │
@@ -439,7 +439,7 @@ and lets a host replace the screens entirely. The difference is that oidcraft sh
 
 ### 6.1 Local accounts
 
-`oidcraft/accounts` (FR-I7) is a set of functions, not a screen or a route: the interaction app
+`@oidcraft/provider/accounts` (FR-I7) is a set of functions, not a screen or a route: the interaction app
 calls `authenticate`, then `verifySecondFactor` when the result says one is enrolled, and only then
 completes the interaction. It is composed in after the adapter exists —
 `createProvider({ adapter: { ...adapter, accounts: accounts.store } })` — which is why every adapter
@@ -504,7 +504,7 @@ exists: a reference that is never executed is a reference that is wrong.
 
 **One component set, rendered two ways.** `packages/ui` (`@oidcraft/ui`) holds the design, the
 Vue components and the interaction screens, and both surfaces build on it. It is private and has
-no build: the app imports its source. `oidcraft/interaction` ships rules and no markup, so no
+no build: the app imports its source. `@oidcraft/provider/interaction` ships rules and no markup, so no
 consumer of the library inherits a UI dependency from it (FR-I3).
 
 **The design is a handful of CSS variables** (`--oc-accent`, `--oc-accent-ink`, `--oc-radius`,
@@ -526,14 +526,14 @@ dialog are `@oidcraft/ui`'s `UiDataTable` and `UiDialog`, which wrap `@vuetify/v
 Tailwind still does the styling. v0 is behaviour that runs in the browser, so the script-free
 interaction screens never use it.
 
-**The admin and account apps are clients of this OP.** Each signs in with `vue-oidc` as its own
+**The admin and account apps are clients of this OP.** Each signs in with `@oidcraft/vue` as its own
 public client (`oidcraft-admin`, `oidcraft-account`), and each API introspects the bearer token
 in-process as the resource server `oidcraft-api`: live, and issued to that app's client. The admin
 API also requires an account in `OIDCRAFT_ADMINS`, the decision FR-M1 leaves to the host; the
 account API acts only on the token's own subject, so no path carries an account id to swap. The
 interaction routes answer consent for these first-party clients themselves.
 
-**Sign-in is `oidcraft/accounts` (FR-I7).** A correct password for an account with TOTP sets a
+**Sign-in is `@oidcraft/provider/accounts` (FR-I7).** A correct password for an account with TOTP sets a
 signed, five-minute cookie bound to the interaction, and only the code step that reads it can
 finish that sign-in. `acr` is `mfa` after a second factor and `pwd` otherwise, with RFC 8176 `amr`
 values. `prompt=select_account` lists the accounts this browser signed in with, from another
@@ -577,26 +577,26 @@ uses the metadata document.
 
 ### 8.2 `apps/demo-vue` — the demo relying party
 
-Vue 3 + `vue-oidc`, ported from that library's own sample app, and now resolving it from the
-workspace rather than from npm. That trade is deliberate: until `vue-oidc@7` publishes from here,
+Vue 3 + `@oidcraft/vue`, ported from that library's own sample app, and now resolving it from the
+workspace rather than from npm. That trade is deliberate: until `@oidcraft/vue@7` publishes from here,
 npm was the more honest dependency — it proved the OP against an independently released client. From
 here on the same file proves something else, that the binding in `packages/vue` actually works, and
 nothing else in the repository does.
 
-Run with `bun index.html` and nothing else (§1.1). It uses `vue-oidc`'s composables (`useOAuth`,
+Run with `bun index.html` and nothing else (§1.1). It uses `@oidcraft/vue`'s composables (`useOAuth`,
 `useOAuthUser`) rather than its Vuetify component, so the demo carries no UI framework at all — a
 login button and a claims list do not need one. `BUN_PORT` sets the port.
 
 ### 8.3 `apps/demo-react` — the second relying party
 
-React 19 + `react-oauth-oidc`, ported from that library's own sample. It exists for the half of the
+React 19 + `@oidcraft/react`, ported from that library's own sample. It exists for the half of the
 binding the Vue demo cannot reach: server rendering, where `useSyncExternalStore` must hand React a
 snapshot that matches the client's first paint, and where one instance per request is the difference
 between isolation and one user seeing another's token.
 
 ### 8.4 `apps/demo-angular` — the toolchain island
 
-Angular 22 + `ngx-oauth`, and **the one thing here that is not in the bun workspace**. Two facts force
+Angular 22 + `@oidcraft/angular`, and **the one thing here that is not in the bun workspace**. Two facts force
 that, and they conflict with each other:
 
 - `@angular/compiler-cli` requires `typescript >=6.0 <6.1`. This workspace is on 7, and there is no
@@ -618,7 +618,7 @@ directories rather than reading the `workspaces` list, and so reaches every scri
 
 That is why its real build is named `bundle` rather than `build`. As `build` it ran in the root's
 _parallel_ build alongside `packages/angular`, whose tsdown config cleans `dist/` before rewriting
-it — and the Angular compiler reads that same `dist/` for its `ngx-oauth` types. Bun has no
+it — and the Angular compiler reads that same `dist/` for its `@oidcraft/angular` types. Bun has no
 dependency edge to order them, because the app is not a workspace member, so the root build failed
 roughly one run in three. Measured, not theorised.
 
@@ -629,7 +629,7 @@ Angular compiler's template checking, which is `bun run build:angular`.
 `packages/angular` still deliberately contains no decorators, so that package builds with tsdown on
 TypeScript 7 like everything else and does not depend on any of this.
 
-It is written against the `OAUTH` token rather than `ngx-oauth/component`, which v9 does not ship.
+It is written against the `OAUTH` token rather than `@oidcraft/angular/component`, which v9 does not ship.
 
 `build` in every workspace app is a typecheck, kept under that name so `bun run build` at the root
 still checks everything without running three bundlers. `bundle` is the real build where there is one.
@@ -670,7 +670,7 @@ silently when missing (§1.1).
 
 The gate is `.github/workflows/ci.yml` on every push and pull request: `biome ci`, then `build`
 (which runs `verify-entries`), then `typecheck`, then `bun test`. Build precedes typecheck because
-the apps resolve `oidcraft` through its exports map into `dist/`, which does not exist on a fresh
+the apps resolve `@oidcraft/provider` through its exports map into `dist/`, which does not exist on a fresh
 clone.
 
 - **Adapter conformance** — `adapterConformance(name, create)` in `src/adapters/conformance.ts` is one
@@ -697,10 +697,24 @@ clone.
 
 ## 11. Publishing
 
-One package, `oidcraft`, built by `tsdown` to ESM with `.d.mts` types. Trusted publishing (OIDC)
-from GitHub Actions, which needs `permissions: id-token: write`, no `NODE_AUTH_TOKEN`, and
-`actions/setup-node` with `registry-url` set.
+Six packages, `@oidcraft/*` (§2.1), each built by `tsdown` to ESM with `.d.mts` types and published
+by `.github/workflows/publish.yml` from a GitHub release tagged `<name>@<version>` — for example
+`@oidcraft/provider@0.1.0`. The workflow checks the tag against that package's `package.json` before
+building anything.
 
-**The first publish must be manual**, with a login or token: npm's trusted-publisher configuration
-only exists once a version has been published, so OIDC cannot bootstrap a new package
-(npm/cli#8544). Configure `npm trust github` after that first release — once, not seven times (§2.1).
+Trusted publishing (OIDC) from GitHub Actions needs `permissions: id-token: write`, no
+`NODE_AUTH_TOKEN`, and `actions/setup-node` with `registry-url` set. `bun pm pack` builds the tarball,
+because it rewrites `workspace:^` to the version it names and npm does not; `npm publish` uploads it,
+because only npm does trusted publishing and provenance.
+
+**Order matters.** A binding names a `@oidcraft/client` and `@oidcraft/core` version, and the server a
+`@oidcraft/core` one; those must be on npm before it is.
+
+**The first publish of each package is manual**, with a login or token: npm's trusted-publisher
+configuration only exists once a version has been published, so OIDC cannot bootstrap a new package
+(npm/cli#8544). Configure `npm trust github` after that first release.
+
+Scoped names also skip npm's similarity check on new unscoped names, which runs server-side on the
+`PUT` where neither `npm view` nor `npm publish --dry-run` sees it. The unscoped `oidcraft@0.0.1`,
+published 2026-09-12, was a name reservation and is not the provider; it points at
+`@oidcraft/provider` (PLAN.md).

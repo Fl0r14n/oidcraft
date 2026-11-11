@@ -28,7 +28,7 @@
 </template>
 
 <script setup lang="ts">
-import { type OAuthParameters, useOAuth, useOAuthUser } from 'vue-oidc'
+import { type OAuthParameters, useOAuth, useOAuthUser } from '@oidcraft/vue'
 
 const { login, logout, isAuthorized, hasError, errorDescription } = useOAuth()
 const user = useOAuthUser()

@@ -21,7 +21,6 @@ import ListItemAvatar from '@mui/material/ListItemAvatar'
 import ListItemText from '@mui/material/ListItemText'
 import Menu from '@mui/material/Menu'
 import TextField from '@mui/material/TextField'
-import { type ReactNode, type SyntheticEvent, useState } from 'react'
 // by package name, never a relative path: this entry is bundled separately, so a relative import inlines a
 // second copy of the core — a second React context — and the component goes blind to the app's instance
 import {
@@ -35,7 +34,8 @@ import {
   useIsAuthorized,
   useOAuthActions,
   useOAuthForm
-} from 'react-oauth-oidc'
+} from '@oidcraft/react'
+import { type ReactNode, type SyntheticEvent, useState } from 'react'
 
 /** Every string the component renders. Pass your own to translate — the library carries no i18n dep. */
 export interface OAuthLabels {

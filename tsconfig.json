@@ -9,7 +9,7 @@
       "path": "./packages/client"
     },
     {
-      "path": "./packages/server"
+      "path": "./packages/provider"
     },
     {
       "path": "./packages/vue"

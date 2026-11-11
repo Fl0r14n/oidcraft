@@ -1,11 +1,29 @@
 {
   "name": "@oidcraft/core",
   "version": "0.1.0",
-  "private": true,
-  "description": "Internal: the OpenID Connect protocol layer, shared by the oidcraft provider and the framework client bindings. Bundled into each of them; never published.",
+  "description": "The OpenID Connect protocol shared by every oidcraft package: discovery, PKCE, the authorization round trip and ID token verification. No state, no storage, no framework.",
   "license": "MIT",
   "author": "Fl0r14n <florian.chis@gmail.com>",
+  "homepage": "https://github.com/Fl0r14n/oidcraft/tree/main/packages/core",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Fl0r14n/oidcraft",
+    "directory": "packages/core"
+  },
+  "keywords": [
+    "oidc",
+    "openid",
+    "openid-connect",
+    "oauth",
+    "oauth2",
+    "oauth2.1",
+    "pkce",
+    "relying-party"
+  ],
   "type": "module",
+  "files": [
+    "dist"
+  ],
   "main": "./dist/index.mjs",
   "types": "./dist/index.d.mts",
   "exports": {
@@ -18,10 +36,14 @@
   "scripts": {
     "build": "tsdown",
     "test": "bun test",
-    "typecheck": "bun check"
+    "typecheck": "bun check",
+    "prepublishOnly": "bun run build"
   },
   "dependencies": {
     "jose": "^6.2.14"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "engines": {
     "node": ">=22"

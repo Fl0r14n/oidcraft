@@ -1,7 +1,7 @@
+import type { OAuth } from '@oidcraft/react/core'
 import axios, { type AxiosInstance, type CreateAxiosDefaults, type InternalAxiosRequestConfig } from 'axios'
-import type { OAuth } from 'react-oauth-oidc/core'
 
-/** The axios adapter, published as `react-oauth-oidc/axios`. The only place axios is imported, which is
+/** The axios adapter, published as `@oidcraft/react/axios`. The only place axios is imported, which is
  * what keeps that dependency optional.
  *
  * React-free: pass the instance in. Build the client next to the instance in your bootstrap, so every

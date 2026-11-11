@@ -1,4 +1,4 @@
-import { DEFAULT_MAX_LENGTH, type InteractionRequest, type OAuthFieldError, type OAuthFieldErrors } from 'oidcraft/interaction'
+import { DEFAULT_MAX_LENGTH, type InteractionRequest, type OAuthFieldError, type OAuthFieldErrors } from '@oidcraft/provider/interaction'
 import type { Brand, Theme } from './brand'
 import { render } from './render'
 import ConsentScreen from './screens/ConsentScreen.vue'
@@ -45,7 +45,7 @@ const destinationOf = (view: ScreenView) => {
 
 export type ScreensOptions = { brand: Brand; theme?: Theme | undefined; urls?: Partial<ScreenUrls> }
 
-/** Codes come from `oidcraft/interaction`; the wording is this screen's, and its locale's (FR-I6). */
+/** Codes come from `@oidcraft/provider/interaction`; the wording is this screen's, and its locale's (FR-I6). */
 const MESSAGES: Record<'username' | 'password', Record<'required' | 'tooLong', string>> = {
   username: { required: 'Enter your username', tooLong: `Use at most ${DEFAULT_MAX_LENGTH} characters` },
   password: { required: 'Enter your password', tooLong: `Use at most ${DEFAULT_MAX_LENGTH} characters` }

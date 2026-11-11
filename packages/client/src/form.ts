@@ -34,7 +34,7 @@ export interface OAuthFormController {
  * field may show an error, what survives a rejected attempt, when a dismissed error comes back. A
  * binding wraps this in its reactive primitive and renders it; none of them re-decides any of it.
  *
- * Note the grant: OAuth 2.1 removed resource-owner password, so an `oidcraft` provider does not
+ * Note the grant: OAuth 2.1 removed resource-owner password, so an `@oidcraft/provider` provider does not
  * advertise it. This is for the providers that still accept it.
  */
 export const createOAuthForm = (

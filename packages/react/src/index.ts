@@ -5,7 +5,7 @@
  *
  * The core is imported by package name, never relatively: the bundler keeps it external, so there is
  * exactly one copy of it at runtime. See AGENTS.md. */
-export * from 'react-oauth-oidc/core'
+export * from '@oidcraft/react/core'
 export * from './form'
 export * from './hooks'
 export * from './provider'

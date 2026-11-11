@@ -1,5 +1,5 @@
 {
-  "name": "vue-oidc",
+  "name": "@oidcraft/vue",
   "version": "7.0.0",
   "author": "Fl0r14n <florian.chis@gmail.com>",
   "homepage": "https://github.com/Fl0r14n/oidcraft/tree/main/packages/vue",
@@ -74,8 +74,6 @@
   },
   "devDependencies": {
     "@mdi/js": "^7.4.47",
-    "@oidcraft/client": "workspace:*",
-    "@oidcraft/core": "workspace:*",
     "@tsdown/css": "latest",
     "axios": "^1.21.0",
     "unplugin-vue": "^8.0.1",
@@ -90,6 +88,8 @@
     "node": ">=22"
   },
   "dependencies": {
+    "@oidcraft/client": "workspace:^",
+    "@oidcraft/core": "workspace:^",
     "jose": "^6.2.14"
   }
 }

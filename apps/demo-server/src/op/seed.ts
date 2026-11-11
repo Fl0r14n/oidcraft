@@ -1,5 +1,5 @@
 /// <reference types="bun" />
-import type { Adapter } from 'oidcraft'
+import type { Adapter } from '@oidcraft/provider'
 import { optional, withDefault } from './env'
 
 /** The demo relying party in apps/demo-vue. A real deployment registers clients through the admin API. */

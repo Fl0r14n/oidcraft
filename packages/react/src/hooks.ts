@@ -1,4 +1,3 @@
-import { useMemo, useSyncExternalStore } from 'react'
 import {
   isExpiredToken,
   type OAuth,
@@ -10,7 +9,8 @@ import {
   type Subscribable,
   tokenState,
   type UserInfo
-} from 'react-oauth-oidc/core'
+} from '@oidcraft/react/core'
+import { useMemo, useSyncExternalStore } from 'react'
 import { useOAuthInstance } from './provider'
 
 export const useStoreValue = <S, T>(store: Subscribable<S>, selector: (state: S) => T, serverSelector?: (state: S) => T): T => {

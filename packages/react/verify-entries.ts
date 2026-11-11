@@ -6,8 +6,29 @@
 import { readFileSync } from 'node:fs'
 
 const read = (name: string) => readFileSync(`dist/${name}`, 'utf8')
-const imports = (source: string) => [...source.matchAll(/^import\s.*?from\s*["']([^"']+)["']/gm)].map(m => m[1] ?? '')
+const imports = (source: string) => [...source.matchAll(/^(?:import|export)\s.*?from\s*["']([^"']+)["']/gm)].map(m => m[1] ?? '')
 const importsPackage = (source: string, name: string) => imports(source).some(id => id === name || id.startsWith(`${name}/`))
+
+const manifest = JSON.parse(readFileSync('package.json', 'utf8'))
+const declared = new Set<string>([
+  manifest.name,
+  ...Object.keys(manifest.dependencies ?? {}),
+  ...Object.keys(manifest.peerDependencies ?? {})
+])
+const packageOf = (id: string) =>
+  id
+    .split('/')
+    .slice(0, id.startsWith('@') ? 2 : 1)
+    .join('/')
+/** Packages a bundle imports that its manifest does not declare: each one resolves to nothing once installed. */
+const undeclared = (source: string) => [
+  ...new Set(
+    imports(source)
+      .filter(id => !id.startsWith('.') && !id.startsWith('node:'))
+      .map(packageOf)
+      .filter(name => !declared.has(name))
+  )
+]
 
 const failures: string[] = []
 const check = (ok: boolean, failure: string) => {
@@ -31,10 +52,13 @@ for (const entry of ENTRIES) {
       )
     }
   }
-  // neither is published; a surviving import resolves to nothing once installed
-  for (const internal of ['@oidcraft/core', '@oidcraft/client']) {
-    check(!importsPackage(js, internal), `${entry} imports ${internal}, which is never published — it must be bundled in`)
-  }
+  const missing = undeclared(js)
+  check(missing.length === 0, `${entry} imports ${missing.join(', ')}, which package.json does not declare`)
+}
+
+// Both are dependencies shared with every other binding; a copy compiled in drifts from them.
+for (const shared of ['@oidcraft/core', '@oidcraft/client']) {
+  check(importsPackage(read('core.mjs'), shared), `core does not import ${shared} by name — it has inlined it`)
 }
 
 // The claim that earns `./core` its own entry: no React in its graph, so a server component can use it.
@@ -59,8 +83,8 @@ for (const entry of ['index', 'axios', 'component'] as const) {
   // Either bundle counts. The axios adapter needs the core for types alone, which is a *stronger*
   // position — zero runtime coupling — and demanding a runtime import would forbid it.
   check(
-    importsPackage(read(`${entry}.mjs`), 'react-oauth-oidc') || importsPackage(read(`${entry}.d.mts`), 'react-oauth-oidc'),
-    `${entry} does not reference react-oauth-oidc by package name — it has inlined the core instead of sharing it`
+    importsPackage(read(`${entry}.mjs`), '@oidcraft/react') || importsPackage(read(`${entry}.d.mts`), '@oidcraft/react'),
+    `${entry} does not reference @oidcraft/react by package name — it has inlined the core instead of sharing it`
   )
 }
 

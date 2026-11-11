@@ -1,7 +1,13 @@
 /// <reference types="bun" />
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
-import { type Adapter, type Provider, protectedResourceMetadata, protectedResourceMetadataUrl, type ResourceDescriptor } from 'oidcraft'
+import {
+  type Adapter,
+  type Provider,
+  protectedResourceMetadata,
+  protectedResourceMetadataUrl,
+  type ResourceDescriptor
+} from '@oidcraft/provider'
 import { issuer, optional } from '../op/env'
 
 /**

@@ -1,4 +1,4 @@
-import { useOAuthFetch } from 'vue-oidc'
+import { useOAuthFetch } from '@oidcraft/vue'
 
 export class ApiError extends Error {
   readonly status: number

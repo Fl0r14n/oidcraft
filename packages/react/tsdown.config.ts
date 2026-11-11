@@ -2,9 +2,8 @@ import { defineConfig } from 'tsdown'
 
 // Four entries, each a separate build so its directive and its externals are its own:
 //
-//   core       the protocol and client runtime, re-exported from @oidcraft/core, which is compiled in
-//              because that package is never published (ARCHITECTURE.md §2.1). No React in its graph,
-//              so no 'use client'.
+//   core       the protocol and client runtime, re-exported from @oidcraft/core and @oidcraft/client, both
+//              dependencies (ARCHITECTURE.md §2.1). No React in its graph, so no 'use client'.
 //   index      the React bindings plus a re-export of core. 'use client', which is exactly why core
 //              needs an entry of its own — a server component importing createOAuth must not be
 //              dragged across the client boundary.
@@ -20,7 +19,7 @@ export default defineConfig([
     entry: { core: 'src/core.ts' },
     outDir: 'dist',
     format: 'esm',
-    deps: { neverBundle: ['jose', 'axios'] },
+    deps: { neverBundle: ['jose', '@oidcraft/core', '@oidcraft/client', 'axios'] },
     dts: true,
     clean: true
   },
@@ -28,7 +27,7 @@ export default defineConfig([
     entry: ['src/index.ts'],
     outDir: 'dist',
     format: 'esm',
-    deps: { neverBundle: ['jose', 'react-oauth-oidc/core', 'react', 'react-dom', 'axios'] },
+    deps: { neverBundle: ['jose', '@oidcraft/core', '@oidcraft/client', '@oidcraft/react/core', 'react', 'react-dom', 'axios'] },
     outputOptions: USE_CLIENT,
     dts: true,
     clean: false
@@ -38,7 +37,7 @@ export default defineConfig([
     entry: { axios: 'src/axios/index.ts' },
     outDir: 'dist',
     format: 'esm',
-    deps: { neverBundle: ['jose', 'react-oauth-oidc/core', 'axios'] },
+    deps: { neverBundle: ['jose', '@oidcraft/core', '@oidcraft/client', '@oidcraft/react/core', 'axios'] },
     dts: true,
     clean: false
   },
@@ -49,8 +48,10 @@ export default defineConfig([
     deps: {
       neverBundle: [
         'jose',
-        'react-oauth-oidc',
-        'react-oauth-oidc/core',
+        '@oidcraft/core',
+        '@oidcraft/client',
+        '@oidcraft/react',
+        '@oidcraft/react/core',
         'react',
         'react-dom',
         'axios',

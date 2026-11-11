@@ -1,14 +1,15 @@
-# @oidcraft/client — not published
+# @oidcraft/client
 
-**Nothing on npm resolves this name.** It is compiled into whichever package uses it
-(ARCHITECTURE.md §2.1).
+```sh
+bun add @oidcraft/client
+```
 
 The stateful half of an OpenID Connect client, on top of `@oidcraft/core`: storage, the token
 lifecycle, refresh, the authorized `fetch` that retries a 401 into token state, and the profile
-derived from the id_token or `userinfo`. It is what `vue-oidc`, `react-oauth-oidc` and `ngx-oauth`
-each used to hold their own copy of.
+derived from the id_token or `userinfo`. It is what `@oidcraft/vue`, `@oidcraft/react` and `@oidcraft/angular`
+are built on, and what a framework without a binding here builds on directly.
 
-Its consumers are those three and nothing else. `oidcraft` — the provider — uses `@oidcraft/core`
+Its consumers are those three and any other browser client. `@oidcraft/provider` uses `@oidcraft/core`
 directly and must never reach this package, which is the entire reason the two are separate rather
 than two entries of one.
 
@@ -46,7 +47,7 @@ whether a thing needs a browser, not by who consumes it.
 Errors are codes — `'required'`, `'tooLong'` — never sentences. The wording belongs to whoever writes
 the markup, and to their locale.
 
-OAuth 2.1 removed the resource-owner password grant, so an `oidcraft` provider does not advertise it.
+OAuth 2.1 removed the resource-owner password grant, so an `@oidcraft/provider` provider does not advertise it.
 This is for the providers that still accept it.
 
 ## Notes worth keeping

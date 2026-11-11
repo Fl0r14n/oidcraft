@@ -28,7 +28,7 @@ differences that are the reason it exists:
 - Not a SAML IdP or SP. Upstream SAML is reachable only through the `UpstreamProvider` extension
   point, never in-tree (G-4).
 - Not a user-directory by default. Accounts belong to the host application behind `AccountStore`;
-  `oidcraft/accounts` is an optional implementation of it, not a requirement to use one (FR-I7).
+  `@oidcraft/provider/accounts` is an optional implementation of it, not a requirement to use one (FR-I7).
 - No OpenID4VC / verifiable-credential issuance.
 
 ## 2. Actors
@@ -238,9 +238,9 @@ the host runs, never as something the library applies at boot.
 the core queries by (`grant_id`, `user_code`, `expires_at`, `account_id`, upstream session id). A
 JSON blob with no index is a correctness problem at revocation time, not just a slow one.
 
-**FR-A6** — The TypeORM adapter is first-party: its own `oidcraft/adapters/typeorm` entry with
+**FR-A6** — The TypeORM adapter is first-party: its own `@oidcraft/provider/adapters/typeorm` entry with
 `typeorm` as an optional peer, passing the same conformance suite as the others (FR-A3). A
-third-party adapter is an ordinary package depending on `oidcraft` and implementing `Adapter`;
+third-party adapter is an ordinary package depending on `@oidcraft/provider` and implementing `Adapter`;
 nothing about the contract is internal.
 
 ## 6. Federation — `FR-F*`
@@ -301,7 +301,7 @@ upstream produces a well-formed error response to the downstream client and a lo
 **FR-I2** — The interaction app answers with an `InteractionResult`; the core re-evaluates the
 original authorization request against it and is free to demand another interaction.
 
-**FR-I3** — The library ships the rules the screens enforce (`oidcraft/interaction`) and no
+**FR-I3** — The library ships the rules the screens enforce (`@oidcraft/provider/interaction`) and no
 markup. Reference screens for login, consent, account selection, upstream selection, device-code
 entry and logout confirmation live in the reference deployment, which a host replaces wholesale.
 
@@ -314,7 +314,7 @@ honoured, including the error responses when `none` cannot be satisfied.
 **FR-I6** — `ui_locales` selects the screen language; the reference screens ship English and are
 structured for translation.
 
-**FR-I7** — An optional `oidcraft/accounts` entry implements `AccountStore` over the `Adapter`'s
+**FR-I7** — An optional `@oidcraft/provider/accounts` entry implements `AccountStore` over the `Adapter`'s
 `credentials` store. It is a subpath entry like any other, so a host that brings its own
 `AccountStore` pulls none of it, and nothing in the core assumes it. It covers:
 
@@ -368,7 +368,7 @@ rather than `Request`/`Response`. Bun, Deno and workerd hand the core a `Request
 Every runtime nonetheless needs a small **context provider**, because what FR-R4 requires is not
 carried by `Request` on any of them, and each exposes it differently: `server.requestIP(request)`
 on Bun, the `info.remoteAddr` second argument on Deno, `req.socket` on Node, `request.cf` and
-`CF-Connecting-IP` on workerd. One entry per runtime under `oidcraft/runtimes/*`, each touching only
+`CF-Connecting-IP` on workerd. One entry per runtime under `@oidcraft/provider/runtimes/*`, each touching only
 its own globals and containing no protocol logic.
 
 **FR-R4** — Everything the core cannot learn from the `Request` — the verified client TLS
@@ -452,10 +452,10 @@ with no key, DPoP required with no nonce store — fails at construction, not at
 **NFR-D3** — Errors carry the OAuth error code, the specification clause and what the caller must
 change.
 
-**NFR-D4** — Zero runtime dependencies beyond `jose`. `drizzle-orm`, `kysely` and `typeorm` are optional peers
+**NFR-D4** — Zero third-party runtime dependencies beyond `jose`. `drizzle-orm`, `kysely` and `typeorm` are optional peers
 confined to their own subpath entries, so importing the core pulls neither. The relying-party code
-`oidcraft/broker` needs is this workspace's own and is bundled into that entry rather than
-depended on, so brokering adds no third-party package either.
+`@oidcraft/provider/broker` needs is `@oidcraft/core`, this workspace's own and published from it, so
+brokering adds no third-party package either.
 
 ## 11. Open questions — `G-*`
 

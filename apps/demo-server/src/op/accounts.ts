@@ -1,7 +1,7 @@
 /// <reference types="bun" />
-import type { AccountStore, Adapter, CredentialsAdapter } from 'oidcraft'
-import { type Accounts, createAccounts, generateSecretKey } from 'oidcraft/accounts'
-import { bunPasswordHasher } from 'oidcraft/runtimes/bun'
+import type { AccountStore, Adapter, CredentialsAdapter } from '@oidcraft/provider'
+import { type Accounts, createAccounts, generateSecretKey } from '@oidcraft/provider/accounts'
+import { bunPasswordHasher } from '@oidcraft/provider/runtimes/bun'
 import { optional, withDefault } from './env'
 
 const PROFILE = ['name', 'given_name', 'family_name', 'preferred_username', 'picture', 'locale']

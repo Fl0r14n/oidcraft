@@ -1,5 +1,5 @@
+import { createOAuthForm, type OAuthFormController, type OAuthFormOptions, type OAuthFormView, oauthFormView } from '@oidcraft/react/core'
 import { useMemo, useRef } from 'react'
-import { createOAuthForm, type OAuthFormController, type OAuthFormOptions, type OAuthFormView, oauthFormView } from 'react-oauth-oidc/core'
 import { useOAuthError, useStoreValue } from './hooks'
 import { useOAuthInstance } from './provider'
 

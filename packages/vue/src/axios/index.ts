@@ -1,8 +1,8 @@
+import { createOAuth, type OAuth, type OAuthConfig } from '@oidcraft/vue'
 import axios, { type AxiosInstance, type CreateAxiosDefaults, type InternalAxiosRequestConfig } from 'axios'
 import { type App, hasInjectionContext, type InjectionKey, inject } from 'vue'
-import { createOAuth, type OAuth, type OAuthConfig } from 'vue-oidc'
 
-/** The axios adapter, published as `vue-oidc/axios`.
+/** The axios adapter, published as `@oidcraft/vue/axios`.
  *
  * The core speaks `fetch` and has no HTTP client dependency — axios used to be a required peer for every
  * consumer, including the ones who never touched it. This entry keeps the ergonomics for apps that do
@@ -43,7 +43,7 @@ export const createAxiosClient = (oauth: OAuth, defaults?: CreateAxiosDefaults):
   return client
 }
 
-export const httpKey: InjectionKey<AxiosInstance> = Symbol('vue-oidc/axios')
+export const httpKey: InjectionKey<AxiosInstance> = Symbol('@oidcraft/vue/axios')
 export type AxiosOAuth = OAuth & { http: AxiosInstance }
 
 export const createAxiosOAuth = (cfg?: OAuthConfig, defaults?: CreateAxiosDefaults): AxiosOAuth => {
@@ -65,7 +65,7 @@ export const useOAuthHttp = (): AxiosInstance => {
   const http = hasInjectionContext() && inject(httpKey, undefined)
   if (!http) {
     throw new Error(
-      '[vue-oidc/axios]: no axios client in this injection context. Create the instance with createAxiosOAuth() instead of createOAuth() and install it with app.use(), then resolve inside a component/store setup, a navigation guard (before the first await), or app.runWithContext(). To manage a client yourself, use createAxiosClient(oauth).'
+      '[@oidcraft/vue/axios]: no axios client in this injection context. Create the instance with createAxiosOAuth() instead of createOAuth() and install it with app.use(), then resolve inside a component/store setup, a navigation guard (before the first await), or app.runWithContext(). To manage a client yourself, use createAxiosClient(oauth).'
     )
   }
   return http

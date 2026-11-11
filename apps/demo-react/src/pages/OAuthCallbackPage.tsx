@@ -1,7 +1,7 @@
 import CircularProgress from '@mui/material/CircularProgress'
 import Stack from '@mui/material/Stack'
+import { useOAuth } from '@oidcraft/react'
 import { useEffect } from 'react'
-import { useOAuth } from 'react-oauth-oidc'
 import { useNavigate, useSearchParams } from 'react-router'
 
 /** An effect rather than a route loader: the exchange needs the `code_verifier` from browser storage,

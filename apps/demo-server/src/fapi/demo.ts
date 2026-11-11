@@ -1,6 +1,7 @@
 /// <reference types="bun" />
+
+import type { Adapter, Provider } from '@oidcraft/provider'
 import { base64url, decodeJwt, exportJWK, generateKeyPair, SignJWT } from 'jose'
-import type { Adapter, Provider } from 'oidcraft'
 
 /**
  * A FAPI 2.0 client beside the demo's public ones (FR-C21): it pushes its request with a client

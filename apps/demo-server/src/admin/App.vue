@@ -28,8 +28,8 @@
 
 <script setup lang="ts">
 import { UiAlert, UiButton, UiCard, UiShell } from '@oidcraft/ui/components'
+import { useOAuth, useOAuthUser } from '@oidcraft/vue'
 import { computed, onMounted, shallowRef } from 'vue'
-import { useOAuth, useOAuthUser } from 'vue-oidc'
 import AccountPanel from './AccountPanel.vue'
 import ClientsPanel from './ClientsPanel.vue'
 import { currentRealm, failureMessage, useAdminApi } from './client'

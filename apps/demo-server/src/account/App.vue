@@ -17,8 +17,8 @@
 
 <script setup lang="ts">
 import { UiAlert, UiButton, UiCard, UiShell } from '@oidcraft/ui/components'
+import { useOAuth } from '@oidcraft/vue'
 import { onMounted, shallowRef } from 'vue'
-import { useOAuth } from 'vue-oidc'
 import { failureMessage, useApi } from '../shared/api'
 import PasswordPanel from './PasswordPanel.vue'
 import TwoStepPanel from './TwoStepPanel.vue'

@@ -5,5 +5,5 @@
       "@oidcraft/adapter": ["./src/index.ts"]
     }
   },
-  "include": ["src/**/*.ts", "testing/**/*.ts", "tsdown.config.ts", "verify-entries.ts"]
+  "include": ["src/**/*.ts", "tsdown.config.ts", "verify-entries.ts"]
 }

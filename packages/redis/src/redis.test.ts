@@ -2,8 +2,8 @@
 
 import { afterAll, describe, expect, test } from 'bun:test'
 import { generatedKeyStore } from '@oidcraft/adapter'
+import { adapterConformance } from '@oidcraft/adapter/conformance'
 import { RedisClient } from 'bun'
-import { bunConformance } from '../../adapter/testing/conformance'
 import { redisAdapter, redisKv } from './index'
 
 /**
@@ -40,7 +40,11 @@ afterAll(async () => {
 })
 
 describe.skipIf(!client)('redis adapter', () => {
-  bunConformance('redis', async () => redisAdapter(send, { prefix: fresh(), keys: await generatedKeyStore(), accounts }))
+  for (const check of adapterConformance(async () => redisAdapter(send, { prefix: fresh(), keys: await generatedKeyStore(), accounts }), {
+    implements: ['identities', 'credentials', 'realms']
+  })) {
+    test(`redis: ${check.name}`, check.run)
+  }
 
   test('insert is SET NX: of many parallel inserts exactly one wins', async () => {
     const kv = redisKv(send, { prefix: fresh() })

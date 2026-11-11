@@ -1,8 +1,8 @@
 import { afterAll, describe, expect, test } from 'bun:test'
 import { generatedKeyStore } from '@oidcraft/adapter'
+import { adapterConformance } from '@oidcraft/adapter/conformance'
 import { dropSchemas, emptySchema, POSTGRES_URL } from '@oidcraft/sql/testing'
 import { DataSource } from 'typeorm'
-import { bunConformance } from '../../adapter/testing/conformance'
 import { OIDCRAFT_ENTITIES, TYPEORM_POSTGRES_MIGRATIONS, typeormAdapter } from './index'
 
 const accounts = {
@@ -40,7 +40,9 @@ describe.skipIf(!POSTGRES_URL)('typeorm adapter on Postgres', () => {
   })
 
   // The identical suite every adapter runs (FR-A4, FR-A6).
-  bunConformance('typeorm/postgres', async () => (await fresh()).adapter)
+  for (const check of adapterConformance(async () => (await fresh()).adapter, { implements: ['identities', 'credentials', 'realms'] })) {
+    test(`typeorm/postgres: ${check.name}`, check.run)
+  }
 
   test('the shipped migrations run through TypeORM, in order, once', async () => {
     const { dataSource } = await fresh()

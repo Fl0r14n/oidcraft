@@ -591,8 +591,8 @@ shape and why are ARCHITECTURE.md §2.1.
 - [x] The migrations are `@oidcraft/sql`, private, with `./sqlite`, `./postgres` and `./testing` (the
   Postgres schemas for tests); Drizzle, Kysely and TypeORM each compile in its built `dist`. Only
   those three read it, so it is not contract
-- [x] The `bun:test` wrapper for the suite is `packages/adapter/testing/`, unpublished, still imported
-  relatively by the adapters' own tests
+- [x] The adapters' tests run the suite the way the docs tell a third-party adapter to, one
+  `test(check.name, check.run)` per check, so no test imports across package folders
 - [x] `publish.yml`, `load-entries.mjs`, the demo and the docs on the new names. FR-A6 and NFR-D4
   reworded: they named the subpaths
 - [ ] **Release, in order**, each first publish by hand (`bun pm pack`, then `npm publish <tgz>

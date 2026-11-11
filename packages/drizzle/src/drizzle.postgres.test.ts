@@ -1,11 +1,11 @@
 import { afterAll, describe, expect, test } from 'bun:test'
 import { generatedKeyStore } from '@oidcraft/adapter'
+import { adapterConformance } from '@oidcraft/adapter/conformance'
 import { dropSchemas, freshSchema, migrateSchema, POSTGRES_URL } from '@oidcraft/sql/testing'
 /// <reference types="bun" />
 import { SQL } from 'bun'
 import { drizzle as drizzleBun } from 'drizzle-orm/bun-sql'
 import { drizzle } from 'drizzle-orm/node-postgres'
-import { bunConformance } from '../../adapter/testing/conformance'
 import { drizzleAdapter, postgresTables } from './index'
 
 const accounts = {
@@ -21,10 +21,15 @@ describe.skipIf(!POSTGRES_URL)('drizzle adapter on Postgres', () => {
   afterAll(dropSchemas)
 
   // The identical suite every adapter runs, on the shipped Postgres schema (FR-A4).
-  bunConformance('drizzle/postgres', async () => {
-    const { pool } = await freshSchema()
-    return drizzleAdapter({ db: drizzle({ client: pool }), tables: postgresTables(), keys: await generatedKeyStore(), accounts })
-  })
+  for (const check of adapterConformance(
+    async () => {
+      const { pool } = await freshSchema()
+      return drizzleAdapter({ db: drizzle({ client: pool }), tables: postgresTables(), keys: await generatedKeyStore(), accounts })
+    },
+    { implements: ['identities', 'credentials', 'realms'] }
+  )) {
+    test(`drizzle/postgres: ${check.name}`, check.run)
+  }
 
   // G-6: postgresTables(schema) is how a realm's adapter is pointed at its own schema.
   test('two schemas in one database share nothing', async () => {
@@ -59,13 +64,18 @@ describe.skipIf(!POSTGRES_URL)('drizzle adapter on Postgres through Bun.sql', ()
     await dropSchemas()
   })
 
-  bunConformance('drizzle/bun-sql', async () => {
-    const { name } = await freshSchema()
-    return drizzleAdapter({
-      db: drizzleBun({ client: sql as SQL }),
-      tables: postgresTables(name),
-      keys: await generatedKeyStore(),
-      accounts
-    })
-  })
+  for (const check of adapterConformance(
+    async () => {
+      const { name } = await freshSchema()
+      return drizzleAdapter({
+        db: drizzleBun({ client: sql as SQL }),
+        tables: postgresTables(name),
+        keys: await generatedKeyStore(),
+        accounts
+      })
+    },
+    { implements: ['identities', 'credentials', 'realms'] }
+  )) {
+    test(`drizzle/bun-sql: ${check.name}`, check.run)
+  }
 })

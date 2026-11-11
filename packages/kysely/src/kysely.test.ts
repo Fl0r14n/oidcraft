@@ -3,10 +3,10 @@
 import { Database } from 'bun:sqlite'
 import { describe, expect, test } from 'bun:test'
 import { generatedKeyStore } from '@oidcraft/adapter'
+import { adapterConformance } from '@oidcraft/adapter/conformance'
 import { SQLITE_MIGRATIONS } from '@oidcraft/sql/sqlite'
 import { Kysely, sql } from 'kysely'
 import { BunSqliteDialect } from 'kysely-bun-sqlite'
-import { bunConformance } from '../../adapter/testing/conformance'
 import { kyselyAdapter, type OidcraftDatabase } from './index'
 
 const accounts = {
@@ -27,7 +27,9 @@ const fresh = async () => {
 
 describe('kysely adapter', () => {
   // The identical suite the memory and Drizzle adapters run (FR-A4).
-  bunConformance('kysely/sqlite', async () => (await fresh()).adapter)
+  for (const check of adapterConformance(async () => (await fresh()).adapter, { implements: ['identities', 'credentials', 'realms'] })) {
+    test(`kysely/sqlite: ${check.name}`, check.run)
+  }
 
   test('revocation uses the grant index rather than scanning', async () => {
     const { db } = await fresh()

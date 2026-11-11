@@ -75,7 +75,6 @@ packages/adapter/           @oidcraft/adapter   the storage contract (§4)
   src/index.ts              .                   Adapter, its stores and records, fromKv, the key stores
   src/memory/               ./memory            tests and development only
   src/conformance/          ./conformance       the storage guarantees as checks, for any test runner
-  testing/                                      the bun:test wrapper for the adapters' own suites; unpublished
 packages/sql/               @oidcraft/sql       private: the schema the SQL adapters share, compiled into each (§4.2)
   src/sqlite.ts             ./sqlite            SQLITE_MIGRATIONS
   src/postgres.ts           ./postgres          POSTGRES_MIGRATIONS
@@ -756,8 +755,8 @@ clone.
   session, and the replay guard admitting a value once. An adapter that passes it is
   interchangeable with the others (FR-A4). It returns plain `{ name, run }` checks that throw rather
   than registering tests, so a third-party adapter runs it under whatever runner it uses (FR-A6);
-  `verify-entries.ts` fails the build if the entry imports one. The first-party suites wrap it in
-  `bun:test` through `packages/adapter/testing/conformance.ts`, which is not published. Checks for
+  `verify-entries.ts` fails the build if the entry imports one. The first-party suites run it the way
+  a third-party adapter is told to, one `test(check.name, check.run)` per check. Checks for
   `identities`, `credentials` and `realms` run only for the stores `implements` names.
 
 - **Unit** — `bun test` per package. Every `FR-C*` gets a test that exercises the wire format, not

@@ -156,12 +156,11 @@ npm has no rename and no redirect, so this is a set of new packages and a deprec
   still refuses `@oidcraft/client`. NFR-D4 reads "zero _third-party_ runtime dependencies", and
   ARCHITECTURE.md §2.1, §2.2 and §11 are rewritten. `publish.yml` packs with `bun pm pack`, which
   rewrites `workspace:^`, and uploads the tarball with `npm publish`, which does not
-- [ ] First publish of each scoped package by hand, in dependency order — `core`, `client`, `provider`,
-  then `vue`, `react`, `angular` — because npm cannot trust a publisher for a package that does not
-  exist yet. From the root, after `npm login` and `bun run verify`:
-  `for d in core client provider vue react angular; do (cd packages/$d && f=$(bun pm pack --quiet
-  --ignore-scripts) && npm publish "$f" --access public && rm "$f"); done`. Never a bare
-  `npm publish`: it ships `workspace:^` verbatim
+- [x] First publish of each scoped package by hand, 2026-11-11, from `5f17741`, in dependency order:
+  `@oidcraft/core@0.1.0`, `client@0.1.0`, `provider@0.1.0`, `vue@7.0.0`, `react@2.0.0`,
+  `angular@9.0.0`, all public. The tarballs came from `bun pm pack` and were installed into a fresh
+  project and imported before going up. The account has 2FA on publish, so a manual publish needs the
+  owner at the keyboard. Never a bare `npm publish`: it ships `workspace:^` verbatim
 - [ ] `npm trust github @oidcraft/<name> --repo Fl0r14n/oidcraft --file publish.yml --allow-publish`
   for each of the six, then releases tagged `@oidcraft/<name>@<version>` publish from CI. The first
   such run is still the real test of `publish.yml`

@@ -1,13 +1,13 @@
 import { authorizationUrl } from './authorization'
 import { assertSecure } from './secure'
-import { type OAuthFetch, type OAuthFunctions, OAuthType, type TokenAuthMethod } from './types'
+import { type ClientCredentials, type OAuthFetch, type OAuthFunctions, OAuthType, type TokenAuthMethod } from './types'
 
 const FORM_HEADERS = {
   'Content-Type': 'application/x-www-form-urlencoded',
   Accept: 'application/json'
 }
 
-type Credentials = { clientId?: string; clientSecret?: string; tokenAuthMethod?: TokenAuthMethod }
+type Credentials = Partial<ClientCredentials> & { tokenEndpointAuthMethod?: TokenAuthMethod }
 
 const form = (fields: Record<string, string | undefined>) => {
   const body = new URLSearchParams()
@@ -22,9 +22,9 @@ const form = (fields: Record<string, string | undefined>) => {
 /** RFC 6749 §2.3.1: the Basic variant form-urlencodes each half before the base64, which is the
  * difference between working and not for any secret containing `+`, `/`, `:` or a space. */
 const credentials = (config: Credentials | undefined) => {
-  const { clientId, clientSecret, tokenAuthMethod = 'client_secret_post' } = config || {}
-  if (tokenAuthMethod === 'none') return { fields: { client_id: clientId }, headers: undefined }
-  if (tokenAuthMethod === 'client_secret_basic' && clientId && clientSecret !== undefined) {
+  const { clientId, clientSecret, tokenEndpointAuthMethod = 'client_secret_post' } = config || {}
+  if (tokenEndpointAuthMethod === 'none') return { fields: { client_id: clientId }, headers: undefined }
+  if (tokenEndpointAuthMethod === 'client_secret_basic' && clientId && clientSecret !== undefined) {
     const basic = btoa(`${encodeURIComponent(clientId)}:${encodeURIComponent(clientSecret)}`)
     return { fields: {}, headers: { Authorization: `Basic ${basic}` } }
   }
@@ -126,11 +126,11 @@ export const defaultOAuthFunctions: OAuthFunctions = {
   },
 
   introspect: async (token, config) => {
-    const { introspectionPath, clientId, tokenAuthMethod = 'client_secret_basic' } = config || {}
+    const { introspectionPath, clientId, tokenEndpointAuthMethod = 'client_secret_basic' } = config || {}
     const { access_token } = token || {}
     if (!introspectionPath || !access_token || !clientId) return undefined
     // RFC 7662 §2.1 leaves the method open; Basic is the one RFC 6749 §2.3.1 obliges every server to accept.
-    return (await authenticatedPost(introspectionPath, { token: access_token }, { ...config, tokenAuthMethod })) || undefined
+    return (await authenticatedPost(introspectionPath, { token: access_token }, { ...config, tokenEndpointAuthMethod })) || undefined
   }
 }
 

@@ -3,14 +3,14 @@ import { defineConfig } from 'tsdown'
 // The contract every adapter peers on and the provider depends on; neither depends on the other, so
 // a provider release no longer forces an adapter release (ARCHITECTURE.md §2.1). Each entry other
 // than the root imports the root by name: a compiled-in copy of a record type is one that drifts.
-const external = ['@oidcraft/adapter', 'jose']
+const external = ['@oidcraft/adapter', '@oidcraft/core', 'jose']
 
 export default defineConfig([
   {
     entry: { index: 'src/index.ts' },
     outDir: 'dist',
     format: 'esm',
-    deps: { neverBundle: ['jose'] },
+    deps: { neverBundle: ['@oidcraft/core', 'jose'] },
     dts: true,
     clean: true
   },

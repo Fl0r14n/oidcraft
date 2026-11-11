@@ -143,7 +143,7 @@ export const createBroker = (config: BrokerConfig) => {
       issuerPath: provider.issuer,
       clientId: provider.clientId,
       ...(provider.clientSecret !== undefined && { clientSecret: provider.clientSecret }),
-      ...(provider.tokenAuthMethod && { tokenAuthMethod: provider.tokenAuthMethod }),
+      ...(provider.tokenEndpointAuthMethod && { tokenEndpointAuthMethod: provider.tokenEndpointAuthMethod }),
       scope: provider.scopes.join(' '),
       // FR-C3 applies to what this provider asks of others as much as to what it demands of its own
       // clients; there is no upstream worth brokering to that cannot do S256.

@@ -1,19 +1,36 @@
 export type OAuthFetch = (input: string | URL | Request, init?: RequestInit) => Promise<Response>
 
-/** How client credentials reach a token, revocation or introspection endpoint. `client_secret_post`
- * carries them in the body and is what most providers accept; some only honour the Basic header, and
- * a public client sends neither (RFC 6749 §2.3.1). */
-export type TokenAuthMethod = 'client_secret_post' | 'client_secret_basic' | 'none'
+/** Every client authentication method, from the RFC 7591 `token_endpoint_auth_method` registry: what a
+ * provider may let a registered client use. */
+export type ClientAuthMethod =
+  | 'none'
+  | 'client_secret_basic'
+  | 'client_secret_post'
+  | 'client_secret_jwt'
+  | 'private_key_jwt'
+  | 'tls_client_auth'
+  | 'self_signed_tls_client_auth'
+  | 'attest_jwt_client_auth'
 
-export type ClientCredentialConfig = {
-  tokenPath: string
-  revokePath?: string
+/** The methods this library can send as a client. `client_secret_post` carries the credentials in the
+ * body and is what most providers accept; some only honour the Basic header, and a public client sends
+ * neither (RFC 6749 §2.3.1). */
+export type TokenAuthMethod = Extract<ClientAuthMethod, 'client_secret_post' | 'client_secret_basic' | 'none'>
+
+/** A client's identity, the same whichever side holds it: a client signing in, the provider brokering
+ * as one, or the provider's record of one it registered. */
+export type ClientCredentials = {
   clientId: string
   clientSecret?: string
+}
+
+export type ClientCredentialConfig = ClientCredentials & {
+  tokenPath: string
+  revokePath?: string
   scope?: string
   userPath?: string
   introspectionPath?: string
-  tokenAuthMethod?: TokenAuthMethod
+  tokenEndpointAuthMethod?: TokenAuthMethod
   /** Development only. Every endpoint this library fetches or sends a browser to must be https
    * otherwise: a code or token crossing http is a code or token anyone on the path already has. */
   allowInsecure?: boolean
@@ -21,10 +38,9 @@ export type ClientCredentialConfig = {
 
 export type ResourceOwnerConfig = ClientCredentialConfig
 
-export type ImplicitConfig = {
+export type ImplicitConfig = Pick<ClientCredentials, 'clientId'> & {
   authorizePath: string
   revokePath?: string
-  clientId: string
   scope?: string
   logoutPath?: string
   redirectUri?: string // if not using OAuthParameters

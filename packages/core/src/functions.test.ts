@@ -230,11 +230,11 @@ describe('defaultOAuthFunctions', () => {
       expect(sent().headers.authorization).toBe(`Basic ${btoa('c:a%2Bb%3Ac')}`)
     })
 
-    it('follows tokenAuthMethod when one is set', async () => {
+    it('follows tokenEndpointAuthMethod when one is set', async () => {
       fetchMock.mockResolvedValue(respond(200, { active: true }))
       await defaultOAuthFunctions.introspect(
         { access_token: 'at' },
-        { introspectionPath: '/introspect', clientId: 'c', clientSecret: 's', tokenAuthMethod: 'client_secret_post' }
+        { introspectionPath: '/introspect', clientId: 'c', clientSecret: 's', tokenEndpointAuthMethod: 'client_secret_post' }
       )
       expect(sent().headers.authorization).toBeUndefined()
       expect(sent().body).toEqual({ client_id: 'c', client_secret: 's', token: 'at' })
@@ -257,7 +257,7 @@ describe('defaultOAuthFunctions', () => {
   })
 })
 
-describe('tokenAuthMethod', () => {
+describe('tokenEndpointAuthMethod', () => {
   let fetchMock: jest.Mock
   const sent = () => {
     const [, init] = (fetchMock.mock.calls[0] ?? []) as [string, RequestInit | undefined]
@@ -289,7 +289,7 @@ describe('tokenAuthMethod', () => {
   // RFC 6749 §2.3.1: both halves are form-urlencoded before the base64, which is the difference
   // between working and not for a secret containing `/`, `+`, `:` or a space.
   it('sends Basic, with each half encoded, when the provider only honours the header', async () => {
-    await defaultOAuthFunctions.authorize({ code: 'c' }, { ...config, tokenAuthMethod: 'client_secret_basic' })
+    await defaultOAuthFunctions.authorize({ code: 'c' }, { ...config, tokenEndpointAuthMethod: 'client_secret_basic' })
 
     expect(sent().headers.authorization).toBe(`Basic ${btoa('client-id:sec%2Fret')}`)
     expect(sent().body.client_id).toBeUndefined()
@@ -297,7 +297,7 @@ describe('tokenAuthMethod', () => {
   })
 
   it('sends the id and no secret for a public client', async () => {
-    await defaultOAuthFunctions.authorize({ code: 'c' }, { ...config, tokenAuthMethod: 'none' })
+    await defaultOAuthFunctions.authorize({ code: 'c' }, { ...config, tokenEndpointAuthMethod: 'none' })
 
     expect(sent().body.client_id).toBe('client-id')
     expect(sent().body.client_secret).toBeUndefined()
@@ -308,7 +308,7 @@ describe('tokenAuthMethod', () => {
     await defaultOAuthFunctions.authorize({ code: 'c' }, {
       tokenPath: config.tokenPath,
       clientId: 'client-id',
-      tokenAuthMethod: 'client_secret_basic'
+      tokenEndpointAuthMethod: 'client_secret_basic'
     } as any)
 
     expect(sent().headers.authorization).toBeUndefined()
@@ -316,7 +316,7 @@ describe('tokenAuthMethod', () => {
   })
 
   it('applies to refresh, revocation and the client-credentials grant, not just the code exchange', async () => {
-    const basic = { ...config, revokePath: 'https://auth.com/r', tokenAuthMethod: 'client_secret_basic' }
+    const basic = { ...config, revokePath: 'https://auth.com/r', tokenEndpointAuthMethod: 'client_secret_basic' }
 
     for (const call of [
       () => defaultOAuthFunctions.refresh({ refresh_token: 'r' }, basic),

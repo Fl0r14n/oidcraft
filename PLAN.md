@@ -597,8 +597,14 @@ shape and why are ARCHITECTURE.md §2.1.
   reworded: they named the subpaths
 - [ ] **Release, in order**, each first publish by hand (`bun pm pack`, then `npm publish <tgz>
   --access public`), then `npm trust github <name> --repo Fl0r14n/oidcraft --file publish.yml
-  --allow-publish`: `@oidcraft/adapter@0.1.0`; then `@oidcraft/provider@0.2.0` (already trusted,
-  so a release tag is enough) and the four adapters at `0.1.0`
+  --allow-publish`: `@oidcraft/core@0.2.0` first (trusted, a release tag); then
+  `@oidcraft/adapter@0.1.0`; then `@oidcraft/provider@0.2.0` (trusted) and the four adapters at `0.1.0`
+- [x] The client's identity declared once, in `@oidcraft/core`: `ClientCredentials`, `ClientAuthMethod`
+  (with `TokenAuthMethod` derived from it), and `tokenAuthMethod` renamed `tokenEndpointAuthMethod`
+  everywhere, core included, so core goes to `0.2.0`. `@oidcraft/adapter` depends on core for it
+- [ ] The bindings' next releases carry the rename to their users: a `tokenAuthMethod` in a Vue, React
+  or Angular config stops type-checking, and in plain JS falls back to the default silently. Say so in
+  their release notes
 
 ## Decisions waiting on an answer
 
@@ -624,7 +630,7 @@ The swap closed five things `openid-client` did that the ported core did not, ea
 - **`iss` on the authorization response is checked** (RFC 9207 §2.4, the mix-up defence). A provider
   advertising `authorization_response_iss_parameter_supported` must send it — oidcraft itself does
   (FR-C14), so `broker.live.test.ts` exercises the required path, not only the optional one.
-- **`UpstreamProvider.tokenAuthMethod`** picks `client_secret_post`, `client_secret_basic` or `none`.
+- **`UpstreamProvider.tokenEndpointAuthMethod`** picks `client_secret_post`, `client_secret_basic` or `none`.
   Before it was whatever `openid-client` defaulted to.
 - **FR-F11 is real**: an unreachable upstream, a refusal on the redirect, a wrong `iss` and a failed
   ID token each become a distinct `OAuthError` with the clause that was violated.

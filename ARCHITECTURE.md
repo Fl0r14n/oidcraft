@@ -151,7 +151,8 @@ adapter do not depend on each other; the host installs both and hands one to the
 
 ```
 @oidcraft/adapter      the contract: Adapter and the store types, the records they hold, fromKv,
-                       the key stores, the memory adapter, the conformance suite
+                       the key stores, the memory adapter, the conformance suite; depends on
+                       @oidcraft/core for the client's identity, types only
 @oidcraft/provider     depends on @oidcraft/adapter, and re-exports its types
 @oidcraft/drizzle      peer on @oidcraft/adapter and on drizzle-orm
 @oidcraft/kysely       peer on @oidcraft/adapter and on kysely
@@ -173,6 +174,13 @@ implement the contract's `KeyStore` and the memory adapter generates one when gi
 does `ConfigurationError`, which they throw; the provider re-exports that one, since it throws it
 as well. What stays in the provider of the keys is what the protocol does with them: choosing the
 signing key, the JWKS body.
+
+A client's identity is declared once, in `@oidcraft/core`: `ClientCredentials` (`clientId`,
+`clientSecret`) and `ClientAuthMethod`, the RFC 7591 registry, with `TokenAuthMethod` the subset a
+client can send. Core's client configs, the broker's `UpstreamProvider` and the adapter's `Client`
+record each build on them, and all three name the method `tokenEndpointAuthMethod`, after the
+registration field. Scope is the exception: core keeps `scope` as the string the bindings' users
+pass, the provider side keeps `scopes` as the list it stores and compares.
 
 The SQL schema the three SQL adapters share is not contract — nothing but those three reads it — so
 it is `@oidcraft/sql`, private, and each compiles in its own copy. It has a build of its own so they
@@ -781,8 +789,8 @@ because it rewrites `workspace:^` to the version it names and npm does not; `npm
 because only npm does trusted publishing and provenance.
 
 **Order matters.** A binding names a `@oidcraft/client` and `@oidcraft/core` version, the provider a
-`@oidcraft/core` and a `@oidcraft/adapter` one, and each adapter a `@oidcraft/adapter` one; those must
-be on npm before it is.
+`@oidcraft/core` and a `@oidcraft/adapter` one, `@oidcraft/adapter` a `@oidcraft/core` one, and each
+adapter a `@oidcraft/adapter` one; those must be on npm before it is.
 
 **The first publish of each package is manual**, with a login or token: npm's trusted-publisher
 configuration only exists once a version has been published, so OIDC cannot bootstrap a new package

@@ -96,6 +96,7 @@
       "name": "@oidcraft/adapter",
       "version": "0.1.0",
       "dependencies": {
+        "@oidcraft/core": "workspace:^",
         "jose": "^6.2.17",
       },
     },
@@ -124,7 +125,7 @@
     },
     "packages/core": {
       "name": "@oidcraft/core",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "dependencies": {
         "jose": "^6.2.17",
       },

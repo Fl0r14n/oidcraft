@@ -64,7 +64,7 @@ sends you looking in the wrong place.
 
 ## Client authentication
 
-`tokenAuthMethod` picks how credentials reach the token endpoint: `client_secret_post` (the body, the
+`tokenEndpointAuthMethod` picks how credentials reach the token endpoint: `client_secret_post` (the body, the
 default, and what most providers accept), `client_secret_basic` (the header, which some providers
 require), or `none` for a public client. The Basic variant form-urlencodes each half before the
 base64, per RFC 6749 §2.3.1 — which is the difference between working and not for any secret

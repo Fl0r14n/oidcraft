@@ -48,6 +48,7 @@
     "verify:entries": "bun run verify-entries.ts"
   },
   "dependencies": {
+    "@oidcraft/core": "workspace:^",
     "jose": "^6.2.17"
   },
   "publishConfig": {

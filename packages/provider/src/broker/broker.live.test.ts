@@ -44,7 +44,7 @@ await upstreamAdapter.clients.upsert?.({
   grantTypes: ['authorization_code'],
   responseTypes: ['code'],
   scopes: ['openid', 'email', 'profile'],
-  // @oidcraft/core sends client_id/client_secret in the body unless `tokenAuthMethod` says otherwise,
+  // @oidcraft/core sends client_id/client_secret in the body unless `tokenEndpointAuthMethod` says otherwise,
   // and the core enforces the method a client registered, so the two have to agree.
   tokenEndpointAuthMethod: 'client_secret_post',
   createdAt: new Date(),

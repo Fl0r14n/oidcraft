@@ -1,18 +1,10 @@
+import type { ClientAuthMethod, ClientCredentials } from '@oidcraft/core'
+
+export type { ClientAuthMethod } from '@oidcraft/core'
+
 export type Seconds = number
 
-export type ClientAuthMethod =
-  | 'none'
-  | 'client_secret_basic'
-  | 'client_secret_post'
-  | 'client_secret_jwt'
-  | 'private_key_jwt'
-  | 'tls_client_auth'
-  | 'self_signed_tls_client_auth'
-  | 'attest_jwt_client_auth'
-
-export type Client = {
-  clientId: string
-  clientSecret?: string
+export type Client = ClientCredentials & {
   clientName?: string
   redirectUris: string[]
   postLogoutRedirectUris?: string[]

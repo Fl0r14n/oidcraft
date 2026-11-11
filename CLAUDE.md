@@ -86,7 +86,8 @@ bun run docs             # the docs site, VitePress on :5173
   and `redis` peer on it and **never on the provider** — do not add that edge. Each package's
   `verify-entries.ts` runs in its `build` and fails on an undeclared import, an inlined sibling, a
   storage library in the provider, or `node:` outside the `./runtimes/node` entry. Release
-  `adapter` before the provider and the adapters.
+  `core`, then `adapter`, then the provider and the adapters: `adapter` takes the client's identity
+  types from `core`.
 - **`@oidcraft/core` and `@oidcraft/client` are published dependencies, not compiled in.** `core` is
   the protocol, used by `@oidcraft/provider/broker` _and_ by every client binding; `client` is the
   stateful browser-facing half and is for the bindings only — the server never depends on it, which

@@ -164,8 +164,9 @@ npm has no rename and no redirect, so this is a set of new packages and a deprec
 - [x] `npm trust github @oidcraft/<name> --repo Fl0r14n/oidcraft --file publish.yml --allow-publish`
   for each of the six, 2026-11-11, so releases tagged `@oidcraft/<name>@<version>` publish from CI.
   Not yet exercised: the first such release is the real test of `publish.yml`
-- [ ] `npm deprecate` the old names, pointing at the new ones: `oidcraft` (a placeholder with no users),
-  `vue-oidc`, `react-oauth-oidc`, `ngx-oauth`. Their published versions keep working
+- [x] `npm deprecate` the old names, pointing at the new ones, 2026-11-11, every version of each:
+  `oidcraft` (a placeholder with no users), `vue-oidc`, `react-oauth-oidc`, `ngx-oauth`. Their
+  published versions keep working
 - [ ] Archive the old `vue-oidc`, `react-oauth` and `ngx-oauth` repositories once their packages
   publish from here, with a README line pointing at `packages/<dir>`
 - [ ] Docs site — started 2026-11-11 as `apps/docs`; what is left is under its requirements below

@@ -161,9 +161,9 @@ npm has no rename and no redirect, so this is a set of new packages and a deprec
   `angular@9.0.0`, all public. The tarballs came from `bun pm pack` and were installed into a fresh
   project and imported before going up. The account has 2FA on publish, so a manual publish needs the
   owner at the keyboard. Never a bare `npm publish`: it ships `workspace:^` verbatim
-- [ ] `npm trust github @oidcraft/<name> --repo Fl0r14n/oidcraft --file publish.yml --allow-publish`
-  for each of the six, then releases tagged `@oidcraft/<name>@<version>` publish from CI. The first
-  such run is still the real test of `publish.yml`
+- [x] `npm trust github @oidcraft/<name> --repo Fl0r14n/oidcraft --file publish.yml --allow-publish`
+  for each of the six, 2026-11-11, so releases tagged `@oidcraft/<name>@<version>` publish from CI.
+  Not yet exercised: the first such release is the real test of `publish.yml`
 - [ ] `npm deprecate` the old names, pointing at the new ones: `oidcraft` (a placeholder with no users),
   `vue-oidc`, `react-oauth-oidc`, `ngx-oauth`. Their published versions keep working
 - [ ] Archive the old `vue-oidc`, `react-oauth` and `ngx-oauth` repositories once their packages

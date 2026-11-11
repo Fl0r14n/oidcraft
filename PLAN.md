@@ -5,10 +5,10 @@ This file is working state: tick items off and add notes as work lands.
 
 ## Status
 
-**Implemented, as of 2026-11-11**, with 1068 passing tests and `bun run verify` as the gate — everything
+**Implemented, as of 2026-11-11**, with 1104 passing tests (1380 with Postgres and Redis) and `bun run verify` as the gate — everything
 below, FR-T6, FR-C21 and FR-A4's Postgres included. Published as `@oidcraft/*` (the move below), with
-the docs site at https://fl0r14n.github.io/oidcraft/. **Not yet:** the defects the docs pages found,
-under _Found by the docs pages_.
+the docs site at https://fl0r14n.github.io/oidcraft/. Every numbered item under _Next_ is done; what
+remains is the section below.
 
 The authorization code grant with mandatory PKCE, interaction suspend/resume, token issuance with
 rotation and replay revocation, UserInfo, revocation, introspection, logout in both directions,
@@ -364,11 +364,10 @@ What is _not_ claimed: see the status section. Implemented is not the same as ce
 8. ~~The move to `@oidcraft/*`~~ — done 2026-11-11: six packages published, trusted publishers
    registered, old names deprecated, old repositories archived.
 9. ~~The docs site~~ — live 2026-11-11, every page its requirements listed.
-10. **What the docs pages found** — the conformance suite and both bugs, `prompt=consent` and Node
-    below 24.7, are fixed on `main`. Next: a `@oidcraft/provider` release carrying all three — the
-    first run of `publish.yml` — then the smaller items under the docs site's requirements.
-11. **At 1.0: adapters as packages** — `@oidcraft/adapter` as the contract, with `@oidcraft/drizzle`,
-    `kysely`, `typeorm` and `redis` on it; decided, waiting on the contract to settle (below).
+10. ~~What the docs pages found~~ — fixed 2026-11-11, every item under _Found by the docs pages_,
+    and released in `@oidcraft/provider@0.2.0`.
+11. ~~Adapters as packages~~ — done 2026-11-11, ahead of 1.0: `@oidcraft/adapter` with
+    `@oidcraft/drizzle`, `kysely`, `typeorm` and `redis` on it, released (below).
 
 ## Server review — 2026-10-10
 

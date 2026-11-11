@@ -48,7 +48,8 @@ Two sharp edges, both measured here rather than assumed:
 
 If a real production bundle is ever wanted — minified, content-hashed, served by something other
 than Bun — note that `bun build` **the CLI** takes no plugins, so it would have to be a `build.ts`
-calling `Bun.build` directly. Nothing needs that today.
+calling `Bun.build` directly. Nothing needs that today. The docs site is the one app with a real
+build, and the one with Vite, for reasons of its own (§8.5).
 
 ### 1.2 TypeScript 7 and Vue
 
@@ -89,6 +90,7 @@ apps/
   demo-vue                  demo relying party: Vue 3 + @oidcraft/vue
   demo-react                demo relying party: React 19 + @oidcraft/react, with SSR
   demo-angular              demo relying party: Angular 22 + @oidcraft/angular. Outside the workspace (§8.4)
+  docs                      the documentation site: VitePress over the root docs and READMEs (§8.5)
 ```
 
 Inside the root entry, code is grouped by feature, not by HTTP route: a folder holds a flow's
@@ -633,6 +635,27 @@ It is written against the `OAUTH` token rather than `@oidcraft/angular/component
 
 `build` in every workspace app is a typecheck, kept under that name so `bun run build` at the root
 still checks everything without running three bundlers. `bundle` is the real build where there is one.
+
+### 8.5 `apps/docs` — the documentation site, and the one Vite
+
+VitePress, which brings Vite with it, and so the one deliberate break from §1.1. The reason is the
+job: a docs site needs search, an outline per page, dark mode and a static build for GitHub Pages,
+and Bun's bundler serves pages rather than generating a site. Vite stays contained in this app — no
+other package or app imports it — and VitePress itself is a Vue app, so it adds no framework.
+
+It renders the existing files rather than forking them: each page under `reference/` and `guide/` is
+an `@include` of `REQUIREMENTS.md`, `ARCHITECTURE.md`, `PLAN.md` or a package README. Code samples
+come from those READMEs, and a README sample is pinned by a test, as `minimal.test.ts` pins the
+provider's — so a sample on the site is one the suite ran.
+
+The requirement ids are its spine. A markdown-it plugin (`.vitepress/requirements.ts`) anchors every
+id `REQUIREMENTS.md` defines, links every mention of one on any page to that anchor, and links each
+definition to `reference/ids`, which lists the source files and tests citing the id, read from the
+tree at build time.
+
+`build` is a typecheck, like every app's; `bundle` is the real build, which CI runs and deploys to
+GitHub Pages (`.github/workflows/docs.yml`) on every push to `main`. The site tracks `main`: there are
+no versioned docs before 1.0.
 
 ## 9. Conventions
 

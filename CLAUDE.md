@@ -74,6 +74,7 @@ bun run test
 bun run lint             # biome check .
 bun run format           # biome check --write .
 bun run conformance      # OpenID Foundation suite against apps/demo-server
+bun run docs             # the docs site, VitePress on :5173
 ```
 
 ## Gotchas
@@ -115,7 +116,9 @@ bun run conformance      # OpenID Foundation suite against apps/demo-server
   `@oidcraft/angular` to that app's `package.json` (ARCHITECTURE.md §8.4).
 - **There is no build step for the apps.** `bun index.html` is the client — Bun bundles Vue, compiles Tailwind
   and inlines `OIDCRAFT_PUBLIC_*` itself. The server runs from source. Do not add a bundler or a
-  `dist/`; `build` scripts are typechecks.
+  `dist/`; `build` scripts are typechecks. The one exception is `apps/docs`: VitePress, with Vite
+  contained there, built by its `bundle` script and deployed by `docs.yml` (ARCHITECTURE.md §8.5). Biome's markdown
+  formatter flattens YAML front-matter, so `biome.json` leaves `apps/docs/**/*.md` unformatted.
 - **Each app needs its own `bunfig.toml`.** Bun reads plugins from `[serve.static]` next to the
   served entrypoint, so the root one does not reach `apps/*`. Missing, it does not error — a `.vue`
   import resolves to a path string and the page renders blank.

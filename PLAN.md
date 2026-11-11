@@ -169,7 +169,7 @@ npm has no rename and no redirect, so this is a set of new packages and a deprec
   `vue-oidc`, `react-oauth-oidc`, `ngx-oauth`. Their published versions keep working
 - [ ] Archive the old `vue-oidc`, `react-oauth` and `ngx-oauth` repositories once their packages
   publish from here, with a README line pointing at `packages/<dir>`
-- [ ] Docs site — **after** the review and the conformance run; requirements below
+- [ ] Docs site — started 2026-11-11 as `apps/docs`; what is left is under its requirements below
 - [x] `oidcraft/accounts` (FR-I7): passwords through an injected argon2id hasher (`bunPasswordHasher`,
   `nodePasswordHasher`, interoperable PHC strings), TOTP with sealed secrets, recovery codes,
   throttling, reset tokens and sign-up, over a new `credentials` store in every adapter and SQLite
@@ -361,7 +361,7 @@ What is _not_ claimed: see the status section. Implemented is not the same as ce
 7. ~~`npm trust`~~ — registered 2026-10-31, for the unscoped name the move below replaces.
 8. **The move to `@oidcraft/*`** — renamed in the workspace 2026-11-11; the first publish of the six
    packages, by hand, is next, then their trusted publishers and the deprecations.
-9. **The docs site.**
+9. **The docs site** — started 2026-11-11; the pages it still needs are listed under its requirements.
 
 ## Server review — 2026-10-10
 
@@ -459,7 +459,22 @@ In fix order; the first is the only one that changes the adapter contract.
 
 ## Docs site — requirements
 
-Recorded now so the decisions are not re-made later. Not started.
+Started 2026-11-11 as `apps/docs`, VitePress (ARCHITECTURE.md §8.5). Done so far:
+
+- [x] The site, rendering `REQUIREMENTS.md`, `ARCHITECTURE.md`, `PLAN.md` and the package READMEs by
+  `@include`, not by copy
+- [x] The landing page with the status in the hero: the plans that pass, not certified, not in production
+- [x] The id spine: every defined id anchored, every mention linked, and `reference/ids` listing the
+  files and tests citing each one, read at build time — 75 of the 85 ids are cited
+- [x] Local search, dark mode, "tracks `main`" in the footer, and `docs.yml` deploying to GitHub Pages
+  on every push to `main`
+- [ ] Turn on GitHub Pages for the repository, with "GitHub Actions" as the source: until then
+  `docs.yml`'s deploy job fails
+- [x] A React page, from a new `packages/react/README.md` — the package had none, so its npm page
+  would have been blank too
+- [ ] The pages below
+
+The requirements, as recorded before it started:
 
 **Samples are executed, never written.** Every code block comes from a file the test suite runs and
 is extracted at build time, the way `minimal.test.ts` already does for the README example. A rotted
@@ -471,7 +486,7 @@ plans; not certified. Not used in production" belongs above the fold, not in a F
 into "production-ready" and a grid of green ticks, so this is an acceptance criterion rather than an
 intention. If the site cannot say it on page one, it is not ready to exist.
 
-**The requirement ids are the spine.** There are 81 `FR-*`/`NFR-*`/`G-*` ids and 62 of them are
+**The requirement ids are the spine.** There are 85 `FR-*`/`NFR-*`/`G-*` ids and 75 of them are
 cited in the source. `FR-C3` should be a link — to the requirement, to where it is implemented, to
 the test that proves it. That is the thing no other provider's documentation has, and the content
 already exists.
@@ -496,11 +511,9 @@ Mechanics: search, dark mode, built and deployed by CI to GitHub Pages — docs 
 being built — and either versioned docs or a plain statement that they track `main`, since the API
 will churn at `0.0.x`.
 
-**Open decision: the generator.** `apps/*` have no Vite because Bun's bundler sufficed for bundling
-two small apps, which does not automatically extend to a docs generator. VitePress in `apps/docs`
-with its Vite contained there is the recommendation; Starlight is the alternative if Vue should stay
-out of the docs toolchain. Worth breaking the pattern deliberately and writing down why, rather than
-building a worse site to preserve a rule that was about something else.
+**Decided 2026-11-11: VitePress**, with its Vite contained in `apps/docs` — the deliberate break from
+ARCHITECTURE.md §1.1, recorded in §8.5. Starlight was the alternative had Vue needed to stay out of
+the docs toolchain; it did not.
 
 ## Decisions waiting on an answer
 

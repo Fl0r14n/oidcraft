@@ -20,7 +20,9 @@
     "db:down": "docker compose down",
     "verify": "./scripts/verify.sh",
     "demo:angular": "cd apps/demo-angular && bun install && bun run dev",
-    "build:angular": "cd apps/demo-angular && bun install && bun run bundle"
+    "build:angular": "cd apps/demo-angular && bun install && bun run bundle",
+    "docs": "bun run --filter=@oidcraft/docs dev",
+    "docs:build": "bun run --filter=@oidcraft/docs bundle"
   },
   "devDependencies": {
     "@angular/common": "^22.2.5",

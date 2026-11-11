@@ -85,7 +85,7 @@ modules, no failures, no warnings. It runs against the demo with the whole provi
 
 ```sh
 OIDCRAFT_PROFILE=fapi2       # every client under FAPI 2.0; seeds fapi-plan.json's two clients
-OIDCRAFT_SESSION_TTL=3       # each module starts signed out, so there is a sign-in to cancel
+OIDCRAFT_FORGET_CONSENT=on   # consent asked every time, so there is a screen to refuse on
 bun run dev:server
 CONFORMANCE_SUITE_DIR=<the suite checkout> bun run conformance fapi
 ```
@@ -93,10 +93,16 @@ CONFORMANCE_SUITE_DIR=<the suite checkout> bun run conformance fapi
 `fapi-plan.json` carries both clients' private keys, as `plan.json` carries its secrets: they exist
 only for this suite. The first is PS256, so the module that signs an assertion with RS256 runs.
 
-The short session is the suite's need, not the profile's. Its browser keeps cookies between modules,
-so without it the earlier modules leave a session and remembered consent (FR-I4), and the module in
-which the user rejects authentication finds nothing to reject. It rejects with the login screen's
-Cancel instead, which answers `access_denied`.
+Forgetting consent is the suite's need, not the profile's. Its browser keeps cookies between modules,
+so the earlier modules leave a session and remembered consent (FR-I4), and the module in which the
+user rejects authentication would find no screen at all. With consent forgotten, every authorization
+shows the consent screen, and that module refuses on whichever screen it reaches: Deny on consent, or
+Cancel on login, both answering `access_denied`.
+
+An earlier run used three-second sessions instead, so each module started signed out. It raced: the
+happy flow needs its session until its second client redeems a code, about 3.5 s after sign-in,
+while the next module needed the same session gone a few hundred milliseconds later, so the plan
+failed on slow runners and would on fast ones.
 
 Five modules end in **REVIEW**, each an error page the plan screenshots: an authorization request
 not pushed, a `request_uri` reused, expired, or used by another client, and a `request_uri` visited a

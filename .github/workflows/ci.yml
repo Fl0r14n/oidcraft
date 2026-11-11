@@ -61,7 +61,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     # NFR-C1's basic and config plans, and FAPI 2.0's (FR-C21) against the same demo under the profile.
-    # The FAPI run gives sessions a few seconds, so each module starts signed out (conformance/README.md).
+    # The FAPI run forgets consent, so the module where the user refuses has a screen to do it on (conformance/README.md).
     strategy:
       fail-fast: false
       matrix:
@@ -69,11 +69,11 @@ jobs:
           - plan: oidc
             args: ""
             profile: ""
-            session_ttl: ""
+            forget_consent: ""
           - plan: fapi
             args: fapi
             profile: fapi2
-            session_ttl: "3"
+            forget_consent: "on"
     name: conformance (${{ matrix.plan }})
     env:
       # The checkout and the images move together; bump both by changing this one value.
@@ -87,7 +87,7 @@ jobs:
       # Every run starts from nothing, so a module never sees state another one left behind.
       OIDCRAFT_DB: memory
       OIDCRAFT_PROFILE: ${{ matrix.profile }}
-      OIDCRAFT_SESSION_TTL: ${{ matrix.session_ttl }}
+      OIDCRAFT_FORGET_CONSENT: ${{ matrix.forget_consent }}
     steps:
       - uses: actions/checkout@v6
       - uses: oven-sh/setup-bun@v2

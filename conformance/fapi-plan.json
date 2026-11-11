@@ -82,9 +82,9 @@
           "match": "https://localhost:3001/authorize*",
           "tasks": [
             {
-              "task": "Cancel the sign-in",
+              "task": "Refuse: Deny on consent, or Cancel on sign-in",
               "match": "https://localhost:3001/interaction/*",
-              "commands": [["click", "css", "button[value=cancel]"]]
+              "commands": [["click", "css", "button[value=deny], button[value=cancel]"]]
             },
             {
               "task": "Verify Complete",

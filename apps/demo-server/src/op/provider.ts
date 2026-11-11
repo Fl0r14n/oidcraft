@@ -31,7 +31,15 @@ const storage = await openStorage({ keys: keys() })
 export const accounts = createDemoAccounts(storage, optional('OIDCRAFT_BRAND_NAME') ?? 'oidcraft')
 await seedDemoAccounts(accounts, storage)
 
-const adapter = { ...storage, accounts: accountStore(storage, accounts) }
+// The FAPI conformance run asks consent on every authorization, so the module in which the user refuses
+// always has a screen to refuse on, whatever session the module before it left (conformance/README.md).
+const forgetConsent = optional('OIDCRAFT_FORGET_CONSENT') === 'on'
+
+const adapter = {
+  ...storage,
+  accounts: accountStore(storage, accounts),
+  ...(forgetConsent && { grants: { ...storage.grants, findByAccountAndClient: async () => undefined } })
+}
 
 // Expired rows are never served (FR-T5); sweeping them only reclaims the space, in bounded batches (NFR-P3).
 setInterval(() => void adapter.artifacts.prune?.(new Date(), 1000), 10 * 60_000).unref()
@@ -46,14 +54,11 @@ await seedMcpResourceServer(adapter)
 // OIDCRAFT_PROFILE=fapi2 puts every client under FAPI 2.0, as its conformance plan expects (FR-C21).
 // Off, only the FAPI demo client is, beside the public ones.
 const profile = optional('OIDCRAFT_PROFILE')
-// The FAPI conformance run sets a few seconds, so each module starts signed out and has a sign-in to cancel.
-const sessionTtl = optional('OIDCRAFT_SESSION_TTL')
 
 export const provider = createProvider({
   issuer: issuer(),
   adapter,
   ...(profile && { profile: profile as 'fapi2' }),
-  ...(sessionTtl && { ttl: { session: Number(sessionTtl) } }),
   interactionUrl: `${issuer()}/interaction`,
   // Descriptors only: the admin API lists these, and an upstream's client secret is not for it.
   upstreams: upstreams.map(({ id, label, domains }) => ({ id, ...(label && { label }), ...(domains && { domains }) })),

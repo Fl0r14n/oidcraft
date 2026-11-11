@@ -34,7 +34,7 @@ Open http://localhost:3000 and sign in as `ada`, `grace` or `admin`; the passwor
 ## The repository
 
 ```
-packages/provider     @oidcraft/provider: the provider, published with thirteen entry points
+packages/provider   @oidcraft/provider: the provider, published with fourteen entry points
 packages/vue        @oidcraft/vue, which continues vue-oidc
 packages/react      @oidcraft/react, which continues react-oauth-oidc
 packages/angular    @oidcraft/angular, which continues ngx-oauth

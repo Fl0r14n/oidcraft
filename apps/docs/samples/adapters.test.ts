@@ -13,6 +13,10 @@ import {
 } from '@oidcraft/provider'
 
 // #endregion imports
+// #region conformance-import
+import { adapterConformance } from '@oidcraft/provider/adapters/conformance'
+
+// #endregion conformance-import
 
 // #region kv-store
 const mapKv = (): KvStore => {
@@ -213,3 +217,14 @@ describe('replacing one store', () => {
     expect(await custom.replay.claim('dpop', 'abc', 60)).toBe(true)
   })
 })
+
+// #region conformance
+describe('a Map behind a KvStore', () => {
+  const accounts = { find: async (accountId: string) => ({ accountId, claims: {} }), claims: async () => ({}) }
+  const create = async () => fromKv(mapKv(), { keys: await generatedKeyStore(), accounts })
+
+  for (const check of adapterConformance(create, { implements: ['identities', 'credentials', 'realms'] })) {
+    test(check.name, check.run)
+  }
+})
+// #endregion conformance

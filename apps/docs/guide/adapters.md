@@ -203,18 +203,23 @@ trusts the answer rather than re-checking it.
 
 ## Testing your adapter
 
-The first-party adapters all pass one shared suite, `adapterConformance(name, create)`, in
-[`packages/provider/src/adapters/conformance.ts`](https://github.com/Fl0r14n/oidcraft/blob/main/packages/provider/src/adapters/conformance.ts).
-It checks each guarantee above, and races parallel callers against `consume`, `claim` and
-`addClient`.
+Every first-party adapter — memory, Drizzle, Kysely, TypeORM, Redis, on SQLite and Postgres — passes
+one shared suite, and so can yours. `@oidcraft/provider/adapters/conformance` exports it as plain
+checks rather than tests: `adapterConformance(create, options)` returns a list of `{ name, run }`,
+where `run` resolves when the adapter keeps that guarantee and throws a `ConformanceError` naming
+what it got when it does not. It imports no test runner, so it runs under `bun test`, Vitest, Jest or
+`node:test` alike — wrap each check in your runner's `test`:
 
-**A third-party adapter cannot run it today.** It is not exported from any entry of
-`@oidcraft/provider`, it imports `bun:test` directly, and it takes a `FullAdapter`, so an adapter
-without `identities`, `credentials` and `realms` would not fit it either. Until that changes, its
-test names are the closest thing to a written specification of the contract, and the list above
-follows them. Exporting it is open work, not something this page can paper over.
+<<< @/samples/adapters.test.ts#conformance-import{ts}
 
-For a `KvStore`, the tests behind the samples on this page check the two properties everything rests
-on: that parallel `insert`s for one key let exactly one through and an expired entry can be inserted
-again, and that `scan` survives deletes while it runs. Those are worth having in your own suite
-against your real backend, with real concurrency rather than one process.
+<<< @/samples/adapters.test.ts#conformance{ts}
+
+That is the `Map` from the top of this page, held to the same 28 checks as the first-party adapters.
+They cover each guarantee above, and race parallel callers against `consume`, `claim`, `addClient`
+and the atomic `create`s. `create` is called once per check, so each runs against a fresh adapter —
+give it a fresh database schema or key prefix, as the first-party suites do. The checks for
+`identities`, `credentials` and `realms` run only for the stores you list in `implements`: an
+adapter for the core protocol alone is held to the core checks alone (FR-A6).
+
+Run it against your real backend, with real concurrency. A suite that passes against one in-process
+`Map` proves the logic; only the database proves the atomicity.

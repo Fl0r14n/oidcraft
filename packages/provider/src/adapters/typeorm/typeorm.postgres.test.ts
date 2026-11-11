@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, test } from 'bun:test'
 import { DataSource } from 'typeorm'
 import { generatedKeyStore } from '../../keys/keys'
-import { adapterConformance } from '../conformance'
+import { bunConformance } from '../bun-conformance'
 import { dropSchemas, emptySchema, POSTGRES_URL } from '../postgres-testing'
 import { OIDCRAFT_ENTITIES, TYPEORM_POSTGRES_MIGRATIONS, typeormAdapter } from './index'
 
@@ -40,7 +40,7 @@ describe.skipIf(!POSTGRES_URL)('typeorm adapter on Postgres', () => {
   })
 
   // The identical suite every adapter runs (FR-A4, FR-A6).
-  adapterConformance('typeorm/postgres', async () => (await fresh()).adapter)
+  bunConformance('typeorm/postgres', async () => (await fresh()).adapter)
 
   test('the shipped migrations run through TypeORM, in order, once', async () => {
     const { dataSource } = await fresh()

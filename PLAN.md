@@ -364,8 +364,9 @@ What is _not_ claimed: see the status section. Implemented is not the same as ce
 8. ~~The move to `@oidcraft/*`~~ — done 2026-11-11: six packages published, trusted publishers
    registered, old names deprecated, old repositories archived.
 9. ~~The docs site~~ — live 2026-11-11, every page its requirements listed.
-10. **What the docs pages found** — the defects under the docs site's requirements, the adapter
-    conformance suite first (decided), then the two bugs, `prompt=consent` and Node below 24.7.
+10. **What the docs pages found** — the defects under the docs site's requirements. The adapter
+    conformance suite is done; next are the two bugs, `prompt=consent` and Node below 24.7, then a
+    `@oidcraft/provider` release carrying all three — the first run of `publish.yml`.
 
 ## Server review — 2026-10-10
 
@@ -492,9 +493,13 @@ Confirmed against the code; none fixed yet, each needs a decision.
 - [ ] **`@oidcraft/provider/runtimes/node` cannot load below Node 24.7** — it imports `argon2` from
   `node:crypto` statically, a link-time `SyntaxError` on older Node, taking `toNodeHandler` down with
   `nodePasswordHasher`. `engines` and FR-R3 say Node ≥ 22. Published in 0.1.0
-- [ ] The adapter conformance suite is not usable outside this repo — decided: make it
-  runner-agnostic and publish it as `@oidcraft/provider/adapters/conformance`. It also takes a
-  `FullAdapter`, so an adapter without `identities`, `credentials` and `realms` cannot run it
+- [x] The adapter conformance suite, usable outside this repo, 2026-11-11: the fourteenth entry,
+  `@oidcraft/provider/adapters/conformance`, returns 28 `{ name, run }` checks that throw, so any
+  runner wraps them; `verify-entries.ts` refuses a runner import. Checks for `identities`,
+  `credentials` and `realms` run only for the stores `implements` names, so a core-only adapter
+  fits. Every first-party suite runs it through `bun-conformance.ts` (272 tests on SQLite, Postgres
+  and Redis), and the adapters page runs it against its own `Map`-backed `KvStore`. Ships with the
+  next `@oidcraft/provider` release
 - [ ] Interaction completion trusts the host for more than FR-I* says: `complete` does not check that
   `accountId` exists, nor that `consent.scopes` is a subset of what was requested, and after a login
   the `acr` issued is whatever the host reports (FR-C16 rests on the host). The page states all three

@@ -5,7 +5,7 @@ import { describe, expect, test } from 'bun:test'
 import { Kysely, sql } from 'kysely'
 import { BunSqliteDialect } from 'kysely-bun-sqlite'
 import { generatedKeyStore } from '../../keys/keys'
-import { adapterConformance } from '../conformance'
+import { bunConformance } from '../bun-conformance'
 import { SQLITE_MIGRATIONS } from '../sql/sqlite'
 import { kyselyAdapter, type OidcraftDatabase } from './index'
 
@@ -27,7 +27,7 @@ const fresh = async () => {
 
 describe('kysely adapter', () => {
   // The identical suite the memory and Drizzle adapters run (FR-A4).
-  adapterConformance('kysely/sqlite', async () => (await fresh()).adapter)
+  bunConformance('kysely/sqlite', async () => (await fresh()).adapter)
 
   test('revocation uses the grant index rather than scanning', async () => {
     const { db } = await fresh()

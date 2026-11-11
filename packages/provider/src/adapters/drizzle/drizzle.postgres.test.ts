@@ -4,7 +4,7 @@ import { SQL } from 'bun'
 import { drizzle as drizzleBun } from 'drizzle-orm/bun-sql'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { generatedKeyStore } from '../../keys/keys'
-import { adapterConformance } from '../conformance'
+import { bunConformance } from '../bun-conformance'
 import { dropSchemas, freshSchema, migrateSchema, POSTGRES_URL } from '../postgres-testing'
 import { drizzleAdapter, postgresTables } from './index'
 
@@ -21,7 +21,7 @@ describe.skipIf(!POSTGRES_URL)('drizzle adapter on Postgres', () => {
   afterAll(dropSchemas)
 
   // The identical suite every adapter runs, on the shipped Postgres schema (FR-A4).
-  adapterConformance('drizzle/postgres', async () => {
+  bunConformance('drizzle/postgres', async () => {
     const { pool } = await freshSchema()
     return drizzleAdapter({ db: drizzle({ client: pool }), tables: postgresTables(), keys: await generatedKeyStore(), accounts })
   })
@@ -59,7 +59,7 @@ describe.skipIf(!POSTGRES_URL)('drizzle adapter on Postgres through Bun.sql', ()
     await dropSchemas()
   })
 
-  adapterConformance('drizzle/bun-sql', async () => {
+  bunConformance('drizzle/bun-sql', async () => {
     const { name } = await freshSchema()
     return drizzleAdapter({
       db: drizzleBun({ client: sql as SQL }),

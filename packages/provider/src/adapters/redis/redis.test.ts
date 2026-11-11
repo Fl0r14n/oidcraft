@@ -3,7 +3,7 @@
 import { afterAll, describe, expect, test } from 'bun:test'
 import { RedisClient } from 'bun'
 import { generatedKeyStore } from '../../keys/keys'
-import { adapterConformance } from '../conformance'
+import { bunConformance } from '../bun-conformance'
 import { redisAdapter, redisKv } from './index'
 
 /**
@@ -40,7 +40,7 @@ afterAll(async () => {
 })
 
 describe.skipIf(!client)('redis adapter', () => {
-  adapterConformance('redis', async () => redisAdapter(send, { prefix: fresh(), keys: await generatedKeyStore(), accounts }))
+  bunConformance('redis', async () => redisAdapter(send, { prefix: fresh(), keys: await generatedKeyStore(), accounts }))
 
   test('insert is SET NX: of many parallel inserts exactly one wins', async () => {
     const kv = redisKv(send, { prefix: fresh() })

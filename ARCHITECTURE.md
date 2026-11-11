@@ -71,7 +71,7 @@ packages/ui/                @oidcraft/ui        private, consumed from source by
 packages/vue/               @oidcraft/vue
 packages/react/             @oidcraft/react
 packages/angular/           @oidcraft/angular
-packages/provider/            @oidcraft/provider    the provider, thirteen entries
+packages/provider/            @oidcraft/provider    the provider, fourteen entries
   src/index.ts              .                     the OP. fetch in, fetch out, no I/O
   src/broker/               ./broker              the relying-party leg — upstream brokering
   src/interaction/          ./interaction         login/consent policy types
@@ -85,6 +85,7 @@ packages/provider/            @oidcraft/provider    the provider, thirteen entri
   src/adapters/kysely/      ./adapters/kysely     Postgres, SQLite
   src/adapters/typeorm/     ./adapters/typeorm    a TypeORM DataSource; Postgres, SQLite
   src/adapters/redis/       ./adapters/redis      any Redis client, through one command function
+  src/adapters/conformance/ ./adapters/conformance  the storage guarantees as checks, for any test runner
 apps/
   demo-server               the reference OP: mounts the core, the login screens and the admin UI
   demo-vue                  demo relying party: Vue 3 + @oidcraft/vue
@@ -124,7 +125,7 @@ Everything published is under the `@oidcraft` npm org, and each package is named
 | -------------------- | ------------------- | ---------------------------------------------------------------------------------------- |
 | `@oidcraft/core`     | `packages/core`     | the protocol: discovery, PKCE, the authorization round trip, ID token verification       |
 | `@oidcraft/client`   | `packages/client`   | the stateful client on top: storage, token lifecycle, refresh, authorized fetch, profile |
-| `@oidcraft/provider` | `packages/provider` | the OpenID Provider, thirteen subpath entries                                            |
+| `@oidcraft/provider` | `packages/provider` | the OpenID Provider, fourteen subpath entries                                            |
 | `@oidcraft/vue`      | `packages/vue`      | Vue binding over `@oidcraft/client`                                                      |
 | `@oidcraft/react`    | `packages/react`    | React binding over `@oidcraft/client`                                                    |
 | `@oidcraft/angular`  | `packages/angular`  | Angular binding over `@oidcraft/client`                                                  |
@@ -700,11 +701,16 @@ The gate is `.github/workflows/ci.yml` on every push and pull request: `biome ci
 the apps resolve `@oidcraft/provider` through its exports map into `dist/`, which does not exist on a fresh
 clone.
 
-- **Adapter conformance** — `adapterConformance(name, create)` in `src/adapters/conformance.ts` is one
-  suite every adapter runs, covering the queries the protocol actually needs: expiry enforced by
-  storage, `kind` as part of an artifact's identity, `revokeByGrantId` removing that grant and
-  nothing else, lookup by user code and by upstream session, and the replay guard admitting a value
-  once. An adapter that passes it is interchangeable with the others (FR-A4).
+- **Adapter conformance** — `adapterConformance(create, { implements })`, the published
+  `./adapters/conformance` entry, is one suite every adapter runs, covering the queries the protocol
+  actually needs: expiry enforced by storage, `kind` as part of an artifact's identity,
+  `revokeByGrantId` removing that grant and nothing else, lookup by user code and by upstream
+  session, and the replay guard admitting a value once. An adapter that passes it is
+  interchangeable with the others (FR-A4). It returns plain `{ name, run }` checks that throw rather
+  than registering tests, so a third-party adapter runs it under whatever runner it uses (FR-A6);
+  `verify-entries.ts` fails the build if the entry imports one. The first-party suites wrap it in
+  `bun:test` through `src/adapters/bun-conformance.ts`, which is not an entry. Checks for
+  `identities`, `credentials` and `realms` run only for the stores `implements` names.
 
 - **Unit** — `bun test` per package. Every `FR-C*` gets a test that exercises the wire format, not
   just the function behind it (NFR-C3).

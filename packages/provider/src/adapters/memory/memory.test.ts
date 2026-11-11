@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'bun:test'
-import { adapterConformance } from '../conformance'
+import { bunConformance } from '../bun-conformance'
 import { memoryAdapter, memoryKv } from './index'
 
 describe('memory adapter', () => {
-  adapterConformance('memory', () => memoryAdapter())
+  bunConformance('memory', () => memoryAdapter())
 
   test('an entry expires by its ttl without a sweep', async () => {
     const kv = memoryKv()

@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, test } from 'bun:test'
 import { Kysely, PostgresDialect } from 'kysely'
 import { generatedKeyStore } from '../../keys/keys'
-import { adapterConformance } from '../conformance'
+import { bunConformance } from '../bun-conformance'
 import { dropSchemas, freshSchema, migrateSchema, POSTGRES_URL } from '../postgres-testing'
 import { kyselyAdapter, type OidcraftDatabase } from './index'
 
@@ -27,7 +27,7 @@ describe.skipIf(!POSTGRES_URL)('kysely adapter on Postgres', () => {
   afterAll(dropSchemas)
 
   // The identical suite every adapter runs, on the shipped Postgres schema (FR-A4).
-  adapterConformance('kysely/postgres', adapterIn)
+  bunConformance('kysely/postgres', adapterIn)
 
   // G-6: a realm is a schema of its own in one database, chosen by the host's configure.
   test('two schemas in one database share nothing', async () => {

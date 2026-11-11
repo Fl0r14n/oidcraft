@@ -65,6 +65,15 @@ export default defineConfig([
     clean: false
   },
   {
+    // plain checks that throw, so a third-party adapter runs them under any test runner (FR-A6)
+    entry: { 'adapters/conformance': 'src/adapters/conformance/index.ts' },
+    outDir: 'dist',
+    format: 'esm',
+    deps: { neverBundle: external },
+    dts: true,
+    clean: false
+  },
+  {
     // the only entry that may import drizzle-orm
     entry: { 'adapters/drizzle': 'src/adapters/drizzle/index.ts' },
     outDir: 'dist',

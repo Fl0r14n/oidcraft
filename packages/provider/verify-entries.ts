@@ -18,7 +18,8 @@ const ENTRIES = {
   'adapters/drizzle': { owns: ['drizzle-orm'], runtime: undefined },
   'adapters/kysely': { owns: ['kysely'], runtime: undefined },
   'adapters/typeorm': { owns: ['typeorm'], runtime: undefined },
-  'adapters/redis': { owns: [], runtime: undefined }
+  'adapters/redis': { owns: [], runtime: undefined },
+  'adapters/conformance': { owns: [], runtime: undefined }
 } as const
 
 const OPTIONAL_PEERS = ['drizzle-orm', 'kysely', 'typeorm'] as const
@@ -164,6 +165,10 @@ for (const [entry, { owns, runtime }] of Object.entries(ENTRIES)) {
     )
   }
 }
+
+// The suite exists for adapters tested under any runner; importing one would tie it to that runner.
+const runners = imports(read('adapters/conformance.mjs')).filter(id => /^(bun:|node:test|vitest|@jest\/|jest$)/.test(id))
+check(runners.length === 0, `adapters/conformance imports ${runners.join(', ')} — it must run under any test runner (FR-A6)`)
 
 // The relying-party leg is the protocol the client bindings depend on too; a compiled-in copy drifts from it.
 check(importsPackage(read('broker.mjs'), '@oidcraft/core'), 'broker does not import @oidcraft/core by name — it has inlined it')

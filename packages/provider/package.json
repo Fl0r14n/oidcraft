@@ -85,6 +85,10 @@
       "types": "./dist/adapters/typeorm.d.mts",
       "import": "./dist/adapters/typeorm.mjs"
     },
+    "./adapters/conformance": {
+      "types": "./dist/adapters/conformance.d.mts",
+      "import": "./dist/adapters/conformance.mjs"
+    },
     "./package.json": "./package.json"
   },
   "scripts": {

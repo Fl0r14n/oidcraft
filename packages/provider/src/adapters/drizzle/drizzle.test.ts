@@ -5,7 +5,7 @@ import { describe, expect, test } from 'bun:test'
 import { sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/bun-sqlite'
 import { generatedKeyStore } from '../../keys/keys'
-import { adapterConformance } from '../conformance'
+import { bunConformance } from '../bun-conformance'
 import { SQLITE_MIGRATIONS } from '../sql/sqlite'
 import { type DrizzleDatabase, drizzleAdapter } from './index'
 
@@ -27,7 +27,7 @@ const fresh = async () => {
 
 describe('drizzle adapter', () => {
   // The same suite the memory adapter runs: passing both is what "interchangeable" means (FR-A4).
-  adapterConformance('drizzle/sqlite', async () => (await fresh()).adapter)
+  bunConformance('drizzle/sqlite', async () => (await fresh()).adapter)
 
   // FR-A5: the criticism of the blob-table shape only holds if this adapter avoids it.
   test('revocation is an indexed delete, not a scan', async () => {

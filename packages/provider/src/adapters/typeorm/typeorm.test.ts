@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { DataSource } from 'typeorm'
 import { generatedKeyStore } from '../../keys/keys'
-import { adapterConformance } from '../conformance'
+import { bunConformance } from '../bun-conformance'
 import { OIDCRAFT_ENTITIES, TYPEORM_SQLITE_MIGRATIONS, typeormAdapter } from './index'
 
 const accounts = {
@@ -22,7 +22,7 @@ const fresh = async () => {
 
 describe('typeorm adapter', () => {
   // The identical suite the memory, Drizzle and Kysely adapters run (FR-A6).
-  adapterConformance('typeorm/sqlite', async () => (await fresh()).adapter)
+  bunConformance('typeorm/sqlite', async () => (await fresh()).adapter)
 
   test('the shipped migrations run through TypeORM, in order, once', async () => {
     const { dataSource } = await fresh()

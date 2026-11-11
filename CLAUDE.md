@@ -81,7 +81,7 @@ bun run docs             # the docs site, VitePress on :5173
 
 - **Every published package is `@oidcraft/<directory>`.** `packages/provider` is `@oidcraft/provider`,
   `packages/vue` is `@oidcraft/vue`. `bun run --filter` matches package names, not directories.
-- **One package, thirteen subpath entries** (`packages/provider`). An optional peer belongs to exactly
+- **One package, fourteen subpath entries** (`packages/provider`). An optional peer belongs to exactly
   one entry; `bun run --filter=@oidcraft/provider build` runs `verify-entries.ts`, which fails the build if
   one leaks, if a core type is inlined, or if `node:` appears outside the `./runtimes/node` entry
   (ARCHITECTURE.md §2.1–2.2). Do not split this into several packages without reading §2.1.

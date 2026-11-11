@@ -364,9 +364,9 @@ What is _not_ claimed: see the status section. Implemented is not the same as ce
 8. ~~The move to `@oidcraft/*`~~ — done 2026-11-11: six packages published, trusted publishers
    registered, old names deprecated, old repositories archived.
 9. ~~The docs site~~ — live 2026-11-11, every page its requirements listed.
-10. **What the docs pages found** — the defects under the docs site's requirements. The adapter
-    conformance suite is done; next are the two bugs, `prompt=consent` and Node below 24.7, then a
-    `@oidcraft/provider` release carrying all three — the first run of `publish.yml`.
+10. **What the docs pages found** — the conformance suite and both bugs, `prompt=consent` and Node
+    below 24.7, are fixed on `main`. Next: a `@oidcraft/provider` release carrying all three — the
+    first run of `publish.yml` — then the smaller items under the docs site's requirements.
 
 ## Server review — 2026-10-10
 
@@ -483,16 +483,20 @@ Started 2026-11-11 as `apps/docs`, VitePress (ARCHITECTURE.md §8.5). Done so fa
 
 ### Found by the docs pages (2026-11-11)
 
-Confirmed against the code; none fixed yet, each needs a decision.
+Confirmed against the code. The unticked ones are open, each needing a decision.
 
-- [ ] **`prompt=consent` is dropped after a login** — `authorizationUrl` in
-  `authorize/interactions.ts` deletes every `prompt` value when it resumes the request, `consent`
-  included, so an account that already holds a covering grant signs in and is never asked. Breaks
-  FR-I5 and OIDC Core §3.1.2.1. `samples/interaction.test.ts` asserts the current behaviour, so it
-  fails once this is fixed and the page needs its warning removed
-- [ ] **`@oidcraft/provider/runtimes/node` cannot load below Node 24.7** — it imports `argon2` from
-  `node:crypto` statically, a link-time `SyntaxError` on older Node, taking `toNodeHandler` down with
-  `nodePasswordHasher`. `engines` and FR-R3 say Node ≥ 22. Published in 0.1.0
+- [x] **`prompt=consent` was dropped after a login**, fixed 2026-11-11: `authorizationUrl` deleted
+  every `prompt` value when it resumed the request, so an account already holding a covering grant
+  signed in and was never asked (FR-I5, OIDC Core §3.1.2.1). Now a finished interaction removes only
+  the prompts it answered — a login `login` and `select_account`, a consent `consent` — so the replay
+  still cannot loop and nothing it did not answer is skipped. Three `flow.test.ts` cases; the first
+  fails without the fix
+- [x] **`@oidcraft/provider/runtimes/node` could not load below Node 24.7**, fixed 2026-11-11: it
+  imported `argon2` from `node:crypto` by name, a load-time `SyntaxError` on Node 22 that took
+  `toNodeHandler` down with `nodePasswordHasher` (FR-R3). Now read off the namespace: the entry loads
+  on Node 22 and only the hasher, when called, says it needs 24.7. Reproduced and confirmed on Node
+  22.23.4; CI now imports every server-side entry on Node 22 (`scripts/load-entries.mjs`). Broken in
+  the published 0.1.0
 - [x] The adapter conformance suite, usable outside this repo, 2026-11-11: the fourteenth entry,
   `@oidcraft/provider/adapters/conformance`, returns 28 `{ name, run }` checks that throw, so any
   runner wraps them; `verify-entries.ts` refuses a runner import. Checks for `identities`,

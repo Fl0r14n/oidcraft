@@ -42,11 +42,17 @@ jobs:
       # biome ci, not the `lint` script — that one rewrites files instead of failing
       - run: bunx biome ci .
       # build first: the apps resolve `@oidcraft/provider` through its exports map, which points into
-      # packages/oidcraft/dist, so on a fresh clone typecheck cannot resolve the package until it
+      # packages/provider/dist, so on a fresh clone typecheck cannot resolve the package until it
       # exists. It also runs verify-entries, which catches an optional peer leaking out of its entry.
       - run: bun run build
       - run: bun run typecheck
       - run: bun test
+      # engines says node >= 22, and everything above runs on Bun. An entry importing a node:crypto
+      # export that only exists from Node 24.7 shipped in 0.1.0 this way (FR-R3).
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - run: node scripts/load-entries.mjs
 
   # NFR-C1: the OpenID Foundation suite's basic and config plans gate the build. Anything not listed
   # in conformance/expected-failures.json or expected-skips.json fails the job.

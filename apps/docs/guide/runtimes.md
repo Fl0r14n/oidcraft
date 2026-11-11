@@ -87,10 +87,11 @@ thing that can reach the process. `trustProxy` changes the client address and no
 issuer is still your configuration. The lower-level pieces are exported too: `nodeContext`,
 `toRequest` and `sendResponse`.
 
-**Node version.** The entry imports `argon2` from `node:crypto` for `nodePasswordHasher`, and that
-export exists from Node 24.7. Because the import is static, on an older Node the whole entry fails
-to load with a `SyntaxError`, the bridge included, even though the package declares `node >= 22`.
-Until that is fixed, use Node 24.7 or later for `@oidcraft/provider/runtimes/node`.
+**Node version.** The entry loads on Node 22 and later, as `engines` says, and CI imports every
+published entry on Node 22 to keep it that way. `nodePasswordHasher` alone needs Node 24.7, the
+first with argon2 in `node:crypto`; on an older Node it rejects with an error saying so, at the
+first hash or verify, and nothing else in the entry is affected. `@oidcraft/provider` 0.1.0 is
+the exception: its entry imported argon2 by name and failed to load at all below 24.7.
 
 **mTLS on Node.** With an `https` server that requests client certificates, `nodeContext` supplies a
 certificate only when `socket.authorized` is true, which is to say when the chain verified against

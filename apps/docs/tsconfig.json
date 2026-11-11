@@ -1,7 +1,7 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "types": ["node"]
+    "types": ["node", "bun"]
   },
-  "include": [".vitepress/**/*.ts", ".vitepress/**/*.mts", "reference/*.data.ts"]
+  "include": [".vitepress/**/*.ts", ".vitepress/**/*.mts", ".vitepress/**/*.vue", "reference/*.data.ts", "samples/**/*.ts"]
 }

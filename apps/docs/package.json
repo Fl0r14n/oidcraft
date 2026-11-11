@@ -6,11 +6,16 @@
   "scripts": {
     "dev": "vitepress dev",
     "build": "bun check",
+    "check": "vue-tsgo --noEmit",
     "typecheck": "bun check",
     "bundle": "vitepress build",
     "preview": "vitepress preview"
   },
   "devDependencies": {
-    "vitepress": "^1.6.4"
+    "@oidcraft/core": "workspace:*",
+    "@oidcraft/provider": "workspace:*",
+    "typescript": "^7.0.2",
+    "vitepress": "^1.6.4",
+    "vue-tsgo": "^0.3.0"
   }
 }

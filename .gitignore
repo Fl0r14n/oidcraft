@@ -10,6 +10,7 @@ coverage/
 .idea/
 .codegraph/
 .angular/
+.claude/settings.local.json
 
 # conformance suite exports
 conformance/results/

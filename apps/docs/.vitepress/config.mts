@@ -23,6 +23,16 @@ export default defineConfig({
         text: 'Guide',
         items: [
           { text: 'The provider', link: '/guide/provider' },
+          { text: 'The interaction contract', link: '/guide/interaction' },
+          { text: 'Storage adapters', link: '/guide/adapters' },
+          { text: 'Runtime deployment', link: '/guide/runtimes' },
+          { text: 'Security posture', link: '/guide/security' },
+          { text: 'Coming from oidc-provider', link: '/guide/from-oidc-provider' }
+        ]
+      },
+      {
+        text: 'Client libraries',
+        items: [
           { text: 'Vue', link: '/guide/vue' },
           { text: 'React', link: '/guide/react' },
           { text: 'Angular', link: '/guide/angular' },
@@ -33,6 +43,8 @@ export default defineConfig({
       {
         text: 'Reference',
         items: [
+          { text: 'Configuration', link: '/reference/configuration' },
+          { text: 'Errors', link: '/reference/errors' },
           { text: 'Requirements', link: '/reference/requirements' },
           { text: 'Requirements in code', link: '/reference/ids' },
           { text: 'Architecture', link: '/reference/architecture' },

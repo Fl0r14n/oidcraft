@@ -1,0 +1,220 @@
+# Storage adapters
+
+Everything the provider keeps (clients, codes and tokens, sessions, consent, keys, one-time values)
+goes through an `Adapter`. The core performs no I/O of its own and holds nothing in process memory
+that outlives a request, so two processes behind a load balancer behave like one (FR-A1).
+
+There are three ways to give a provider storage:
+
+- use a first-party adapter;
+- implement a `KvStore`, five methods of which one is an atomic insert, and let `fromKv` build the
+  `Adapter` from it (FR-A3);
+- implement the `Adapter` yourself, store by store (FR-A2, FR-A6).
+
+The contract is `packages/provider/src/adapter.ts`, and every type on this page is exported from
+`@oidcraft/provider`. Why it is a set of narrow stores rather than one table keyed by model name is
+in [ARCHITECTURE.md §4](/reference/architecture#_4-the-adapter-layer).
+
+## First-party adapters
+
+| entry                                  | backend                                                               | single use rests on                                  |
+| -------------------------------------- | --------------------------------------------------------------------- | ---------------------------------------------------- |
+| `@oidcraft/provider/adapters/memory`   | a `Map` in this process                                               | the process being single-threaded                    |
+| `@oidcraft/provider/adapters/redis`    | any Redis client, through one `send(command, args)` function          | `SET NX`                                             |
+| `@oidcraft/provider/adapters/drizzle`  | Drizzle v1 (`drizzle-orm@>=1.0.0-rc.5`), SQLite or Postgres           | `UPDATE … WHERE consumed_at IS NULL`                 |
+| `@oidcraft/provider/adapters/kysely`   | Kysely, SQLite or Postgres                                            | `UPDATE … WHERE consumed_at IS NULL`                 |
+| `@oidcraft/provider/adapters/typeorm`  | an initialized TypeORM `DataSource` with `OIDCRAFT_ENTITIES`          | `UPDATE … WHERE consumed_at IS NULL`                 |
+
+How to pick:
+
+- **Use the one for the database you already run.** `drizzle-orm`, `kysely` and `typeorm` are
+  optional peers, so only the one you import gets installed.
+- **The memory adapter is for development and tests.** Everything in it dies with the process, and
+  it is correct only within one process.
+- **Redis** is `fromKv` over a `KvStore` built on `SET NX` and `PX` expiry, so nothing needs
+  sweeping. Its `prefix` option (default `oidcraft:`) lets one Redis hold other data, or several
+  issuers.
+- **The SQL adapters** use real columns and indexes for what the core looks up: `grant_id`,
+  `user_code`, `expires_at`, `account_id`, the upstream session id (FR-A5). They ship their schema
+  as `SQLITE_MIGRATIONS` and `POSTGRES_MIGRATIONS`, exported from each of the three entries because
+  all three query the same tables (TypeORM also gets them as migration classes,
+  `TYPEORM_SQLITE_MIGRATIONS` and `TYPEORM_POSTGRES_MIGRATIONS`). You run them
+  with your own tooling: the library never creates or alters a table at startup (FR-A4,
+  [ARCHITECTURE.md §4.2](/reference/architecture#_4-2-schema-ownership)).
+
+Every first-party adapter returns a `FullAdapter`, so it satisfies every entry point: brokering,
+local accounts and realms included. Each takes a `keys` store; the memory adapter generates one
+when you pass none, and so restarts sign everyone out. The code for each, and the Drizzle-on-SQLite
+setup, is in the provider guide's [Storage](/guide/provider#storage) section; persisting keys is
+under [Before production](/guide/provider#before-production).
+
+**Expired rows.** The SQL adapters filter expiry in the query, so an expired code or token is never
+served whether or not it has been deleted (FR-T5). Deleting them is `adapter.artifacts.prune(before,
+limit)`, a bounded sweep. Nothing in the library calls it: the provider holds no timers (NFR-P3),
+so you schedule it. The `KvStore`-based adapters have no `prune`; their entries carry a TTL instead.
+
+## Writing a `KvStore`
+
+A `KvStore` is five methods over string keys and string values. `fromKv` does all the encoding,
+picks every key, and derives the full `Adapter`:
+
+<<< @/samples/adapters.test.ts#imports{ts}
+
+<<< @/samples/adapters.test.ts#kv-store{ts}
+
+What each method must do:
+
+- **`find(key)`** returns the live entry, or `undefined`. An entry whose TTL has run out is absent.
+- **`upsert({ key, value, ttl })`** writes unconditionally. `ttl` is in seconds; without one the
+  entry does not expire.
+- **`destroy(key)`** removes the entry; a missing key is not an error.
+- **`insert({ key, value, ttl })`** writes **only if no live entry holds the key, atomically**, and
+  resolves whether it wrote. An expired entry counts as absent: a one-time value whose window has
+  lapsed may be claimed again.
+- **`scan(prefix)`** yields every live entry whose key starts with `prefix`. `fromKv` destroys keys
+  while it iterates (revoking a grant does exactly that), so the scan must survive it. If your
+  backend can list a key twice, as Redis `SCAN` can, yield it once; if an entry vanishes between
+  listing and reading, skip it.
+
+Hand it to `fromKv` with a key store and, optionally, your accounts:
+
+<<< @/samples/adapters.test.ts#from-kv{ts}
+
+The test behind that sample registers a client, signs a person in, redeems the code, and then
+replays it: the replay is refused with `invalid_grant` and the refresh token from the first
+redemption stops working, because the replay revoked the grant (FR-T4). Revocation is a `scan` over
+the grant's index followed by `destroy` calls, which is why `scan` is one of the five.
+
+`fromKv` is correct, not fast. Revoking a grant and every by-account lookup is a prefix scan,
+because a key-value store has no secondary index. That is the trade the SQL adapters do not make
+(FR-A5).
+
+### `insert` is the one hard requirement
+
+Every single-use rule is one call to `insert`: redeeming a code or rotating a refresh token
+(`consumed/<kind>/<id>`), admitting a `jti` or DPoP proof (`replay/<namespace>/<value>`), claiming a
+username at sign-up, creating a realm. Single use cannot be built from a read followed by a write
+(FR-A3, NFR-S4). This is what a read followed by a write looks like:
+
+<<< @/samples/adapters.test.ts#racy-insert{ts}
+
+Run against eight parallel callers for one key, all eight win. Through a provider, that would be
+two parallel redemptions of one authorization code both receiving tokens. With the atomic `insert`
+above, the test sees exactly one redemption succeed and the other refused.
+
+What qualifies: Redis `SET NX`, a Cloudflare Durable Object, a single-process `Map`, a SQL
+`INSERT` guarded by a primary key. What does not: an eventually consistent store, such as Workers
+KV. It cannot back a provider (FR-A3).
+
+## Implementing `Adapter` yourself
+
+Do this when you have an existing schema, or when prefix scans are not acceptable. An `Adapter` is
+an object of stores:
+
+| store        | required | holds                                                                     |
+| ------------ | -------- | ------------------------------------------------------------------------- |
+| `clients`    | yes      | registered clients                                                        |
+| `artifacts`  | yes      | codes, access and refresh tokens, device codes, PAR and CIBA requests, …  |
+| `sessions`   | yes      | the person's session at the provider                                      |
+| `grants`     | yes      | consent: what an account allowed a client                                 |
+| `accounts`   | yes      | your users, read only                                                     |
+| `keys`       | yes      | signing keys                                                              |
+| `replay`     | yes      | one-time values                                                           |
+| `identities` | no       | `(provider, subject) → account` links, for brokering                      |
+| `credentials`| no       | passwords and second factors, for `@oidcraft/provider/accounts`           |
+| `realms`     | no       | a realm control plane's realms                                            |
+
+An entry point that needs an optional store says so in its type: `createBroker` takes a
+`BrokeringAdapter` (`identities` and `sessions.findByUpstreamSession` present), `createAccounts` a
+`CredentialsAdapter`, and a realm control plane a `RealmsAdapter`. `createProvider` takes a plain
+`Adapter` and refuses `upstreams` without the brokering stores when it is constructed (NFR-D2).
+
+Since an `Adapter` is a plain object, you can also start from `fromKv` or a first-party adapter and
+replace one store:
+
+<<< @/samples/adapters.test.ts#replace-store{ts}
+
+That guard is atomic only because one process owns the `Map`; it shows the shape, not something to
+run behind a load balancer.
+
+### What each store must guarantee
+
+These are the properties the first-party adapters are tested for. Each exists because the protocol
+trusts the answer rather than re-checking it.
+
+**Everywhere**
+
+- A missing record is `undefined`, never a throw.
+
+**`artifacts`**
+
+- The identity is `(kind, id)`: two kinds may share an id. Store the kind as part of the key, and
+  accept every kind the core writes rather than a fixed list.
+- `find` never returns an expired artifact, even one not yet pruned (FR-T5).
+- `consume(kind, id)` is atomic: `true` for exactly one caller, `false` when the artifact was
+  already consumed, is unknown, or has expired. It marks the artifact rather than deleting it, so
+  `find` still returns it with `consumedAt` set (FR-T3, FR-T4, NFR-S4).
+- `upsert` never writes or clears `consumedAt`. A poll that read the artifact before it was
+  redeemed and writes it back must not revive it.
+- `revokeByGrantId(grantId)` removes every artifact of that grant and nothing else. A replayed code
+  or refresh token calls it, so it has to find them all; that is an index on `grant_id`, not a JSON
+  search (FR-A5).
+- `findByUserCode` is optional; the device flow needs it (FR-C7). `prune` is optional; see above.
+
+**`sessions`**
+
+- `find` never returns an expired session.
+- `addClient(id, clientId)` is atomic: two clients signing in through one session at once must both
+  end up on the list that logout notifies (FR-C11). A session that is gone stays gone.
+- `findByUpstreamSession` is optional; upstream back-channel logout needs it (FR-F8).
+
+**`grants`**
+
+- Found by id, and by `(accountId, clientId)`. Consent outlives the tokens issued under it (FR-I4).
+
+**`clients`**
+
+- `find` is required. `upsert`, `destroy` and `list` are optional: a fixed list of clients is a
+  valid deployment, and dynamic registration is then refused (FR-C9).
+
+**`accounts`**
+
+- `find(accountId)` and `claims(accountId, scopes, claims)`. Claims are resolved on every request,
+  never cached at sign-in (FR-C5).
+
+**`keys`**
+
+- `active()` returns keys newest first. The first signing-capable key of an algorithm signs; the
+  rest only verify, so a rotation never invalidates a live token (NFR-S7).
+
+**`replay`**
+
+- `claim(namespace, value, ttl)` is atomic: `true` for exactly one caller while the value is live,
+  `false` for a replay. Once the TTL lapses the value may be claimed again (NFR-S5).
+
+**`identities`**
+
+- Keyed by `(provider, subject)` and nothing else (FR-F5, NFR-S8).
+
+**`credentials`** and **`realms`**
+
+- `create` writes only when neither the account nor the username exists (for a realm, the id), and
+  does so atomically: two sign-ups racing for one name must not both win.
+
+## Testing your adapter
+
+The first-party adapters all pass one shared suite, `adapterConformance(name, create)`, in
+[`packages/provider/src/adapters/conformance.ts`](https://github.com/Fl0r14n/oidcraft/blob/main/packages/provider/src/adapters/conformance.ts).
+It checks each guarantee above, and races parallel callers against `consume`, `claim` and
+`addClient`.
+
+**A third-party adapter cannot run it today.** It is not exported from any entry of
+`@oidcraft/provider`, it imports `bun:test` directly, and it takes a `FullAdapter`, so an adapter
+without `identities`, `credentials` and `realms` would not fit it either. Until that changes, its
+test names are the closest thing to a written specification of the contract, and the list above
+follows them. Exporting it is open work, not something this page can paper over.
+
+For a `KvStore`, the tests behind the samples on this page check the two properties everything rests
+on: that parallel `insert`s for one key let exactly one through and an expired entry can be inserted
+again, and that `scan` survives deletes while it runs. Those are worth having in your own suite
+against your real backend, with real concurrency rather than one process.

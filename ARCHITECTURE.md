@@ -643,10 +643,14 @@ job: a docs site needs search, an outline per page, dark mode and a static build
 and Bun's bundler serves pages rather than generating a site. Vite stays contained in this app — no
 other package or app imports it — and VitePress itself is a Vue app, so it adds no framework.
 
-It renders the existing files rather than forking them: each page under `reference/` and `guide/` is
-an `@include` of `REQUIREMENTS.md`, `ARCHITECTURE.md`, `PLAN.md` or a package README. Code samples
-come from those READMEs, and a README sample is pinned by a test, as `minimal.test.ts` pins the
-provider's — so a sample on the site is one the suite ran.
+It renders the existing files rather than forking them: a page is an `@include` of
+`REQUIREMENTS.md`, `ARCHITECTURE.md`, `PLAN.md` or a package README, or a page of its own that cites
+them. Every code sample is one the suite ran. A README sample is pinned by a test, as
+`minimal.test.ts` pins the provider's; any other sample is a region of a test in `apps/docs/samples/`,
+pulled in with `<<< @/samples/<file>.test.ts#<region>`, so `bun test` runs exactly what a page shows.
+The configuration and error references are generated from `packages/provider/src` at build time, by
+data loaders parsing it through `typescript/unstable/async` — unstable by name, so a TypeScript bump
+can break them, loudly rather than with a wrong page.
 
 The requirement ids are its spine. A markdown-it plugin (`.vitepress/requirements.ts`) anchors every
 id `REQUIREMENTS.md` defines, links every mention of one on any page to that anchor, and links each

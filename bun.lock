@@ -82,7 +82,11 @@
       "name": "@oidcraft/docs",
       "version": "0.0.0",
       "devDependencies": {
+        "@oidcraft/core": "workspace:*",
+        "@oidcraft/provider": "workspace:*",
+        "typescript": "^7.0.2",
         "vitepress": "^1.6.4",
+        "vue-tsgo": "^0.3.0",
       },
     },
     "packages/angular": {

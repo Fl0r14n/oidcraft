@@ -491,12 +491,13 @@ Confirmed against the code. The unticked ones are open, each needing a decision.
   the prompts it answered — a login `login` and `select_account`, a consent `consent` — so the replay
   still cannot loop and nothing it did not answer is skipped. Three `flow.test.ts` cases; the first
   fails without the fix
-- [x] **`@oidcraft/provider/runtimes/node` could not load below Node 24.7**, fixed 2026-11-11: it
-  imported `argon2` from `node:crypto` by name, a load-time `SyntaxError` on Node 22 that took
-  `toNodeHandler` down with `nodePasswordHasher` (FR-R3). Now read off the namespace: the entry loads
-  on Node 22 and only the hasher, when called, says it needs 24.7. Reproduced and confirmed on Node
-  22.23.4; CI now imports every server-side entry on Node 22 (`scripts/load-entries.mjs`). Broken in
-  the published 0.1.0
+- [x] **`@oidcraft/provider/runtimes/node` could not load on the Node it claimed**, fixed 2026-11-11:
+  it imports `argon2` from `node:crypto`, which exists from Node 24.7, while `engines` and FR-R3 said
+  Node ≥ 22 — a load-time `SyntaxError` there, taking `toNodeHandler` down with
+  `nodePasswordHasher`. Reproduced on Node 22.23.4 against the published 0.1.0. Fixed by raising the
+  floor rather than working around it: every package's `engines` and FR-R3 say Node ≥ 24.7 (24.0–24.6
+  lack `argon2` too), and CI imports every server-side entry on Node 24.7
+  (`scripts/load-entries.mjs`), so the floor stays tested
 - [x] The adapter conformance suite, usable outside this repo, 2026-11-11: the fourteenth entry,
   `@oidcraft/provider/adapters/conformance`, returns 28 `{ name, run }` checks that throw, so any
   runner wraps them; `verify-entries.ts` refuses a runner import. Checks for `identities`,

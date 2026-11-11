@@ -95,7 +95,7 @@
     "access": "public"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=24.7"
   },
   "dependencies": {
     "@oidcraft/client": "workspace:^",

@@ -47,11 +47,11 @@ jobs:
       - run: bun run build
       - run: bun run typecheck
       - run: bun test
-      # engines says node >= 22, and everything above runs on Bun. An entry importing a node:crypto
-      # export that only exists from Node 24.7 shipped in 0.1.0 this way (FR-R3).
+      # Everything above runs on Bun; this loads every entry on the oldest Node engines claims, 24.7
+      # (FR-R3). 0.1.0 claimed Node 22 while an entry needed a node:crypto export from 24.7.
       - uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version: "24.7"
       - run: node scripts/load-entries.mjs
 
   # NFR-C1: the OpenID Foundation suite's basic and config plans gate the build. Anything not listed

@@ -1,5 +1,4 @@
-import * as crypto from 'node:crypto'
-import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
+import { argon2, createHash, randomBytes, timingSafeEqual } from 'node:crypto'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { Readable } from 'node:stream'
 import type { ClientCertificate, RequestContext } from '@oidcraft/provider'
@@ -101,16 +100,13 @@ const ARGON2 = { memory: 65536, passes: 3, parallelism: 4, tagLength: 32 }
 
 const derive = (password: string, nonce: Buffer, params: typeof ARGON2) =>
   new Promise<Buffer>((resolve, reject) => {
-    // Read off the namespace, never imported by name: below Node 24.7 a named import of it fails this whole entry at load (FR-R3).
-    const argon2 = crypto.argon2 as typeof crypto.argon2 | undefined
-    if (!argon2) return reject(new Error('nodePasswordHasher needs Node 24.7 or later, where node:crypto has argon2'))
     argon2('argon2id', { message: password, nonce, ...params }, (error, key) => (error ? reject(error) : resolve(key)))
   })
 
 const PHC = /^\$argon2id\$v=19\$m=(\d+),t=(\d+),p=(\d+)\$([A-Za-z0-9+/]+)\$([A-Za-z0-9+/]+)$/
 
 /**
- * argon2id through `node:crypto` (Node ≥ 24.7), for `@oidcraft/provider/accounts` (FR-I7). PHC strings, so the
+ * argon2id through `node:crypto`, for `@oidcraft/provider/accounts` (FR-I7). PHC strings, so the
  * hashes the Bun entry's hasher writes verify here and the other way round.
  */
 export const nodePasswordHasher = {

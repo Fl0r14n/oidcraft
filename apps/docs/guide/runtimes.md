@@ -3,8 +3,7 @@
 The provider is one function, `provider.handle(request, context)`: a WHATWG `Request` and a
 `RequestContext` in, a `Response` out. Nothing in its import graph touches `node:*`, and every
 cryptographic operation goes through WebCrypto via `jose` (FR-R1, FR-R2). The supported hosts are
-Bun ≥ 1.4, Node ≥ 22, Deno, and workerd-shaped runtimes such as Cloudflare Workers (FR-R3), with the
-Node caveat [below](#node).
+Bun ≥ 1.4, Node ≥ 24.7, Deno, and workerd-shaped runtimes such as Cloudflare Workers (FR-R3).
 
 What differs between them is small, and lives in one entry per runtime under
 `@oidcraft/provider/runtimes/*`. Each touches only its own runtime's globals and holds no protocol
@@ -87,11 +86,9 @@ thing that can reach the process. `trustProxy` changes the client address and no
 issuer is still your configuration. The lower-level pieces are exported too: `nodeContext`,
 `toRequest` and `sendResponse`.
 
-**Node version.** The entry loads on Node 22 and later, as `engines` says, and CI imports every
-published entry on Node 22 to keep it that way. `nodePasswordHasher` alone needs Node 24.7, the
-first with argon2 in `node:crypto`; on an older Node it rejects with an error saying so, at the
-first hash or verify, and nothing else in the entry is affected. `@oidcraft/provider` 0.1.0 is
-the exception: its entry imported argon2 by name and failed to load at all below 24.7.
+**Node version.** Node 24.7 or later, the first with argon2 in `node:crypto`, which
+`nodePasswordHasher` uses; CI imports every published entry on Node 24.7 to keep that floor true.
+`@oidcraft/provider` 0.1.0 claimed Node 22, and on Node 22 this entry failed to load at all.
 
 **mTLS on Node.** With an `https` server that requests client certificates, `nodeContext` supplies a
 certificate only when `socket.authorized` is true, which is to say when the chain verified against

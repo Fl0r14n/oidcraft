@@ -360,7 +360,8 @@ keys, and two realms sharing a signing key are refused.
 **FR-R2** — All cryptography goes through WebCrypto (`crypto.subtle`, `crypto.getRandomValues`)
 via `jose`. No `node:crypto`, no native addon, no dependency on a C++ build.
 
-**FR-R3** — Supported hosts: Bun ≥ 1.4, Node ≥ 22, Deno, and workerd-shaped runtimes.
+**FR-R3** — Supported hosts: Bun ≥ 1.4, Node ≥ 24.7, Deno, and workerd-shaped runtimes. Node 24.7 is
+the first with argon2 in `node:crypto`, which `./runtimes/node`'s password hasher uses (FR-I7).
 
 Only **Node** needs an HTTP bridge, because `node:http` speaks `IncomingMessage`/`ServerResponse`
 rather than `Request`/`Response`. Bun, Deno and workerd hand the core a `Request` and take a

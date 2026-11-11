@@ -184,11 +184,12 @@ HTTP route; who may call it is the host's decision (FR-M1).
 
 ### `prompt=consent` after a login
 
-The provider drops `prompt` when it resumes after a login. So when a request carries
-`prompt=consent`, the browser has no session, and the account already has a grant covering every
-requested scope, the person signs in and is **not** shown a consent screen. Until that changes, a
-login screen that sees `consent` in `view.prompt` should ask for consent on the same page and answer
-both at once:
+When a request with `prompt=consent` has no session yet, the first interaction is a login, and its
+`view.prompt` still carries `consent`. Completing it removes from the request only the prompts it
+answered: a `login` answers `login` and `select_account`, a `consent` answers `consent`. So a login
+on its own leads to a consent interaction next, even for an account whose grant already covers
+every scope (FR-I5) — the person is asked, as `prompt=consent` demands. A login screen may instead
+ask for consent on the same page and answer both at once, which saves the second step:
 
 <<< @/samples/interaction.test.ts#prompt-consent{ts}
 

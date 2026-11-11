@@ -128,7 +128,7 @@ export const interactions = (config: ResolvedConfig) => ({
     // Single-use: the authorization endpoint suspends again if it still cannot decide (FR-I2).
     await config.adapter.artifacts.destroy('interaction', id)
 
-    return { redirectTo: await authorizationUrl(config, request, Boolean(outcome.login)), setCookie }
+    return { redirectTo: await authorizationUrl(config, request, outcome), setCookie }
   }
 })
 
@@ -192,11 +192,18 @@ const confirmLogout = async (config: ResolvedConfig, id: string, payload: Record
   return { redirectTo: url.toString(), setCookie: undefined }
 }
 
-const authorizationUrl = async (config: ResolvedConfig, request: AuthorizationRequest, loggedIn: boolean) => {
+// What each part of a finished interaction answers. A prompt it answered must go, or the replay
+// loops forever; one it did not must stay, or it is skipped (FR-I5, OIDC Core §3.1.2.1).
+const ANSWERS = { login: ['login', 'select_account'], consent: ['consent'] } as const
+
+const authorizationUrl = async (config: ResolvedConfig, request: AuthorizationRequest, outcome: InteractionResult) => {
+  const loggedIn = Boolean(outcome.login)
   const url = new URL(`${config.issuer}${config.routes.authorization}`)
   const params = new URLSearchParams(request.raw)
-  // prompt has just been satisfied, and replaying it loops forever.
-  params.delete('prompt')
+  const answered = new Set<string>([...(outcome.login ? ANSWERS.login : []), ...(outcome.consent ? ANSWERS.consent : [])])
+  const remaining = (params.get('prompt') ?? '').split(' ').filter(value => value && !answered.has(value))
+  if (remaining.length) params.set('prompt', remaining.join(' '))
+  else params.delete('prompt')
   // acr_values was put to the login that just ran; what it achieved is the answer, and the ID token
   // reports it (OIDC Core §3.1.2.1, FR-C16). Replaying an unmeetable one loops forever too.
   if (loggedIn) params.delete('acr_values')

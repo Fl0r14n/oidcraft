@@ -396,7 +396,7 @@ describe('the interaction contract', () => {
     // #endregion acr-trusted
   })
 
-  test('prompt=consent on a login interaction is answered in the same step', async () => {
+  test('prompt=consent is asked even of an account that already consented', async () => {
     const accountId = await register('margaret')
     const first = browser()
     const loginId = interactionId(await first.open(authorizeUrl()))
@@ -406,9 +406,12 @@ describe('the interaction contract', () => {
     await first.follow(await submitConsent(consentId, form({ decision: 'allow' })))
 
     const other = browser()
-    const skipped = interactionId(await other.open(authorizeUrl({ prompt: 'consent' })))
-    const afterLoginOnly = await other.follow(await submitLogin(skipped, form({ username: 'margaret', password: 'correct horse battery' })))
-    expect(afterLoginOnly.searchParams.get('code')).toBeString()
+    const loginFirst = interactionId(await other.open(authorizeUrl({ prompt: 'consent' })))
+    const afterLoginOnly = await other.follow(
+      await submitLogin(loginFirst, form({ username: 'margaret', password: 'correct horse battery' }))
+    )
+    expect(afterLoginOnly.searchParams.get('code')).toBeNull()
+    expect((await provider.interactions.find(interactionId(afterLoginOnly))).kind).toBe('consent')
 
     const fresh = browser()
     // #region prompt-consent

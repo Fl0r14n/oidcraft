@@ -488,6 +488,44 @@ describe('interaction', () => {
     expect(view.prompt).toContain('select_account')
   })
 
+  test('prompt=consent outlives a login that did not answer it, even for an account that consented', async () => {
+    await loginAndConsent()
+    const first = await go(authorizeUrl({ prompt: 'consent' }))
+    const loginId = new URL(first.headers.get('location') as string).pathname.split('/').pop() as string
+    const login = await provider.interactions.complete(loginId, { login: { accountId: 'ada' } })
+    expect(new URL(login.redirectTo).searchParams.get('prompt')).toBe('consent')
+
+    const cookie = `${SESSION_COOKIE}=${(login.setCookie as string).split('=')[1]?.split(';')[0]}`
+    const next = new URL((await go(login.redirectTo, cookie)).headers.get('location') as string)
+    expect(next.searchParams.has('code')).toBe(false)
+    expect((await provider.interactions.find(next.pathname.split('/').pop() as string)).kind).toBe('consent')
+  })
+
+  test('prompt=consent answered together with the login issues the code', async () => {
+    await loginAndConsent()
+    const first = await go(authorizeUrl({ prompt: 'consent' }))
+    const id = new URL(first.headers.get('location') as string).pathname.split('/').pop() as string
+    const done = await provider.interactions.complete(id, {
+      login: { accountId: 'ada' },
+      consent: { scopes: ['openid', 'profile', 'offline_access'] }
+    })
+    expect(new URL(done.redirectTo).searchParams.has('prompt')).toBe(false)
+
+    const cookie = `${SESSION_COOKIE}=${(done.setCookie as string).split('=')[1]?.split(';')[0]}`
+    expect(new URL((await go(done.redirectTo, cookie)).headers.get('location') as string).searchParams.get('code')).toBeString()
+  })
+
+  test('prompt=login is not replayed once a login answered it', async () => {
+    const { cookie } = await loginAndConsent()
+    const first = await go(authorizeUrl({ prompt: 'login' }), cookie)
+    const id = new URL(first.headers.get('location') as string).pathname.split('/').pop() as string
+    const login = await provider.interactions.complete(id, { login: { accountId: 'ada' } })
+    expect(new URL(login.redirectTo).searchParams.has('prompt')).toBe(false)
+
+    const fresh = `${SESSION_COOKIE}=${(login.setCookie as string).split('=')[1]?.split(';')[0]}`
+    expect(new URL((await go(login.redirectTo, fresh)).headers.get('location') as string).searchParams.get('code')).toBeString()
+  })
+
   test('prompt=none with another value is invalid_request', async () => {
     const response = await go(authorizeUrl({ prompt: 'none login' }))
     expect(new URL(response.headers.get('location') as string).searchParams.get('error')).toBe('invalid_request')

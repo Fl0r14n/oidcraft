@@ -6,7 +6,7 @@ import { memoryAdapter } from '@oidcraft/provider/adapters/memory'
 import { bunContext, bunPasswordHasher } from '@oidcraft/provider/runtimes/bun'
 import { denoContext } from '@oidcraft/provider/runtimes/deno'
 import { nodePasswordHasher, toNodeHandler } from '@oidcraft/provider/runtimes/node'
-import { workerdContext } from '@oidcraft/provider/runtimes/workerd'
+import { type IncomingCf, workerdContext } from '@oidcraft/provider/runtimes/workerd'
 
 const adapter = await memoryAdapter()
 
@@ -81,7 +81,7 @@ describe('deno', () => {
 
 describe('workerd', () => {
   // #region workerd
-  type CfRequest = Request & { cf?: Parameters<ReturnType<typeof workerdContext>>[1] }
+  type CfRequest = Request & { cf?: IncomingCf }
 
   const worker = {
     fetch: (request: CfRequest) => provider.handle(request, workerdContext(issuer)(request, request.cf))

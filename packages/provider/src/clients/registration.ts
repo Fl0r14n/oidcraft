@@ -10,8 +10,11 @@ import type { Client, ClientAuthMethod } from '../types'
 
 const DEFAULT_GRANTS = ['authorization_code']
 
-const invalid = (description: string, code: 'invalid_client_metadata' | 'invalid_redirect_uri' = 'invalid_client_metadata') =>
-  new OAuthError('invalid_request', { description, spec: `OIDC Dynamic Client Registration 1.0 §3.3 (${code})`, status: 400 })
+/** How a caller refuses a value. Registration answers with RFC 7591's codes; a metadata document, read at the authorization endpoint, does not. */
+export type Refuse = (description: string) => OAuthError
+
+const invalid: Refuse = description => new OAuthError('invalid_client_metadata', { description, spec: 'RFC 7591 §3.2.2', status: 400 })
+const invalidRedirect: Refuse = description => new OAuthError('invalid_redirect_uri', { description, spec: 'RFC 7591 §3.2.2', status: 400 })
 
 // RFC 8252 §8.3: loopback means the IP literal. `localhost` can be resolved elsewhere.
 const isLoopbackIp = (url: URL) => url.hostname === '127.0.0.1' || url.hostname === '[::1]'
@@ -19,19 +22,17 @@ const isLoopbackIp = (url: URL) => url.hostname === '127.0.0.1' || url.hostname 
 // Each would run script, or read a file, wherever the browser is sent or a form is posted.
 const FORBIDDEN_SCHEMES = ['javascript:', 'data:', 'vbscript:', 'file:']
 
-type UriCode = 'invalid_client_metadata' | 'invalid_redirect_uri'
-
 /** A URI the browser is sent to: absolute, matchable, no script, https unless on a loopback IP. */
-export const browserUri = (raw: unknown, name: string, code: UriCode = 'invalid_client_metadata', native = false) => {
-  if (typeof raw !== 'string' || !URL.canParse(raw)) throw invalid(`${name} ${String(raw)} is not an absolute URL`, code)
+export const browserUri = (raw: unknown, name: string, { native = false, fail = invalid }: { native?: boolean; fail?: Refuse } = {}) => {
+  if (typeof raw !== 'string' || !URL.canParse(raw)) throw fail(`${name} ${String(raw)} is not an absolute URL`)
   const url = new URL(raw)
   // A fragment can never be matched: the browser never sends it (RFC 6749 §3.1.2).
-  if (url.hash) throw invalid(`${name} ${raw} must not carry a fragment`, code)
-  if (FORBIDDEN_SCHEMES.includes(url.protocol)) throw invalid(`${name} ${raw} uses a scheme that can run script`, code)
+  if (url.hash) throw fail(`${name} ${raw} must not carry a fragment`)
+  if (FORBIDDEN_SCHEMES.includes(url.protocol)) throw fail(`${name} ${raw} uses a scheme that can run script`)
   // A native app listens on this machine, and many say localhost: matched exactly, never by port (NFR-S2).
   const local = isLoopbackIp(url) || (native && url.hostname === 'localhost')
   if (url.protocol === 'http:' && !local) {
-    throw invalid(`${name} ${raw} must be https outside a loopback IP${native ? ' or localhost' : ''}`, code)
+    throw fail(`${name} ${raw} must be https outside a loopback IP${native ? ' or localhost' : ''}`)
   }
   return raw
 }
@@ -43,13 +44,13 @@ const isIpLiteral = (hostname: string) => hostname.startsWith('[') || /^\d+\.\d+
  * aims that request inside the network (SSRF); a name that resolves there is the host's to refuse,
  * since only it does the resolving (FR-A1).
  */
-export const serverUri = (raw: unknown, name: string) => {
-  if (typeof raw !== 'string' || !URL.canParse(raw)) throw invalid(`${name} ${String(raw)} is not an absolute URL`)
+export const serverUri = (raw: unknown, name: string, fail: Refuse = invalid) => {
+  if (typeof raw !== 'string' || !URL.canParse(raw)) throw fail(`${name} ${String(raw)} is not an absolute URL`)
   const url = new URL(raw)
-  if (url.protocol !== 'https:') throw invalid(`${name} ${raw} must be https`)
-  if (url.hash) throw invalid(`${name} ${raw} must not carry a fragment`)
+  if (url.protocol !== 'https:') throw fail(`${name} ${raw} must be https`)
+  if (url.hash) throw fail(`${name} ${raw} must not carry a fragment`)
   if (isIpLiteral(url.hostname) || url.hostname === 'localhost' || url.hostname.endsWith('.localhost')) {
-    throw invalid(`${name} ${raw} must name a public host, not an address or localhost`)
+    throw fail(`${name} ${raw} must name a public host, not an address or localhost`)
   }
   return raw
 }
@@ -64,9 +65,8 @@ const uriList = (value: unknown, name: string) => {
  * it accepts is checked as strictly as anything a human would have registered (NFR-S2).
  */
 const validateRedirectUris = (uris: unknown, native: boolean) => {
-  if (!Array.isArray(uris) || uris.length === 0)
-    throw invalid('redirect_uris is required and must be a non-empty array', 'invalid_redirect_uri')
-  return uris.map(each => browserUri(each, 'redirect_uri', 'invalid_redirect_uri', native))
+  if (!Array.isArray(uris) || uris.length === 0) throw invalidRedirect('redirect_uris is required and must be a non-empty array')
+  return uris.map(each => browserUri(each, 'redirect_uri', { native, fail: invalidRedirect }))
 }
 
 /** OIDC DCR 1.0 §2: `web` when omitted. MCP clients must send it (MCP 2026-07-28). */

@@ -1,6 +1,7 @@
 import type { ClientCertificate, RequestContext } from '@oidcraft/provider'
 
-type IncomingCf = {
+/** The part of Cloudflare's `request.cf` this entry reads. */
+export type IncomingCf = {
   tlsClientAuth?: {
     certPresented?: string
     certVerified?: string

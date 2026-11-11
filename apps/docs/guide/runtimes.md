@@ -117,8 +117,8 @@ Workers put the peer address in `CF-Connecting-IP` and the edge's TLS client-aut
 
 <<< @/samples/runtimes.test.ts#workerd{ts}
 
-The `CfRequest` type is there because the entry does not export the shape of `request.cf` it reads.
-With `@cloudflare/workers-types` installed, `Request` declares `cf` itself, which is what the shorter
+`IncomingCf` is the part of `request.cf` the entry reads, exported with it, as `DenoServeInfo` is
+from the Deno entry. With `@cloudflare/workers-types` installed, `Request` declares `cf` itself, which is what the shorter
 form in the provider guide's [Node, Deno and Workers](/guide/provider#node-deno-and-workers) section
 relies on.
 

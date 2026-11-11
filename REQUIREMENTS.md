@@ -223,7 +223,8 @@ survives a request, so two processes behind a load balancer behave identically t
 
 **FR-A2** — An adapter is a set of narrow, typed stores (`ClientStore`, `ArtifactStore`,
 `SessionStore`, `GrantStore`, `AccountStore`, `KeyStore`, `ReplayGuard`, and optionally
-`LinkedIdentityStore`) — not one stringly-typed blob table keyed by model name.
+`LinkedIdentityStore` for brokering (FR-F5), `CredentialStore` for local accounts (FR-I7) and
+`RealmStore` for realms (FR-M4)) — not one stringly-typed blob table keyed by model name.
 
 **FR-A3** — A `KvStore` implementation (`find`/`upsert`/`destroy`/`insert`/`scan`) is sufficient to
 derive a complete `Adapter`, so a new backend is a day's work rather than a week's. `insert` must
@@ -326,7 +327,7 @@ structured for translation.
   accepted once (NFR-S5). The secret is stored encrypted with AES-GCM under a key the host
   configures, bound to its account, so a database dump alone yields no second factor.
 - **Recovery codes**, issued when TOTP is confirmed, stored hashed and each usable once.
-- **Throttling**: failed passwords and codes lock the account for a while (NFR-S3).
+- **Throttling**: failed passwords and codes lock the account for a while (NIST SP 800-63B §5.2.2).
 - **Password reset**: single-use tokens with a short lifetime, stored hashed. Delivering one is I/O,
   so the host sends it (FR-A1). Completing a reset ends the account's sessions.
 - **Self-service sign-up**, which the host may leave unmounted.

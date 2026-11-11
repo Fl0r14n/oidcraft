@@ -10,10 +10,8 @@ export type OAuthErrorCode =
   | 'access_denied'
   | 'server_error'
   | 'temporarily_unavailable'
-  | 'interaction_required'
   | 'login_required'
   | 'consent_required'
-  | 'account_selection_required'
   | 'invalid_target'
   | 'invalid_dpop_proof'
   | 'use_dpop_nonce'
@@ -22,6 +20,8 @@ export type OAuthErrorCode =
   | 'expired_token'
   | 'invalid_authorization_details'
   | 'unknown_user_id'
+  | 'invalid_redirect_uri'
+  | 'invalid_client_metadata'
 
 export type OAuthErrorInit = {
   description?: string
@@ -81,10 +81,8 @@ const STATUS: Record<OAuthErrorCode, number> = {
   access_denied: 403,
   server_error: 500,
   temporarily_unavailable: 503,
-  interaction_required: 400,
   login_required: 400,
   consent_required: 400,
-  account_selection_required: 400,
   invalid_target: 400,
   invalid_dpop_proof: 400,
   use_dpop_nonce: 400,
@@ -93,7 +91,9 @@ const STATUS: Record<OAuthErrorCode, number> = {
   slow_down: 400,
   expired_token: 400,
   invalid_authorization_details: 400,
-  unknown_user_id: 400
+  unknown_user_id: 400,
+  invalid_redirect_uri: 400,
+  invalid_client_metadata: 400
 }
 
 /**

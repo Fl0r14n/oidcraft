@@ -20,7 +20,7 @@ const assertClientIdUrl = (clientId: string) => {
     throw refuse(`client_id ${clientId} must not carry credentials, a query or a fragment`)
   }
   // Fetched on a stranger's say-so: an address or localhost aims the request inside the network.
-  serverUri(clientId, 'client_id')
+  serverUri(clientId, 'client_id', refuse)
 }
 
 const ALLOWED_METHODS: ClientAuthMethod[] = ['none', 'private_key_jwt']
@@ -45,7 +45,9 @@ const clientFrom = (config: ResolvedConfig, clientId: string, document: unknown)
   // MCP's own example document registers localhost callbacks without naming itself native.
   const applicationType = body.application_type === 'web' ? 'web' : 'native'
   if (!Array.isArray(body.redirect_uris) || body.redirect_uris.length === 0) throw refuse('redirect_uris is required')
-  const redirectUris = body.redirect_uris.map(uri => browserUri(uri, 'redirect_uri', 'invalid_redirect_uri', applicationType === 'native'))
+  const redirectUris = body.redirect_uris.map(uri =>
+    browserUri(uri, 'redirect_uri', { native: applicationType === 'native', fail: refuse })
+  )
 
   const grantTypes = (body.grant_types as string[] | undefined) ?? ['authorization_code']
   const unsupported = grantTypes.filter(grant => !ALLOWED_GRANTS.includes(grant))
@@ -66,7 +68,7 @@ const clientFrom = (config: ResolvedConfig, clientId: string, document: unknown)
     scopes,
     tokenEndpointAuthMethod: method,
     ...(body.jwks ? { jwks: body.jwks as { keys: unknown[] } } : {}),
-    ...(body.jwks_uri !== undefined && { jwksUri: serverUri(body.jwks_uri, 'jwks_uri') }),
+    ...(body.jwks_uri !== undefined && { jwksUri: serverUri(body.jwks_uri, 'jwks_uri', refuse) }),
     // FR-C3: a document vouches for nothing, so PKCE is never optional for one.
     requirePkce: true,
     createdAt: now,

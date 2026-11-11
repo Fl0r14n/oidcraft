@@ -87,6 +87,19 @@ describe('dynamic client registration', () => {
     expect((await response.json()).error_description).toContain('must be https')
   })
 
+  test('a refusal carries RFC 7591 §3.2.2’s own code, telling a redirect URI from other metadata', async () => {
+    const missing = await register({ client_name: 'x' })
+    expect((await missing.json()).error).toBe('invalid_redirect_uri')
+    const insecure = await register({ redirect_uris: ['http://rp.example.com/cb'] })
+    expect(insecure.status).toBe(400)
+    expect((await insecure.json()).error).toBe('invalid_redirect_uri')
+    const metadata = await register({
+      redirect_uris: ['https://rp.example.com/cb'],
+      post_logout_redirect_uris: ['http://rp.example.com/bye']
+    })
+    expect((await metadata.json()).error).toBe('invalid_client_metadata')
+  })
+
   test('a loopback http redirect_uri is allowed', async () => {
     expect((await register({ redirect_uris: ['http://127.0.0.1:8080/cb'] })).status).toBe(201)
   })

@@ -146,6 +146,12 @@ describe('client ID metadata documents (FR-C20)', () => {
     expect((await refusedWith({ application_type: 'web' })).toLowerCase()).toContain('https')
   })
 
+  // Read at the authorization endpoint, not at registration: RFC 7591's codes would mean nothing here.
+  test('a bad redirect_uri in a document is invalid_client, not a registration error', async () => {
+    served = document({ application_type: 'web' })
+    expect(((await (await authorize()).json()) as { error: string }).error).toBe('invalid_client')
+  })
+
   // Fetched on a stranger's say-so, so these never reach the host's resolver at all (SSRF).
   test('a client_id that is not a canonical https URL with a path is refused before anything is fetched', async () => {
     for (const clientId of [

@@ -1,6 +1,6 @@
 import type { RequestContext } from '@oidcraft/provider'
 
-type DenoServeInfo = { remoteAddr: { hostname?: string } }
+export type DenoServeInfo = { remoteAddr: { hostname?: string } }
 
 /** `Deno.serve` takes the core's handler directly; the peer address arrives as its second argument. */
 export const denoContext =

@@ -599,9 +599,8 @@ shape and why are ARCHITECTURE.md §2.1.
   through `publish.yml`, with provenance; `@oidcraft/adapter`, `drizzle`, `kysely`, `typeorm` and
   `redis` at `0.1.0` published by hand. A fresh install from npm loads every entry on Node and serves
   discovery from a provider on `@oidcraft/adapter/memory`
-- [ ] Trusted publishing for the five new packages, so their next release goes through `publish.yml`:
-  `npm trust github @oidcraft/<name> --repo Fl0r14n/oidcraft --file publish.yml --allow-publish` for
-  `adapter`, `drizzle`, `kysely`, `typeorm` and `redis` (each needs a browser OTP)
+- [x] Trusted publishing for the five new packages, 2026-11-11, so their next release is a release tag
+  through `publish.yml`, like the rest
 - [x] The client's identity declared once, in `@oidcraft/core`: `ClientCredentials`, `ClientAuthMethod`
   (with `TokenAuthMethod` derived from it), and `tokenAuthMethod` renamed `tokenEndpointAuthMethod`
   everywhere, core included, so core goes to `0.2.0`. `@oidcraft/adapter` depends on core for it

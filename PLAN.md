@@ -595,10 +595,13 @@ shape and why are ARCHITECTURE.md §2.1.
   `test(check.name, check.run)` per check, so no test imports across package folders
 - [x] `publish.yml`, `load-entries.mjs`, the demo and the docs on the new names. FR-A6 and NFR-D4
   reworded: they named the subpaths
-- [ ] **Release, in order**, each first publish by hand (`bun pm pack`, then `npm publish <tgz>
-  --access public`), then `npm trust github <name> --repo Fl0r14n/oidcraft --file publish.yml
-  --allow-publish`: `@oidcraft/core@0.2.0` first (trusted, a release tag); then
-  `@oidcraft/adapter@0.1.0`; then `@oidcraft/provider@0.2.0` (trusted) and the four adapters at `0.1.0`
+- [x] Released 2026-11-11: `@oidcraft/core@0.2.0` and `@oidcraft/provider@0.2.0` from release tags
+  through `publish.yml`, with provenance; `@oidcraft/adapter`, `drizzle`, `kysely`, `typeorm` and
+  `redis` at `0.1.0` published by hand. A fresh install from npm loads every entry on Node and serves
+  discovery from a provider on `@oidcraft/adapter/memory`
+- [ ] Trusted publishing for the five new packages, so their next release goes through `publish.yml`:
+  `npm trust github @oidcraft/<name> --repo Fl0r14n/oidcraft --file publish.yml --allow-publish` for
+  `adapter`, `drizzle`, `kysely`, `typeorm` and `redis` (each needs a browser OTP)
 - [x] The client's identity declared once, in `@oidcraft/core`: `ClientCredentials`, `ClientAuthMethod`
   (with `TokenAuthMethod` derived from it), and `tokenAuthMethod` renamed `tokenEndpointAuthMethod`
   everywhere, core included, so core goes to `0.2.0`. `@oidcraft/adapter` depends on core for it

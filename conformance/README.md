@@ -97,7 +97,10 @@ Forgetting consent is the suite's need, not the profile's. Its browser keeps coo
 so the earlier modules leave a session and remembered consent (FR-I4), and the module in which the
 user rejects authentication would find no screen at all. With consent forgotten, every authorization
 shows the consent screen, and that module refuses on whichever screen it reaches: Deny on consent, or
-Cancel on login, both answering `access_denied`.
+Cancel on login, both answering `access_denied`. The demo forgets a consent once it has yielded a code
+(`apps/demo-server/src/op/forget-consent.ts`), not at once: the authorization resumed after consent
+reads the grant it just wrote. A new consent then writes a second grant for the same account and
+client, which the SQL schemas' unique index refuses, so the setting needs `OIDCRAFT_DB=memory`.
 
 An earlier run used three-second sessions instead, so each module started signed out. It raced: the
 happy flow needs its session until its second client redeems a code, about 3.5 s after sign-in,

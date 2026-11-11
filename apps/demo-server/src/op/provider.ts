@@ -7,9 +7,10 @@ import { mcpEnabled, mcpResources, resolveClientMetadata, seedMcpResourceServer 
 import { accountStore, createDemoAccounts, seedDemoAccounts } from './accounts'
 import { issuer, optional } from './env'
 import { seedFirstPartyClients } from './first-party'
+import { forgettingConsent } from './forget-consent'
 import { seedConformanceClients, seedDemoClient, seedFapiConformanceClients } from './seed'
 import type { Site } from './site'
-import { openStorage } from './storage'
+import { openStorage, storageLocation } from './storage'
 import { upstreams } from './upstreams'
 
 /**
@@ -34,12 +35,13 @@ await seedDemoAccounts(accounts, storage)
 // The FAPI conformance run asks consent on every authorization, so the module in which the user refuses
 // always has a screen to refuse on, whatever session the module before it left (conformance/README.md).
 const forgetConsent = optional('OIDCRAFT_FORGET_CONSENT') === 'on'
-
-const adapter = {
-  ...storage,
-  accounts: accountStore(storage, accounts),
-  ...(forgetConsent && { grants: { ...storage.grants, findByAccountAndClient: async () => undefined } })
+if (forgetConsent && storageLocation() !== 'memory') {
+  // A fresh consent writes a second grant for the pair, which the SQL schemas' unique index refuses.
+  throw new Error('OIDCRAFT_FORGET_CONSENT=on needs OIDCRAFT_DB=memory: it is for the FAPI conformance run only')
 }
+
+const withAccounts = { ...storage, accounts: accountStore(storage, accounts) }
+const adapter = forgetConsent ? forgettingConsent(withAccounts) : withAccounts
 
 // Expired rows are never served (FR-T5); sweeping them only reclaims the space, in bounded batches (NFR-P3).
 setInterval(() => void adapter.artifacts.prune?.(new Date(), 1000), 10 * 60_000).unref()

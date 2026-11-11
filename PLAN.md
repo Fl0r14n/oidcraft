@@ -602,9 +602,6 @@ shape and why are ARCHITECTURE.md §2.1.
 - [x] The client's identity declared once, in `@oidcraft/core`: `ClientCredentials`, `ClientAuthMethod`
   (with `TokenAuthMethod` derived from it), and `tokenAuthMethod` renamed `tokenEndpointAuthMethod`
   everywhere, core included, so core goes to `0.2.0`. `@oidcraft/adapter` depends on core for it
-- [ ] The bindings' next releases carry the rename to their users: a `tokenAuthMethod` in a Vue, React
-  or Angular config stops type-checking, and in plain JS falls back to the default silently. Say so in
-  their release notes
 
 ## Decisions waiting on an answer
 

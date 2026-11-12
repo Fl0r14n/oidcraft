@@ -454,8 +454,10 @@ text it is held to. In fix order.
   changes; the session cookie carries the issuer's path in its name, so two issuers on one host no
   longer share it, and a root issuer keeps `oidcraft.sid`; UserInfo answers a bad token as
   `invalid_token`; the logout token is signed with the client's `id_token_signed_response_alg`
-- [ ] A DPoP nonce demand is a storage write a public client triggers unauthenticated. A stateless
-  HMAC nonce needs a secret in the provider's configuration, so it waits on that being agreed
+- [x] A DPoP nonce demand is a storage write a public client triggers unauthenticated. Decided against,
+  2026-11-12: every DPoP proof already costs one write for its `jti`, the nonce rows live five minutes
+  and are pruned, and a stateless nonce would put a new secret in the configuration of a feature that
+  is off by default
 - [x] UserInfo served a token whose audience is another resource, so the resource server holding it
   could read the profile. Refusing it alone would have left such a client no way to its claims, every
   token from that authorization being restricted (`audienceFor`). Fixed as FR-C5 now reads: refused at

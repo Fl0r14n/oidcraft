@@ -411,10 +411,11 @@ text it is held to. In fix order.
   URI and skips the confirmation. The hint's `sid`/`sub` are not compared with the browser's session
   (`session/end-session.ts:52`). FR-C11
   Fixed: the client is the hint's audience, a `client_id` beside it must name it, and a hint whose `sid` is not the browser's session asks first
-- [ ] A device or CIBA poll rewrites the whole artifact to record `lastPolledAt`, so an approval
+- [x] A device or CIBA poll rewrites the whole artifact to record `lastPolledAt`, so an approval
   landing between its read and its write is overwritten with `pending` (`authorize/device.ts:104`,
   `authorize/ciba.ts:135`). Keep the poll clock in `replay.claim` and never write the artifact from
   the poll. FR-C7
+  Fixed: the answer is a record of its own in both flows, so the poll's rewrite of the request cannot touch it; the poll clock stays on the request
 - [ ] Completing a password reset ends sessions and leaves `offline_access` refresh tokens working,
   since each carries its own sign-in (`accounts/index.ts:338`). FR-T7
 - [ ] Deleting a client leaves its access tokens answering at UserInfo and introspection until they

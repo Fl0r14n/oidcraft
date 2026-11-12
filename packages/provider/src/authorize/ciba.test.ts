@@ -80,6 +80,37 @@ const approve = async (authReqId: string, scopes = ['openid', 'profile', 'paymen
 }
 
 describe('backchannel authentication', () => {
+  // FR-C7: a poll that read the request before the answer landed must not write its stale read over it.
+  test('an approval landing while the client polls is not lost to the poll', async () => {
+    const { auth_req_id } = await (await start()).json()
+    let between: (() => Promise<unknown>) | undefined
+    const racing: Adapter = {
+      ...adapter,
+      artifacts: {
+        ...adapter.artifacts,
+        async find(kind, id) {
+          const read = await adapter.artifacts.find(kind, id)
+          const run = kind === 'backchannel_authentication_request' ? between : undefined
+          between = undefined
+          await run?.()
+          return read
+        }
+      }
+    }
+    provider = build({ adapter: racing })
+    between = () => approve(auth_req_id)
+
+    const first = await pollFor(auth_req_id)
+    if (first.status === 200) return
+    expect((await first.json()).error).toBe('authorization_pending')
+    setSystemTime(new Date(Date.now() + 6000))
+    try {
+      expect((await pollFor(auth_req_id)).status).toBe(200)
+    } finally {
+      setSystemTime()
+    }
+  })
+
   test('issues an auth_req_id with an interval in poll mode', async () => {
     const body = await (await start()).json()
     expect(body.auth_req_id).toBeTruthy()

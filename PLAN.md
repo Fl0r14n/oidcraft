@@ -383,17 +383,26 @@ text it is held to. In fix order.
 
 **Security**
 
-- [ ] A JWT access token's `jti` is a bearer credential: it is the stored artifact's id, and
+- [x] A JWT access token's `jti` is a bearer credential: it is the stored artifact's id, and
   `resolveAccessToken` tries the presented string as an id before anything else, so a `jti` read from
   a resource server's log is a token. The JWT path decodes without verifying
-  (`token/access-token.ts:138`). FR-T2, NFR-S11
-- [ ] Nothing is hashed at rest but reset tokens: codes, access and refresh tokens, device codes, PAR
+  (`token/access-token.ts:138`). FR-T2, NFR-S11. Fixed: the JWT finds its record only once its signature
+  verifies, and a record minted as a JWT is refused when its `jti` is presented bare
+- [x] Nothing is hashed at rest but reset tokens: codes, access and refresh tokens, device codes, PAR
   references and registration access tokens are stored as themselves. One wrapper over
   `adapter.artifacts` in the provider, as `withClientMetadata` wraps `clients`, so the id is
   `sha256(value)` in and out: no call site and no adapter changes. Plain SHA-256, since every value is
   288 random bits; the device `user_code` stays as typed, being short enough that a hash hides
   nothing. A JWT's `jti` becomes the hash, which closes the item above. Live tokens stop working at
-  the upgrade — free with no users, and never again. NFR-S11
+  the upgrade — free with no users, and never again. NFR-S11. Fixed in `src/artifacts.ts`; a
+  registration access token is hashed on the client record and echoed back from the request. The
+  wrapper could not be as transparent as planned: a device request found by its user code carries its
+  stored id and cannot be written back, so the person's answer became a record of its own under the
+  user code — which also takes the device half of the lost-approval item below
+- [x] Found on the way: a replay revoked the grant at one moment, and a redemption racing it wrote its
+  tokens the moment after, so they survived. The existing test passed on the order two promises
+  happened to run in, which hashing changed. Fixed: both sides claim one replay-guard entry, and the
+  redemption that finds it taken revokes again and fails (`token/code.ts`). NFR-S4
 - [ ] Then client secrets, as their own step: `client_secret_basic` and `client_secret_post` compare
   against a stored hash, so `Client` changes shape and the admin shows a secret once, at creation.
   `client_secret_jwt` keeps the secret, as it must. NFR-S11

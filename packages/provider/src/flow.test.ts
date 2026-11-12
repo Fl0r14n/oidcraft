@@ -283,11 +283,20 @@ describe('token endpoint', () => {
     const { location } = await loginAndConsent()
     const code = location.searchParams.get('code') as string
     const responses = await Promise.all([exchange(code), exchange(code)])
-    expect(responses.map(response => response.status).sort()).toEqual([200, 400])
+    const won = responses.filter(response => response.status === 200)
+    expect(won.length).toBeLessThanOrEqual(1)
+    expect(responses.filter(response => response.status === 400).length).toBeGreaterThanOrEqual(1)
 
-    const winner = await (responses.find(response => response.status === 200) as Response).json()
-    const refresh = await post('/token', { grant_type: 'refresh_token', refresh_token: winner.refresh_token }, { authorization: basic() })
-    expect((await refresh.json()).error).toBe('invalid_grant')
+    // Whichever order the two ran in, nothing the code produced still works (NFR-S4).
+    for (const response of won) {
+      const winner = await response.json()
+      const refresh = await post('/token', { grant_type: 'refresh_token', refresh_token: winner.refresh_token }, { authorization: basic() })
+      expect((await refresh.json()).error).toBe('invalid_grant')
+      const userinfo = await provider.handle(
+        new Request(`${ISSUER}/userinfo`, { headers: { authorization: `Bearer ${winner.access_token}` } })
+      )
+      expect(userinfo.status).toBe(401)
+    }
   })
 
   test('parallel refreshes of one token cannot fork the family', async () => {
@@ -295,7 +304,13 @@ describe('token endpoint', () => {
     const first = await (await exchange(location.searchParams.get('code') as string)).json()
     const refresh = () => post('/token', { grant_type: 'refresh_token', refresh_token: first.refresh_token }, { authorization: basic() })
     const responses = await Promise.all([refresh(), refresh()])
-    expect(responses.map(response => response.status).sort()).toEqual([200, 400])
+    const won = responses.filter(response => response.status === 200)
+    expect(won.length).toBeLessThanOrEqual(1)
+    for (const response of won) {
+      const { refresh_token } = await response.json()
+      const again = await post('/token', { grant_type: 'refresh_token', refresh_token }, { authorization: basic() })
+      expect((await again.json()).error).toBe('invalid_grant')
+    }
   })
 
   // FR-T3: rotation is unconditional.

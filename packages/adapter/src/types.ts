@@ -56,6 +56,7 @@ export type Client = ClientCredentials &
     /** OIDC CIBA 1.0 §4: where a ping-mode client is told its result is ready. Required for ping. */
     backchannelClientNotificationEndpoint?: string
     frontchannelLogoutUri?: string
+    /** RFC 7592. A hash of the token, never the token: the provider compares, and cannot show it again (NFR-S11). */
     registrationAccessToken?: string
     /** OIDC DCR 1.0 §2. `native` may redirect to `http://localhost`; `web`, the default, may not (NFR-S2). */
     applicationType?: 'web' | 'native'

@@ -1,8 +1,8 @@
 import type { Artifact, ArtifactKind, Client } from '@oidcraft/adapter'
 import { randomString } from '@oidcraft/core'
-import { decodeJwt, importJWK, SignJWT } from 'jose'
+import { createLocalJWKSet, importJWK, type JSONWebKeySet, jwtVerify, SignJWT } from 'jose'
 import type { ResolvedConfig } from '../config'
-import { signingKey } from '../keys/keys'
+import { jwksResponseBody, signingKey } from '../keys/keys'
 import { defaultSigningAlg } from '../profile/fapi'
 
 export const JWT_ACCESS_TOKEN_TYPE = 'at+jwt'
@@ -36,6 +36,7 @@ export type AccessTokenRequest = {
  */
 export const issueAccessToken = async (config: ResolvedConfig, request: AccessTokenRequest) => {
   const id = randomString()
+  const jwt = request.client.accessTokenFormat === 'jwt'
   const expiresAt = request.expiresAt ?? new Date(Date.now() + config.ttl.accessToken * 1000)
   // RFC 9449 §6: the confirmation claim is what makes the token useless without the key.
   const cnf = confirmationOf(request.binding)
@@ -54,24 +55,24 @@ export const issueAccessToken = async (config: ResolvedConfig, request: AccessTo
       ...(request.actor && { act: request.actor }),
       ...(request.resource && { resource: request.resource }),
       ...(request.audience && { aud: request.audience }),
-      ...(cnf && { cnf })
+      ...(cnf && { cnf }),
+      ...(jwt && { format: 'jwt' })
     },
     expiresAt
   })
 
-  const token =
-    request.client.accessTokenFormat === 'jwt'
-      ? await mintJwtAccessToken(config, {
-          client: request.client,
-          id,
-          subject: request.subject,
-          scopes: request.scopes,
-          expiresAt,
-          audience: request.audience,
-          actor: request.actor,
-          ...(cnf && { confirmation: cnf })
-        })
-      : id
+  const token = jwt
+    ? await mintJwtAccessToken(config, {
+        client: request.client,
+        id,
+        subject: request.subject,
+        scopes: request.scopes,
+        expiresAt,
+        audience: request.audience,
+        actor: request.actor,
+        ...(cnf && { confirmation: cnf })
+      })
+    : id
 
   return {
     token,
@@ -82,7 +83,7 @@ export const issueAccessToken = async (config: ResolvedConfig, request: AccessTo
 
 export type AccessTokenInput = {
   client: Client
-  /** The stored artifact's id, which becomes the `jti` and is how revocation still reaches it. */
+  /** The `jti`, which the artifact is stored under a hash of, and is how revocation still reaches it. */
   id: string
   subject: string | undefined
   scopes: string[]
@@ -96,7 +97,7 @@ export type AccessTokenInput = {
  * RFC 9068. Opt-in per client, because the trade is real: a JWT a resource server can verify
  * offline is a JWT that keeps verifying after it is revoked.
  *
- * The artifact is stored either way, and the `jti` is its id — so revocation and introspection work
+ * The artifact is stored either way, found by the `jti` — so revocation and introspection work
  * on a JWT exactly as on an opaque token, for any resource server that asks rather than verifying
  * locally. That is the part that makes the format a choice rather than a one-way door.
  */
@@ -131,19 +132,20 @@ const looksLikeJwt = (value: string) => value.split('.').length === 3
 /**
  * Finds the artifact behind a presented access token, whichever format it is in.
  *
- * A JWT is only a representation: its `jti` is the stored artifact's id, so a revoked JWT stops
- * working here even though it would still verify offline. Nothing trusts the JWT's own claims —
- * the record is the authority.
+ * A JWT is only a representation: the record is the authority, so a revoked JWT stops working here
+ * even though it would still verify offline. Its `jti` finds that record only once the signature
+ * verifies, and never when presented bare: a `jti` is in every resource server's logs (FR-T2).
  */
 export const resolveAccessToken = async (config: ResolvedConfig, presented: string): Promise<Artifact | undefined> => {
-  const direct = await config.adapter.artifacts.find('access_token', presented)
-  if (direct) return direct
-  if (!looksLikeJwt(presented)) return undefined
+  if (!looksLikeJwt(presented)) {
+    const opaque = await config.adapter.artifacts.find('access_token', presented)
+    return opaque?.payload.format === 'jwt' ? undefined : opaque
+  }
 
   try {
-    const claims = decodeJwt(presented)
-    if (claims.iss !== config.issuer || typeof claims.jti !== 'string') return undefined
-    return await config.adapter.artifacts.find('access_token', claims.jti)
+    const keys = createLocalJWKSet(jwksResponseBody(await config.adapter.keys.active()) as JSONWebKeySet)
+    const { payload } = await jwtVerify(presented, keys, { issuer: config.issuer, typ: JWT_ACCESS_TOKEN_TYPE })
+    return typeof payload.jti === 'string' ? await config.adapter.artifacts.find('access_token', payload.jti) : undefined
   } catch {
     return undefined
   }

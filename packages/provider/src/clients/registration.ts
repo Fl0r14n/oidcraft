@@ -1,5 +1,6 @@
 import type { Client, ClientAuthMethod } from '@oidcraft/adapter'
 import { constantTimeEquals, randomString } from '@oidcraft/core'
+import { storedId } from '../artifacts'
 import { audit } from '../audit'
 import { CIBA_GRANT } from '../authorize/ciba'
 import type { ResolvedConfig } from '../config'
@@ -207,13 +208,13 @@ const metadataFrom = (config: ResolvedConfig, body: Record<string, unknown>): Cl
     }),
     // FR-C3: registering itself gives no assurance; only the host's onRegister can exempt it.
     requirePkce: true,
-    registrationAccessToken: randomString(),
     createdAt: now,
     updatedAt: now
   }
 }
 
-export const clientResponse = (config: ResolvedConfig, client: Client) => ({
+/** The registration access token is stored hashed, so a response carries one only when the caller holds it (NFR-S11). */
+export const clientResponse = (config: ResolvedConfig, client: Client, registrationAccessToken?: string) => ({
   client_id: client.clientId,
   ...(client.clientSecret && { client_secret: client.clientSecret }),
   ...(client.clientName && { client_name: client.clientName }),
@@ -231,8 +232,8 @@ export const clientResponse = (config: ResolvedConfig, client: Client) => ({
   }),
   ...(client.idTokenSignedResponseAlg && { id_token_signed_response_alg: client.idTokenSignedResponseAlg }),
   client_id_issued_at: Math.floor(client.createdAt.getTime() / 1000),
-  ...(client.registrationAccessToken && {
-    registration_access_token: client.registrationAccessToken,
+  ...(registrationAccessToken && {
+    registration_access_token: registrationAccessToken,
     registration_client_uri: `${config.issuer}${config.routes.registration}?client_id=${encodeURIComponent(client.clientId)}`
   })
 })
@@ -244,9 +245,9 @@ const authorizeRegistrationAccess = async (config: ResolvedConfig, request: Requ
   const client = await config.adapter.clients.find(clientId)
   // An unknown client and a wrong token are the same answer: otherwise this enumerates client ids.
   const matches = Boolean(
-    client?.registrationAccessToken && presented && (await constantTimeEquals(presented, client.registrationAccessToken))
+    client?.registrationAccessToken && presented && (await constantTimeEquals(await storedId(presented), client.registrationAccessToken))
   )
-  if (!client || !matches) {
+  if (!client || !presented || !matches) {
     throw new OAuthError('invalid_client', {
       description: 'no registration access token for this client',
       spec: 'RFC 7592 §2',
@@ -254,7 +255,7 @@ const authorizeRegistrationAccess = async (config: ResolvedConfig, request: Requ
       headers: { 'www-authenticate': 'Bearer' }
     })
   }
-  return client
+  return { client, presented }
 }
 
 /** FR-C3: only the host's onRegister can exempt a dynamically registered client, and never a public one. */
@@ -278,15 +279,16 @@ export const registrationEndpoint = async (config: ResolvedConfig, request: Requ
     await assertRegistrable(config, client)
     applyDecision(client, decision)
     if (!config.adapter.clients.upsert) throw new OAuthError('server_error', { description: 'this adapter cannot create clients' })
-    await config.adapter.clients.upsert(client)
+    const registrationAccessToken = randomString()
+    await config.adapter.clients.upsert({ ...client, registrationAccessToken: await storedId(registrationAccessToken) })
     await audit(config, 'client.register', { clientId: client.clientId })
-    return Response.json(clientResponse(config, client), { status: 201, headers: { 'cache-control': 'no-store' } })
+    return Response.json(clientResponse(config, client, registrationAccessToken), { status: 201, headers: { 'cache-control': 'no-store' } })
   }
 
-  const client = await authorizeRegistrationAccess(config, request, url.searchParams.get('client_id'))
+  const { client, presented } = await authorizeRegistrationAccess(config, request, url.searchParams.get('client_id'))
 
   if (request.method === 'GET') {
-    return Response.json(clientResponse(config, client), { headers: { 'cache-control': 'no-store' } })
+    return Response.json(clientResponse(config, client, presented), { headers: { 'cache-control': 'no-store' } })
   }
 
   if (request.method === 'DELETE') {
@@ -316,5 +318,5 @@ export const registrationEndpoint = async (config: ResolvedConfig, request: Requ
   if (!config.adapter.clients.upsert) throw new OAuthError('server_error', { description: 'this adapter cannot update clients' })
   await config.adapter.clients.upsert(updated)
   await audit(config, 'client.update', { clientId: client.clientId })
-  return Response.json(clientResponse(config, updated), { headers: { 'cache-control': 'no-store' } })
+  return Response.json(clientResponse(config, updated, presented), { headers: { 'cache-control': 'no-store' } })
 }

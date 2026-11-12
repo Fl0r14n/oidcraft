@@ -82,7 +82,30 @@ export type DevicePayload = {
   lastPolledAt?: number
 }
 
-const payloadOf = (artifact: Artifact) => artifact.payload as unknown as DevicePayload
+type DeviceDecision = Pick<DevicePayload, 'status' | 'scopes' | 'accountId' | 'sessionId' | 'grantId'>
+
+/**
+ * The person's answer is its own record, under the user code: the device code is stored hashed, so
+ * the record a user code finds cannot be written back (NFR-S11), and a poll rewriting its own read
+ * cannot undo an answer that is somewhere else (FR-C7). It must not carry `userCode`, which adapters index.
+ */
+const decisionFor = async (config: ResolvedConfig, userCode: string) =>
+  (await config.adapter.artifacts.find('user_code', userCode))?.payload as DeviceDecision | undefined
+
+const decide = (config: ResolvedConfig, request: Artifact, decision: DeviceDecision) =>
+  config.adapter.artifacts.upsert({
+    id: (request.payload as unknown as DevicePayload).userCode,
+    kind: 'user_code',
+    clientId: request.clientId,
+    ...(decision.accountId && { accountId: decision.accountId }),
+    payload: decision,
+    expiresAt: request.expiresAt
+  })
+
+const payloadOf = async (config: ResolvedConfig, artifact: Artifact): Promise<DevicePayload> => {
+  const requested = artifact.payload as unknown as DevicePayload
+  return { ...requested, ...(await decisionFor(config, requested.userCode)) }
+}
 
 /**
  * The device polls this; a person approves it elsewhere. Slow-down is enforced here rather than
@@ -97,19 +120,18 @@ const consumeDeviceCode = async (config: ResolvedConfig, deviceCode: string, cli
   if (artifact.consumedAt)
     throw new OAuthError('invalid_grant', { description: 'this device code was already redeemed', spec: 'RFC 8628 §3.5' })
 
-  const payload = payloadOf(artifact)
+  const requested = artifact.payload as unknown as DevicePayload
   const now = Date.now()
-  const since = payload.lastPolledAt ? (now - payload.lastPolledAt) / 1000 : Number.POSITIVE_INFINITY
+  const since = requested.lastPolledAt ? (now - requested.lastPolledAt) / 1000 : Number.POSITIVE_INFINITY
 
-  if (since < payload.interval) {
-    payload.interval += DEFAULT_INTERVAL
-    payload.lastPolledAt = now
-    await config.adapter.artifacts.upsert({ ...artifact, payload: payload as unknown as Record<string, unknown> })
-    throw new OAuthError('slow_down', { description: `poll no more often than every ${payload.interval} seconds`, spec: 'RFC 8628 §3.5' })
+  const slowDown = since < requested.interval
+  const polled = { ...requested, lastPolledAt: now, interval: requested.interval + (slowDown ? DEFAULT_INTERVAL : 0) }
+  await config.adapter.artifacts.upsert({ ...artifact, payload: polled })
+  if (slowDown) {
+    throw new OAuthError('slow_down', { description: `poll no more often than every ${polled.interval} seconds`, spec: 'RFC 8628 §3.5' })
   }
 
-  payload.lastPolledAt = now
-  await config.adapter.artifacts.upsert({ ...artifact, payload: payload as unknown as Record<string, unknown> })
+  const payload = await payloadOf(config, artifact)
 
   if (payload.status === 'denied') throw new OAuthError('access_denied', { description: 'the request was denied', spec: 'RFC 8628 §3.5' })
   if (payload.status === 'pending')
@@ -120,6 +142,7 @@ const consumeDeviceCode = async (config: ResolvedConfig, deviceCode: string, cli
     throw new OAuthError('invalid_grant', { description: 'this device code was already redeemed', spec: 'RFC 8628 §3.5' })
   }
   await config.adapter.artifacts.destroy('device_code', deviceCode)
+  await config.adapter.artifacts.destroy('user_code', requested.userCode)
   return { artifact, payload }
 }
 
@@ -169,7 +192,7 @@ export const findByUserCode = async (config: ResolvedConfig, typed: string, cont
     await recordFailure()
     return undefined
   }
-  const payload = payloadOf(artifact)
+  const payload = await payloadOf(config, artifact)
   const client = await config.adapter.clients.find(artifact.clientId)
   return client ? { artifact, payload, client } : undefined
 }
@@ -188,8 +211,7 @@ export const resolveDeviceCode = async (
   }
 
   if ('denied' in outcome) {
-    const payload = { ...found.payload, status: 'denied' as const }
-    await config.adapter.artifacts.upsert({ ...found.artifact, payload: payload as unknown as Record<string, unknown> })
+    await decide(config, found.artifact, { status: 'denied', scopes: found.payload.scopes })
     return { approved: false as const, client: found.client }
   }
 
@@ -211,19 +233,12 @@ export const resolveDeviceCode = async (
   }
   await config.adapter.grants.upsert(grant)
 
-  const payload = {
-    ...found.payload,
+  await decide(config, found.artifact, {
+    status: 'approved',
     scopes,
-    status: 'approved' as const,
     accountId: outcome.accountId,
     sessionId: outcome.sessionId,
     grantId: grant.id
-  }
-  await config.adapter.artifacts.upsert({
-    ...found.artifact,
-    accountId: outcome.accountId,
-    grantId: grant.id,
-    payload: payload as unknown as Record<string, unknown>
   })
   return { approved: true as const, client: found.client }
 }

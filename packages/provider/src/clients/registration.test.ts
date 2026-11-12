@@ -464,7 +464,8 @@ describe('registration management (RFC 7592)', () => {
     })
     const stored = await adapter.clients.find(client.client_id)
     expect(stored?.clientId).toBe(client.client_id)
-    expect(stored?.registrationAccessToken).toBe(client.registration_access_token)
+    expect((await call('GET', client.client_id, client.registration_access_token)).status).toBe(200)
+    expect((await call('GET', client.client_id, 'chosen-by-me')).status).toBe(401)
   })
 
   test('deletes itself', async () => {

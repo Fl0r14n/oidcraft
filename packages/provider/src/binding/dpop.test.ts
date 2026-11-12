@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, test } from 'bun:test'
 import { memoryAdapter } from '@oidcraft/adapter/memory'
 import { randomString, sha256 } from '@oidcraft/core'
 import { base64url, calculateJwkThumbprint, exportJWK, generateKeyPair, SignJWT } from 'jose'
+import { withHashedArtifacts } from '../artifacts'
 import type { Adapter, Client } from '../index'
 import { createProvider, type Provider } from '../provider'
 import { SESSION_COOKIE } from '../session/session'
@@ -152,7 +153,7 @@ describe('DPoP binding', () => {
   test('introspection reports the binding so a resource server can enforce it', async () => {
     const tokens = await (await exchange(await codeFor(), { dpop: await proof('POST', `${ISSUER}/token`) })).json()
     await adapter.clients.upsert?.({ ...((await adapter.clients.find('rp')) as Client), tokenEndpointAuthMethod: 'none' })
-    const artifact = await adapter.artifacts.find('access_token', tokens.access_token)
+    const artifact = await withHashedArtifacts(adapter).artifacts.find('access_token', tokens.access_token)
     expect(artifact?.payload.cnf).toHaveProperty('jkt')
   })
 })

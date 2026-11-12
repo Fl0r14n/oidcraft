@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
 import { memoryAdapter } from '@oidcraft/adapter/memory'
 import { exportJWK, generateKeyPair, SignJWT } from 'jose'
+import { withHashedArtifacts } from '../artifacts'
 import type { Adapter, Client } from '../index'
 import { createProvider, type Provider } from '../provider'
 
@@ -88,7 +89,7 @@ describe('client credentials grant', () => {
 
   test('the token identifies no end user', async () => {
     const body = await (await post({ grant_type: 'client_credentials', scope: 'orders' }, { authorization: basic() })).json()
-    const stored = await adapter.artifacts.find('access_token', body.access_token)
+    const stored = await withHashedArtifacts(adapter).artifacts.find('access_token', body.access_token)
     expect(stored?.accountId).toBeUndefined()
 
     const userinfo = await provider.handle(new Request(`${ISSUER}/userinfo`, { headers: { authorization: `Bearer ${body.access_token}` } }))

@@ -1,4 +1,5 @@
 import type { Session } from '@oidcraft/adapter'
+import { withHashedArtifacts } from './artifacts'
 import {
   authorizationResponse,
   authorize,
@@ -234,7 +235,8 @@ const dispatch = async (config: ResolvedConfig, route: Route, request: Request, 
  * that holds no state across calls — two processes behind a load balancer behave as one (FR-A1).
  */
 export const createProvider = (config: ProviderConfig): Provider => {
-  const base = resolveConfig(config)
+  const checked = resolveConfig(config)
+  const base = { ...checked, adapter: withHashedArtifacts(checked.adapter) }
   const resolved = base.resolveClientMetadata ? { ...base, adapter: withClientMetadata(base, base.resolveClientMetadata) } : base
   const routes = routeTable(resolved)
 

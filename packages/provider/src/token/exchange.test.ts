@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, test } from 'bun:test'
 import { memoryAdapter } from '@oidcraft/adapter/memory'
 import { randomString, sha256 } from '@oidcraft/core'
 import { base64url } from 'jose'
+import { withHashedArtifacts } from '../artifacts'
 import type { Adapter, Client, ExchangePolicy } from '../index'
 import { createProvider, type Provider } from '../provider'
 import { SESSION_COOKIE } from '../session/session'
@@ -229,7 +230,7 @@ describe('token exchange', () => {
         { authorization: basic() }
       )
     ).json()
-    const stored = await adapter.artifacts.find('access_token', body.access_token)
+    const stored = await withHashedArtifacts(adapter).artifacts.find('access_token', body.access_token)
     expect(stored?.payload.act).toEqual({ client_id: 'rp' })
   })
 })
@@ -492,8 +493,11 @@ describe('what an exchanged token inherits', () => {
   test('never outlives the subject token', async () => {
     const provider = build({ exchangePolicy: allowing })
     const issued = await tokensFor(provider)
-    const stored = await adapter.artifacts.find('access_token', issued.access_token)
-    await adapter.artifacts.upsert({ ...(stored as NonNullable<typeof stored>), expiresAt: new Date(Date.now() + 30_000) })
+    const stored = await withHashedArtifacts(adapter).artifacts.find('access_token', issued.access_token)
+    await withHashedArtifacts(adapter).artifacts.upsert({
+      ...(stored as NonNullable<typeof stored>),
+      expiresAt: new Date(Date.now() + 30_000)
+    })
 
     const body = await (await exchange(provider, issued.access_token)).json()
     expect(body.expires_in).toBeLessThanOrEqual(30)
@@ -503,8 +507,11 @@ describe('what an exchanged token inherits', () => {
   test('a sender-constrained subject token needs its key', async () => {
     const provider = build({ exchangePolicy: allowing })
     const issued = await tokensFor(provider)
-    const stored = await adapter.artifacts.find('access_token', issued.access_token)
-    await adapter.artifacts.upsert({ ...(stored as NonNullable<typeof stored>), payload: { ...stored?.payload, cnf: { jkt: 'someone' } } })
+    const stored = await withHashedArtifacts(adapter).artifacts.find('access_token', issued.access_token)
+    await withHashedArtifacts(adapter).artifacts.upsert({
+      ...(stored as NonNullable<typeof stored>),
+      payload: { ...stored?.payload, cnf: { jkt: 'someone' } }
+    })
     expect((await (await exchange(provider, issued.access_token)).json()).error).toBe('invalid_request')
   })
 
@@ -522,7 +529,7 @@ describe('what an exchanged token inherits', () => {
     const provider = build({ exchangePolicy: allowing, pairwiseSalt: 'a-long-enough-salt' })
     const issued = await tokensFor(provider)
     const body = await (await exchange(provider, issued.access_token)).json()
-    const stored = await adapter.artifacts.find('access_token', body.access_token)
+    const stored = await withHashedArtifacts(adapter).artifacts.find('access_token', body.access_token)
     expect(stored?.payload.subject).toBeTruthy()
     expect(stored?.payload.subject).not.toBe('ada')
   })

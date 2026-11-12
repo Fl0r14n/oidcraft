@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, setSystemTime, test } from 'bun:test'
 import { memoryAdapter } from '@oidcraft/adapter/memory'
 import { randomString, sha256 } from '@oidcraft/core'
 import { base64url, compactDecrypt, createLocalJWKSet, decodeJwt, decodeProtectedHeader, exportJWK, generateKeyPair, jwtVerify } from 'jose'
+import { withHashedArtifacts } from './artifacts'
 import { certificateThumbprint } from './binding/mtls'
 import type { Adapter, Client, RequestContext } from './index'
 import { createProvider, type Provider } from './provider'
@@ -145,7 +146,7 @@ describe('FR-T2: JWT access tokens', () => {
       })
     )
     expect(revoked.status).toBe(200)
-    expect(await adapter.artifacts.find('access_token', decodeJwt(issued.access_token).jti as string)).toBeUndefined()
+    expect(await withHashedArtifacts(adapter).artifacts.find('access_token', decodeJwt(issued.access_token).jti as string)).toBeUndefined()
 
     const after = await provider.handle(new Request(`${ISSUER}/userinfo`, { headers: { authorization: `Bearer ${issued.access_token}` } }))
     expect(after.status).toBe(401)
@@ -167,7 +168,7 @@ describe('FR-T2: JWT access tokens', () => {
       ).json()
 
     expect(await introspect(issued.access_token)).toMatchObject({ active: true, client_id: 'rp', scope: 'openid profile' })
-    await adapter.artifacts.destroy('access_token', decodeJwt(issued.access_token).jti as string)
+    await withHashedArtifacts(adapter).artifacts.destroy('access_token', decodeJwt(issued.access_token).jti as string)
     expect(await introspect(issued.access_token)).toEqual({ active: false })
   })
 
@@ -383,7 +384,7 @@ describe('FR-C4 and FR-C13: mTLS', () => {
     await adapter.clients.upsert?.(client({ certificateBoundAccessTokens: true }))
     const provider = build({ capabilities: { clientCertificate: true } })
     const issued = await tokensFor(provider, 'rp', { clientCertificate: certificate })
-    const stored = await adapter.artifacts.find('access_token', issued.access_token)
+    const stored = await withHashedArtifacts(adapter).artifacts.find('access_token', issued.access_token)
     expect((stored?.payload.cnf as { 'x5t#S256'?: string } | undefined)?.['x5t#S256']).toBe(await certificateThumbprint(DER))
 
     const without = await provider.handle(
@@ -428,7 +429,7 @@ describe('FR-C4 and FR-C13: mTLS', () => {
         clientCertificate: certificate
       })
     ).json()
-    const stored = await adapter.artifacts.find('access_token', refreshed.access_token)
+    const stored = await withHashedArtifacts(adapter).artifacts.find('access_token', refreshed.access_token)
     expect((stored?.payload.cnf as { 'x5t#S256'?: string } | undefined)?.['x5t#S256']).toBe(certificate.thumbprint)
   })
 
@@ -632,8 +633,11 @@ describe('FR-C8: introspection by a resource server', () => {
     await adapter.clients.upsert?.(client({ clientId: 'api', resourceServer: true }))
     const provider = build()
     const issued = await tokensFor(provider)
-    const stored = await adapter.artifacts.find('access_token', issued.access_token)
-    await adapter.artifacts.upsert({ ...(stored as NonNullable<typeof stored>), payload: { ...stored?.payload, aud: 'billing' } })
+    const stored = await withHashedArtifacts(adapter).artifacts.find('access_token', issued.access_token)
+    await withHashedArtifacts(adapter).artifacts.upsert({
+      ...(stored as NonNullable<typeof stored>),
+      payload: { ...stored?.payload, aud: 'billing' }
+    })
     expect(await introspect(provider, issued.access_token, 'api')).toEqual({ active: false })
   })
 
@@ -798,7 +802,7 @@ describe('FR-T6: a refresh token without offline_access is bound to the session'
   test('it expires no later than the session, however long its own lifetime', async () => {
     await adapter.clients.upsert?.(client())
     const issued = await tokensFor(build({ ttl: { session: 600, refreshToken: 86_400 } }), 'rp')
-    const stored = await adapter.artifacts.find('refresh_token', issued.refresh_token)
+    const stored = await withHashedArtifacts(adapter).artifacts.find('refresh_token', issued.refresh_token)
     const session = (await adapter.sessions.listForAccount('ada'))[0]
     expect(stored?.expiresAt.getTime()).toBeLessThanOrEqual(session?.expiresAt.getTime() as number)
   })
@@ -844,6 +848,6 @@ describe('one way to make an access token', () => {
       )
     ).json()
     expect(decodeProtectedHeader(body.access_token).typ).toBe('at+jwt')
-    expect(await adapter.artifacts.find('access_token', decodeJwt(body.access_token).jti as string)).toBeTruthy()
+    expect(await withHashedArtifacts(adapter).artifacts.find('access_token', decodeJwt(body.access_token).jti as string)).toBeTruthy()
   })
 })

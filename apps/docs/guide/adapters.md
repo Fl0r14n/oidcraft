@@ -101,7 +101,8 @@ username at sign-up, creating a realm. Single use cannot be built from a read fo
 
 Run against eight parallel callers for one key, all eight win. Through a provider, that would be
 two parallel redemptions of one authorization code both receiving tokens. With the atomic `insert`
-above, the test sees exactly one redemption succeed and the other refused.
+above, the test sees at most one redemption succeed: the other is a replay, which revokes the grant, and
+refuses the first as well when it gets there before the first has finished.
 
 What qualifies: Redis `SET NX`, a Cloudflare Durable Object, a single-process `Map`, a SQL
 `INSERT` guarded by a primary key. What does not: an eventually consistent store, such as Workers

@@ -1,4 +1,5 @@
 import type { Artifact, Client } from '@oidcraft/adapter'
+import { storedId } from '../artifacts'
 import { verifyChallenge } from '../authorize/pkce'
 import { audienceFor, requestedResources } from '../authorize/resources'
 import type { ResolvedConfig } from '../config'
@@ -12,11 +13,28 @@ import { type Binding, issueTokens, loadGrantAndSession, loadGrantAndSignIn } fr
  * (FR-T3, FR-T4, NFR-S4, RFC 9700 §4.14.2).
  */
 const revokeOnReplay = async (config: ResolvedConfig, artifact: Artifact, what: string) => {
+  await replayed(config, artifact)
   if (artifact.grantId) await config.adapter.artifacts.revokeByGrantId(artifact.grantId)
   throw new OAuthError('invalid_grant', {
     description: `this ${what} was already used; the grant has been revoked`,
     spec: 'RFC 9700 §4.14.2'
   })
+}
+
+/** How long a replay is remembered: longer than any redemption takes to write its tokens. */
+const REPLAY_WINDOW = 60
+
+/**
+ * True for the first caller. A replay claims it before revoking; the redemption that won claims it
+ * after writing its tokens, and a `false` there means the revocation ran first and missed them.
+ */
+const replayed = async (config: ResolvedConfig, artifact: Artifact) =>
+  !(await config.adapter.replay.claim('redeemed', await storedId(`${artifact.kind}:${artifact.id}`), REPLAY_WINDOW))
+
+/** NFR-S4: tokens written after a concurrent replay revoked the grant must not outlive it. */
+const unlessReplayed = async <T>(config: ResolvedConfig, artifact: Artifact, what: string, tokens: T) => {
+  if (await replayed(config, artifact)) await revokeOnReplay(config, artifact, what)
+  return tokens
 }
 
 const scopesOf = (artifact: Artifact) => (artifact.payload.scopes as string[] | undefined) ?? []
@@ -61,7 +79,7 @@ export const authorizationCodeGrant = async (config: ResolvedConfig, client: Cli
   if (!(await config.adapter.artifacts.consume('authorization_code', code))) await revokeOnReplay(config, artifact, 'authorization code')
 
   const { grant, session } = await loadGrantAndSession(config, artifact)
-  return issueTokens(config, client, grant, session, scopesOf(artifact), {
+  const tokens = await issueTokens(config, client, grant, session, scopesOf(artifact), {
     nonce: artifact.payload.nonce as string | undefined,
     binding,
     authorizationDetails: artifact.payload.authorizationDetails as unknown[] | undefined,
@@ -69,6 +87,7 @@ export const authorizationCodeGrant = async (config: ResolvedConfig, client: Cli
     audience,
     resources: resourcesOf(artifact)
   })
+  return unlessReplayed(config, artifact, 'authorization code', tokens)
 }
 
 export const refreshTokenGrant = async (config: ResolvedConfig, client: Client, form: URLSearchParams, binding: Binding) => {
@@ -108,7 +127,7 @@ export const refreshTokenGrant = async (config: ResolvedConfig, client: Client, 
   }
 
   // RFC 8705 §3: the new access token is bound to the certificate presented now, as at issuance.
-  return issueTokens(config, client, grant, session, requested?.length ? requested : granted, {
+  const tokens = await issueTokens(config, client, grant, session, requested?.length ? requested : granted, {
     binding: { jkt: bound?.jkt ?? binding.jkt, x5t: binding.x5t },
     refreshScopes: granted,
     sessionBound: artifact.payload.sessionBound === true,
@@ -117,4 +136,5 @@ export const refreshTokenGrant = async (config: ResolvedConfig, client: Client, 
     audience,
     resources: resourcesOf(artifact)
   })
+  return rotate ? unlessReplayed(config, artifact, 'refresh token', tokens) : tokens
 }

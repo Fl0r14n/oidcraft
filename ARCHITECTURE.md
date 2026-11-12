@@ -358,6 +358,19 @@ returns `FullAdapter`, all three at once, so it satisfies each of them. `createP
 plain `Adapter` and refuses `upstreams` without the brokering stores when it is constructed
 (NFR-D2), since one union per optional feature would make its config type unreadable.
 
+**No bearer credential reaches an adapter as itself (NFR-S11).** `createProvider` wraps the
+`ArtifactStore` it is given (`src/artifacts.ts`), so a code, an access or refresh token, a device
+code, a pushed-request reference or an interaction id is stored under the SHA-256 of its value, and
+a copy of the database redeems nothing. It is one wrapper in the provider rather than a rule for
+five adapters to remember, and an adapter cannot tell the difference: an id is an id. Unsalted,
+because each value is 288 random bits. A record found by its value comes back carrying that value;
+one found another way — a device request by its user code — carries the stored id and is never
+written back, which is why the person's answer to a device request is a record of its own, under the
+user code. A registration access token is hashed the same way on the client record, so a response
+carries it only when the caller just presented it. A JWT access token's `jti` is the value its
+record is stored under a hash of: the JWT finds the record once its signature verifies, and the
+`jti` presented bare finds nothing (FR-T2). Client secrets are not hashed yet (PLAN.md).
+
 The Drizzle adapter is the demonstration: `explain query plan` in its test suite asserts that
 revoking by grant and looking up a device's user code both hit an index rather than scanning, which
 is exactly what the blob shape below cannot do.

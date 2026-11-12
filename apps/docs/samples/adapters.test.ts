@@ -177,10 +177,12 @@ describe('an insert that reads and then writes', () => {
     expect(results.filter(Boolean)).toHaveLength(8)
   })
 
-  test('where the atomic one lets exactly one redemption of a code win', async () => {
+  // The second redemption is a replay and revokes the grant (FR-T4), so the first is refused too when the replay got there first.
+  test('where the atomic one lets at most one redemption of a code win', async () => {
     const { code, verifier } = await signIn(provider)
     const statuses = (await Promise.all([redeem(provider, code, verifier), redeem(provider, code, verifier)])).map(r => r.status)
-    expect(statuses.sort()).toEqual([200, 400])
+    expect(statuses.filter(status => status === 200).length).toBeLessThanOrEqual(1)
+    expect(statuses).toContain(400)
   })
 })
 

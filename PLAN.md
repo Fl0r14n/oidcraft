@@ -430,9 +430,10 @@ text it is held to. In fix order.
   client is stored (the request path still refuses it), and a pairwise client with redirect URIs on
   several hosts is stored and then throws at the token endpoint. One `validateClient` for create,
   update and registration. FR-M1
-- [ ] Revoking a refresh token deletes the grant (`resource/revocation.ts:34`); FR-C8 now says the
+- [x] Revoking a refresh token deletes the grant (`resource/revocation.ts:34`); FR-C8 now says the
   consent stays, as `Grant`'s own comment and ARCHITECTURE.md §4 always did. Only `/revoke` is
   affected: end-session never touched the grant
+  Fixed
 - [ ] One grant per account and client means one app on two devices shares it, so a revocation or a
   detected replay on one signs out the other. A family id on refresh tokens, and revocation and
   replay scoped to the family; FR-C8, FR-T3 and FR-T4 change with it. After the item above, not with it

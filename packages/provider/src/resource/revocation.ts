@@ -27,11 +27,11 @@ export const revocationEndpoint = async (config: ResolvedConfig, request: Reques
     const artifact = await findPresented(config, kind, presented)
     if (!artifact || artifact.clientId !== client.clientId) continue
 
-    // Revoking a refresh token takes the whole grant with it: leaving the access tokens it minted
-    // alive would make "sign this application out" mean nothing for their remaining lifetime.
+    // Revoking a refresh token takes every token of its grant with it: leaving the access tokens it
+    // minted alive would make "sign this application out" mean nothing for their remaining lifetime.
+    // The grant stays: it is the consent, which signing out does not withdraw (FR-C8, FR-I4).
     if (kind === 'refresh_token' && artifact.grantId) {
       await config.adapter.artifacts.revokeByGrantId(artifact.grantId)
-      await config.adapter.grants.destroy(artifact.grantId)
     } else {
       await config.adapter.artifacts.destroy(kind, artifact.id)
     }

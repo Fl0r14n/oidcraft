@@ -98,7 +98,7 @@ const tokens = async () => {
 }
 
 describe('revocation', () => {
-  test('revoking a refresh token takes the whole grant with it', async () => {
+  test("revoking a refresh token takes the grant's tokens with it", async () => {
     const issued = await tokens()
     const response = await post('/revoke', { token: issued.refresh_token }, { authorization: basic() })
     expect(response.status).toBe(200)
@@ -109,6 +109,25 @@ describe('revocation', () => {
     expect(userinfo.status).toBe(401)
     const refresh = await post('/token', { grant_type: 'refresh_token', refresh_token: issued.refresh_token }, { authorization: basic() })
     expect((await refresh.json()).error).toBe('invalid_grant')
+  })
+
+  // FR-C8, FR-I4: signing an application out is not withdrawing consent, so the next sign-in is not asked again.
+  test('revoking a refresh token keeps the consent', async () => {
+    const issued = await tokens()
+    await post('/revoke', { token: issued.refresh_token }, { authorization: basic() })
+    expect(await adapter.grants.listForAccount('ada')).toHaveLength(1)
+
+    const params = new URLSearchParams({
+      client_id: 'rp',
+      redirect_uri: REDIRECT,
+      response_type: 'code',
+      scope: 'openid profile offline_access',
+      prompt: 'none',
+      code_challenge: challenge,
+      code_challenge_method: 'S256'
+    })
+    const again = await provider.handle(new Request(`${ISSUER}/authorize?${params}`, { headers: { cookie: issued.cookie } }))
+    expect(new URL(again.headers.get('location') as string).searchParams.get('code')).toBeTruthy()
   })
 
   test('revoking an access token leaves the refresh token usable', async () => {

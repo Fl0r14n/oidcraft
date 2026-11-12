@@ -456,11 +456,11 @@ text it is held to. In fix order.
   `invalid_token`; the logout token is signed with the client's `id_token_signed_response_alg`
 - [ ] A DPoP nonce demand is a storage write a public client triggers unauthenticated. A stateless
   HMAC nonce needs a secret in the provider's configuration, so it waits on that being agreed
-- [ ] UserInfo serves a token whose audience is another resource (`resource/userinfo.ts:72`). Held:
-  once an authorization names a resource every token from it is restricted to that resource
-  (`audienceFor`), so refusing it at UserInfo as FR-C5 now says leaves such a client with no way to
-  read the profile claims it was granted. Decide first: keep serving it, or give the client a way
-  to ask for a token for UserInfo
+- [x] UserInfo served a token whose audience is another resource, so the resource server holding it
+  could read the profile. Refusing it alone would have left such a client no way to its claims, every
+  token from that authorization being restricted (`audienceFor`). Fixed as FR-C5 now reads: refused at
+  UserInfo, and the scope claims travel in the ID token of exactly those responses (OIDC Core §5.4).
+  The conformance plans send no `resource`, so they see no change
 
 **Operations**
 

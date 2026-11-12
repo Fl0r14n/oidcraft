@@ -25,6 +25,12 @@ const halfHash = async (value: string, alg: string) => {
   return base64url.encode(digest.slice(0, digest.length / 2))
 }
 
+// What says how and when the person signed in is the session's to state, never an account claim's (FR-F6).
+const PROTOCOL_CLAIMS = new Set(['iss', 'sub', 'aud', 'exp', 'iat', 'nbf', 'jti', 'nonce', 'acr', 'amr', 'auth_time', 'azp', 'sid', 'idp'])
+
+const released = (claims: Record<string, unknown> | undefined) =>
+  Object.fromEntries(Object.entries(claims ?? {}).filter(([name]) => !PROTOCOL_CLAIMS.has(name) && !name.endsWith('_hash')))
+
 export const mintIdToken = async (config: ResolvedConfig, input: IdTokenInput) => {
   const keys = await config.adapter.keys.active()
   const alg = input.client.idTokenSignedResponseAlg ?? defaultSigningAlg(config, input.client, keys)
@@ -35,7 +41,7 @@ export const mintIdToken = async (config: ResolvedConfig, input: IdTokenInput) =
 
   const now = Math.floor(Date.now() / 1000)
   const payload: Record<string, unknown> = {
-    ...input.claims,
+    ...released(input.claims),
     sub: input.subject ?? input.session.accountId,
     auth_time: Math.floor(input.session.authTime.getTime() / 1000),
     ...(input.nonce && { nonce: input.nonce }),

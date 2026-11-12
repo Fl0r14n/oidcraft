@@ -72,6 +72,10 @@ export const userinfoEndpoint = async (config: ResolvedConfig, request: Request,
   const artifact = await resolveAccessToken(config, presented.token)
   if (!artifact || artifact.consumedAt) throw unauthorized('the access token is unknown or expired')
   if (!artifact.accountId) throw unauthorized('this access token identifies no end user')
+  // FR-C5: a token for a resource is that resource's. Served here, the resource server holding it could read the profile.
+  if (artifact.payload.aud !== undefined || artifact.payload.resource !== undefined) {
+    throw unauthorized('this access token was issued for another resource; the ID token carries the claims')
+  }
 
   const confirmation = artifact.payload.cnf as { jkt?: string; 'x5t#S256'?: string } | undefined
 

@@ -33,7 +33,7 @@ const accounts = {
     return { accountId, claims: {} }
   },
   async claims() {
-    return {}
+    return { name: 'Ada' }
   }
 }
 
@@ -193,6 +193,38 @@ describe('resource indicators (RFC 8707, FR-C19)', () => {
     const tokens = await (await redeem(await codeFor([]))).json()
     expect((await introspect(tokens.access_token, 'rp')).aud).toBe('rp')
     expect((await introspect(tokens.access_token, 'mcp-server')).active).toBe(true)
+  })
+})
+
+// FR-C5: a token for a resource is that resource's, and the resource server holding it must not read the profile with it.
+describe('UserInfo and a token issued for a resource', () => {
+  const userinfo = (token: string) => provider.handle(new Request(`${ISSUER}/userinfo`, { headers: { authorization: `Bearer ${token}` } }))
+
+  test('the token is refused at UserInfo', async () => {
+    const issued = await (await redeem(await codeFor([MCP]))).json()
+    const response = await userinfo(issued.access_token)
+    expect(response.status).toBe(401)
+    expect((await response.json()).error).toBe('invalid_token')
+  })
+
+  // OIDC Core §5.4: with no access token for UserInfo, the scope claims are the ID token's to carry.
+  test('so the ID token carries the claims the scopes released', async () => {
+    const issued = await (await redeem(await codeFor([MCP]))).json()
+    expect(decodeJwt(issued.id_token)).toMatchObject({ sub: 'ada', name: 'Ada' })
+  })
+
+  test('and still does after a refresh', async () => {
+    const issued = await (await redeem(await codeFor([MCP]))).json()
+    const refreshed = await (await post('/token', { grant_type: 'refresh_token', refresh_token: issued.refresh_token })).json()
+    expect(decodeJwt(refreshed.id_token)).toMatchObject({ sub: 'ada', name: 'Ada' })
+  })
+
+  test('without a resource the claims stay at UserInfo, and out of the ID token', async () => {
+    const issued = await (await redeem(await codeFor([]))).json()
+    expect(decodeJwt(issued.id_token).name).toBeUndefined()
+    const response = await userinfo(issued.access_token)
+    expect(response.status).toBe(200)
+    expect((await response.json()).name).toBe('Ada')
   })
 })
 

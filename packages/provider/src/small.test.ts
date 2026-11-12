@@ -166,3 +166,20 @@ describe('an unexpected failure is reported to the host', () => {
     expect((await provider.handle(new Request(`${ISSUER}/jwks`))).status).toBe(500)
   })
 })
+
+describe('claims an ID token carries', () => {
+  test('cannot restate how the person signed in', async () => {
+    const { mintIdToken } = await import('./token/id-token')
+    const { decodeJwt } = await import('jose')
+    const provider = build()
+    const session = { id: 's1', accountId: 'ada', authTime: new Date(), clients: [], expiresAt: new Date(Date.now() + 60_000) }
+    const token = await mintIdToken(provider.config, {
+      client: client(),
+      session,
+      claims: { name: 'Ada', acr: 'gold', amr: ['hwk'], sub: 'someone-else', nonce: 'forged', at_hash: 'forged' }
+    })
+    const claims = decodeJwt(token)
+    expect(claims).toMatchObject({ name: 'Ada', sub: 'ada' })
+    for (const name of ['acr', 'amr', 'nonce', 'at_hash']) expect(claims[name]).toBeUndefined()
+  })
+})

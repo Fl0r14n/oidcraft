@@ -102,15 +102,11 @@ export const issueTokens = async (
   }
 
   // OIDC Core §3.1.2.1: without openid this is plain OAuth, and an ID token would answer a question nobody asked.
+  // OIDC Core §5.4: scope claims are UserInfo's to release while the access token can be used there. One
+  // issued for a resource cannot (FR-C5), which is §5.4's other case: the ID token carries them.
+  const claims = scopes.includes('openid') && audience ? await config.adapter.accounts.claims(session.accountId, scopes, []) : undefined
   const idToken = scopes.includes('openid')
-    ? await mintIdToken(config, {
-        client,
-        session,
-        subject,
-        nonce,
-        // OIDC Core §5.4: an access token is always issued here, so scope claims are UserInfo's to release.
-        accessToken
-      })
+    ? await mintIdToken(config, { client, session, subject, nonce, accessToken, claims })
     : undefined
 
   return {

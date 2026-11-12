@@ -93,7 +93,10 @@ another one; without it, every provider a client talks to could impersonate it e
 **FR-C5 — UserInfo endpoint.** Claims resolved per request through `AccountStore.claims`, never
 served from a copy cached at authentication time. Signed and/or encrypted responses when the
 client asks for them. An access token restricted to a resource (FR-C19) is refused here: it was
-issued for that resource, and UserInfo is not it.
+issued for that resource, and the resource server holding it must not read the profile with it. The
+claims its scopes release then travel in the ID token instead, which is OIDC Core §5.4's own rule
+for a response with no access token to present at UserInfo. Without a `resource`, nothing changes:
+the claims stay at UserInfo and out of the ID token.
 
 **FR-C6 — Discovery.** `/.well-known/openid-configuration` (OIDC Discovery 1.0), advertising only
 what the running configuration actually supports, and `/.well-known/oauth-authorization-server`

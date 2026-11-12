@@ -475,10 +475,12 @@ text it is held to. In fix order.
 - [x] Only artifacts can be pruned. Replay entries and sessions grow without bound on SQL, and the
   Kysely `prune` deletes a row at a time. NFR-P3
   Fixed: `sessions.prune` and `replay.prune` in the contract, the three SQL adapters and the conformance suite, with a session expiry index in `0004_indexes`. The sweeps still delete a row at a time: a composite key has no portable single-statement bounded delete across SQLite and Postgres
-- [ ] `clients.list(cursor, limit)` ignores both in every adapter read
+- [x] `clients.list(cursor, limit)` ignores both in every adapter read
+  Fixed: client id order, the cursor the last id of a page, checked by the conformance suite
 - [ ] A first consent from two tabs inserts two grants with different ids against a unique
   `(account_id, client_id)` index; the second is a 500. Upsert on that pair
-- [ ] `findByUserCode` and `findByUpstreamSession` do not filter expired rows where `find` does
+- [x] `findByUserCode` and `findByUpstreamSession` do not filter expired rows where `find` does
+  Fixed in `fromKv` and the three SQL adapters, and checked by the conformance suite
 
 **Structure**
 

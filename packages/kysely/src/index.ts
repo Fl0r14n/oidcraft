@@ -270,14 +270,16 @@ export const kyselyAdapter = (options: KyselyAdapterOptions): FullAdapter => {
       async destroy(clientId) {
         await db.deleteFrom('oidc_clients').where('client_id', '=', clientId).execute()
       },
-      async list() {
-        const rows = await db.selectFrom('oidc_clients').selectAll().execute()
+      async list(cursor, limit) {
+        let query = db.selectFrom('oidc_clients').selectAll().orderBy('client_id')
+        if (cursor !== undefined) query = query.where('client_id', '>', cursor)
+        // One more than asked, to know whether another page follows.
+        const rows = await (limit === undefined ? query : query.limit(limit + 1)).execute()
+        const more = limit !== undefined && rows.length > limit
+        const shown = more ? rows.slice(0, limit) : rows
         return {
-          clients: rows.map(row => ({
-            ...parse<Client>(row.data),
-            createdAt: at(row.created_at),
-            updatedAt: at(row.updated_at)
-          }))
+          clients: shown.map(row => ({ ...parse<Client>(row.data), createdAt: at(row.created_at), updatedAt: at(row.updated_at) })),
+          ...(more && { cursor: shown.at(-1)?.client_id as string })
         }
       }
     },
@@ -304,6 +306,7 @@ export const kyselyAdapter = (options: KyselyAdapterOptions): FullAdapter => {
           .selectAll()
           .where('idp', '=', provider)
           .where('upstream_session_id', '=', upstreamSessionId)
+          .where('expires_at', '>', now())
           .execute()
         return rows.map(toSession)
       },

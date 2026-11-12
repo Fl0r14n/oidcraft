@@ -308,6 +308,46 @@ export const adapterConformance = (create: () => Adapter | Promise<Adapter>, opt
       }
     },
     {
+      // FR-T5 again: expiry holds on every way in, not only the lookup by id.
+      name: 'an expired record is not served by its other lookups either',
+      run: async () => {
+        const adapter = await full()
+        await adapter.artifacts.upsert(artifact({ id: 'dx', kind: 'device_code', payload: { userCode: 'GONE-CODE' }, expiresAt: past() }))
+        same(await adapter.artifacts.findByUserCode?.('GONE-CODE'), undefined, 'an expired device code found by its user code')
+        if (adapter.sessions.findByUpstreamSession) {
+          await adapter.sessions.upsert(session({ id: 'sx', idp: 'entra', upstreamSessionId: 'up-gone', expiresAt: past() }))
+          same(await adapter.sessions.findByUpstreamSession('entra', 'up-gone'), [], 'an expired session found by its upstream session')
+        }
+      }
+    },
+    {
+      name: 'clients list in pages, when the store lists at all',
+      run: async () => {
+        const adapter = await full()
+        if (!adapter.clients.list || !adapter.clients.upsert) return
+        for (const id of ['page-b', 'page-a', 'page-c']) await adapter.clients.upsert(client(id))
+        const mine = (clients: Client[]) => clients.map(found => found.clientId).filter(id => id.startsWith('page-'))
+        same(mine((await adapter.clients.list()).clients).sort(), ['page-a', 'page-b', 'page-c'], 'every client without a limit')
+
+        const seen: string[] = []
+        let cursor: string | undefined
+        for (let page = 0; page < 10; page++) {
+          const listed = await adapter.clients.list(cursor, 2)
+          holds(listed.clients.length <= 2, 'a page held more clients than its limit')
+          seen.push(...listed.clients.map(found => found.clientId))
+          cursor = listed.cursor
+          if (cursor === undefined) break
+        }
+        same(cursor, undefined, 'the last page carries no cursor')
+        same(
+          seen.filter(id => id.startsWith('page-')),
+          ['page-a', 'page-b', 'page-c'],
+          'each client once, in client id order'
+        )
+        same(new Set(seen).size, seen.length, 'no client listed twice')
+      }
+    },
+    {
       name: 'sessions round-trip and list by account',
       run: async () => {
         const adapter = await full()

@@ -92,12 +92,21 @@ export const drizzleAdapter = (options: DrizzleAdapterOptions): FullAdapter => {
       async destroy(clientId) {
         await db.delete(clients).where(eq(clients.clientId, clientId))
       },
-      async list() {
-        const rows = await db.select().from(clients)
+      async list(cursor, limit) {
+        const ordered = db
+          .select()
+          .from(clients)
+          .where(cursor === undefined ? undefined : gt(clients.clientId, cursor))
+          .orderBy(clients.clientId)
+        // One more than asked, to know whether another page follows.
+        const rows = await (limit === undefined ? ordered : ordered.limit(limit + 1))
+        const more = limit !== undefined && rows.length > limit
+        const shown = more ? rows.slice(0, limit) : rows
         return {
-          clients: rows.map(
+          clients: shown.map(
             row => ({ ...(row.data as Record<string, unknown>), createdAt: row.createdAt, updatedAt: row.updatedAt }) as Client
-          )
+          ),
+          ...(more && { cursor: shown.at(-1)?.clientId as string })
         }
       }
     },
@@ -185,7 +194,7 @@ export const drizzleAdapter = (options: DrizzleAdapterOptions): FullAdapter => {
         const rows = await db
           .select()
           .from(sessions)
-          .where(and(eq(sessions.idp, provider), eq(sessions.upstreamSessionId, upstreamSessionId)))
+          .where(and(eq(sessions.idp, provider), eq(sessions.upstreamSessionId, upstreamSessionId), gt(sessions.expiresAt, now())))
         return rows.map(toSession)
       },
       async upsert(session) {

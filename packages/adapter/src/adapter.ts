@@ -49,6 +49,7 @@ export type EntityStore<T, Id extends unknown[] = [id: string]> = {
 /** Writes are optional so a deployment can serve a fixed set of clients; registration then refuses (FR-C9). */
 export type ClientStore = Pick<EntityStore<Client>, 'find'> &
   Partial<Omit<EntityStore<Client>, 'find'>> & {
+    /** In client id order. `cursor` is the one a previous page returned; a page without one is the last. No `limit` lists them all. */
     list?(cursor?: string, limit?: number): Promise<{ clients: Client[]; cursor?: string }>
   }
 

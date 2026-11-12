@@ -275,14 +275,21 @@ export const typeormAdapter = (options: TypeormAdapterOptions): FullAdapter => {
       async destroy(clientId) {
         await clients.delete({ client_id: clientId })
       },
-      async list() {
-        const rows = await clients.find()
+      async list(cursor, limit) {
+        const query = clients.createQueryBuilder('c').orderBy('c.client_id')
+        if (cursor !== undefined) query.where('c.client_id > :cursor', { cursor })
+        // One more than asked, to know whether another page follows.
+        if (limit !== undefined) query.limit(limit + 1)
+        const rows = await query.getMany()
+        const more = limit !== undefined && rows.length > limit
+        const shown = more ? rows.slice(0, limit) : rows
         return {
-          clients: rows.map(row => ({
+          clients: shown.map(row => ({
             ...parse<Client>(row.data),
             createdAt: new Date(row.created_at),
             updatedAt: new Date(row.updated_at)
-          }))
+          })),
+          ...(more && { cursor: shown.at(-1)?.client_id as string })
         }
       }
     },
@@ -302,7 +309,15 @@ export const typeormAdapter = (options: TypeormAdapterOptions): FullAdapter => {
         return rows.map(toSession)
       },
       async findByUpstreamSession(provider, upstreamSessionId) {
-        return (await sessions.findBy({ idp: provider, upstream_session_id: upstreamSessionId })).map(toSession)
+        const rows = await sessions
+          .createQueryBuilder('s')
+          .where('s.idp = :provider and s.upstream_session_id = :upstreamSessionId and s.expires_at > :now', {
+            provider,
+            upstreamSessionId,
+            now: now()
+          })
+          .getMany()
+        return rows.map(toSession)
       },
       async upsert(session) {
         const row: SessionRow = {

@@ -12,7 +12,8 @@ import type {
   RealmStore,
   ReplayGuard
 } from './adapter'
-import type { Artifact, Credential, Grant, LinkedIdentity, Realm, Seconds, Session } from './types'
+import { page } from './page'
+import type { Artifact, Client, Credential, Grant, LinkedIdentity, Realm, Seconds, Session } from './types'
 
 export type KvEntry = { key: string; value: string; ttl?: Seconds }
 
@@ -103,7 +104,9 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
       const pointer = await read(`user-code/${userCode}`)
       if (!pointer) return undefined
       const artifact = dec<Artifact>(await read(pointer))
-      return artifact ? withConsumption(artifact) : undefined
+      if (!artifact) return undefined
+      const live = await withConsumption(artifact)
+      return live.expiresAt.getTime() > Date.now() ? live : undefined
     },
 
     async consume(kind, id) {
@@ -145,8 +148,12 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
     async destroy(clientId) {
       await kv.destroy(`client/${clientId}`)
     },
-    async list() {
-      return { clients: await collect(kv, 'client/', raw => revive(JSON.parse(raw), ['createdAt', 'updatedAt']) as never) }
+    async list(cursor, limit) {
+      const all: Client[] = await collect(kv, 'client/', raw => revive(JSON.parse(raw), ['createdAt', 'updatedAt']) as never)
+      return page(
+        all.filter(client => cursor === undefined || client.clientId > cursor).sort((a, b) => (a.clientId < b.clientId ? -1 : 1)),
+        limit
+      )
     }
   }
 
@@ -172,7 +179,9 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
       return Promise.all(live.map(withClients))
     },
     async findByUpstreamSession(provider, upstreamSessionId) {
-      const matching = (await allSessions()).filter(session => session.idp === provider && session.upstreamSessionId === upstreamSessionId)
+      const matching = (await allSessions()).filter(
+        session => session.idp === provider && session.upstreamSessionId === upstreamSessionId && session.expiresAt.getTime() > Date.now()
+      )
       return Promise.all(matching.map(withClients))
     },
     async addClient(id, clientId) {

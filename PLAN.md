@@ -426,10 +426,11 @@ text it is held to. In fix order.
   (`clients/registration.ts:172`). The metadata-document path has the same casts. FR-C9
   Fixed: `objectFrom`, `stringFrom`, `stringsFrom` and `keysFrom` read both the registration body and a metadata document
 - [ ] UserInfo serves a token whose audience is another resource (`resource/userinfo.ts:72`). FR-C5
-- [ ] `management.clients.update` checks only the FAPI profile: `requirePkce: false` on a public
+- [x] `management.clients.update` checks only the FAPI profile: `requirePkce: false` on a public
   client is stored (the request path still refuses it), and a pairwise client with redirect URIs on
   several hosts is stored and then throws at the token endpoint. One `validateClient` for create,
   update and registration. FR-M1
+  Fixed: `clients/validate.ts`, read by create, update and registration
 - [x] Revoking a refresh token deletes the grant (`resource/revocation.ts:34`); FR-C8 now says the
   consent stays, as `Grant`'s own comment and ARCHITECTURE.md §4 always did. Only `/revoke` is
   affected: end-session never touched the grant

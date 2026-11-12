@@ -73,6 +73,36 @@ describe('management', () => {
     await expect(provider.management.clients.create(input({ requirePkce: false }))).rejects.toThrow('PKCE')
   })
 
+  // FR-M1: an update is held to what a create is, or the rule is only as strong as the path that skips it.
+  test('an update cannot opt a public client out of PKCE either', async () => {
+    await provider.management.clients.create(input())
+    await expect(provider.management.clients.update('rp', { requirePkce: false })).rejects.toThrow('PKCE')
+    expect((await provider.management.clients.get('rp'))?.requirePkce).toBe(true)
+  })
+
+  // FR-C18: stored, such a client is a 500 at the token endpoint, where nobody can fix it.
+  test('a pairwise client with redirect URIs on several hosts needs a sector_identifier_uri', async () => {
+    const pairwise = createProvider({
+      interactionUrl: 'https://op.example.com/interaction',
+      issuer: ISSUER,
+      adapter,
+      pairwiseSalt: 'a-long-enough-salt'
+    })
+    const spread = { subjectType: 'pairwise' as const, redirectUris: ['https://a.example.com/cb', 'https://b.example.com/cb'] }
+    await expect(pairwise.management.clients.create(input(spread))).rejects.toThrow('sector_identifier_uri')
+    await pairwise.management.clients.create(input({ subjectType: 'pairwise' }))
+    await expect(pairwise.management.clients.update('rp', { redirectUris: spread.redirectUris })).rejects.toThrow('sector_identifier_uri')
+    await pairwise.management.clients.update('rp', { ...spread, sectorIdentifierUri: 'https://a.example.com/sector.json' })
+  })
+
+  test('a pairwise client is refused where the provider issues no pairwise subjects', async () => {
+    await expect(provider.management.clients.create(input({ subjectType: 'pairwise' }))).rejects.toThrow('pairwise')
+  })
+
+  test('a redirect URI that is not a URL is refused', async () => {
+    await expect(provider.management.clients.create(input({ redirectUris: ['not a url'] }))).rejects.toThrow('redirect')
+  })
+
   // "Revoked" has to mean the tokens stop working, not just that a row went away.
   test('revoking a grant takes its artifacts with it', async () => {
     await adapter.grants.upsert({

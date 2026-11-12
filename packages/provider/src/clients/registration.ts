@@ -7,7 +7,7 @@ import type { ResolvedConfig } from '../config'
 import { supportedGrantTypes } from '../discovery'
 import { OAuthError } from '../errors'
 import { signingAlgorithms } from '../keys/keys'
-import { fapiClientProblems } from '../profile/fapi'
+import { clientProblems } from './validate'
 
 const DEFAULT_GRANTS = ['authorization_code']
 
@@ -88,12 +88,7 @@ const assertSignable = async (config: ResolvedConfig, client: Client) => {
 /** OIDC DCR 1.0 §5: every registered redirect_uri must be listed, or registration fails (FR-C18). */
 const assertSector = async (config: ResolvedConfig, client: Client) => {
   const uri = client.sectorIdentifierUri
-  if (uri === undefined) {
-    if (client.subjectType === 'pairwise' && new Set(client.redirectUris.map(each => new URL(each).host)).size > 1) {
-      throw invalid('redirect_uris span several hosts, so a pairwise client must register a sector_identifier_uri (OIDC Core §8.1)')
-    }
-    return
-  }
+  if (uri === undefined) return
   if (!URL.canParse(uri) || new URL(uri).protocol !== 'https:') throw invalid('sector_identifier_uri must be an https URL')
   if (!config.resolveSectorIdentifier) throw invalid('this provider cannot validate a sector_identifier_uri')
   const listed = await config.resolveSectorIdentifier(uri).catch(() => {
@@ -196,8 +191,8 @@ const subjectTypeFrom = (config: ResolvedConfig, requested: unknown) => {
 const assertRegistrable = async (config: ResolvedConfig, client: Client) => {
   await assertSignable(config, client)
   await assertSector(config, client)
-  const fapi = fapiClientProblems(config, client)
-  if (fapi.length) throw invalid(`FAPI 2.0: ${fapi.join('; ')}`)
+  const problems = clientProblems(config, client)
+  if (problems.length) throw invalid(problems.join('; '))
 }
 
 const metadataFrom = (config: ResolvedConfig, body: Record<string, unknown>): Client => {

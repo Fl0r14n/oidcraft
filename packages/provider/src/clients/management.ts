@@ -2,16 +2,16 @@ import type { Client, Timestamped } from '@oidcraft/adapter'
 import { randomString } from '@oidcraft/core'
 import { audit } from '../audit'
 import type { ResolvedConfig } from '../config'
-import { fapiClientProblems } from '../profile/fapi'
 import { clientResponse } from './registration'
+import { clientProblems } from './validate'
 
 export type ManagementClientInput = Omit<Client, keyof Timestamped | 'registrationAccessToken'> & {
   clientId?: string
 }
 
-const assertProfile = (config: ResolvedConfig, client: Client) => {
-  const problems = fapiClientProblems(config, client)
-  if (problems.length) throw new Error(`client ${client.clientId} does not meet FAPI 2.0: ${problems.join('; ')} (FR-C21)`)
+const assertValid = (config: ResolvedConfig, client: Client) => {
+  const problems = clientProblems(config, client)
+  if (problems.length) throw new Error(`client ${client.clientId} cannot be stored: ${problems.join('; ')}`)
 }
 
 export const clientManagement = (config: ResolvedConfig) => ({
@@ -26,9 +26,6 @@ export const clientManagement = (config: ResolvedConfig) => ({
 
   async create(input: ManagementClientInput) {
     if (!config.adapter.clients.upsert) throw new Error('this adapter cannot create clients')
-    if (input.requirePkce === false && input.tokenEndpointAuthMethod === 'none') {
-      throw new Error('a public client cannot opt out of PKCE (FR-C3)')
-    }
     const now = new Date()
     const client: Client = {
       ...input,
@@ -37,7 +34,7 @@ export const clientManagement = (config: ResolvedConfig) => ({
       createdAt: now,
       updatedAt: now
     }
-    assertProfile(config, client)
+    assertValid(config, client)
     if (await config.adapter.clients.find(client.clientId)) throw new Error(`client ${client.clientId} already exists`)
     await config.adapter.clients.upsert(client)
     await audit(config, 'client.create', { clientId: client.clientId })
@@ -49,7 +46,7 @@ export const clientManagement = (config: ResolvedConfig) => ({
     const existing = await config.adapter.clients.find(clientId)
     if (!existing) throw new Error(`client ${clientId} does not exist`)
     const updated = { ...existing, ...patch, clientId, updatedAt: new Date() }
-    assertProfile(config, updated)
+    assertValid(config, updated)
     await config.adapter.clients.upsert(updated)
     await audit(config, 'client.update', { clientId, detail: { fields: Object.keys(patch) } })
   },

@@ -416,8 +416,9 @@ text it is held to. In fix order.
   `authorize/ciba.ts:135`). Keep the poll clock in `replay.claim` and never write the artifact from
   the poll. FR-C7
   Fixed: the answer is a record of its own in both flows, so the poll's rewrite of the request cannot touch it; the poll clock stays on the request
-- [ ] Completing a password reset ends sessions and leaves `offline_access` refresh tokens working,
+- [x] Completing a password reset ends sessions and leaves `offline_access` refresh tokens working,
   since each carries its own sign-in (`accounts/index.ts:338`). FR-T7
+  Fixed through the grants: every token an account holds carries one, so no contract change
 - [ ] Deleting a client leaves its access tokens answering at UserInfo and introspection until they
   expire, and its grants in place. There is no way to revoke by client: `ArtifactStore` needs one.
   FR-T7

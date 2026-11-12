@@ -139,6 +139,27 @@ describe('second factor', () => {
 })
 
 describe('password reset', () => {
+  // FR-T7: a reset is what someone does after a compromise, and an offline token that outlives it is the compromise continuing.
+  test('revokes every token issued to the account and keeps its consents', async () => {
+    const { adapter, accounts } = await setup()
+    await accounts.register({ username: 'ada', password: 'correct horse' })
+    const grant = { id: 'g1', accountId: 'id-ada', clientId: 'rp', scopes: ['openid'], claims: [], resources: {}, createdAt: new Date() }
+    await adapter.grants.upsert(grant)
+    await adapter.grants.upsert({ ...grant, id: 'g2', accountId: 'someone-else' })
+    const token = { clientId: 'rp', payload: {}, expiresAt: new Date(Date.now() + 60_000) }
+    await adapter.artifacts.upsert({ ...token, id: 'offline', kind: 'refresh_token', accountId: 'id-ada', grantId: 'g1' })
+    await adapter.artifacts.upsert({ ...token, id: 'access', kind: 'access_token', accountId: 'id-ada', grantId: 'g1' })
+    await adapter.artifacts.upsert({ ...token, id: 'theirs', kind: 'refresh_token', accountId: 'someone-else', grantId: 'g2' })
+
+    const issued = await accounts.reset.issue('ada')
+    await accounts.reset.complete(issued?.token as string, 'battery staple')
+
+    expect(await adapter.artifacts.find('refresh_token', 'offline')).toBeUndefined()
+    expect(await adapter.artifacts.find('access_token', 'access')).toBeUndefined()
+    expect(await adapter.artifacts.find('refresh_token', 'theirs')).toBeDefined()
+    expect(await adapter.grants.find('g1')).toBeDefined()
+  })
+
   test('a token sets the password once and ends the sessions the old one opened', async () => {
     const { adapter, accounts } = await setup()
     await accounts.register({ username: 'ada', password: 'correct horse' })

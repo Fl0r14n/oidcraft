@@ -325,7 +325,7 @@ export const createAccounts = (options: AccountsOptions) => {
         return { token, accountId: credential.accountId, claims: credential.claims }
       },
 
-      /** Sets the new password and ends every session the old one opened. */
+      /** Sets the new password, ends every session the old one opened and revokes the tokens issued to the account (FR-T7). */
       async complete(token: string, password: string) {
         const problem = passwordProblem(password)
         if (problem) return { ok: false, reason: 'password', problem } as const
@@ -336,6 +336,8 @@ export const createAccounts = (options: AccountsOptions) => {
         const set = await setPassword(artifact.accountId, password)
         if (!set.ok) return { ok: false, reason: 'invalid' } as const
         for (const session of await adapter.sessions.listForAccount(artifact.accountId)) await adapter.sessions.destroy(session.id)
+        // FR-T7: an offline refresh token carries its own sign-in and would outlive the sessions; the consent stays.
+        for (const grant of await adapter.grants.listForAccount(artifact.accountId)) await adapter.artifacts.revokeByGrantId(grant.id)
         return { ok: true, accountId: artifact.accountId } as const
       }
     }

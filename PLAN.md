@@ -406,10 +406,11 @@ text it is held to. In fix order.
 - [ ] Then client secrets, as their own step: `client_secret_basic` and `client_secret_post` compare
   against a stored hash, so `Client` changes shape and the admin shows a secret once, at creation.
   `client_secret_jwt` keeps the secret, as it must. NFR-S11
-- [ ] End-session takes the client from `client_id` and never compares it with the hint's `aud`; the
+- [x] End-session takes the client from `client_id` and never compares it with the hint's `aud`; the
   verified claims are used only as a boolean, so a hint issued to one client redirects to another's
   URI and skips the confirmation. The hint's `sid`/`sub` are not compared with the browser's session
   (`session/end-session.ts:52`). FR-C11
+  Fixed: the client is the hint's audience, a `client_id` beside it must name it, and a hint whose `sid` is not the browser's session asks first
 - [ ] A device or CIBA poll rewrites the whole artifact to record `lastPolledAt`, so an approval
   landing between its read and its write is overwritten with `pending` (`authorize/device.ts:104`,
   `authorize/ciba.ts:135`). Keep the poll clock in `replay.claim` and never write the artifact from

@@ -1,6 +1,6 @@
 import type { Client, Session } from '@oidcraft/adapter'
 import { randomString } from '@oidcraft/core'
-import { createLocalJWKSet, decodeJwt, jwtVerify } from 'jose'
+import { createLocalJWKSet, type JWTPayload, jwtVerify } from 'jose'
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
 import { jwksResponseBody } from '../keys/keys'
@@ -8,15 +8,24 @@ import { clearCookie } from './cookies'
 import { type FrontChannelLogout, frontChannelLogouts, type LogoutNotification, logoutTokens } from './logout'
 import { SESSION_COOKIE } from './session'
 
-const clientFromHint = async (config: ResolvedConfig, hint: string | null, clientId: string | null) => {
-  if (clientId) return config.adapter.clients.find(clientId)
-  if (!hint) return undefined
-  try {
-    return await config.adapter.clients.find(decodeJwt(hint).aud as string)
-  } catch {
-    return undefined
+const audiencesOf = (claims: JWTPayload | undefined) => (claims?.aud === undefined ? [] : [claims.aud].flat())
+
+/** The client a logout is for: the one the verified hint was issued to, which a `client_id` sent with it must name (FR-C11). */
+const clientFor = async (config: ResolvedConfig, claims: JWTPayload | undefined, clientId: string | null) => {
+  const audiences = audiencesOf(claims)
+  if (claims && clientId && !audiences.includes(clientId)) {
+    throw new OAuthError('invalid_request', {
+      description: `client_id ${clientId} is not the client the id_token_hint was issued to`,
+      spec: 'OIDC RP-Initiated Logout 1.0 §2'
+    })
   }
+  const id = clientId ?? audiences[0]
+  return id ? config.adapter.clients.find(id) : undefined
 }
+
+/** A hint is about this browser only when it names the session the browser holds (FR-C11). */
+const aboutThisSession = (claims: JWTPayload | undefined, session: Session | undefined) =>
+  Boolean(claims && (!session || claims.sid === session.id))
 
 /**
  * An `id_token_hint` is only a hint until it is verified. An unverified one would let anyone name a
@@ -49,7 +58,7 @@ export const endSessionEndpoint = async (
 
   const hint = params.get('id_token_hint')
   const claims = hint ? await verifyHint(config, hint) : undefined
-  const client = await clientFromHint(config, hint, params.get('client_id'))
+  const client = await clientFor(config, claims, params.get('client_id'))
 
   const requested = params.get('post_logout_redirect_uri')
   const target = resolveTarget(client, requested, Boolean(claims))
@@ -57,9 +66,9 @@ export const endSessionEndpoint = async (
   const confirmation = params.get('logout')
   if (confirmation) {
     await acceptConfirmation(config, confirmation, session)
-  } else if (session && !claims) {
-    // §2: without a verified hint nothing proves the client sent this, and a bare link would sign
-    // anyone out who followed it, so the person is asked first.
+  } else if (session && !aboutThisSession(claims, session)) {
+    // §2: without a verified hint about this session nothing proves the client sent this, and a bare
+    // link would sign anyone out who followed it, so the person is asked first.
     return { response: await askToConfirm(config, session, client, params.get('state')), notifications: [], frontChannel: [] }
   }
 

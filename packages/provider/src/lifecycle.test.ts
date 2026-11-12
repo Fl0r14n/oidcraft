@@ -293,6 +293,36 @@ describe('end session', () => {
     }
   })
 
+  // OIDC RP-Initiated Logout 1.0 §2: a client_id sent with a hint must be the client the hint was issued to (FR-C11).
+  test('a client_id that is not the one the hint was issued to is refused', async () => {
+    const issued = await tokens()
+    const url = `${ISSUER}/session/end?id_token_hint=${issued.id_token}&client_id=other&post_logout_redirect_uri=https%3A%2F%2Frp.example.com%2Fbye`
+    const response = await provider.handle(new Request(url, { headers: { cookie: issued.cookie } }))
+    expect(response.status).toBe(400)
+    expect(await adapter.sessions.listForAccount('ada')).toHaveLength(1)
+  })
+
+  test('a client_id that matches the hint is accepted', async () => {
+    const issued = await tokens()
+    const url = `${ISSUER}/session/end?id_token_hint=${issued.id_token}&client_id=rp&post_logout_redirect_uri=https%3A%2F%2Frp.example.com%2Fbye`
+    const response = await provider.handle(new Request(url, { headers: { cookie: issued.cookie } }))
+    expect(response.status).toBe(303)
+    expect(response.headers.get('location')).toBe('https://rp.example.com/bye')
+  })
+
+  // A hint proves this provider issued it, not that it is about this browser's session (FR-C11).
+  test("a hint from another session does not end this browser's without asking", async () => {
+    const issued = await tokens()
+    const other = { id: 'other', accountId: 'grace', authTime: new Date(), clients: [], expiresAt: new Date(Date.now() + 60_000) }
+    await adapter.sessions.upsert(other)
+    const asked = await provider.handle(
+      new Request(`${ISSUER}/session/end?id_token_hint=${issued.id_token}`, { headers: { cookie: `${SESSION_COOKIE}=other` } })
+    )
+    expect(asked.status).toBe(303)
+    expect(asked.headers.get('location')).toStartWith(`${ISSUER}/interaction/`)
+    expect(await adapter.sessions.find('other')).toBeTruthy()
+  })
+
   test('no session is still a clean sign-out', async () => {
     const response = await provider.handle(new Request(`${ISSUER}/session/end`))
     expect(response.status).toBe(200)

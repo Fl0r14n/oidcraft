@@ -126,7 +126,8 @@ export const SessionEntity = new EntitySchema<SessionRow>({
   },
   indices: [
     { name: 'oidc_sessions_account_idx', columns: ['account_id'] },
-    { name: 'oidc_sessions_upstream_idx', columns: ['idp', 'upstream_session_id'] }
+    { name: 'oidc_sessions_upstream_idx', columns: ['idp', 'upstream_session_id'] },
+    { name: 'oidc_sessions_expiry_idx', columns: ['expires_at'] }
   ]
 })
 

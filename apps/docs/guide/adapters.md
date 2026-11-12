@@ -50,9 +50,10 @@ setup, is in the provider guide's [Storage](/guide/provider#storage) section; pe
 under [Before production](/guide/provider#before-production).
 
 **Expired rows.** The SQL adapters filter expiry in the query, so an expired code or token is never
-served whether or not it has been deleted (FR-T5). Deleting them is `adapter.artifacts.prune(before,
-limit)`, a bounded sweep. Nothing in the library calls it: the provider holds no timers (NFR-P3),
-so you schedule it. The `KvStore`-based adapters have no `prune`; their entries carry a TTL instead.
+served whether or not it has been deleted (FR-T5). Deleting them is `prune(before, limit)`, a bounded sweep, on each store that grows:
+`adapter.artifacts`, `adapter.sessions` and `adapter.replay`, where every `jti` and DPoP proof leaves
+an entry. Nothing in the library calls them: the provider holds no timers (NFR-P3), so you schedule
+all three. The `KvStore`-based adapters have no `prune`; their entries carry a TTL instead.
 
 ## Writing a `KvStore`
 

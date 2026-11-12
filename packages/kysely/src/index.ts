@@ -213,6 +213,44 @@ export const kyselyAdapter = (options: KyselyAdapterOptions): FullAdapter => {
     }
   }
 
+  const sessions = {
+    async prune(before: Date, limit: number) {
+      const doomed = await db.selectFrom('oidc_sessions').select('id').where('expires_at', '<=', before.getTime()).limit(limit).execute()
+      if (doomed.length) {
+        await db
+          .deleteFrom('oidc_sessions')
+          .where(
+            'id',
+            'in',
+            doomed.map(row => row.id)
+          )
+          .where('expires_at', '<=', before.getTime())
+          .execute()
+      }
+      return doomed.length
+    }
+  }
+
+  const replay = {
+    async prune(before: Date, limit: number) {
+      const doomed = await db
+        .selectFrom('oidc_replay')
+        .select(['namespace', 'value'])
+        .where('expires_at', '<=', before.getTime())
+        .limit(limit)
+        .execute()
+      for (const row of doomed) {
+        await db
+          .deleteFrom('oidc_replay')
+          .where('namespace', '=', row.namespace)
+          .where('value', '=', row.value)
+          .where('expires_at', '<=', before.getTime())
+          .execute()
+      }
+      return doomed.length
+    }
+  }
+
   return {
     clients: {
       async find(clientId) {
@@ -308,7 +346,8 @@ export const kyselyAdapter = (options: KyselyAdapterOptions): FullAdapter => {
       },
       async destroy(id) {
         await db.deleteFrom('oidc_sessions').where('id', '=', id).execute()
-      }
+      },
+      prune: sessions.prune
     },
 
     grants: {
@@ -431,7 +470,8 @@ export const kyselyAdapter = (options: KyselyAdapterOptions): FullAdapter => {
           .returning('value')
           .executeTakeFirst()
         return result !== undefined
-      }
+      },
+      prune: replay.prune
     },
 
     identities: {

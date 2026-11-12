@@ -78,6 +78,8 @@ export type SessionStore = EntityStore<Session> & {
   addClient(id: string, clientId: string): Promise<void>
   /** Upstream back-channel logout arrives keyed by the upstream session, not ours (FR-F8). */
   findByUpstreamSession?(provider: string, upstreamSessionId: string): Promise<Session[]>
+  /** Bounded sweep of expired sessions, as `ArtifactStore.prune`; storage with its own expiry omits it (NFR-P3). */
+  prune?(before: Date, limit: number): Promise<number>
 }
 
 export type GrantStore = EntityStore<Grant> & {
@@ -104,6 +106,8 @@ export type KeyStore = {
 export type ReplayGuard = {
   /** True for exactly one caller while the value is live; false means a replay. Atomic (NFR-S5). */
   claim(namespace: string, value: string, ttl: Seconds): Promise<boolean>
+  /** Bounded sweep of lapsed entries: every `jti` and DPoP proof leaves one (NFR-P3). */
+  prune?(before: Date, limit: number): Promise<number>
 }
 
 export type LinkedIdentityStore = EntityStore<LinkedIdentity, [provider: string, subject: string]> & {

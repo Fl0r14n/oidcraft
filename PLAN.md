@@ -422,7 +422,7 @@ text it is held to. In fix order.
 - [x] Deleting a client leaves its access tokens answering at UserInfo and introspection until they
   expire, and its grants in place. There is no way to revoke by client: `ArtifactStore` needs one.
   FR-T7
-  Fixed: `artifacts.revokeByClientId` and `grants.destroyByClientId` in the contract, in every adapter and in the conformance suite, with migration `0004_client_indexes`; `fromKv` scans for it, deleting a client being rare
+  Fixed: `artifacts.revokeByClientId` and `grants.destroyByClientId` in the contract, in every adapter and in the conformance suite, with migration `0004_indexes`; `fromKv` scans for it, deleting a client being rare
 - [x] Registration casts a stranger's JSON: a `null` body or a non-string `scope` is a `TypeError`
   and a 500, `jwks` is stored unread, `jwks` with `jwks_uri` is accepted
   (`clients/registration.ts:172`). The metadata-document path has the same casts. FR-C9
@@ -472,8 +472,9 @@ text it is held to. In fix order.
   walks the whole keyspace — on every `/authorize` that has a session. Index keys, as `user-code/` and
   `grant-index/` already are. Pinned by a test adapter whose `scan` throws through the authorization
   and token flows, which fails today on `fromKv`. NFR-P1
-- [ ] Only artifacts can be pruned. Replay entries and sessions grow without bound on SQL, and the
+- [x] Only artifacts can be pruned. Replay entries and sessions grow without bound on SQL, and the
   Kysely `prune` deletes a row at a time. NFR-P3
+  Fixed: `sessions.prune` and `replay.prune` in the contract, the three SQL adapters and the conformance suite, with a session expiry index in `0004_indexes`. The sweeps still delete a row at a time: a composite key has no portable single-statement bounded delete across SQLite and Postgres
 - [ ] `clients.list(cursor, limit)` ignores both in every adapter read
 - [ ] A first consent from two tabs inserts two grants with different ids against a unique
   `(account_id, client_id)` index; the second is a 500. Upsert on that pair

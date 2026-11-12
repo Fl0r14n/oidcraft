@@ -68,7 +68,11 @@ export const postgresTables = (schema?: string) => {
       clients: json('clients').notNull(),
       expiresAt: millis('expires_at').notNull()
     },
-    t => [index('oidc_sessions_account_idx').on(t.accountId), index('oidc_sessions_upstream_idx').on(t.idp, t.upstreamSessionId)]
+    t => [
+      index('oidc_sessions_account_idx').on(t.accountId),
+      index('oidc_sessions_upstream_idx').on(t.idp, t.upstreamSessionId),
+      index('oidc_sessions_expiry_idx').on(t.expiresAt)
+    ]
   )
 
   const grants = table(

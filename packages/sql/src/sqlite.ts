@@ -40,11 +40,12 @@ export const SQLITE_MIGRATIONS: Migration[] = [
     ]
   },
   {
-    // FR-T7: deleting a client deletes what it holds, by client, and that is a query like any other (FR-A5).
-    id: '0004_client_indexes',
+    // FR-T7: deleting a client deletes what it holds, by client. NFR-P3: a sweep of expired sessions finds them by expiry (FR-A5).
+    id: '0004_indexes',
     statements: [
       'create index oidc_artifacts_client_idx on oidc_artifacts (client_id)',
-      'create index oidc_grants_client_idx on oidc_grants (client_id)'
+      'create index oidc_grants_client_idx on oidc_grants (client_id)',
+      'create index oidc_sessions_expiry_idx on oidc_sessions (expires_at)'
     ]
   }
 ]

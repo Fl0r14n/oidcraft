@@ -222,6 +222,11 @@ export const drizzleAdapter = (options: DrizzleAdapterOptions): FullAdapter => {
       },
       async destroy(id) {
         await db.delete(sessions).where(eq(sessions.id, id))
+      },
+      async prune(before, limit) {
+        const doomed = await db.select({ id: sessions.id }).from(sessions).where(lte(sessions.expiresAt, before)).limit(limit)
+        for (const row of doomed) await db.delete(sessions).where(and(eq(sessions.id, row.id), lte(sessions.expiresAt, before)))
+        return doomed.length
       }
     },
 
@@ -275,6 +280,19 @@ export const drizzleAdapter = (options: DrizzleAdapterOptions): FullAdapter => {
           .onConflictDoUpdate({ target: [replay.namespace, replay.value], set: { expiresAt }, setWhere: lte(replay.expiresAt, now()) })
           .returning({ value: replay.value })
         return won.length === 1
+      },
+      async prune(before, limit) {
+        const doomed = await db
+          .select({ namespace: replay.namespace, value: replay.value })
+          .from(replay)
+          .where(lte(replay.expiresAt, before))
+          .limit(limit)
+        for (const row of doomed) {
+          await db
+            .delete(replay)
+            .where(and(eq(replay.namespace, row.namespace), eq(replay.value, row.value), lte(replay.expiresAt, before)))
+        }
+        return doomed.length
       }
     },
 

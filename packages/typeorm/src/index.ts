@@ -338,6 +338,22 @@ export const typeormAdapter = (options: TypeormAdapterOptions): FullAdapter => {
       },
       async destroy(id) {
         await sessions.delete({ id })
+      },
+      async prune(before, limit) {
+        const doomed = await sessions
+          .createQueryBuilder('s')
+          .select(['s.id'])
+          .where('s.expires_at <= :before', { before: before.getTime() })
+          .limit(limit)
+          .getMany()
+        for (const row of doomed) {
+          await sessions
+            .createQueryBuilder()
+            .delete()
+            .where('id = :id and expires_at <= :before', { id: row.id, before: before.getTime() })
+            .execute()
+        }
+        return doomed.length
       }
     },
 
@@ -431,6 +447,22 @@ export const typeormAdapter = (options: TypeormAdapterOptions): FullAdapter => {
         return insertIfAbsent(replay, { namespace, value, expires_at: now() + ttl * 1000 }, async () =>
           replay.existsBy({ namespace, value })
         )
+      },
+      async prune(before, limit) {
+        const doomed = await replay
+          .createQueryBuilder('r')
+          .select(['r.namespace', 'r.value'])
+          .where('r.expires_at <= :before', { before: before.getTime() })
+          .limit(limit)
+          .getMany()
+        for (const row of doomed) {
+          await replay
+            .createQueryBuilder()
+            .delete()
+            .where('namespace = :namespace and value = :value and expires_at <= :before', { ...row, before: before.getTime() })
+            .execute()
+        }
+        return doomed.length
       }
     },
 

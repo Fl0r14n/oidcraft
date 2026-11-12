@@ -275,6 +275,30 @@ export const adapterConformance = (create: () => Adapter | Promise<Adapter>, opt
       }
     },
     {
+      // NFR-P3: a table that only grows is an outage with a date on it. Storage with its own expiry needs no prune.
+      name: 'prune, where a store has one, removes what expired and nothing live',
+      run: async () => {
+        const adapter = await full()
+        await adapter.sessions.upsert(session({ id: 'dead1', expiresAt: past() }))
+        await adapter.sessions.upsert(session({ id: 'dead2', expiresAt: past() }))
+        await adapter.sessions.upsert(session({ id: 'live' }))
+        if (adapter.sessions.prune) {
+          same(await adapter.sessions.prune(new Date(), 1), 1, 'expired sessions removed within the limit')
+          same(await adapter.sessions.prune(new Date(), 10), 1, 'the expired session the limit left')
+          same(await adapter.sessions.prune(new Date(), 10), 0, 'nothing left to remove')
+        }
+        same((await adapter.sessions.find('live'))?.id, 'live', 'the live session')
+
+        await adapter.replay.claim('prune', 'spent', 0)
+        await adapter.replay.claim('prune', 'held', 60)
+        if (adapter.replay.prune) {
+          holds((await adapter.replay.prune(new Date(Date.now() + 1000), 10)) >= 1, 'the lapsed replay entry was not removed')
+          same(await adapter.replay.prune(new Date(Date.now() + 1000), 10), 0, 'nothing left to remove')
+        }
+        same(await adapter.replay.claim('prune', 'held', 60), false, 'a live replay entry survived the prune')
+      }
+    },
+    {
       name: 'a device code is reachable by its user code',
       run: async () => {
         const adapter = await full()

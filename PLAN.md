@@ -464,8 +464,9 @@ text it is held to. In fix order.
 
 **Operations**
 
-- [ ] No hook for an unexpected failure: `errorResponse` wraps it as `server_error` and the cause is
+- [x] No hook for an unexpected failure: `errorResponse` wraps it as `server_error` and the cause is
   gone (`errors.ts:104`). `onError` on the config. NFR-D5
+  Fixed: `onError(error, { request })`, called for anything the provider did not mean, and never allowed to change the answer
 - [ ] The Redis adapter scans on request paths: `fromKv` answers `grants.findByAccountAndClient`,
   `sessions.listForAccount` and `findByUpstreamSession` with a prefix scan, and Redis `SCAN MATCH`
   walks the whole keyspace — on every `/authorize` that has a session. Index keys, as `user-code/` and

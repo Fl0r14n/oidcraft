@@ -201,6 +201,12 @@ export type ProviderConfig = {
   ) => RegistrationDecision | undefined | Promise<RegistrationDecision | undefined>
   /** Every write through registration or the management API. The host decides where these go (FR-M3). */
   onAudit?: (event: AuditEvent) => void | Promise<void>
+  /**
+   * A failure the provider did not expect, with its cause: a store that threw, a key that would not
+   * import. The response says `server_error` and nothing more, so this is where the host finds out
+   * why (NFR-D5). A refusal the provider meant — a bad token, a wrong secret — is not reported.
+   */
+  onError?: (error: unknown, context: { request: Request }) => void | Promise<void>
 }
 
 export type ResourceDescriptor = {
@@ -242,6 +248,7 @@ export type ResolvedConfig = {
   resolveClientMetadata: ProviderConfig['resolveClientMetadata']
   onRegister: ProviderConfig['onRegister']
   onAudit: ProviderConfig['onAudit']
+  onError: ProviderConfig['onError']
   upstreams: UpstreamDescriptor[]
   resources: ResourceDescriptor[]
   subjectType: 'public' | 'pairwise'
@@ -394,6 +401,7 @@ export const resolveConfig = (config: ProviderConfig): ResolvedConfig => {
     resolveClientMetadata: config.resolveClientMetadata,
     onRegister: config.onRegister,
     onAudit: config.onAudit,
+    onError: config.onError,
     upstreams: config.upstreams ?? [],
     resources: config.resources ?? [],
     subjectType: config.subjectType ?? 'public',

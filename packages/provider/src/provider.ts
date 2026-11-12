@@ -226,6 +226,12 @@ const dispatch = async (config: ResolvedConfig, route: Route, request: Request, 
     // The issuer is configuration and is never taken from a header (NFR-S6).
     return await route.handle(config, request, { ...context, issuer: config.issuer })
   } catch (error) {
+    // NFR-D5: only what was not meant. A hook that fails must not turn the answer into something else.
+    if (!(error instanceof OAuthError) || error.status >= 500) {
+      await Promise.resolve()
+        .then(() => config.onError?.(error instanceof OAuthError ? (error.cause ?? error) : error, { request }))
+        .catch(() => undefined)
+    }
     return errorResponse(error)
   }
 }

@@ -68,14 +68,16 @@ const collect = async <T>(kv: KvStore, prefix: string, revived: (raw: string) =>
   return out
 }
 
+// An id may hold a slash — a client id is a URL — and a slash is what ends a prefix.
+const part = (id: string) => encodeURIComponent(id)
+
 /**
  * A complete `Adapter` over a `KvStore` (FR-A3), whose atomic `insert` every single-use rule rests on.
  *
- * Correct, not fast: revocation and the by-account lookups are prefix scans, because a key-value
- * store has no secondary index. A relational adapter must use real columns instead (FR-A5).
+ * A key-value store has no secondary index, so each one the protocol needs is a key beside the
+ * record, and a lookup is a prefix scan of one record's keys. A request path never scans a whole
+ * family of records (NFR-P1); a relational adapter uses real columns instead (FR-A5).
  */
-// An id may hold a slash — a client id is a URL — and a slash is what ends a prefix.
-const part = (id: string) => encodeURIComponent(id)
 
 export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
   const read = async (key: string) => (await kv.find(key))?.value

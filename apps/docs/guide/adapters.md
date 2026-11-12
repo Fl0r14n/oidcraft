@@ -75,8 +75,10 @@ What each method must do:
   lapsed may be claimed again.
 - **`scan(prefix)`** yields every live entry whose key starts with `prefix`. `fromKv` destroys keys
   while it iterates (revoking a grant does exactly that), so the scan must survive it. If your
-  backend can list a key twice, as Redis `SCAN` can, yield it once; if an entry vanishes between
-  listing and reading, skip it.
+  backend can list a key twice, yield it once; if an entry vanishes between listing and reading,
+  skip it. It should cost what it matches, not what the store holds: `fromKv` scans one record's
+  keys on a request path. A store that keeps its keys in order has this for free. Redis does not —
+  `SCAN MATCH` reads every key — so `@oidcraft/redis` keeps its own ordered index of key names.
 
 Hand it to `fromKv` with a key store and, optionally, your accounts:
 
@@ -87,8 +89,9 @@ replays it: the replay is refused with `invalid_grant` and the refresh token fro
 redemption stops working, because the replay revoked the grant (FR-T4). Revocation is a `scan` over
 the grant's index followed by `destroy` calls, which is why `scan` is one of the five.
 
-`fromKv` is correct, not fast. Revoking a grant and every by-account lookup is a prefix scan,
-because a key-value store has no secondary index. That is the trade the SQL adapters do not make
+A key-value store has no secondary index, so `fromKv` writes each one the protocol needs as a key
+beside the record: revoking a grant and every by-account lookup is a prefix scan of one record's
+keys, never of a whole family of records (NFR-P1). The SQL adapters use real columns instead
 (FR-A5).
 
 ### `insert` is the one hard requirement

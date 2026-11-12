@@ -13,61 +13,124 @@ export type RedisCommand = (command: string, args: string[]) => Promise<unknown>
 export type RedisKvOptions = {
   /** Every key this adapter writes starts with it, so one Redis can hold other data, or other providers. */
   prefix?: string
-  /** Keys asked for per SCAN round trip. */
+  /** Keys read per round trip of a scan. */
   scanCount?: number
 }
 
 export type RedisAdapterOptions = FromKvOptions & RedisKvOptions
 
-// SCAN MATCH is a glob; a prefix is literal, so its glob characters are escaped.
-const globEscape = (value: string) => value.replace(/[\\*?[\]]/g, char => `\\${char}`)
+/**
+ * Redis has no way to ask which keys start with a prefix: `SCAN MATCH` reads every key in the
+ * database and filters. So the adapter keeps the answer itself, in two sorted sets beside the data:
+ * every key's name under one score, which makes a prefix a lexicographic range, and every expiring
+ * key's name scored by when it lapses, which is how the first set forgets it (NFR-P1).
+ */
+const NAMES = '~keys'
+const LAPSES = '~expiry'
+
+// A key the sweep finds still present was rewritten since; only its lapse entry goes.
+const SWEEP = `
+  local time = redis.call('TIME')
+  local now = time[1] * 1000 + math.floor(time[2] / 1000)
+  for _, name in ipairs(redis.call('ZRANGEBYSCORE', KEYS[3], '-inf', now - 1000, 'LIMIT', 0, 16)) do
+    if redis.call('EXISTS', ARGV[1] .. name) == 0 then redis.call('ZREM', KEYS[2], name) end
+    redis.call('ZREM', KEYS[3], name)
+  end
+`
+
+// KEYS: the entry, the names, the lapses. ARGV: prefix, name, value, ttl in ms or '', 'NX' or ''.
+const WRITE = `
+  local args = { KEYS[1], ARGV[3] }
+  if ARGV[5] ~= '' then args[#args + 1] = 'NX' end
+  if ARGV[4] ~= '' then
+    args[#args + 1] = 'PX'
+    args[#args + 1] = ARGV[4]
+  end
+  if not redis.call('SET', unpack(args)) then return 0 end
+  redis.call('ZADD', KEYS[2], 0, ARGV[2])
+  if ARGV[4] == '' then
+    redis.call('ZREM', KEYS[3], ARGV[2])
+  else
+    local time = redis.call('TIME')
+    redis.call('ZADD', KEYS[3], time[1] * 1000 + math.floor(time[2] / 1000) + ARGV[4], ARGV[2])
+  end
+  ${SWEEP}
+  return 1
+`
+
+const REMOVE = `
+  redis.call('DEL', KEYS[1])
+  redis.call('ZREM', KEYS[2], ARGV[2])
+  redis.call('ZREM', KEYS[3], ARGV[2])
+  return 1
+`
+
+// Checked and removed in one step: a name whose key came back between a scan's read and this must stay.
+const FORGET = `
+  for index = 2, #ARGV do
+    if redis.call('EXISTS', ARGV[1] .. ARGV[index]) == 0 then redis.call('ZREM', KEYS[2], ARGV[index]) end
+  end
+  return 1
+`
 
 /**
  * A `KvStore` over Redis (FR-A3). `insert` is `SET NX`, which Redis applies atomically, so single
  * use holds across every process sharing the instance — the property the memory store gets for free
  * and a distributed one has to earn. Expiry is Redis's own `PX`, so nothing needs sweeping.
+ *
+ * Each write is one script touching the entry and the two sets, so it needs them on one node: a
+ * single Redis, or a cluster where the prefix carries a hash tag.
  */
 export const redisKv = (send: RedisCommand, options: RedisKvOptions = {}): KvStore => {
   const prefix = options.prefix ?? 'oidcraft:'
   const count = String(options.scanCount ?? 200)
-  const expiry = (ttl: KvEntry['ttl']) => (ttl === undefined ? [] : ['PX', String(Math.ceil(ttl * 1000))])
+  const names = prefix + NAMES
+  const lapses = prefix + LAPSES
   // An entry whose ttl has already run out is born absent, as it is in the memory store.
   const lapsed = (ttl: KvEntry['ttl']) => ttl !== undefined && ttl <= 0
+  const run = (script: string, key: string, ...args: string[]) =>
+    send('EVAL', [script, '3', prefix + key, names, lapses, prefix, key, ...args])
+  const write = async ({ key, value, ttl }: KvEntry, mode: '' | 'NX') =>
+    Number(await run(WRITE, key, value, ttl === undefined ? '' : String(Math.ceil(ttl * 1000)), mode)) === 1
 
   return {
     async find(key) {
       const value = await send('GET', [prefix + key])
       return typeof value === 'string' ? { key, value } : undefined
     },
-    async upsert({ key, value, ttl }) {
-      if (lapsed(ttl)) await send('DEL', [prefix + key])
-      else await send('SET', [prefix + key, value, ...expiry(ttl)])
+    async upsert(entry) {
+      if (lapsed(entry.ttl)) await run(REMOVE, entry.key)
+      else await write(entry, '')
     },
-    async insert({ key, value, ttl }) {
-      if (lapsed(ttl)) return Number(await send('EXISTS', [prefix + key])) === 0
-      return (await send('SET', [prefix + key, value, 'NX', ...expiry(ttl)])) === 'OK'
+    async insert(entry) {
+      if (lapsed(entry.ttl)) return Number(await send('EXISTS', [prefix + entry.key])) === 0
+      return write(entry, 'NX')
     },
     async destroy(key) {
-      await send('DEL', [prefix + key])
+      await run(REMOVE, key)
     },
     async *scan(start) {
-      const match = `${globEscape(prefix + start)}*`
-      // SCAN may return a key more than once across its rounds.
-      const seen = new Set<string>()
-      let cursor = '0'
-      do {
-        const [next, found] = (await send('SCAN', [cursor, 'MATCH', match, 'COUNT', count])) as [string, string[]]
-        cursor = String(next)
-        const keys = found.filter(key => !seen.has(key))
-        for (const key of keys) seen.add(key)
-        if (!keys.length) continue
-        const values = (await send('MGET', keys)) as (string | null)[]
-        for (const [index, full] of keys.entries()) {
-          const value = values[index]
-          // Expired or deleted between SCAN and MGET: absent, as if the scan had never seen it.
-          if (typeof value === 'string') yield { key: full.slice(prefix.length), value }
+      let from = `[${start}`
+      for (;;) {
+        const found = (await send('ZRANGEBYLEX', [names, from, '+', 'LIMIT', '0', count])) as string[]
+        // The names are in byte order, so those under the prefix are together and the first that is not ends them.
+        const under = found.filter(name => name.startsWith(start))
+        if (under.length) {
+          const values = (await send(
+            'MGET',
+            under.map(name => prefix + name)
+          )) as (string | null)[]
+          // Expired or deleted since it was named: absent, and the names can forget it.
+          const gone = under.filter((_, index) => typeof values[index] !== 'string')
+          if (gone.length) await send('EVAL', [FORGET, '3', prefix, names, lapses, prefix, ...gone])
+          for (const [index, key] of under.entries()) {
+            const value = values[index]
+            if (typeof value === 'string') yield { key, value }
+          }
         }
-      } while (cursor !== '0')
+        if (under.length < found.length || found.length === 0) return
+        from = `(${found.at(-1)}`
+      }
     }
   }
 }

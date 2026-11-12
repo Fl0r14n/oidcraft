@@ -469,11 +469,12 @@ text it is held to. In fix order.
 - [x] No hook for an unexpected failure: `errorResponse` wraps it as `server_error` and the cause is
   gone (`errors.ts:104`). `onError` on the config. NFR-D5
   Fixed: `onError(error, { request })`, called for anything the provider did not mean, and never allowed to change the answer
-- [ ] The Redis adapter scans on request paths: `fromKv` answers `grants.findByAccountAndClient`,
+- [x] The Redis adapter scans on request paths: `fromKv` answers `grants.findByAccountAndClient`,
   `sessions.listForAccount` and `findByUpstreamSession` with a prefix scan, and Redis `SCAN MATCH`
   walks the whole keyspace — on every `/authorize` that has a session. Index keys, as `user-code/` and
   `grant-index/` already are. Pinned by a test adapter whose `scan` throws through the authorization
   and token flows, which fails today on `fromKv`. NFR-P1
+  Fixed in two parts, the contract untouched: `fromKv` scans one record's keys and never a family on a request path, pinned by a test that records the prefixes scanned; and `@oidcraft/redis` answers a prefix from its own sorted-set index of key names, kept by one script per write, pinned by a test that counts commands
 - [x] Only artifacts can be pruned. Replay entries and sessions grow without bound on SQL, and the
   Kysely `prune` deletes a row at a time. NFR-P3
   Fixed: `sessions.prune` and `replay.prune` in the contract, the three SQL adapters and the conformance suite, with a session expiry index in `0004_indexes`. The sweeps still delete a row at a time: a composite key has no portable single-statement bounded delete across SQLite and Postgres

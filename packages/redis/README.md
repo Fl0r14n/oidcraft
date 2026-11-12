@@ -22,6 +22,12 @@ It is `fromKv` over a `KvStore` built on `SET NX` and `PX` expiry, so single use
 process sharing the instance and nothing needs sweeping. `prefix` (default `oidcraft:`) lets one
 Redis hold other data, or several issuers.
 
+Redis cannot list the keys under a prefix without reading every key, so the adapter keeps two sorted
+sets beside the data, `<prefix>~keys` and `<prefix>~expiry`, and each write is one `EVAL` that
+updates them with the entry. Your command function must pass `EVAL` through. The script touches the
+entry and both sets, so they must be on one node: a single Redis, or a cluster where `prefix`
+carries a hash tag, such as `{oidcraft}:`.
+
 It returns a `FullAdapter`, so it satisfies every `@oidcraft/provider` entry point, and passes the
 shared suite in `@oidcraft/adapter/conformance`.
 

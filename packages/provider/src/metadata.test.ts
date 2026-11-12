@@ -53,6 +53,12 @@ const REQUIRED = [
 ]
 
 describe('discovery metadata', () => {
+  // RFC 9449 §5.1 registers `dpop_signing_alg_values_supported` and nothing about requiring binding (FR-C6).
+  test('advertises no DPoP member the registry does not define', async () => {
+    const metadata = await metadataOf(providerWith({ features: { dpop: true, dpopNonces: true } }))
+    expect(Object.keys(metadata).filter(name => name.startsWith('dpop'))).toEqual(['dpop_signing_alg_values_supported'])
+  })
+
   test('carries every field OIDC Discovery 1.0 §3 requires', async () => {
     const metadata = await metadataOf()
     expect(REQUIRED.filter(field => metadata[field] === undefined)).toEqual([])

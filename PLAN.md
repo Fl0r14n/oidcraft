@@ -445,8 +445,9 @@ text it is held to. In fix order.
 - [x] `interactions.complete` consumes the interaction before its last check, so "consent without a
   signed-in account" burns it (`authorize/interactions.ts:98,133`). FR-I2
   Fixed
-- [ ] Discovery advertises `dpop_bound_access_tokens_required`, which is not registered metadata,
+- [x] Discovery advertises `dpop_bound_access_tokens_required`, which is not registered metadata,
   keyed off `dpopNonces`, which means something else (`discovery.ts:86`). FR-C6
+  Fixed: removed
 - [ ] Smaller: pairwise subjects and the details-consent id hash a delimited string, where a host
   with a dot or an account id with one can collide — HMAC over a length-prefixed input (FR-C18); the
   session cookie is `Path=/` for every issuer, so two issuers on one host share it; a DPoP nonce

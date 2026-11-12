@@ -83,9 +83,8 @@ export const metadata = (config: ResolvedConfig, signing: string[]) => {
     userinfo_signing_alg_values_supported: algorithms,
     frontchannel_logout_session_supported: true,
     backchannel_logout_session_supported: true,
-    ...(features.dpopNonces && { dpop_bound_access_tokens_required: true }),
-    // JAR by value only: resolving a client-supplied request_uri would be outbound I/O (FR-A1).
     ...(config.authorizationDetailTypes.length && { authorization_details_types_supported: config.authorizationDetailTypes }),
+    // JAR by value only: resolving a client-supplied request_uri would be outbound I/O (FR-A1).
     request_parameter_supported: true,
     request_uri_parameter_supported: false,
     require_request_uri_registration: false,

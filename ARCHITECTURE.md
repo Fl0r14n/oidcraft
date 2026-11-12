@@ -306,7 +306,8 @@ access token was issued to. No cookie is ever sent cross-origin.
 
 ### 3.2 What the core does not do
 
-No HTML. No cookies beyond the session cookie whose name and attributes the host configures. No
+No HTML beyond the `form_post` response page. No cookies beyond the session cookie, `oidcraft.sid`:
+host-only, `HttpOnly`, `SameSite=Lax`, and `Secure` on an https issuer. No
 timers, no background sweeps, no connection pool, no process-level cache that survives a request
 (FR-A1, NFR-P3). Two processes behind a load balancer behave identically to one, which is the
 property that makes horizontal scaling and serverless hosting the same thing.
@@ -509,9 +510,10 @@ passes its own.
 
 ## 7. Administration
 
-The root entry exposes the management surface as fetch handlers over clients, grants, sessions,
-keys and upstreams (FR-M1). **The library never decides who is an administrator** — the host mounts
-these behind its own authentication, and the reference app does so behind its own admin session.
+The root entry exposes the management surface as functions on the provider, `provider.management`,
+over clients, grants, sessions, keys and upstreams (FR-M1); none of it is a route. **The library
+never decides who is an administrator** — the host calls these from handlers behind its own
+authentication, and the reference app does so behind its own admin session.
 Writes emit audit events the host routes somewhere; the library persists none of them (FR-M3).
 
 ### 7.1 Realms
@@ -762,7 +764,7 @@ clone.
 - **Unit** — `bun test` per package. Every `FR-C*` gets a test that exercises the wire format, not
   just the function behind it (NFR-C3).
 - **Protocol conformance** — the OpenID Foundation suite for the `basic` and `config` OP profiles
-  (NFR-C1). Both are green when run locally; they do not yet run in CI, so this is not a gate.
+  (NFR-C1), and the FAPI 2.0 Security Profile plan. They gate CI: the `conformance` job in `ci.yml`.
   `conformance/` holds the plan configuration, the refusals with the clause behind each, and the
   runner; the runner exits non-zero when the suite is absent, so it can never be mistaken for a
   passing gate.

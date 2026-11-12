@@ -23,8 +23,9 @@ differences that are the reason it exists:
 
 ### 1.1 Non-goals
 
-- Not an IdP product with its own UI, themes or realm model. It is a library; the screens are
-  reference implementations meant to be replaced.
+- Not an IdP product with its own UI, themes or imposed realm model. It is a library; the screens
+  are reference implementations meant to be replaced, and several issuers in one process are
+  possible without being a mode every deployment meets (FR-M4).
 - Not a SAML IdP or SP. Upstream SAML is reachable only through the `UpstreamProvider` extension
   point, never in-tree (G-4).
 - Not a user-directory by default. Accounts belong to the host application behind `AccountStore`;
@@ -54,8 +55,8 @@ Implicit (`token`, `id_token`, `id_token token`) and hybrid (`code token`, `code
 RFC 9700 §2.1.2 says clients SHOULD NOT use the token-bearing ones, and anything returning an ID
 token through the front channel hands it to the browser's history and `Referer`. The cost is that
 oidcraft is not a Dynamic OpenID Provider in the sense of OIDC Core §15.2, which must support
-`id_token` and `id_token token` (NFR-C1). This was listed as supported for a while and advertised in discovery while the code
-refused it — see `metadata.test.ts`, which now tries every advertised value rather than reading it.
+`id_token` and `id_token token` (NFR-C1). `metadata.test.ts` tries every advertised value rather
+than reading it, so discovery cannot advertise what the code refuses.
 
 **FR-C2 — Token endpoint.** `authorization_code`, `refresh_token`, `client_credentials`,
 `urn:ietf:params:oauth:grant-type:device_code`, `urn:ietf:params:oauth:grant-type:token-exchange`
@@ -91,7 +92,8 @@ another one; without it, every provider a client talks to could impersonate it e
 
 **FR-C5 — UserInfo endpoint.** Claims resolved per request through `AccountStore.claims`, never
 served from a copy cached at authentication time. Signed and/or encrypted responses when the
-client asks for them.
+client asks for them. An access token restricted to a resource (FR-C19) is refused here: it was
+issued for that resource, and UserInfo is not it.
 
 **FR-C6 — Discovery.** `/.well-known/openid-configuration` (OIDC Discovery 1.0), advertising only
 what the running configuration actually supports, and `/.well-known/oauth-authorization-server`
@@ -99,15 +101,22 @@ what the running configuration actually supports, and `/.well-known/oauth-author
 `protectedResourceMetadata`, for the resource server to serve: the URL is the resource server's, not
 the provider's.
 
-**FR-C7 — Device authorization grant** (RFC 8628), including the user-code interaction screen.
+**FR-C7 — Device authorization grant** (RFC 8628), including the user-code interaction screen. A
+poll never writes the request it reads: an approval or denial that lands while the device is
+polling is not lost to it. The same holds for a CIBA request (FR-C17).
 
 **FR-C8 — Revocation (RFC 7009) and introspection (RFC 7662).** Introspection requires client or
 resource-server authentication and returns `active: false` rather than an error for anything the
-caller may not see.
+caller may not see. Revoking a refresh token revokes every token issued under its grant, since
+leaving the access tokens alive would make signing an application out mean nothing; the grant
+itself, the consent, stays (FR-I4). Revoking an access token removes that token alone.
 
 **FR-C9 — Dynamic client registration** (OIDC DCR 1.0) with registration access tokens, gated by
 an explicit policy: open, software-statement-gated, or disabled. **Disabled is the default.**
 Offering it does not make oidcraft a Dynamic OpenID Provider (OIDC Core §15.2; FR-C1, FR-C12).
+The request is a stranger's JSON and is read as that: a body that is not an object, a member of
+the wrong type, a `jwks` that is not a key set or carries private members, or `jwks` together with
+`jwks_uri` is `invalid_client_metadata`, never a 500.
 
 **FR-C10 — JWKS endpoint and key rotation.** Multiple active keys; the first signing-capable key
 of an algorithm signs, the rest only verify, so a rotation never invalidates live tokens (NFR-S7).
@@ -115,6 +124,11 @@ of an algorithm signs, the rest only verify, so a rotation never invalidates liv
 **FR-C11 — Logout.** RP-initiated logout, front-channel logout and back-channel logout. Session
 Management 1.0's `check_session_iframe` is **not** implemented — third-party cookie blocking has
 made it non-functional in current browsers.
+
+At the end-session endpoint a `client_id` sent with an `id_token_hint` must be the client the hint
+was issued to, or the request is refused (OIDC RP-Initiated Logout 1.0 §2). A hint that names a
+session or subject other than the browser's own proves nothing about this browser, so the person
+is asked to confirm, as when there is no hint at all.
 
 **FR-C12 — Request objects.** JAR (RFC 9101) **by value** (`request`) and PAR (RFC 9126), with
 per-client `require_pushed_authorization_requests`.
@@ -192,14 +206,18 @@ first key (`ES256` by default) and a dynamically registered one `RS256` (OIDC DC
 
 **FR-T2** — Access tokens are opaque by default and JWT (RFC 9068) when a client or resource
 server is configured for it. Opaque is the default because a revoked opaque token stops working
-immediately and a revoked JWT does not.
+immediately and a revoked JWT does not. A JWT presented back to this provider is accepted only
+once its signature verifies, and its `jti` is an identifier, never a credential: presenting the
+`jti` alone finds nothing (NFR-S11).
 
 **FR-T3** — Refresh tokens rotate on every use. Reuse of a consumed refresh token revokes the
 entire grant (RFC 9700 §4.14.2). This is not configurable. The one exception is a client under the
 FAPI 2.0 profile (FR-C21): confidential, authenticating with a key, and holding sender-constrained
 tokens, so its refresh token is useless without that key and rotation would only lose grants to a
 dropped response (FAPI 2.0 Security Profile §5.3.2.1). Its refresh token does not rotate; it still
-expires, and is still revoked with its grant.
+expires, on the same two clocks as a rotating one (FR-T6) — each use restarts the `refreshToken`
+idle lifetime, never past the `refreshTokenFamily` absolute one — and is still revoked with its
+grant.
 
 **FR-T4** — Authorization codes are single-use with the same consequence on replay: consuming a
 code twice revokes the grant it belongs to.
@@ -214,6 +232,14 @@ approval's session is the approver's browser, not the client's, so those still n
 FR-T3 says. One with `offline_access` outlives the session (OIDC Core §11), within `refreshToken`
 idle and `refreshTokenFamily` absolute lifetimes. A browser client renews without a third-party
 cookie, and a stolen session-bound token is good only while the session lasts.
+
+**FR-T7** — What ends, ends what depends on it. Revoking a grant revokes its tokens. Ending a
+session ends the refresh tokens bound to it (FR-T6). Completing a password reset ends the account's
+sessions and revokes every token issued to it, `offline_access` ones included: a reset is what
+someone does after a compromise, and a refresh token that outlives it is the compromise continuing.
+Deleting a client, through registration or the management API, revokes the tokens and grants it
+holds. Deleting an account is the host's, and the host revokes its grants through the management
+API.
 
 ## 5. Storage — `FR-A*`
 
@@ -267,9 +293,11 @@ of upstreams (`Client.upstreamProviders`).
 `state`, `nonce`, the PKCE verifier and the id of the downstream interaction it resumes. It is
 single-use, expires, and is bound to the browser it started in.
 
-**FR-F4 — Home-realm discovery.** Which upstream to use is chosen from `login_hint`, the email
-domain, `acr_values`, the client's allowed list, or by asking the user — in that order, each step
-skippable by configuration.
+**FR-F4 — Home-realm discovery.** The client's allowed list narrows the candidates first. Among
+those, which upstream to use is chosen by an explicit choice the person made, then an `acr_values`
+entry naming one, then the email domain of `login_hint`, then being the only candidate left — in
+that order. When none decides it, the candidates go to the screen and the person is asked; one is
+never guessed.
 
 **FR-F5 — Account linking is by `(provider, subject)` and nothing else, by default.** Other
 policies (`verified-email`, `interactive`) exist and must be chosen deliberately, because they
@@ -290,8 +318,9 @@ clients. RP-initiated logout optionally propagates upward.
 force a fresh upstream authentication rather than being satisfied by the local session.
 
 **FR-F10 — Upstream tokens are not retained by default.** Retaining them turns the deployment into
-a credential store for another system; it must be opted into per provider, and the tokens must be
-reachable only through an explicit, audited API (NFR-S9).
+a credential store for another system, so it is opted into per provider. The library then hands
+them to the host with the brokered identity and keeps none itself: it has no store for them, and
+no endpoint or claim that returns them to a downstream client (NFR-S9).
 
 **FR-F11 — An upstream failure is an OAuth error, not a stack trace.** A dead or misbehaving
 upstream produces a well-formed error response to the downstream client and a logged diagnostic.
@@ -330,19 +359,26 @@ structured for translation.
   accepted once (NFR-S5). The secret is stored encrypted with AES-GCM under a key the host
   configures, bound to its account, so a database dump alone yields no second factor.
 - **Recovery codes**, issued when TOTP is confirmed, stored hashed and each usable once.
-- **Throttling**: failed passwords and codes lock the account for a while (NIST SP 800-63B §5.2.2).
+- **Throttling**: failed passwords and codes are counted per account and peer address, and lock
+  that address out of that account for a while (NIST SP 800-63B §5.2.2); a higher count per account
+  alone locks it for everyone, so a guess spread over many addresses still stops (`G-9`).
 - **Password reset**: single-use tokens with a short lifetime, stored hashed. Delivering one is I/O,
-  so the host sends it (FR-A1). Completing a reset ends the account's sessions.
+  so the host sends it (FR-A1). Completing a reset ends the account's sessions and revokes its
+  tokens (FR-T7).
 - **Self-service sign-up**, which the host may leave unmounted.
 
 ## 8. Administration — `FR-M*`
 
 **FR-M1** — A management API over clients, grants, sessions, keys and upstream providers, exposed
-as fetch handlers the host mounts behind its own authentication. **The library never decides who
-is an administrator.**
+as functions on the provider, not as routes: the host calls them from handlers it puts behind its
+own authentication. **The library never decides who is an administrator.** A client written
+through it is checked as one written through registration is (FR-C3, FR-C18, FR-C21), on create
+and on update alike.
 
-**FR-M2** — A reference admin UI covering client CRUD, key rotation, upstream configuration,
-session inspection and grant revocation.
+**FR-M2** — A reference admin UI covering client CRUD, the active keys, the configured upstreams,
+session inspection and grant revocation. Keys and upstreams are shown, not edited: keys are the
+host's `KeyStore` and are rotated where it keeps them (FR-C10), and an upstream is deployment
+configuration (FR-F1).
 
 **FR-M3** — Every write through the management API emits an audit event. The host decides where
 audit events go; the library does not persist them.
@@ -386,7 +422,47 @@ loudly, at construction rather than at the first request (NFR-D2). The mTLS clie
 methods (FR-C4) and certificate-bound tokens (FR-C13) require `RequestContext.clientCertificate`;
 where no provider can supply one, advertising them in discovery would be a lie (`G-8`).
 
-## 10. Non-functional
+## 10. Client libraries — `FR-L*`
+
+`@oidcraft/core`, `@oidcraft/client` and the bindings on them are the relying-party half. They work
+against any OpenID Provider, not only this one.
+
+**FR-L1** — `@oidcraft/core` is the protocol and nothing else: discovery, the authorization request,
+the code exchange, refresh, revocation, ID token verification. No storage, no `location`, no
+framework, so the same code runs in a browser and in `@oidcraft/provider/broker`. A discovery
+document asserting another issuer than the one it was fetched from is refused, and every endpoint
+is https unless `allowInsecure` says otherwise.
+
+**FR-L2** — A callback is checked before it is believed: `state` against the one sent, `iss` when
+the provider advertises it (RFC 9207), the ID token's signature, issuer, audience and `azp`, and its
+`nonce`. A failure is told apart from the provider not answering: the caller can distinguish a
+refused sign-in, a failed check and an unreachable endpoint without matching on message text.
+
+**FR-L3** — PKCE with `S256` is sent whenever discovery says the provider supports it, and is a
+configuration option otherwise: `pkce: true` forces it for a provider that supports it without
+advertising it, as Entra has. A public client should always end up with it on — it has no other
+protection for its code (RFC 9700 §2.1.1).
+
+**FR-L4** — Tokens are kept in `localStorage`, because a session has to survive a reload and reach
+the other tabs, which session storage and memory do not. The README says what that costs: a script
+injected into the page reads the refresh token.
+
+**FR-L5** — One refresh at a time, across tabs as within one. Two tabs presenting the same refresh
+token is a replay to a provider that rotates (FR-T3), and costs the user the whole grant.
+
+**FR-L6** — A `401` ends the session and its body becomes the token state: the stored value is the
+server's error, so the application renders why it was signed out from the same place it reads the
+token. A body that is not a JSON object leaves an empty token.
+
+**FR-L7** — No module-level instance. Every binding resolves its instance through its framework's
+injection, so one instance per request is isolated under concurrent server rendering, and
+`dispose()` ends its subscriptions.
+
+**FR-L8** — A binding is a reactive view over `@oidcraft/client` and holds no protocol or state of
+its own: `@oidcraft/vue` as refs, `@oidcraft/react` through `useSyncExternalStore` with a server
+snapshot, `@oidcraft/angular` as signals. What one binding does, the others do.
+
+## 11. Non-functional
 
 ### Security — `NFR-S*`
 
@@ -416,15 +492,31 @@ validity window.
 `X-Forwarded-Host` header, which would let a request rewrite the issuer of the tokens it receives.
 
 **NFR-S7** — Key rotation never invalidates a live token: verification keys outlive the signing
-key by at least the longest token TTL.
+key by at least the longest token TTL. The keys are the host's `KeyStore`, so keeping a retired
+key listed that long is the host's to do; the library signs with the first key of an algorithm and
+verifies against all of them (FR-C10), and cannot see a key that was removed too early.
 
 **NFR-S8** — No implicit account linking on an unverified email address. The default linking
 policy matches on `(provider, subject)` only.
 
-**NFR-S9** — Upstream access and refresh tokens are stored only when a provider opts in, are
-encrypted at rest by the adapter, and are never returned to a downstream client by default.
+**NFR-S9** — Upstream access and refresh tokens leave the broker only when a provider opts in, and
+only to the host (FR-F10). The library never stores them and never returns them to a downstream
+client. A host that keeps them encrypts them at rest.
 
 **NFR-S10** — No secret is ever logged. Tokens appear in logs as a prefix and a hash, if at all.
+
+**NFR-S11** — No bearer credential is stored as itself. Authorization codes, access and refresh
+tokens, device codes, pushed-request references, registration access tokens and password-reset
+tokens are stored under a SHA-256 of their value, so a copy of the database yields no usable token.
+A client secret used with `client_secret_basic` or `client_secret_post` is stored hashed the same
+way. `client_secret_jwt` is the exception it has to be — the secret is the HMAC key — which is a
+reason to prefer `private_key_jwt`. The device `user_code` is the other: short enough to type is
+short enough that a hash hides nothing, and it lives minutes (NFR-S3).
+
+**NFR-S12** — The library limits what only it can count: wrong device user codes per address
+(FR-C7) and failed passwords and second-factor codes per account (FR-I7). Limiting requests per
+address at the token, authorization and registration endpoints is the host's, in front of the
+provider, where the real peer address is known (FR-R4).
 
 ### Conformance — `NFR-C*`
 
@@ -443,13 +535,17 @@ just the internal function.
 
 ### Performance — `NFR-P*`
 
-**NFR-P1** — A token-endpoint call performs at most two storage round trips.
+**NFR-P1** — A request performs a bounded number of storage operations, each by key or by an
+index, whatever the store holds. No request path scans: not the token endpoint, not the
+authorization endpoint's grant lookup, in any first-party adapter, Redis included. A scan is
+acceptable only where an operator asked for a list.
 
-**NFR-P2** — Discovery and JWKS responses are cacheable and served without a storage read on the
-hot path.
+**NFR-P2** — Discovery and JWKS responses are cacheable, and read nothing but the `KeyStore`,
+which a host keeps in memory.
 
-**NFR-P3** — Expired-artifact pruning is a bounded sweep the host schedules. The library starts no
-timers and no background tasks of its own.
+**NFR-P3** — Pruning what has expired is a bounded sweep the host schedules, and it reaches every
+table that grows: artifacts, sessions and replay entries. The library starts no timers and no
+background tasks of its own.
 
 ### Developer experience — `NFR-D*`
 
@@ -466,7 +562,11 @@ the adapter packages that use them, never of the provider, so installing the pro
 `@oidcraft/provider/broker` needs is `@oidcraft/core`, this workspace's own and published from it, so
 brokering adds no third-party package either.
 
-## 11. Open questions — `G-*`
+**NFR-D5** — A failure the provider did not expect is reported to the host, with its cause, through
+an `onError` hook, and answered as `server_error` with nothing of the cause in the response. This
+is the diagnostic FR-F11 promises; without it a 500 leaves no trace the host can find.
+
+## 12. Open questions — `G-*`
 
 **G-1 — OpenID Federation 1.0 (trust chains, not brokering).** Not "sign in with Google": that is
 identity brokering (FR-F*), and it is built. OpenID Federation lets parties that never registered
@@ -509,3 +609,11 @@ FAPI 2.0 itself accepts. A header from a trusted mTLS-terminating proxy was desi
 every host enabling it must make the proxy overwrite that header, and a misconfiguration is client
 impersonation the library cannot detect. Build it if an mTLS-only deployment on Bun appears. Node
 and workerd are unaffected.
+
+**G-9 — Account lockout as denial of service.** FR-I7 locks an account after failed attempts, as
+NIST SP 800-63B §5.2.2 asks, which also lets anyone who knows a username lock its owner out, and
+lets a locked answer confirm the username exists. Decided: failures are counted per account and
+peer address together, so someone guessing locks out only their own address, with a higher ceiling
+per account alone, so a guess spread over many addresses still ends in a lock. Without a peer
+address from the host the count is per account, as before. Whether a locked answer looks different
+from a wrong password is the screen's choice; the reference screen makes them the same.

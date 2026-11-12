@@ -7,8 +7,9 @@ This file is working state: tick items off and add notes as work lands.
 
 **Implemented, as of 2026-11-11**, with 1107 passing tests (151 more skip without Postgres and Redis) and `bun run verify` as the gate — everything
 below, FR-T6, FR-C21 and FR-A4's Postgres included. Published as `@oidcraft/*` (the move below), with
-the docs site at https://fl0r14n.github.io/oidcraft/. Every numbered item under _Next_ is done; what
-remains is the section below.
+the docs site at https://fl0r14n.github.io/oidcraft/. Items 1–11 under _Next_ are done; item 12, the
+2026-11-12 review, is open, and until its security findings are fixed this is not a provider to put
+real identities behind.
 
 The authorization code grant with mandatory PKCE, interaction suspend/resume, token issuance with
 rotation and replay revocation, UserInfo, revocation, introspection, logout in both directions,
@@ -339,7 +340,8 @@ waits on `oidcraft/accounts` (FR-I7).
 
 ## `FR-*` coverage
 
-Every functional requirement in `REQUIREMENTS.md` is implemented, including the six that an audit
+Every functional requirement in `REQUIREMENTS.md` as it stood on 2026-11-11 is implemented — the
+ones the 2026-11-12 review added or tightened are listed, unticked, under that review — including the six that an audit
 against behaviour — rather than against these checkboxes — found missing after the list said
 otherwise: FR-C4's mTLS methods, FR-C5's signed and encrypted UserInfo, FR-C11's front-channel
 logout, FR-C13's certificate-bound tokens, FR-C16's resource-server challenge, and FR-T2's JWT
@@ -368,6 +370,139 @@ What is _not_ claimed: see the status section. Implemented is not the same as ce
     and released in `@oidcraft/provider@0.2.0`.
 11. ~~Adapters as packages~~ — done 2026-11-11, ahead of 1.0: `@oidcraft/adapter` with
     `@oidcraft/drizzle`, `kysely`, `typeorm` and `redis` on it, released (below).
+12. **What the 2026-11-12 review found** — below, in its order: security, then operations, then
+    structure, then the client libraries.
+
+## Review — 2026-11-12
+
+One reader, the whole provider, the adapter contract, `fromKv`, the Kysely, Redis and memory
+adapters, `core`, `client` and the three bindings; Drizzle only in outline, TypeORM and `@oidcraft/ui`
+not at all. By reading, not by exploit: each item names where it was seen, and each fix starts with
+the test that shows it. `REQUIREMENTS.md` was corrected first, the same day, so every item cites the
+text it is held to. In fix order.
+
+**Security**
+
+- [ ] A JWT access token's `jti` is a bearer credential: it is the stored artifact's id, and
+  `resolveAccessToken` tries the presented string as an id before anything else, so a `jti` read from
+  a resource server's log is a token. The JWT path decodes without verifying
+  (`token/access-token.ts:138`). FR-T2, NFR-S11
+- [ ] Nothing is hashed at rest but reset tokens: codes, access and refresh tokens, device codes, PAR
+  references and registration access tokens are stored as themselves. One wrapper over
+  `adapter.artifacts` in the provider, as `withClientMetadata` wraps `clients`, so the id is
+  `sha256(value)` in and out: no call site and no adapter changes. Plain SHA-256, since every value is
+  288 random bits; the device `user_code` stays as typed, being short enough that a hash hides
+  nothing. A JWT's `jti` becomes the hash, which closes the item above. Live tokens stop working at
+  the upgrade — free with no users, and never again. NFR-S11
+- [ ] Then client secrets, as their own step: `client_secret_basic` and `client_secret_post` compare
+  against a stored hash, so `Client` changes shape and the admin shows a secret once, at creation.
+  `client_secret_jwt` keeps the secret, as it must. NFR-S11
+- [ ] End-session takes the client from `client_id` and never compares it with the hint's `aud`; the
+  verified claims are used only as a boolean, so a hint issued to one client redirects to another's
+  URI and skips the confirmation. The hint's `sid`/`sub` are not compared with the browser's session
+  (`session/end-session.ts:52`). FR-C11
+- [ ] A device or CIBA poll rewrites the whole artifact to record `lastPolledAt`, so an approval
+  landing between its read and its write is overwritten with `pending` (`authorize/device.ts:104`,
+  `authorize/ciba.ts:135`). Keep the poll clock in `replay.claim` and never write the artifact from
+  the poll. FR-C7
+- [ ] Completing a password reset ends sessions and leaves `offline_access` refresh tokens working,
+  since each carries its own sign-in (`accounts/index.ts:338`). FR-T7
+- [ ] Deleting a client leaves its access tokens answering at UserInfo and introspection until they
+  expire, and its grants in place. There is no way to revoke by client: `ArtifactStore` needs one.
+  FR-T7
+- [ ] Registration casts a stranger's JSON: a `null` body or a non-string `scope` is a `TypeError`
+  and a 500, `jwks` is stored unread, `jwks` with `jwks_uri` is accepted
+  (`clients/registration.ts:172`). The metadata-document path has the same casts. FR-C9
+- [ ] UserInfo serves a token whose audience is another resource (`resource/userinfo.ts:72`). FR-C5
+- [ ] `management.clients.update` checks only the FAPI profile: `requirePkce: false` on a public
+  client is stored (the request path still refuses it), and a pairwise client with redirect URIs on
+  several hosts is stored and then throws at the token endpoint. One `validateClient` for create,
+  update and registration. FR-M1
+- [ ] Revoking a refresh token deletes the grant (`resource/revocation.ts:34`); FR-C8 now says the
+  consent stays, as `Grant`'s own comment and ARCHITECTURE.md §4 always did. Only `/revoke` is
+  affected: end-session never touched the grant
+- [ ] One grant per account and client means one app on two devices shares it, so a revocation or a
+  detected replay on one signs out the other. A family id on refresh tokens, and revocation and
+  replay scoped to the family; FR-C8, FR-T3 and FR-T4 change with it. After the item above, not with it
+- [ ] A FAPI client's refresh token is never rewritten, so its idle lifetime never restarts and it
+  dies 14 days after issue whatever its use (`token/issue.ts:74`). Rewrite the same artifact with a
+  new expiry on each use, capped by the family's: one write, no contract change. FR-T3
+- [ ] `interactions.complete` consumes the interaction before its last check, so "consent without a
+  signed-in account" burns it (`authorize/interactions.ts:98,133`). FR-I2
+- [ ] Discovery advertises `dpop_bound_access_tokens_required`, which is not registered metadata,
+  keyed off `dpopNonces`, which means something else (`discovery.ts:86`). FR-C6
+- [ ] Smaller: pairwise subjects and the details-consent id hash a delimited string, where a host
+  with a dot or an account id with one can collide — HMAC over a length-prefixed input (FR-C18); the
+  session cookie is `Path=/` for every issuer, so two issuers on one host share it; a DPoP nonce
+  demand is a storage write a public client triggers unauthenticated — a stateless HMAC nonce;
+  UserInfo reports a bad token as `invalid_grant` because the error union has no `invalid_token`; the
+  logout token ignores the client's `id_token_signed_response_alg`
+
+**Operations**
+
+- [ ] No hook for an unexpected failure: `errorResponse` wraps it as `server_error` and the cause is
+  gone (`errors.ts:104`). `onError` on the config. NFR-D5
+- [ ] The Redis adapter scans on request paths: `fromKv` answers `grants.findByAccountAndClient`,
+  `sessions.listForAccount` and `findByUpstreamSession` with a prefix scan, and Redis `SCAN MATCH`
+  walks the whole keyspace — on every `/authorize` that has a session. Index keys, as `user-code/` and
+  `grant-index/` already are. Pinned by a test adapter whose `scan` throws through the authorization
+  and token flows, which fails today on `fromKv`. NFR-P1
+- [ ] Only artifacts can be pruned. Replay entries and sessions grow without bound on SQL, and the
+  Kysely `prune` deletes a row at a time. NFR-P3
+- [ ] `clients.list(cursor, limit)` ignores both in every adapter read
+- [ ] A first consent from two tabs inserts two grants with different ids against a unique
+  `(account_id, client_id)` index; the second is a 500. Upsert on that pair
+- [ ] `findByUserCode` and `findByUpstreamSession` do not filter expired rows where `find` does
+
+**Structure**
+
+- [ ] `Artifact.payload` is `Record<string, unknown>` and the provider casts it about thirty times —
+  the shape ARCHITECTURE.md §4.1 argues against. A payload type per kind, read and written through
+  one function each; no adapter changes
+- [ ] Device and CIBA are one state machine written twice: poll, slow-down, approve, deny. The
+  grant merge is written three times (`interactions.ts:136`, `device.ts:202`, `ciba.ts:196`), and
+  `device.ts:200` rewrites `session.clients` rather than calling the atomic `addClient`
+- [ ] Signing is written four times — ID token, JWT access token, UserInfo, logout token — each
+  reading the key store again. One `signerFor(config, client, alg?)`, one key read per response
+- [ ] Duplicates: the client key set in `assertion.ts` and `request-object.ts`; the DPoP options in
+  the token endpoint, PAR and UserInfo; `MTLS_METHODS` in `config.ts` and `discovery.ts`;
+  `noAccounts` in each adapter; about 150 lines of row mapping in each SQL adapter, which belong in
+  `@oidcraft/sql`
+- [ ] CORS works out the client again after the handler did, cloning the body twice and reading the
+  client store, and at UserInfo the artifact, a second time. The handler returns the client it resolved
+- [ ] `RequestContext` carries an `issuer` that `dispatch` overwrites, so every runtime entry's
+  `issuer` argument does nothing, and a `clientIp` `handle` never reads while the device rate limit
+  takes it separately
+- [ ] `ProviderConfig.interactionUrl` is typed optional and required at construction, which leaves
+  dead checks in `provider.ts`, `device.ts` and `ciba.ts`
+- [ ] Dead: `IdTokenInput.code` and `.claims`, the exported `ClientAuthenticationInput`. Detached doc
+  comments at `binding/dpop.ts:7`, `authorize/request-object.ts:8`, `adapter/src/types.ts:125`
+
+**Required and not built**
+
+- [ ] FR-F8: RP-initiated logout does not propagate upward; nothing in the broker builds the
+  upstream's end-session request
+- [ ] NFR-S12: the README does not yet say which limiting is the host's
+- [ ] `G-9`: failed sign-ins counted per account and address — five lock that address out of that
+  account — with a ceiling of about fifty per account across all addresses. `authenticate` and
+  `verifySecondFactor` take an optional `clientIp`; without one, today's per-account lock. The
+  reference screen answers a locked account as it answers a wrong password. FR-I7
+
+**Client libraries** (FR-L\*, new)
+
+Read: `core`, `client`, and each binding's instance and reactive layer; their 329 tests pass. The
+shape is sound — one protocol, one stateful runtime, three thin views, no ambient instance. What the
+new requirements ask that the code does not yet do:
+
+- [ ] One refresh per instance, not per browser: two tabs refreshing the same token is a replay to a
+  rotating provider, this one included, and revokes the grant. `navigator.locks` around the refresh,
+  re-reading storage inside the lock. FR-L5
+- [ ] Failures are strings on a token-shaped object, and a request that failed is `undefined`; the
+  broker tells them apart by matching `'Invalid nonce'` and by a missing ID token
+  (`broker/broker.ts:47`). A typed result from `completeAuthorization`. FR-L2
+- [ ] Smaller: a token is refreshed only after it has expired, so the request at the boundary fails;
+  `logout` with a redirect does not revoke the refresh token; the callback leaves the code in the
+  address bar
 
 ## Server review — 2026-10-10
 
@@ -643,7 +778,17 @@ first thing to repeat.
 
 None.
 
-Decided: `G-3` FAPI 2.0 as an opt-in profile (FR-C21), with FR-T3's exception for its clients · `G-1` OpenID Federation 1.0 not planned unless a deployment needs it · `G-4` upstream SAML
+Decided 2026-11-12, with the review: **FR-C8** revoking a refresh token revokes its grant's tokens and
+keeps the consent; only `grants.revoke` removes consent · **FR-T3** a FAPI client's refresh token
+restarts its idle lifetime on each use, within the family's · **FR-F4** an `acr_values` entry naming
+an upstream is an instruction and comes before the email domain, which is an inference; no per-step
+switches, since leaving out `domains` or narrowing the client's list already does it · **FR-F10,
+NFR-S9** retained upstream tokens go to the host and the library stores none; a store of its own
+only if a deployment asks · **NFR-S11** everything bearer hashed at rest, artifacts first and client
+secrets as a second step · **NFR-P1** no scan on a request path, in place of "at most two round
+trips" · `G-9` failed sign-ins counted per account and address, with a higher ceiling per account.
+
+Decided earlier: `G-3` FAPI 2.0 as an opt-in profile (FR-C21), with FR-T3's exception for its clients · `G-1` OpenID Federation 1.0 not planned unless a deployment needs it · `G-4` upstream SAML
 not in-tree · `G-6` storage per realm, never shared tables · `G-8` mTLS unavailable on Bun until Bun exposes the certificate.
 
 ## Federation moved off `openid-client`

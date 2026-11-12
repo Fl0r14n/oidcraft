@@ -25,7 +25,11 @@ export type KvStore = EntityStore<KvEntry, [key: string]> & {
    * provider (FR-A3).
    */
   insert(entry: KvEntry): Promise<boolean>
-  /** Prefix scan. Required because grant revocation is a range delete, not a point delete. */
+  /**
+   * Prefix scan. Required because grant revocation is a range delete, not a point delete. It should
+   * cost what it matches, not what the store holds: `fromKv` scans one record's keys on a request
+   * path, and a store that walks everything to find them makes every request that slow (NFR-P1).
+   */
   scan(prefix: string): AsyncIterable<KvEntry>
 }
 
@@ -70,8 +74,18 @@ const collect = async <T>(kv: KvStore, prefix: string, revived: (raw: string) =>
  * Correct, not fast: revocation and the by-account lookups are prefix scans, because a key-value
  * store has no secondary index. A relational adapter must use real columns instead (FR-A5).
  */
+// An id may hold a slash — a client id is a URL — and a slash is what ends a prefix.
+const part = (id: string) => encodeURIComponent(id)
+
 export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
   const read = async (key: string) => (await kv.find(key))?.value
+  // The last segment of each key under a prefix: how a record's index is read back (NFR-P1).
+  const under = async (prefix: string) => {
+    const ids: string[] = []
+    for await (const { key } of kv.scan(prefix)) ids.push(decodeURIComponent(key.slice(prefix.length)))
+    return ids
+  }
+  const present = <T>(values: (T | undefined)[]) => values.filter((value): value is T => value !== undefined)
   const artifactKey = (kind: string, id: string) => `artifact/${kind}/${id}`
   // Kept apart from the artifact so an upsert cannot overwrite it (FR-T3, NFR-S4).
   const consumedKey = (kind: string, id: string) => `consumed/${kind}/${id}`
@@ -165,62 +179,82 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
     for await (const { key } of kv.scan(sessionClientPrefix(session.id))) added.push(key.slice(sessionClientPrefix(session.id).length))
     return { ...session, clients: [...new Set([...session.clients, ...added])] }
   }
-  const allSessions = () => collect(kv, 'session/', raw => revive(JSON.parse(raw) as Session, ['authTime', 'expiresAt']))
+  // Index keys beside the session, so a lookup by account or upstream session reads those and not every session (NFR-P1).
+  const accountSessions = (accountId: string) => `account-session/${part(accountId)}/`
+  const upstreamSessions = (provider: string, upstreamSessionId: string) => `upstream-session/${part(provider)}/${part(upstreamSessionId)}/`
+  const sessionIndexes = (session: Session) => [
+    `${accountSessions(session.accountId)}${part(session.id)}`,
+    ...(session.idp && session.upstreamSessionId ? [`${upstreamSessions(session.idp, session.upstreamSessionId)}${part(session.id)}`] : [])
+  ]
+  const readSession = async (id: string) => {
+    const session = dec<Session>(await read(`session/${id}`))
+    return session && revive(session, ['authTime', 'expiresAt'])
+  }
 
   const sessions: BrokeringAdapter['sessions'] = {
     async find(id) {
-      const session = dec<Session>(await read(`session/${id}`))
-      if (!session) return undefined
-      const live = revive(session, ['authTime', 'expiresAt'])
-      return live.expiresAt.getTime() > Date.now() ? withClients(live) : undefined
+      const live = await readSession(id)
+      return live && live.expiresAt.getTime() > Date.now() ? withClients(live) : undefined
     },
     async listForAccount(accountId) {
-      const live = (await allSessions()).filter(session => session.accountId === accountId && session.expiresAt.getTime() > Date.now())
-      return Promise.all(live.map(withClients))
+      return present(await Promise.all((await under(accountSessions(accountId))).map(id => sessions.find(id))))
     },
     async findByUpstreamSession(provider, upstreamSessionId) {
-      const matching = (await allSessions()).filter(
-        session => session.idp === provider && session.upstreamSessionId === upstreamSessionId && session.expiresAt.getTime() > Date.now()
-      )
-      return Promise.all(matching.map(withClients))
+      return present(await Promise.all((await under(upstreamSessions(provider, upstreamSessionId))).map(id => sessions.find(id))))
     },
     async addClient(id, clientId) {
-      const session = dec<Session>(await read(`session/${id}`))
+      const session = await readSession(id)
       if (!session) return
-      const ttl = ttlFrom(new Date(session.expiresAt))
-      await kv.upsert({ key: `${sessionClientPrefix(id)}${clientId}`, value: '', ttl })
+      await kv.upsert({ key: `${sessionClientPrefix(id)}${clientId}`, value: '', ttl: ttlFrom(session.expiresAt) })
     },
     async upsert(session) {
-      await kv.upsert({ key: `session/${session.id}`, value: enc(session), ttl: ttlFrom(session.expiresAt) })
+      const ttl = ttlFrom(session.expiresAt)
+      await kv.upsert({ key: `session/${session.id}`, value: enc(session), ttl })
+      for (const key of sessionIndexes(session)) await kv.upsert({ key, value: '', ttl })
     },
     async destroy(id) {
+      const session = await readSession(id)
       await kv.destroy(`session/${id}`)
+      for (const key of session ? sessionIndexes(session) : []) await kv.destroy(key)
       for await (const { key } of kv.scan(sessionClientPrefix(id))) await kv.destroy(key)
     }
   }
 
+  // The pair is a key of its own, and an account's grants a prefix: the grant lookup every authorization makes reads one key (NFR-P1).
+  const accountGrants = (accountId: string) => `grant-by/${part(accountId)}/`
+  const grantIndex = (grant: Pick<Grant, 'accountId' | 'clientId'>) => `${accountGrants(grant.accountId)}${part(grant.clientId)}`
+  const readGrant = async (id: string) => {
+    const grant = dec<Grant>(await read(`grant/${id}`))
+    return grant && revive(grant, ['createdAt', 'expiresAt'])
+  }
+
   const grants: GrantStore = {
-    async find(id) {
-      const grant = dec<Grant>(await read(`grant/${id}`))
-      return grant ? revive(grant, ['createdAt', 'expiresAt']) : undefined
-    },
+    find: readGrant,
     async findByAccountAndClient(accountId, clientId) {
-      const all = await collect(kv, 'grant/', raw => revive(JSON.parse(raw) as Grant, ['createdAt', 'expiresAt']))
-      return all.find(grant => grant.accountId === accountId && grant.clientId === clientId)
+      const id = await read(grantIndex({ accountId, clientId }))
+      return id === undefined ? undefined : readGrant(id)
     },
     async listForAccount(accountId) {
-      const all = await collect(kv, 'grant/', raw => revive(JSON.parse(raw) as Grant, ['createdAt', 'expiresAt']))
-      return all.filter(grant => grant.accountId === accountId)
+      const ids: string[] = []
+      for await (const { value } of kv.scan(accountGrants(accountId))) ids.push(value)
+      return present(await Promise.all(ids.map(readGrant)))
     },
     async upsert(grant) {
-      await kv.upsert({ key: `grant/${grant.id}`, value: enc(grant), ...(grant.expiresAt && { ttl: ttlFrom(grant.expiresAt) }) })
+      const ttl = grant.expiresAt && { ttl: ttlFrom(grant.expiresAt) }
+      await kv.upsert({ key: `grant/${grant.id}`, value: enc(grant), ...ttl })
+      await kv.upsert({ key: grantIndex(grant), value: grant.id, ...ttl })
     },
     async destroy(id) {
+      const grant = await readGrant(id)
       await kv.destroy(`grant/${id}`)
+      // Only its own pointer: a later grant for the same pair may have taken the key over.
+      if (grant && (await read(grantIndex(grant))) === id) await kv.destroy(grantIndex(grant))
     },
+    // A scan of every grant: deleting a client is rare and an operator's.
     async destroyByClientId(clientId) {
-      for await (const { key, value } of kv.scan('grant/')) {
-        if (dec<Grant>(value)?.clientId === clientId) await kv.destroy(key)
+      for await (const { value } of kv.scan('grant/')) {
+        const grant = dec<Grant>(value)
+        if (grant?.clientId === clientId) await grants.destroy(grant.id)
       }
     }
   }

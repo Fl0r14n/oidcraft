@@ -485,6 +485,16 @@ describe('userinfo', () => {
 })
 
 describe('interaction', () => {
+  // FR-I2: an answer that is refused must leave the interaction to be answered properly.
+  test('a refused answer does not spend the interaction', async () => {
+    const first = await go(authorizeUrl())
+    const id = new URL(first.headers.get('location') as string).pathname.split('/').pop() as string
+    const scopes = ['openid', 'profile', 'offline_access']
+    await expect(provider.interactions.complete(id, { consent: { scopes } })).rejects.toThrow('without a logged-in account')
+    const login = await provider.interactions.complete(id, { login: { accountId: 'ada' } })
+    expect(login.setCookie).toBeTruthy()
+  })
+
   // FR-I5 / OIDC Core §3.1.2.1.
   test('max_age=0 forces one login and then completes, rather than looping', async () => {
     const first = await go(authorizeUrl({ max_age: '0' }))

@@ -442,8 +442,9 @@ text it is held to. In fix order.
   dies 14 days after issue whatever its use (`token/issue.ts:74`). Rewrite the same artifact with a
   new expiry on each use, capped by the family's: one write, no contract change. FR-T3
   Fixed
-- [ ] `interactions.complete` consumes the interaction before its last check, so "consent without a
+- [x] `interactions.complete` consumes the interaction before its last check, so "consent without a
   signed-in account" burns it (`authorize/interactions.ts:98,133`). FR-I2
+  Fixed
 - [ ] Discovery advertises `dpop_bound_access_tokens_required`, which is not registered metadata,
   keyed off `dpopNonces`, which means something else (`discovery.ts:86`). FR-C6
 - [ ] Smaller: pairwise subjects and the details-consent id hash a delimited string, where a host

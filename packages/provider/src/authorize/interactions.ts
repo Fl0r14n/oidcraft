@@ -74,7 +74,10 @@ export const interactions = (config: ResolvedConfig) => ({
       }
       // All or nothing: a partial consent would be stored, then asked for again in full (FR-I4).
       const accountId = outcome.login?.accountId ?? artifact.accountId
-      const held = accountId ? await config.adapter.grants.findByAccountAndClient(accountId, request.clientId) : undefined
+      // Before the consume below, like every other refusal: a refused answer must not spend the interaction (FR-I2).
+      if (!accountId)
+        throw new OAuthError('invalid_request', { description: 'consent was given without a logged-in account', spec: 'FR-I2' })
+      const held = await config.adapter.grants.findByAccountAndClient(accountId, request.clientId)
       const declined = request.scopes.filter(scope => !consented.includes(scope) && !held?.scopes.includes(scope))
       if (declined.length) {
         throw new OAuthError('invalid_request', {
@@ -129,10 +132,7 @@ export const interactions = (config: ResolvedConfig) => ({
       accountId = started.session.accountId
     }
 
-    if (outcome.consent) {
-      if (!accountId)
-        throw new OAuthError('invalid_request', { description: 'consent was given without a logged-in account', spec: 'FR-I2' })
-
+    if (outcome.consent && accountId) {
       const previous = await config.adapter.grants.findByAccountAndClient(accountId, request.clientId)
       const grant: Grant = {
         id: previous?.id ?? randomString(),

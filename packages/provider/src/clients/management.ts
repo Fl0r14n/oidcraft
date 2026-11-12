@@ -2,6 +2,7 @@ import type { Client, Timestamped } from '@oidcraft/adapter'
 import { randomString } from '@oidcraft/core'
 import { audit } from '../audit'
 import type { ResolvedConfig } from '../config'
+import { deleteClient } from './delete'
 import { clientResponse } from './registration'
 import { clientProblems } from './validate'
 
@@ -51,10 +52,10 @@ export const clientManagement = (config: ResolvedConfig) => ({
     await audit(config, 'client.update', { clientId, detail: { fields: Object.keys(patch) } })
   },
 
-  /** Removing a client without revoking what it holds leaves live tokens behind. */
+  /** Takes the client's tokens and grants with it (FR-T7). */
   async destroy(clientId: string) {
     if (!config.adapter.clients.destroy) throw new Error('this adapter cannot delete clients')
-    await config.adapter.clients.destroy(clientId)
+    await deleteClient(config, clientId)
     await audit(config, 'client.delete', { clientId })
   },
 

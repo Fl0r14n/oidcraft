@@ -105,7 +105,8 @@ export const ArtifactEntity = new EntitySchema<ArtifactRow>({
   indices: [
     { name: 'oidc_artifacts_grant_idx', columns: ['grant_id'] },
     { name: 'oidc_artifacts_user_code_idx', columns: ['user_code'] },
-    { name: 'oidc_artifacts_expiry_idx', columns: ['expires_at'] }
+    { name: 'oidc_artifacts_expiry_idx', columns: ['expires_at'] },
+    { name: 'oidc_artifacts_client_idx', columns: ['client_id'] }
   ]
 })
 
@@ -142,7 +143,10 @@ export const GrantEntity = new EntitySchema<GrantRow>({
     created_at: millis(),
     expires_at: millis({ nullable: true })
   },
-  indices: [{ name: 'oidc_grants_account_client_idx', columns: ['account_id', 'client_id'], unique: true }]
+  indices: [
+    { name: 'oidc_grants_account_client_idx', columns: ['account_id', 'client_id'], unique: true },
+    { name: 'oidc_grants_client_idx', columns: ['client_id'] }
+  ]
 })
 
 export const IdentityEntity = new EntitySchema<IdentityRow>({

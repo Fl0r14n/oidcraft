@@ -103,6 +103,27 @@ describe('management', () => {
     await expect(provider.management.clients.create(input({ redirectUris: ['not a url'] }))).rejects.toThrow('redirect')
   })
 
+  // FR-T7: a deleted client's tokens answered at UserInfo until they expired, and its consents stayed.
+  test('deleting a client revokes the tokens and the grants it holds', async () => {
+    await provider.management.clients.create(input())
+    await provider.management.clients.create(input({ clientId: 'other' }))
+    const token = { payload: {}, expiresAt: new Date(Date.now() + 60_000) }
+    const grant = { accountId: 'u1', scopes: ['openid'], claims: [], resources: {}, createdAt: new Date() }
+    await adapter.grants.upsert({ ...grant, id: 'g-rp', clientId: 'rp' })
+    await adapter.grants.upsert({ ...grant, id: 'g-other', clientId: 'other' })
+    await adapter.artifacts.upsert({ ...token, id: 'machine', kind: 'access_token', clientId: 'rp' })
+    await adapter.artifacts.upsert({ ...token, id: 'user', kind: 'refresh_token', clientId: 'rp', grantId: 'g-rp' })
+    await adapter.artifacts.upsert({ ...token, id: 'theirs', kind: 'access_token', clientId: 'other', grantId: 'g-other' })
+
+    await provider.management.clients.destroy('rp')
+
+    expect(await adapter.artifacts.find('access_token', 'machine')).toBeUndefined()
+    expect(await adapter.artifacts.find('refresh_token', 'user')).toBeUndefined()
+    expect(await adapter.grants.find('g-rp')).toBeUndefined()
+    expect(await adapter.artifacts.find('access_token', 'theirs')).toBeDefined()
+    expect(await adapter.grants.find('g-other')).toBeDefined()
+  })
+
   // "Revoked" has to mean the tokens stop working, not just that a row went away.
   test('revoking a grant takes its artifacts with it', async () => {
     await adapter.grants.upsert({

@@ -161,6 +161,8 @@ trusts the answer rather than re-checking it.
 - `revokeByGrantId(grantId)` removes every artifact of that grant and nothing else. A replayed code
   or refresh token calls it, so it has to find them all; that is an index on `grant_id`, not a JSON
   search (FR-A5).
+- `revokeByClientId(clientId)` and `grants.destroyByClientId(clientId)` remove what a deleted client
+  held: its tokens, those of the client-credentials grant included, and the consents given to it.
 - `findByUserCode` is optional; the device flow needs it (FR-C7). `prune` is optional; see above.
 
 **`sessions`**

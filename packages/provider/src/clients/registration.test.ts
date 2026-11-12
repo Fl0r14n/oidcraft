@@ -518,8 +518,30 @@ describe('registration management (RFC 7592)', () => {
 
   test('deletes itself', async () => {
     const client = await registered()
+    const grant = {
+      id: 'g1',
+      accountId: 'u1',
+      clientId: client.client_id,
+      scopes: ['openid'],
+      claims: [],
+      resources: {},
+      createdAt: new Date()
+    }
+    await adapter.grants.upsert(grant)
+    const token = {
+      id: 't1',
+      kind: 'access_token' as const,
+      clientId: client.client_id,
+      payload: {},
+      expiresAt: new Date(Date.now() + 60_000)
+    }
+    await adapter.artifacts.upsert(token)
+
     expect((await call('DELETE', client.client_id, client.registration_access_token)).status).toBe(204)
     expect(await adapter.clients.find(client.client_id)).toBeUndefined()
+    // FR-T7: what it held goes with it.
+    expect(await adapter.artifacts.find('access_token', 't1')).toBeUndefined()
+    expect(await adapter.grants.find('g1')).toBeUndefined()
   })
 
   test('without the token it is refused', async () => {

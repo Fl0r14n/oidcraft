@@ -124,6 +124,13 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
         if (kind && id) await kv.destroy(artifactKey(kind, id))
         await kv.destroy(key)
       }
+    },
+
+    // A scan of every artifact: deleting a client is rare and an operator's, so it is not worth an index key per write.
+    async revokeByClientId(clientId) {
+      for await (const { key, value } of kv.scan('artifact/')) {
+        if (dec<Artifact>(value)?.clientId === clientId) await kv.destroy(key)
+      }
     }
   }
 
@@ -201,6 +208,11 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
     },
     async destroy(id) {
       await kv.destroy(`grant/${id}`)
+    },
+    async destroyByClientId(clientId) {
+      for await (const { key, value } of kv.scan('grant/')) {
+        if (dec<Grant>(value)?.clientId === clientId) await kv.destroy(key)
+      }
     }
   }
 

@@ -151,6 +151,9 @@ export const drizzleAdapter = (options: DrizzleAdapterOptions): FullAdapter => {
         // One indexed delete, not a scan — this is the whole point of a relational adapter (FR-A5).
         await db.delete(artifacts).where(eq(artifacts.grantId, grantId))
       },
+      async revokeByClientId(clientId) {
+        await db.delete(artifacts).where(eq(artifacts.clientId, clientId))
+      },
       async prune(before, limit) {
         const doomed = await db
           .select({ kind: artifacts.kind, id: artifacts.id })
@@ -253,6 +256,9 @@ export const drizzleAdapter = (options: DrizzleAdapterOptions): FullAdapter => {
       },
       async destroy(id) {
         await db.delete(grants).where(eq(grants.id, id))
+      },
+      async destroyByClientId(clientId) {
+        await db.delete(grants).where(eq(grants.clientId, clientId))
       }
     },
 

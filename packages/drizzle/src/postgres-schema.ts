@@ -50,7 +50,8 @@ export const postgresTables = (schema?: string) => {
       primaryKey({ columns: [t.kind, t.id] }),
       index('oidc_artifacts_grant_idx').on(t.grantId),
       index('oidc_artifacts_user_code_idx').on(t.userCode),
-      index('oidc_artifacts_expiry_idx').on(t.expiresAt)
+      index('oidc_artifacts_expiry_idx').on(t.expiresAt),
+      index('oidc_artifacts_client_idx').on(t.clientId)
     ]
   )
 
@@ -82,7 +83,7 @@ export const postgresTables = (schema?: string) => {
       createdAt: millis('created_at').notNull(),
       expiresAt: millis('expires_at')
     },
-    t => [uniqueIndex('oidc_grants_account_client_idx').on(t.accountId, t.clientId)]
+    t => [uniqueIndex('oidc_grants_account_client_idx').on(t.accountId, t.clientId), index('oidc_grants_client_idx').on(t.clientId)]
   )
 
   const identities = table(

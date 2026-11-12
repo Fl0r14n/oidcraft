@@ -419,9 +419,10 @@ text it is held to. In fix order.
 - [x] Completing a password reset ends sessions and leaves `offline_access` refresh tokens working,
   since each carries its own sign-in (`accounts/index.ts:338`). FR-T7
   Fixed through the grants: every token an account holds carries one, so no contract change
-- [ ] Deleting a client leaves its access tokens answering at UserInfo and introspection until they
+- [x] Deleting a client leaves its access tokens answering at UserInfo and introspection until they
   expire, and its grants in place. There is no way to revoke by client: `ArtifactStore` needs one.
   FR-T7
+  Fixed: `artifacts.revokeByClientId` and `grants.destroyByClientId` in the contract, in every adapter and in the conformance suite, with migration `0004_client_indexes`; `fromKv` scans for it, deleting a client being rare
 - [x] Registration casts a stranger's JSON: a `null` body or a non-string `scope` is a `TypeError`
   and a 500, `jwks` is stored unread, `jwks` with `jwks_uri` is accepted
   (`clients/registration.ts:172`). The metadata-document path has the same casts. FR-C9

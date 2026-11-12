@@ -334,9 +334,9 @@ not one table keyed by a model-name string:
 | Store                 | Holds                                                                                                         |
 | --------------------- | ------------------------------------------------------------------------------------------------------------- |
 | `ClientStore`         | Registered clients. `create`/`update`/`destroy` are optional — omitting them disables DCR at runtime (FR-C9). |
-| `ArtifactStore`       | Codes, access and refresh tokens, device codes, PAR and CIBA requests, registration access tokens.            |
+| `ArtifactStore`       | Codes, access and refresh tokens, device codes, PAR and CIBA requests. Revoked by grant, and by client.       |
 | `SessionStore`        | The end-user's authenticated session at the OP, including its upstream provenance (FR-F6).                    |
-| `GrantStore`          | Durable consent: what an account allowed a client, surviving token revocation (FR-I4).                        |
+| `GrantStore`          | Durable consent: what an account allowed a client. Survives token revocation (FR-I4), not its client (FR-T7). |
 | `AccountStore`        | The host's users. Claims are resolved per request, never cached at login (FR-C5).                             |
 | `KeyStore`            | Signing keys, newest first (FR-C10).                                                                          |
 | `ReplayGuard`         | One-shot values: `jti`, DPoP proofs, upstream nonces (NFR-S5).                                                |

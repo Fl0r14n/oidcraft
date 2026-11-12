@@ -248,6 +248,33 @@ export const adapterConformance = (create: () => Adapter | Promise<Adapter>, opt
       }
     },
     {
+      // FR-T7: deleting a client takes what it holds, client_credentials tokens included, which no grant reaches.
+      name: 'revokeByClientId removes every artifact of that client and nothing else',
+      run: async () => {
+        const adapter = await full()
+        await adapter.artifacts.upsert(artifact({ id: 'c1', kind: 'access_token', clientId: 'gone' }))
+        await adapter.artifacts.upsert(artifact({ id: 'c2', kind: 'refresh_token', clientId: 'gone', grantId: 'g1' }))
+        await adapter.artifacts.upsert(artifact({ id: 'c3', kind: 'access_token', clientId: 'kept' }))
+        await adapter.artifacts.revokeByClientId('gone')
+        same(await adapter.artifacts.find('access_token', 'c1'), undefined, "the deleted client's access token")
+        same(await adapter.artifacts.find('refresh_token', 'c2'), undefined, "the deleted client's refresh token")
+        same((await adapter.artifacts.find('access_token', 'c3'))?.id, 'c3', "another client's access token")
+      }
+    },
+    {
+      name: 'destroyByClientId removes every grant of that client and nothing else',
+      run: async () => {
+        const adapter = await full()
+        await adapter.grants.upsert(grant({ id: 'gc1', clientId: 'gone' }))
+        await adapter.grants.upsert(grant({ id: 'gc2', clientId: 'gone', accountId: 'u2' }))
+        await adapter.grants.upsert(grant({ id: 'gc3', clientId: 'kept' }))
+        await adapter.grants.destroyByClientId('gone')
+        same(await adapter.grants.find('gc1'), undefined, "the deleted client's grant")
+        same(await adapter.grants.find('gc2'), undefined, "the deleted client's other grant")
+        same((await adapter.grants.find('gc3'))?.id, 'gc3', "another client's grant")
+      }
+    },
+    {
       name: 'a device code is reachable by its user code',
       run: async () => {
         const adapter = await full()

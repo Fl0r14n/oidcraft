@@ -38,6 +38,14 @@ export const POSTGRES_MIGRATIONS: Migration[] = [
     statements: [
       'create table oidc_realms (id text primary key, display_name text, enabled integer not null, settings text not null, created_at bigint not null, updated_at bigint not null)'
     ]
+  },
+  {
+    // FR-T7: deleting a client deletes what it holds, by client, and that is a query like any other (FR-A5).
+    id: '0004_client_indexes',
+    statements: [
+      'create index oidc_artifacts_client_idx on oidc_artifacts (client_id)',
+      'create index oidc_grants_client_idx on oidc_grants (client_id)'
+    ]
   }
 ]
 export type { Migration } from './migration'

@@ -7,6 +7,7 @@ import type { ResolvedConfig } from '../config'
 import { supportedGrantTypes } from '../discovery'
 import { OAuthError } from '../errors'
 import { signingAlgorithms } from '../keys/keys'
+import { deleteClient } from './delete'
 import { clientProblems } from './validate'
 
 const DEFAULT_GRANTS = ['authorization_code']
@@ -321,7 +322,7 @@ export const registrationEndpoint = async (config: ResolvedConfig, request: Requ
   }
 
   if (request.method === 'DELETE') {
-    await config.adapter.clients.destroy?.(client.clientId)
+    await deleteClient(config, client.clientId)
     await audit(config, 'client.delete', { clientId: client.clientId })
     return new Response(null, { status: 204, headers: { 'cache-control': 'no-store' } })
   }

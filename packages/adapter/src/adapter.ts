@@ -63,6 +63,8 @@ export type ArtifactStore = EntityStore<Artifact, [kind: ArtifactKind, id: strin
    */
   consume(kind: ArtifactKind, id: string): Promise<boolean>
   revokeByGrantId(grantId: string): Promise<void>
+  /** Deleting a client takes its tokens with it, those of the client-credentials grant included, which no grant reaches (FR-T7). */
+  revokeByClientId(clientId: string): Promise<void>
   /** Bounded sweep of expired rows; the runtime calls it, storage does not schedule (NFR-P3). */
   prune?(before: Date, limit: number): Promise<number>
 }
@@ -81,6 +83,8 @@ export type SessionStore = EntityStore<Session> & {
 export type GrantStore = EntityStore<Grant> & {
   findByAccountAndClient(accountId: string, clientId: string): Promise<Grant | undefined>
   listForAccount(accountId: string): Promise<Grant[]>
+  /** Deleting a client withdraws every consent given to it (FR-T7). */
+  destroyByClientId(clientId: string): Promise<void>
 }
 
 export type AccountStore = {

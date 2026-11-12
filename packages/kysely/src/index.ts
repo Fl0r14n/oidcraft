@@ -197,6 +197,10 @@ export const kyselyAdapter = (options: KyselyAdapterOptions): FullAdapter => {
       await db.deleteFrom('oidc_artifacts').where('grant_id', '=', grantId).execute()
     },
 
+    async revokeByClientId(clientId: string) {
+      await db.deleteFrom('oidc_artifacts').where('client_id', '=', clientId).execute()
+    },
+
     async prune(before: Date, limit: number) {
       const doomed = await db
         .selectFrom('oidc_artifacts')
@@ -343,6 +347,9 @@ export const kyselyAdapter = (options: KyselyAdapterOptions): FullAdapter => {
       },
       async destroy(id) {
         await db.deleteFrom('oidc_grants').where('id', '=', id).execute()
+      },
+      async destroyByClientId(clientId) {
+        await db.deleteFrom('oidc_grants').where('client_id', '=', clientId).execute()
       }
     },
 

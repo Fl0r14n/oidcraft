@@ -240,6 +240,10 @@ export const typeormAdapter = (options: TypeormAdapterOptions): FullAdapter => {
       await artifactRows.delete({ grant_id: grantId })
     },
 
+    async revokeByClientId(clientId: string) {
+      await artifactRows.delete({ client_id: clientId })
+    },
+
     async prune(before: Date, limit: number) {
       const doomed = await artifactRows
         .createQueryBuilder('a')
@@ -364,6 +368,9 @@ export const typeormAdapter = (options: TypeormAdapterOptions): FullAdapter => {
       },
       async destroy(id) {
         await grants.delete({ id })
+      },
+      async destroyByClientId(clientId) {
+        await grants.delete({ client_id: clientId })
       }
     },
 

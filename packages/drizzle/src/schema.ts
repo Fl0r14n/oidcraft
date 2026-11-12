@@ -32,7 +32,8 @@ export const artifacts = sqliteTable(
     // Revocation is a range delete over this, not a scan (FR-A5).
     index('oidc_artifacts_grant_idx').on(table.grantId),
     index('oidc_artifacts_user_code_idx').on(table.userCode),
-    index('oidc_artifacts_expiry_idx').on(table.expiresAt)
+    index('oidc_artifacts_expiry_idx').on(table.expiresAt),
+    index('oidc_artifacts_client_idx').on(table.clientId)
   ]
 )
 
@@ -71,7 +72,8 @@ export const grants = sqliteTable(
   },
   table => [
     // One grant per (account, client): the consent record accumulates rather than duplicating.
-    uniqueIndex('oidc_grants_account_client_idx').on(table.accountId, table.clientId)
+    uniqueIndex('oidc_grants_account_client_idx').on(table.accountId, table.clientId),
+    index('oidc_grants_client_idx').on(table.clientId)
   ]
 )
 

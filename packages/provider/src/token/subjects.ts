@@ -1,5 +1,4 @@
 import type { Client } from '@oidcraft/adapter'
-import { sha256 } from '@oidcraft/core'
 import { base64url } from 'jose'
 import type { ResolvedConfig } from '../config'
 
@@ -26,8 +25,12 @@ export const sectorOf = (client: Client) => {
  * The salt is what stops a colluding pair of relying parties from correlating users: without it the
  * mapping is a pure function of the account and sector, which anyone can recompute.
  */
-export const pairwiseSubject = async (accountId: string, sector: string, salt: string) =>
-  base64url.encode(await sha256(`${sector}.${accountId}.${salt}`))
+export const pairwiseSubject = async (accountId: string, sector: string, salt: string) => {
+  const encoder = new TextEncoder()
+  const key = await crypto.subtle.importKey('raw', encoder.encode(salt), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
+  // A JSON pair, not a joined string: a dot can then not move between the sector and the account.
+  return base64url.encode(new Uint8Array(await crypto.subtle.sign('HMAC', key, encoder.encode(JSON.stringify([sector, accountId])))))
+}
 
 export const subjectFor = async (config: ResolvedConfig, client: Client, accountId: string) => {
   if ((client.subjectType ?? config.subjectType) !== 'pairwise') return accountId

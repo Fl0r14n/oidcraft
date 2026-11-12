@@ -16,12 +16,12 @@ const presentedToken = (request: Request, form: URLSearchParams | undefined) => 
   return body ? { token: body, scheme: 'bearer' as const } : undefined
 }
 
-const unauthorized = (description: string, scheme = 'Bearer', code: 'invalid_request' | 'invalid_grant' = 'invalid_grant') =>
+const unauthorized = (description: string, scheme = 'Bearer', code: 'invalid_request' | 'invalid_token' = 'invalid_token') =>
   new OAuthError(code, {
     description,
     spec: 'RFC 6750 §3.1',
     status: 401,
-    headers: { 'www-authenticate': `${scheme} error="invalid_token", error_description="${description}"` }
+    headers: { 'www-authenticate': `${scheme} error="${code}", error_description="${description}"` }
   })
 
 /**

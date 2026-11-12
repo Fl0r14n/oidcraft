@@ -42,14 +42,15 @@ export const frontChannelLogouts = async (config: ResolvedConfig, session: Sessi
  */
 export const logoutTokens = async (config: ResolvedConfig, session: Session): Promise<LogoutNotification[]> => {
   const keys = await config.adapter.keys.active()
-  const alg = defaultSigningAlg(config, undefined, keys)
-  const key = alg ? signingKey(keys, alg) : undefined
-  if (!key || !alg) return []
 
   const notifications: LogoutNotification[] = []
   for (const clientId of session.clients) {
     const client = await config.adapter.clients.find(clientId)
     if (!client?.backchannelLogoutUri) continue
+    // OIDC Back-Channel Logout 1.0 §2.4: signed as this client's ID tokens are, which is what it verifies with.
+    const alg = client.idTokenSignedResponseAlg ?? defaultSigningAlg(config, client, keys)
+    const key = alg ? signingKey(keys, alg) : undefined
+    if (!key || !alg) continue
 
     const logoutToken = await new SignJWT({
       // FR-C18: the subject this client knows, never the account id behind a pairwise one.

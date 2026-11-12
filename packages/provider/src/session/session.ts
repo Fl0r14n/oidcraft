@@ -5,8 +5,14 @@ import { parseCookies, serializeCookie } from './cookies'
 
 export const SESSION_COOKIE = 'oidcraft.sid'
 
+/** One cookie per issuer: two issuers on one host, told apart by path, would otherwise overwrite each other's session. */
+export const sessionCookie = (config: Pick<ResolvedConfig, 'issuerUrl'>) => {
+  const path = config.issuerUrl.pathname.replace(/^\/+|\/+$/g, '')
+  return path ? `${SESSION_COOKIE}.${path.replace(/[^A-Za-z0-9]/g, '_')}` : SESSION_COOKIE
+}
+
 export const readSession = async (config: ResolvedConfig, request: Request) => {
-  const id = parseCookies(request.headers.get('cookie')).get(SESSION_COOKIE)
+  const id = parseCookies(request.headers.get('cookie')).get(sessionCookie(config))
   return id ? config.adapter.sessions.find(id) : undefined
 }
 
@@ -33,7 +39,7 @@ export const startSession = async (config: ResolvedConfig, login: LoginInput, cl
   await config.adapter.sessions.upsert(session)
   return {
     session,
-    cookie: serializeCookie(SESSION_COOKIE, session.id, {
+    cookie: serializeCookie(sessionCookie(config), session.id, {
       maxAge: config.ttl.session,
       secure: config.issuerUrl.protocol === 'https:'
     })

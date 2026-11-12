@@ -23,6 +23,7 @@ export type OAuthErrorCode =
   | 'invalid_redirect_uri'
   | 'invalid_client_metadata'
   | 'request_uri_not_supported'
+  | 'invalid_token'
 
 export type OAuthErrorInit = {
   description?: string
@@ -95,7 +96,9 @@ const STATUS: Record<OAuthErrorCode, number> = {
   unknown_user_id: 400,
   invalid_redirect_uri: 400,
   invalid_client_metadata: 400,
-  request_uri_not_supported: 400
+  request_uri_not_supported: 400,
+  // RFC 6750 §3.1: the token is the credential here, so a bad one is a 401.
+  invalid_token: 401
 }
 
 const NO_STORE = { 'cache-control': 'no-store', pragma: 'no-cache' }

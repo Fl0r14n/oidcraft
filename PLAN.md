@@ -425,7 +425,6 @@ text it is held to. In fix order.
   and a 500, `jwks` is stored unread, `jwks` with `jwks_uri` is accepted
   (`clients/registration.ts:172`). The metadata-document path has the same casts. FR-C9
   Fixed: `objectFrom`, `stringFrom`, `stringsFrom` and `keysFrom` read both the registration body and a metadata document
-- [ ] UserInfo serves a token whose audience is another resource (`resource/userinfo.ts:72`). FR-C5
 - [x] `management.clients.update` checks only the FAPI profile: `requirePkce: false` on a public
   client is stored (the request path still refuses it), and a pairwise client with redirect URIs on
   several hosts is stored and then throws at the token endpoint. One `validateClient` for create,
@@ -448,12 +447,18 @@ text it is held to. In fix order.
 - [x] Discovery advertises `dpop_bound_access_tokens_required`, which is not registered metadata,
   keyed off `dpopNonces`, which means something else (`discovery.ts:86`). FR-C6
   Fixed: removed
-- [ ] Smaller: pairwise subjects and the details-consent id hash a delimited string, where a host
-  with a dot or an account id with one can collide — HMAC over a length-prefixed input (FR-C18); the
-  session cookie is `Path=/` for every issuer, so two issuers on one host share it; a DPoP nonce
-  demand is a storage write a public client triggers unauthenticated — a stateless HMAC nonce;
-  UserInfo reports a bad token as `invalid_grant` because the error union has no `invalid_token`; the
-  logout token ignores the client's `id_token_signed_response_alg`
+- [x] Smaller, fixed: pairwise subjects are an HMAC over a JSON pair and the details-consent id a hash of
+  a JSON triple, so a dot or a newline cannot move between the parts (FR-C18) — every pairwise subject
+  changes; the session cookie carries the issuer's path in its name, so two issuers on one host no
+  longer share it, and a root issuer keeps `oidcraft.sid`; UserInfo answers a bad token as
+  `invalid_token`; the logout token is signed with the client's `id_token_signed_response_alg`
+- [ ] A DPoP nonce demand is a storage write a public client triggers unauthenticated. A stateless
+  HMAC nonce needs a secret in the provider's configuration, so it waits on that being agreed
+- [ ] UserInfo serves a token whose audience is another resource (`resource/userinfo.ts:72`). Held:
+  once an authorization names a resource every token from it is restricted to that resource
+  (`audienceFor`), so refusing it at UserInfo as FR-C5 now says leaves such a client with no way to
+  read the profile claims it was granted. Decide first: keep serving it, or give the client a way
+  to ask for a token for UserInfo
 
 **Operations**
 

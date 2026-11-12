@@ -6,7 +6,7 @@ import { OAuthError } from '../errors'
 import { jwksResponseBody } from '../keys/keys'
 import { clearCookie } from './cookies'
 import { type FrontChannelLogout, frontChannelLogouts, type LogoutNotification, logoutTokens } from './logout'
-import { SESSION_COOKIE } from './session'
+import { sessionCookie } from './session'
 
 const audiencesOf = (claims: JWTPayload | undefined) => (claims?.aud === undefined ? [] : [claims.aud].flat())
 
@@ -78,7 +78,7 @@ export const endSessionEndpoint = async (
 
   const headers = new Headers({
     'cache-control': 'no-store',
-    'set-cookie': clearCookie(SESSION_COOKIE, { secure: config.issuerUrl.protocol === 'https:' })
+    'set-cookie': clearCookie(sessionCookie(config), { secure: config.issuerUrl.protocol === 'https:' })
   })
 
   if (!target) {

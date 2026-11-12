@@ -264,7 +264,7 @@ export const authorizationResponse = (issuer: string, target: ResponseTarget, va
  * (RFC 9396 §7, FR-C15).
  */
 export const detailsConsentId = async (accountId: string, clientId: string, details: AuthorizationDetail[]) =>
-  base64url.encode(await sha256(`${accountId}\n${clientId}\n${JSON.stringify(details)}`))
+  base64url.encode(await sha256(JSON.stringify([accountId, clientId, details])))
 
 const missingScopes = (request: AuthorizationRequest, grant: Grant | undefined) =>
   request.scopes.filter(scope => !grant?.scopes.includes(scope))

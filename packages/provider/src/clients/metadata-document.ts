@@ -1,7 +1,7 @@
 import type { Adapter, Client, ClientAuthMethod } from '@oidcraft/adapter'
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
-import { browserUri, serverUri } from './registration'
+import { browserUri, keysFrom, objectFrom, serverUri, stringFrom, stringsFrom } from './registration'
 
 const SPEC = 'draft-ietf-oauth-client-id-metadata-document §4.1'
 
@@ -27,12 +27,11 @@ const ALLOWED_GRANTS = ['authorization_code', 'refresh_token']
 
 /** The client a metadata document describes, or a refusal saying why it cannot be one. */
 const clientFrom = (config: ResolvedConfig, clientId: string, document: unknown): Client => {
-  if (!document || typeof document !== 'object' || Array.isArray(document)) throw refuse(`the document at ${clientId} is not a JSON object`)
-  const body = document as Record<string, unknown>
+  const body = objectFrom(document, `the document at ${clientId}`, refuse)
   if (body.client_id !== clientId) throw refuse(`the document at ${clientId} names a different client_id`)
   if ('client_secret' in body || 'client_secret_expires_at' in body) throw refuse('a metadata document cannot hold a shared secret')
 
-  const method = (body.token_endpoint_auth_method ?? 'none') as ClientAuthMethod
+  const method = (stringFrom(body.token_endpoint_auth_method, 'token_endpoint_auth_method', refuse) ?? 'none') as ClientAuthMethod
   if (!ALLOWED_METHODS.includes(method))
     throw refuse(`token_endpoint_auth_method ${method} needs a shared secret, which a public document cannot hold`)
   if (!config.clientAuthMethods.includes(method)) throw refuse(`token_endpoint_auth_method ${method} is not offered by this provider`)
@@ -48,26 +47,26 @@ const clientFrom = (config: ResolvedConfig, clientId: string, document: unknown)
     browserUri(uri, 'redirect_uri', { native: applicationType === 'native', fail: refuse })
   )
 
-  const grantTypes = (body.grant_types as string[] | undefined) ?? ['authorization_code']
+  const grantTypes = stringsFrom(body.grant_types, 'grant_types', refuse) ?? ['authorization_code']
   const unsupported = grantTypes.filter(grant => !ALLOWED_GRANTS.includes(grant))
   if (unsupported.length) throw refuse(`grant_types ${unsupported.join(', ')} are not available to a metadata-document client`)
 
-  const scopes = typeof body.scope === 'string' ? body.scope.split(' ').filter(Boolean) : config.scopes
+  const scopes = stringFrom(body.scope, 'scope', refuse)?.split(' ').filter(Boolean) ?? config.scopes
   const unknown = scopes.filter(scope => !config.scopes.includes(scope))
   if (unknown.length) throw refuse(`unknown scope: ${unknown.join(', ')}`)
 
+  const clientName = stringFrom(body.client_name, 'client_name', refuse)
   const now = new Date()
   return {
     clientId,
-    ...(typeof body.client_name === 'string' && { clientName: body.client_name }),
+    ...(clientName !== undefined && { clientName }),
     applicationType,
     redirectUris,
     grantTypes,
     responseTypes: ['code'],
     scopes,
     tokenEndpointAuthMethod: method,
-    ...(body.jwks ? { jwks: body.jwks as { keys: unknown[] } } : {}),
-    ...(body.jwks_uri !== undefined && { jwksUri: serverUri(body.jwks_uri, 'jwks_uri', refuse) }),
+    ...keysFrom(body, refuse),
     // FR-C3: a document vouches for nothing, so PKCE is never optional for one.
     requirePkce: true,
     createdAt: now,

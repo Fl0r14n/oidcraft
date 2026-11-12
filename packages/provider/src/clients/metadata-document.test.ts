@@ -138,6 +138,13 @@ describe('client ID metadata documents (FR-C20)', () => {
     expect(await refusedWith({ token_endpoint_auth_method: 'private_key_jwt' })).toContain('jwks')
   })
 
+  // FR-C9's rule holds for a document too: a wrong shape is a refusal, not a 500.
+  test('a member of the wrong type is refused', async () => {
+    expect(await refusedWith({ grant_types: 'authorization_code' })).toContain('array of strings')
+    expect(await refusedWith({ scope: ['openid'] })).toContain('must be a string')
+    expect(await refusedWith({ token_endpoint_auth_method: 'private_key_jwt', jwks: 'text' })).toContain('JWK Set')
+  })
+
   test('only the code and refresh grants', async () => {
     expect(await refusedWith({ grant_types: ['client_credentials'] })).toContain('not available')
   })

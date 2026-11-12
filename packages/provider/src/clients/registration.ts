@@ -104,10 +104,40 @@ const assertSector = async (config: ResolvedConfig, client: Client) => {
   if (missing.length) throw invalid(`sector_identifier_uri does not list ${missing.join(', ')}`)
 }
 
-const stringsFrom = (value: unknown, name: string) => {
+const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
+
+/** FR-C9: the metadata is a stranger's JSON, so its shape is checked rather than cast. */
+export const objectFrom = (value: unknown, what: string, fail: Refuse = invalid) => {
+  if (!isObject(value)) throw fail(`${what} must be a JSON object`)
+  return value
+}
+
+export const stringFrom = (value: unknown, name: string, fail: Refuse = invalid) => {
   if (value === undefined) return undefined
-  if (!Array.isArray(value) || !value.every(each => typeof each === 'string')) throw invalid(`${name} must be an array of strings`)
+  if (typeof value !== 'string') throw fail(`${name} must be a string`)
+  return value
+}
+
+export const stringsFrom = (value: unknown, name: string, fail: Refuse = invalid) => {
+  if (value === undefined) return undefined
+  if (!Array.isArray(value) || !value.every(each => typeof each === 'string')) throw fail(`${name} must be an array of strings`)
   return value as string[]
+}
+
+// RFC 7518 §6: what makes an RSA, EC or OKP key private, and `k`, which is a symmetric key whole.
+const PRIVATE_MEMBERS = ['d', 'p', 'q', 'dp', 'dq', 'qi', 'oth', 'k']
+
+/** RFC 7591 §2: a client registers public keys, by value or by reference, never both. */
+export const keysFrom = (body: Record<string, unknown>, fail: Refuse = invalid) => {
+  if (body.jwks !== undefined && body.jwks_uri !== undefined) throw fail('jwks and jwks_uri must not both be given')
+  if (body.jwks_uri !== undefined) return { jwksUri: serverUri(body.jwks_uri, 'jwks_uri', fail) }
+  if (body.jwks === undefined) return {}
+  const keys = isObject(body.jwks) ? body.jwks.keys : undefined
+  if (!Array.isArray(keys) || !keys.every(key => isObject(key) && typeof key.kty === 'string')) {
+    throw fail('jwks must be a JWK Set: an object whose keys is an array of keys')
+  }
+  if (keys.some(key => PRIVATE_MEMBERS.some(member => member in key))) throw fail('jwks must hold public keys only')
+  return { jwks: { keys: keys as unknown[] } }
 }
 
 /** The client store's `grantTypes` is what the token endpoint enforces, so a stranger must not choose it freely (FR-C9). */
@@ -173,12 +203,14 @@ const assertRegistrable = async (config: ResolvedConfig, client: Client) => {
 const metadataFrom = (config: ResolvedConfig, body: Record<string, unknown>): Client => {
   const applicationType = applicationTypeFrom(body.application_type)
   const redirectUris = validateRedirectUris(body.redirect_uris, applicationType === 'native')
-  const method = (body.token_endpoint_auth_method as ClientAuthMethod | undefined) ?? 'client_secret_basic'
+  const method = (stringFrom(body.token_endpoint_auth_method, 'token_endpoint_auth_method') ?? 'client_secret_basic') as ClientAuthMethod
   if (!config.clientAuthMethods.includes(method)) throw invalid(`token_endpoint_auth_method ${method} is not offered by this provider`)
 
   const { grantTypes, responseTypes } = grantsFrom(config, body, method)
 
-  const scopes = ((body.scope as string | undefined) ?? 'openid').split(' ').filter(Boolean)
+  const scopes = (stringFrom(body.scope, 'scope') ?? 'openid').split(' ').filter(Boolean)
+  const clientName = stringFrom(body.client_name, 'client_name')
+  const sectorIdentifierUri = stringFrom(body.sector_identifier_uri, 'sector_identifier_uri')
   const unknown = scopes.filter(scope => !config.scopes.includes(scope))
   if (unknown.length) throw invalid(`unknown scope: ${unknown.join(', ')}`)
 
@@ -186,7 +218,7 @@ const metadataFrom = (config: ResolvedConfig, body: Record<string, unknown>): Cl
   return {
     clientId: randomString(),
     ...(method !== 'none' && { clientSecret: randomString() }),
-    ...(typeof body.client_name === 'string' && { clientName: body.client_name }),
+    ...(clientName !== undefined && { clientName }),
     applicationType,
     redirectUris,
     ...(body.post_logout_redirect_uris !== undefined && {
@@ -196,13 +228,12 @@ const metadataFrom = (config: ResolvedConfig, body: Record<string, unknown>): Cl
     responseTypes,
     scopes,
     tokenEndpointAuthMethod: method,
-    ...(typeof body.sector_identifier_uri === 'string' && { sectorIdentifierUri: body.sector_identifier_uri }),
+    ...(sectorIdentifierUri !== undefined && { sectorIdentifierUri }),
     ...subjectTypeFrom(config, body.subject_type),
     ...cibaMetadataFrom(body, grantTypes),
     // OIDC DCR 1.0 §2: RS256 when omitted, whatever the provider's own default is (FR-T1).
-    idTokenSignedResponseAlg: (body.id_token_signed_response_alg as string | undefined) ?? 'RS256',
-    ...(body.jwks ? { jwks: body.jwks as { keys: unknown[] } } : {}),
-    ...(body.jwks_uri !== undefined && { jwksUri: serverUri(body.jwks_uri, 'jwks_uri') }),
+    idTokenSignedResponseAlg: stringFrom(body.id_token_signed_response_alg, 'id_token_signed_response_alg') ?? 'RS256',
+    ...keysFrom(body),
     ...(body.backchannel_logout_uri !== undefined && {
       backchannelLogoutUri: serverUri(body.backchannel_logout_uri, 'backchannel_logout_uri')
     }),
@@ -271,9 +302,12 @@ export const registrationEndpoint = async (config: ResolvedConfig, request: Requ
 
   if (request.method === 'POST') {
     const decision = config.onRegister ? await config.onRegister(request.clone(), { existing: undefined }) : undefined
-    const body = (await request.json().catch(() => {
-      throw invalid('the registration request must be JSON')
-    })) as Record<string, unknown>
+    const body = objectFrom(
+      await request.json().catch(() => {
+        throw invalid('the registration request must be JSON')
+      }),
+      'the registration request'
+    )
 
     const client = metadataFrom(config, body)
     await assertRegistrable(config, client)
@@ -300,9 +334,12 @@ export const registrationEndpoint = async (config: ResolvedConfig, request: Requ
   // An update is a registration of new metadata, so the host vets it as it vetted the first; its
   // answer, not the stored client, decides any PKCE exemption (FR-C3).
   const decision = config.onRegister ? await config.onRegister(request.clone(), { existing: client }) : undefined
-  const body = (await request.json().catch(() => {
-    throw invalid('the update must be JSON')
-  })) as Record<string, unknown>
+  const body = objectFrom(
+    await request.json().catch(() => {
+      throw invalid('the update must be JSON')
+    }),
+    'the update'
+  )
   const replacement = metadataFrom(config, body)
   await assertRegistrable(config, replacement)
   applyDecision(replacement, decision)

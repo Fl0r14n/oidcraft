@@ -421,9 +421,10 @@ text it is held to. In fix order.
 - [ ] Deleting a client leaves its access tokens answering at UserInfo and introspection until they
   expire, and its grants in place. There is no way to revoke by client: `ArtifactStore` needs one.
   FR-T7
-- [ ] Registration casts a stranger's JSON: a `null` body or a non-string `scope` is a `TypeError`
+- [x] Registration casts a stranger's JSON: a `null` body or a non-string `scope` is a `TypeError`
   and a 500, `jwks` is stored unread, `jwks` with `jwks_uri` is accepted
   (`clients/registration.ts:172`). The metadata-document path has the same casts. FR-C9
+  Fixed: `objectFrom`, `stringFrom`, `stringsFrom` and `keysFrom` read both the registration body and a metadata document
 - [ ] UserInfo serves a token whose audience is another resource (`resource/userinfo.ts:72`). FR-C5
 - [ ] `management.clients.update` checks only the FAPI profile: `requirePkce: false` on a public
   client is stored (the request path still refuses it), and a pairwise client with redirect URIs on

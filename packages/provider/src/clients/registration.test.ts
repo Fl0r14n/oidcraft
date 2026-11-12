@@ -36,6 +36,54 @@ const register = (body: Record<string, unknown>, headers: Record<string, string>
 
 const valid = { redirect_uris: [REDIRECT], client_name: 'Demo', scope: 'openid profile' }
 
+// FR-C9: the request is a stranger's JSON, so a wrong shape is the client's error, never a 500.
+describe('a malformed registration is invalid_client_metadata', () => {
+  const raw = (body: string) =>
+    provider.handle(new Request(`${ISSUER}/register`, { method: 'POST', headers: { 'content-type': 'application/json' }, body }))
+  const refused = async (response: Response) => {
+    expect(response.status).toBe(400)
+    return (await response.json()).error
+  }
+
+  test('a body that is not an object', async () => {
+    for (const body of ['null', '[]', '"text"', '7']) expect(await refused(await raw(body))).toBe('invalid_client_metadata')
+  })
+
+  test('a member of the wrong type', async () => {
+    for (const wrong of [
+      { scope: 7 },
+      { scope: ['openid'] },
+      { token_endpoint_auth_method: {} },
+      { id_token_signed_response_alg: 5 },
+      { sector_identifier_uri: 5 },
+      { client_name: {} }
+    ]) {
+      expect(await refused(await register({ ...valid, ...wrong }))).toBe('invalid_client_metadata')
+    }
+  })
+
+  test('a jwks that is not a key set, or that carries private members', async () => {
+    const key = { kty: 'EC', crv: 'P-256', x: 'x', y: 'y' }
+    for (const jwks of [
+      'text',
+      {},
+      { keys: 'no' },
+      { keys: ['no'] },
+      { keys: [{}] },
+      { keys: [{ ...key, d: 'private' }] },
+      { keys: [{ kty: 'oct', k: 's' }] }
+    ]) {
+      expect(await refused(await register({ ...valid, jwks }))).toBe('invalid_client_metadata')
+    }
+    expect((await register({ ...valid, jwks: { keys: [key] } })).status).toBe(201)
+  })
+
+  test('jwks together with jwks_uri', async () => {
+    const jwks = { keys: [{ kty: 'EC', crv: 'P-256', x: 'x', y: 'y' }] }
+    expect(await refused(await register({ ...valid, jwks, jwks_uri: 'https://rp.example.com/jwks' }))).toBe('invalid_client_metadata')
+  })
+})
+
 describe('dynamic client registration', () => {
   test('registers a client and returns its credentials', async () => {
     const response = await register(valid)

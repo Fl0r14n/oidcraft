@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, test } from 'bun:test'
+import { beforeEach, describe, expect, setSystemTime, test } from 'bun:test'
 import type { FullAdapter } from '@oidcraft/adapter'
 import { ConfigurationError, generateKey, staticKeyStore } from '@oidcraft/adapter'
 import { memoryAdapter } from '@oidcraft/adapter/memory'
@@ -241,6 +241,26 @@ describe('FR-C21: the flow under the profile', () => {
     const second = await refresh(issued.refresh_token)
     expect(second.status).toBe(200)
     expect((await second.json()).access_token).not.toBe(first.access_token)
+  })
+
+  // FR-T3: not rotating is not a shorter life. Each use restarts the idle lifetime, within the family's.
+  test('the refresh token that does not rotate still restarts its idle lifetime on use', async () => {
+    provider = build({ profile: 'fapi2', ttl: { refreshToken: 100, refreshTokenFamily: 250 } })
+    const start = Date.now()
+    const issued = await (await redeem(await codeFor((await push()).request_uri))).json()
+    try {
+      setSystemTime(new Date(start + 80_000))
+      expect((await refresh(issued.refresh_token)).status).toBe(200)
+      setSystemTime(new Date(start + 160_000))
+      expect((await refresh(issued.refresh_token)).status).toBe(200)
+      setSystemTime(new Date(start + 240_000))
+      expect((await refresh(issued.refresh_token)).status).toBe(200)
+      // The family's absolute lifetime still ends it, however recently it was used.
+      setSystemTime(new Date(start + 260_000))
+      expect((await (await refresh(issued.refresh_token)).json()).error).toBe('invalid_grant')
+    } finally {
+      setSystemTime()
+    }
   })
 })
 

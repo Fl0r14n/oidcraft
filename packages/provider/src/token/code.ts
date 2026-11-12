@@ -126,6 +126,14 @@ export const refreshTokenGrant = async (config: ResolvedConfig, client: Client, 
     await revokeOnReplay(config, artifact, 'refresh token')
   }
 
+  // FR-T3: a token that does not rotate still restarts its idle lifetime, within its family's and its session's.
+  if (!rotate) {
+    const familyEnd = ((artifact.payload.familyExpiresAt as number | undefined) ?? Number.POSITIVE_INFINITY) * 1000
+    const sessionEnd = artifact.payload.sessionBound === true ? session.expiresAt.getTime() : Number.POSITIVE_INFINITY
+    const expiresAt = new Date(Math.min(Date.now() + config.ttl.refreshToken * 1000, familyEnd, sessionEnd))
+    await config.adapter.artifacts.upsert({ ...artifact, expiresAt })
+  }
+
   // RFC 8705 §3: the new access token is bound to the certificate presented now, as at issuance.
   const tokens = await issueTokens(config, client, grant, session, requested?.length ? requested : granted, {
     binding: { jkt: bound?.jkt ?? binding.jkt, x5t: binding.x5t },

@@ -437,9 +437,10 @@ text it is held to. In fix order.
 - [ ] One grant per account and client means one app on two devices shares it, so a revocation or a
   detected replay on one signs out the other. A family id on refresh tokens, and revocation and
   replay scoped to the family; FR-C8, FR-T3 and FR-T4 change with it. After the item above, not with it
-- [ ] A FAPI client's refresh token is never rewritten, so its idle lifetime never restarts and it
+- [x] A FAPI client's refresh token is never rewritten, so its idle lifetime never restarts and it
   dies 14 days after issue whatever its use (`token/issue.ts:74`). Rewrite the same artifact with a
   new expiry on each use, capped by the family's: one write, no contract change. FR-T3
+  Fixed
 - [ ] `interactions.complete` consumes the interaction before its last check, so "consent without a
   signed-in account" burns it (`authorize/interactions.ts:98,133`). FR-I2
 - [ ] Discovery advertises `dpop_bound_access_tokens_required`, which is not registered metadata,

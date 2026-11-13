@@ -101,7 +101,8 @@ what the running configuration actually supports, and `/.well-known/oauth-author
 (RFC 8414). Protected-resource metadata (RFC 9728) is built for each configured resource for the
 resource server to serve: the URL is the resource server's, not the provider's.
 
-**FR-C7 — Device authorization grant** (RFC 8628), including the user-code interaction screen. A
+**FR-C7 — Device authorization grant** (RFC 8628), including the user-code verification interaction
+(FR-I1), whose screen is a reference screen (FR-I3). A
 poll never writes the request it reads, so an approval or denial that lands while the device is
 polling is not lost. The same holds for a CIBA request (FR-C17).
 
@@ -132,7 +133,8 @@ or subject other than the browser's own proves nothing about this browser, so th
 confirm, as when there is no hint at all.
 
 **FR-C12 — Request objects.** JAR (RFC 9101) **by value** (`request`) and PAR (RFC 9126), with
-per-client `require_pushed_authorization_requests`.
+per-client `require_pushed_authorization_requests`. A request object must be signed: `alg: none` is
+refused, since an unsigned one proves nothing a plain parameter does not.
 
 JAR _by reference_ — a `request_uri` pointing at the client's own server — is not implemented and
 will not be in the core: resolving it means fetching a URL the client chose, outbound I/O the core
@@ -186,19 +188,21 @@ client's host and the host the person returns to, and warns when that is this co
 **FR-C21 — FAPI 2.0 Security Profile**, opt-in per provider or per client, never a change of the
 defaults. Under it the provider refuses what it otherwise only supports: a public client; client
 authentication other than `private_key_jwt` or mTLS; an authorization request not pushed (PAR,
-`request_uri` under 600 s); a token that is not sender-constrained (DPoP or mTLS); signing
+`request_uri` under 600 s, codes living 60 s at most); a token that is not sender-constrained (DPoP or mTLS); signing
 algorithms other than PS256, ES256 and EdDSA; a client assertion whose `aud` is not exactly the
 issuer; an assertion outside the 10 s `iat` / 60 s `nbf` window; an `http` redirect for a client
 that is not native. `dpop_jkt` (FR-C13) is supported but not required: the profile asks only that
 the server offer code binding. Refresh tokens follow FR-T3's exception. It is one switch, never
 assembled from individual settings: under it the provider refuses to start on a configuration that
-cannot meet it (NFR-D2), a client that cannot meet it is refused at registration and upsert, and
+cannot meet it (NFR-D2) — save a key set without a PS256, ES256 or EdDSA key, refused at its first
+signature since keys are read asynchronously — a client that cannot meet it is refused at registration and upsert, and
 discovery advertises only what it allows. Its conformance plan gates CI (NFR-C1). Message Signing
 is a separate profile and not part of this.
 
 **FR-C22 — The `claims` request parameter** (OIDC Core §5.5), by value, in a request object and
 pushed. A claim named for `userinfo` is released at UserInfo and one named for `id_token` in the
-ID token, beyond what the scopes release, and only once the person consented to it: individually
+ID token, beyond what the scopes release — at a token for a resource, which UserInfo refuses, both in
+the ID token (FR-C5) — and only once the person consented to it: individually
 requested claims are consented as scopes are, all or nothing, and remembered in the grant (FR-I4),
 so `prompt=none` without that consent is `consent_required`. A claim the configuration's `claims`
 does not list is ignored, as is a protocol claim except these two. An essential `acr` with
@@ -211,9 +215,11 @@ essential or not, as §5.5 requires.
 ## 4. Tokens — `FR-T*`
 
 **FR-T1** — ID tokens are always JWS; `none` never. An `RS256` key is mandatory in every key set
-and `RS256` is always advertised (OIDC Core §15.1, Discovery 1.0 §3). A client's registered
-`id_token_signed_response_alg` is honoured; without one, a configured client gets the provider's
-first key (`ES256` by default) and a dynamically registered one `RS256` (OIDC DCR 1.0 §2).
+and `RS256` is advertised (OIDC Core §15.1, Discovery 1.0 §3), except under a provider-wide FR-C21
+profile, which forbids it. A client's registered `id_token_signed_response_alg` is honoured;
+without one, a configured client gets the provider's first key (`ES256` by default) and a
+dynamically registered one `RS256` (OIDC DCR 1.0 §2) — under FR-C21 the profile's first allowed key
+instead, named in the registration response.
 
 **FR-T2** — Access tokens are opaque by default and JWT (RFC 9068) when a client or resource
 server is configured for it, because a revoked opaque token stops working immediately and a revoked
@@ -283,7 +289,7 @@ the core queries by (`grant_id`, `user_code`, `expires_at`, `account_id`, upstre
 JSON blob with no index is a correctness problem at revocation time, not just a slow one.
 
 **FR-A6** — The TypeORM adapter is first-party: its own `@oidcraft/typeorm` package with `typeorm`
-as a peer, passing the same conformance suite as the others (FR-A3). A third-party adapter is an
+as a peer, passing the same conformance suite as the others (FR-A4). A third-party adapter is an
 ordinary package peering on `@oidcraft/adapter`, the published contract, and implementing `Adapter`
 exactly as the first-party ones do; nothing about the contract is internal, and no adapter depends
 on `@oidcraft/provider`.
@@ -323,7 +329,8 @@ authenticated it, and the `idp`, `acr`, `amr` and `auth_time` claims reflect the
 answer rather than being invented locally.
 
 **FR-F7 — Claim mapping is explicit.** Nothing from an upstream becomes a local claim without a
-mapper saying so. `sub` is never taken from anywhere but the upstream `sub`.
+mapper saying so. A linked identity is keyed by the upstream `sub` and nothing else; the local
+`sub` is never the upstream's.
 
 **FR-F8 — Logout propagates in both directions.** An upstream back-channel logout terminates the
 local sessions it produced, which in turn triggers this OP's own back-channel logout to its
@@ -349,7 +356,8 @@ upstream produces a well-formed error response to the downstream client and a lo
 ## 7. Interaction — `FR-I*`
 
 **FR-I1** — When the authorization endpoint cannot decide alone, it produces an
-`InteractionRequest` and redirects to the interaction app. The core never renders HTML.
+`InteractionRequest` and redirects to the interaction app. The core renders no HTML beyond the
+self-submitting `form_post` response (FR-C1).
 
 **FR-I2** — The interaction app answers with an `InteractionResult`; the core re-evaluates the
 original authorization request against it and is free to demand another interaction. An answer is
@@ -408,8 +416,9 @@ configuration (FR-F1).
 every attack the provider detects and answers on its own: a replayed authorization code or refresh
 token, and the family it revoked (FR-T3, FR-T4), and a failed client authentication. What the host
 calls and is answered — a locked account, a wrong device code — it already sees. The host decides
-where audit events go; the library does not persist them, and a failing audit hook changes no answer
-(NFR-D5).
+where audit events go; the library does not persist them. A failing audit hook changes no HTTP
+answer and is reported through `onError` (NFR-D5); called through the management API, its failure
+reaches the host that called.
 
 **FR-M4** — Several issuers in one process are possible and never imposed. `createRealms` builds an
 ordinary provider per realm on first use, from a realm record and a host-supplied `configure`; a
@@ -444,8 +453,8 @@ certificate, the real client IP — arrives as an explicit `RequestContext`. The
 origin is not among them: it is configuration (FR-R1, NFR-S6). The core never reads `X-Forwarded-*`
 on its own authority.
 
-**FR-R5** — A capability the running runtime cannot supply disables the features that need it,
-loudly, at construction rather than at the first request (NFR-D2). The mTLS client-authentication
+**FR-R5** — A feature needing a capability the running runtime cannot supply is refused at
+construction, never at the first request (NFR-D2). The mTLS client-authentication
 methods (FR-C4) and certificate-bound tokens (FR-C13) require `RequestContext.clientCertificate`;
 where no provider can supply one, advertising them in discovery would be a lie (`G-8`).
 
@@ -506,7 +515,8 @@ PKCE nor a `nonce` is refused (FR-C3, OAuth 2.1 §7.5.1.1), which OIDC Core woul
 one exception is the port of an `http` loopback IP literal (`127.0.0.1`, `[::1]`), which a native app
 chooses per request (RFC 8252 §7.3, RFC 9700 §2.1). The hostname `localhost` gets no port exception;
 a client registered as `application_type: native` may use `http://localhost` redirect URIs, matched
-exactly, because MCP clients do (MCP 2026-07-28). A `web` client, the default, may not.
+exactly, because MCP clients do (MCP 2026-07-28). A `web` client, the default, may not — save a
+Client ID Metadata Document client, native unless it says `web` (FR-C20).
 
 **NFR-S3** — Every token, code and identifier is generated with `crypto.getRandomValues` at ≥ 256
 bits of entropy and compared in constant time where compared at all — except a code a person types
@@ -516,8 +526,8 @@ short lifetime instead (RFC 8628 §5.1).
 **NFR-S4** — Replay of a single-use artifact revokes the family it belongs to, never the `Grant`
 (FR-T3, FR-T4).
 
-**NFR-S5** — `jti`, DPoP proofs and upstream nonces are checked against `ReplayGuard` within their
-validity window.
+**NFR-S5** — Client assertion `jti`s, DPoP proofs, upstream logout tokens, TOTP codes, recovery
+codes and single-use redemptions are checked against `ReplayGuard` within their validity window.
 
 **NFR-S6** — The issuer identifier is configuration. It is never derived from the `Host` or
 `X-Forwarded-Host` header, which would let a request rewrite the issuer of the tokens it receives.
@@ -534,11 +544,12 @@ policy matches on `(provider, subject)` only.
 only to the host (FR-F10). The library never stores them and never returns them to a downstream
 client. A host that keeps them encrypts them at rest.
 
-**NFR-S10** — No secret is ever logged. Tokens appear in logs as a prefix and a hash, if at all.
+**NFR-S10** — The library logs no secret; the reference deployment's console reset link is a demo
+stand-in for email. Tokens appear in logs as a prefix and a hash, if at all.
 
 **NFR-S11** — No bearer credential is stored as itself. Authorization codes, access and refresh
-tokens, device codes, pushed-request references, registration access tokens, password-reset
-tokens and the session cookie are stored under a SHA-256 of their value, so a copy of the database
+tokens, device codes, pushed-request references, CIBA `auth_req_id`s, interaction ids, stored
+authorization responses, registration access tokens, password-reset tokens and the session cookie are stored under a SHA-256 of their value, so a copy of the database
 yields no usable token. The session's hash is also the `sid` clients are told, so the cookie must
 not be it. A client secret used with `client_secret_basic` or `client_secret_post` is stored hashed
 the same way. `client_secret_jwt` is the necessary exception — the secret is the HMAC key — and a
@@ -585,6 +596,7 @@ background tasks of its own.
 
 **NFR-D2** — Configuration is type-checked. An unsupported combination — an advertised algorithm
 with no key, DPoP required with no nonce store — fails at construction, not at the first request.
+The one exception is what only the asynchronous `KeyStore` can say: FR-C21's allowed algorithms.
 
 **NFR-D3** — Errors carry the OAuth error code, the specification clause and what the caller must
 change.

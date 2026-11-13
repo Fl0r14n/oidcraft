@@ -89,3 +89,27 @@ describe('security events reach onAudit', () => {
     expect(errors).toEqual([new Error('the audit sink is down')])
   })
 })
+
+describe('a failing audit hook after a registration', () => {
+  test('leaves the registration standing, and is reported through onError', async () => {
+    const errors: unknown[] = []
+    const provider = build({
+      features: { dynamicRegistration: true },
+      onAudit: () => {
+        throw new Error('the audit sink is down')
+      },
+      onError: error => {
+        errors.push(error)
+      }
+    })
+    const response = await provider.handle(
+      new Request('https://op.example.com/register', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ redirect_uris: ['https://rp.example.com/cb'], token_endpoint_auth_method: 'none' })
+      })
+    )
+    expect(response.status).toBe(201)
+    expect(errors).toEqual([new Error('the audit sink is down')])
+  })
+})

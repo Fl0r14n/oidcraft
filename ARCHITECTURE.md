@@ -15,7 +15,7 @@ How oidcraft is built. `REQUIREMENTS.md` says what it must do; every section her
 | **jose**             | ^6         | The only third-party runtime dependency. WebCrypto-backed, runtime-agnostic (NFR-D4).                                                                    |
 | **@oidcraft/core**   | workspace  | The protocol, shared by the provider and every client binding (§2.1). Published; a dependency of each.                                                   |
 | **@oidcraft/client** | workspace  | The stateful client runtime, shared by the client bindings only (§2.1). Published; never the server's.                                                   |
-| **tsdown**           | 0.23.x     | Library build: seven ESM entries with `.d.mts` types (§2.2).                                                                                             |
+| **tsdown**           | 0.23.x     | Library build: the provider's eight ESM entries and every package's, with `.d.mts` types (§2.2).                                                         |
 | **Drizzle / Kysely** | 1.0 / 0.29 | First-party adapters (FR-A4). Optional peers, never bundled (§2.2).                                                                                      |
 | **TypeORM**          | 1.1        | First-party adapter (FR-A6) over the host's `DataSource`, with `EntitySchema`s rather than decorators. Optional peer, never bundled.                     |
 
@@ -34,7 +34,7 @@ Bun's HTML imports serve a page as static HTML with nowhere to put server-render
 is Fast Refresh: `bun --watch` restarts the host on a change and the page reloads itself, losing
 component state. It reads the same root `.env` and `OIDCRAFT_PUBLIC_*` names as everything else
 (§9.1); the `Bun.build` call substitutes them as whole `process.env.X` literals, every name defined
-even when unset, so §9.2's rule against `import.meta.env` holds there too.
+even when unset, so §9.1's rule against `import.meta.env` holds there too.
 
 Two sharp edges, both measured here rather than assumed:
 
@@ -131,7 +131,7 @@ Everything published is under the `@oidcraft` npm org, and each package is named
 | -------------------- | ------------------- | ---------------------------------------------------------------------------------------- |
 | `@oidcraft/core`     | `packages/core`     | the protocol: discovery, PKCE, the authorization round trip, ID token verification       |
 | `@oidcraft/client`   | `packages/client`   | the stateful client on top: storage, token lifecycle, refresh, authorized fetch, profile |
-| `@oidcraft/adapter`  | `packages/adapter`  | the storage contract: stores, records, `fromKv`, key stores, memory, conformance, SQL    |
+| `@oidcraft/adapter`  | `packages/adapter`  | the storage contract: stores, records, `fromKv`, key stores, memory, conformance         |
 | `@oidcraft/provider` | `packages/provider` | the OpenID Provider, eight subpath entries                                               |
 | `@oidcraft/drizzle`  | `packages/drizzle`  | the Drizzle adapter                                                                      |
 | `@oidcraft/kysely`   | `packages/kysely`   | the Kysely adapter                                                                       |
@@ -141,7 +141,8 @@ Everything published is under the `@oidcraft` npm org, and each package is named
 | `@oidcraft/react`    | `packages/react`    | React binding over `@oidcraft/client`                                                    |
 | `@oidcraft/angular`  | `packages/angular`  | Angular binding over `@oidcraft/client`                                                  |
 
-`@oidcraft/ui` is the one private package, consumed from source by `apps/demo-server` (§8.1). The
+`@oidcraft/ui` and `@oidcraft/sql` are the two private packages, consumed from source: the screens by
+`apps/demo-server` (§8.1), the SQL schema by the SQL adapters. The
 three bindings continue packages published under older names — `vue-oidc`, `react-oauth-oidc`,
 `ngx-oauth` — and their version numbers continue those.
 
@@ -233,7 +234,7 @@ sibling in. `verify-entries.ts` does that (§2.2).
 ### 2.2 Entry invariants
 
 Each optional peer is confined to the one entry that owns it; that is what keeps it optional rather
-than a tax on every consumer. Nothing enforces this at build time, and every way of breaking it
+than a tax on every consumer. Nothing but `verify-entries.ts` (below) enforces it, and every way of breaking it
 fails silently — a leaked peer surfaces only as a resolution error in a consumer who never installed
 it, and a core type inlined into an entry compiles fine while shipping a second copy that drifts.
 In the provider the same holds for the storage libraries, which belong to the adapter packages: one
@@ -511,8 +512,9 @@ of the existing account, then link — is the honest answer for a consumer-facin
 ### 5.6 Upstream tokens
 
 Keeping an upstream's access token so downstream code can call that upstream's API makes the
-deployment a credential store for another system. Off by default, opt-in per provider, encrypted
-at rest, never handed to a downstream client without an explicit API call (FR-F10, NFR-S9). An
+deployment a credential store for another system. Off by default and opt-in per provider; then
+handed to the host only, with the brokered identity. The library stores none and returns none to a
+downstream client; a host that keeps them encrypts them (FR-F10, NFR-S9). An
 upstream ID token is kept only as a logout hint, for a provider that propagates logout (FR-F8).
 
 ## 6. Interaction
@@ -678,7 +680,7 @@ uses the metadata document.
 ### 8.2 `apps/demo-vue` — the demo relying party
 
 Vue 3 + `@oidcraft/vue`, ported from that library's own sample app, and now resolving it from the
-workspace rather than from npm. That trade is deliberate: until `@oidcraft/vue@7` publishes from here,
+workspace rather than from npm. That trade is deliberate: before `@oidcraft/vue` published from here,
 npm was the more honest dependency — it proved the OP against an independently released client. From
 here on the same file proves something else, that the binding in `packages/vue` actually works, and
 nothing else in the repository does.

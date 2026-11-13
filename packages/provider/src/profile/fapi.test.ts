@@ -342,3 +342,23 @@ describe('FR-C21: discovery under a provider-wide profile', () => {
     expect(metadata.dpop_signing_alg_values_supported).toEqual(['PS256', 'ES256', 'EdDSA'])
   })
 })
+
+// FR-T1, FR-C21: DCR's RS256 default would make every registration that omits an algorithm fail the profile.
+describe('dynamic registration under a provider-wide profile', () => {
+  test('a client naming no ID token algorithm gets one the profile allows', async () => {
+    const fapi = build({ profile: 'fapi2', features: { dpop: true, pushedAuthorizationRequests: true, dynamicRegistration: true } })
+    const response = await fapi.handle(
+      new Request(`${ISSUER}/register`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          redirect_uris: [REDIRECT],
+          token_endpoint_auth_method: 'private_key_jwt',
+          jwks: { keys: [{ ...(await exportJWK(clientKey.publicKey)), alg: 'ES256', use: 'sig' }] }
+        })
+      })
+    )
+    expect(response.status).toBe(201)
+    expect((await response.json()).id_token_signed_response_alg).toBe('ES256')
+  })
+})

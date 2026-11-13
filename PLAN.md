@@ -6,7 +6,7 @@ was done.
 
 ## Status
 
-**Implemented, as of 2026-11-13**, with 1341 passing tests (215 more skip without Postgres and
+**Implemented, as of 2026-11-13**, with 1344 passing tests (215 more skip without Postgres and
 Redis) and `bun run verify` as the gate: every functional requirement in `REQUIREMENTS.md`.
 `metadata.test.ts` exercises every advertised discovery value rather than reading it. Published as
 `@oidcraft/*` — `core` 0.4.0, `client` 0.3.0, the provider 0.4.0, `adapter` and the four storage
@@ -79,7 +79,8 @@ Versions are set in each `package.json`. Publish in this order, each from a GitH
 4. `@oidcraft/provider@0.5.0` — the review's security and correctness fixes; the `claims` parameter
    (FR-C22), whose consent answers must repeat `view.claims` in `consent.claims`; `onAudit` hears
    `token.replay` and `client.authentication_failed`; a body that is not form-encoded is a 415; a
-   throwing logout hook goes to `onError`.
+   throwing logout or registration audit hook goes to `onError`; under a provider-wide FAPI profile
+   dynamic registration names the profile's algorithm instead of failing on DCR's RS256 default.
 5. `@oidcraft/drizzle@0.3.0`, `@oidcraft/kysely@0.3.0`, `@oidcraft/redis@0.3.0` — peer on `adapter`
    ^0.3.0; the SQL ones enforce `Grant.expiresAt` and prune by expiry at the delete.
 6. `@oidcraft/typeorm@0.3.0` — the same, and `OIDCRAFT_ENTITIES` becomes `OIDCRAFT_SQLITE_ENTITIES`

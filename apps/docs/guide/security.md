@@ -266,8 +266,7 @@ an mTLS-only deployment on Bun turns up. Node and workerd are unaffected.
 - **G-1: OpenID Federation 1.0** (trust chains, not brokering). Not planned unless a deployment in
   one of those ecosystems needs it.
 - **G-3: FAPI 2.0.** Decided: the Security Profile ships as an opt-in (FR-C21). The FAPI 2.0
-  Message Signing profile is a separate profile and is not part of it. NFR-C2 still describes FAPI
-  2.0 as a target for a later milestone, but the profile is implemented and its plan runs in CI.
+  Message Signing profile is a separate profile and is not part of it. Its plan runs in CI.
 - **G-4: upstream SAML.** Decided against, in-tree. XML signature validation has a long history of
   signature-wrapping and canonicalisation vulnerabilities. A host that must accept SAML puts a
   SAML-to-OIDC bridge upstream and brokers to it.

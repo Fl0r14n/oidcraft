@@ -71,7 +71,7 @@ export type Account = AccountOwned & {
   claims: Record<string, unknown>
 }
 
-/** A user's authenticated session at the OP, independent of any one client (FR-S1). */
+/** A user's authenticated session at the OP, independent of any one client (FR-C11, FR-T6). */
 export type Session = Entity &
   AccountOwned &
   Expiring & {

@@ -105,7 +105,8 @@ export const issueTokens = async (
   }
 
   // No ID token without openid (OIDC Core §3.1.2.1); one for a resource carries the scope claims UserInfo cannot release (§5.4, FR-C5).
-  const named = claims?.idToken ?? []
+  // A token for a resource cannot be presented at UserInfo, so what was named for UserInfo travels here too (FR-C22).
+  const named = audience ? [...new Set([...(claims?.idToken ?? []), ...(claims?.userinfo ?? [])])] : (claims?.idToken ?? [])
   const released =
     scopes.includes('openid') && (audience || named.length)
       ? await config.adapter.accounts.claims(session.accountId, audience ? scopes : [], named)

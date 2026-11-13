@@ -2,7 +2,21 @@ import { describe, expect, test } from 'bun:test'
 import { decodeJwt } from 'jose'
 import type { InteractionResult } from '../interaction'
 import { SESSION_COOKIE } from '../session/session'
-import { adapter, authorizeUrl, basic, browserOf, go, ISSUER, post, provider, REDIRECT, useFlow, verifier } from '../test-flow'
+import {
+  adapter,
+  authorizeUrl,
+  basic,
+  browserOf,
+  build,
+  drive,
+  go,
+  ISSUER,
+  post,
+  provider,
+  REDIRECT,
+  useFlow,
+  verifier
+} from '../test-flow'
 
 useFlow()
 
@@ -63,6 +77,26 @@ describe('the claims request parameter', () => {
     const tokens = await redeem(location)
     expect(decodeJwt(tokens.id_token).email).toBe('ada@example.com')
     expect(await userinfo(tokens.access_token)).toEqual({ sub: 'ada' })
+  })
+
+  // FR-C5: a token for a resource is refused at UserInfo, so what was named for it rides in the ID token.
+  test('with a resource, a claim named for userinfo is released in the ID token', async () => {
+    drive(build({ resources: [{ uri: 'https://api.example.com' }] }))
+    const { location } = await authorize({ ...claims({ userinfo: { name: null } }), resource: 'https://api.example.com' })
+    const tokens = await (
+      await post(
+        '/token',
+        {
+          grant_type: 'authorization_code',
+          code: location.searchParams.get('code') as string,
+          redirect_uri: REDIRECT,
+          code_verifier: verifier,
+          resource: 'https://api.example.com'
+        },
+        { authorization: basic() }
+      )
+    ).json()
+    expect(decodeJwt(tokens.id_token).name).toBe('Ada Lovelace')
   })
 
   test('a refreshed access token still releases it', async () => {

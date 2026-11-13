@@ -6,7 +6,9 @@ import { CIBA_GRANT } from '../authorize/ciba'
 import type { ResolvedConfig } from '../config'
 import { supportedGrantTypes } from '../discovery'
 import { OAuthError } from '../errors'
+import { guarded } from '../hooks'
 import { signingAlgorithms } from '../keys/keys'
+import { defaultSigningAlg } from '../profile/fapi'
 import { deleteClient } from './delete'
 import { secretKind, storableSecret } from './secret'
 import { clientProblems } from './validate'
@@ -234,8 +236,8 @@ const metadataFrom = (config: ResolvedConfig, body: Record<string, unknown>): Cl
     ...(sectorIdentifierUri !== undefined && { sectorIdentifierUri }),
     ...subjectTypeFrom(config, body.subject_type),
     ...cibaMetadataFrom(body, grantTypes),
-    // OIDC DCR 1.0 §2: RS256 when omitted, whatever the provider's own default is (FR-T1).
-    idTokenSignedResponseAlg: stringFrom(body.id_token_signed_response_alg, 'id_token_signed_response_alg') ?? 'RS256',
+    // OIDC DCR 1.0 §2: RS256 when omitted, except under FAPI 2.0, which forbids it: the profile's default then (FR-T1, FR-C21).
+    ...idTokenAlgFrom(config, body.id_token_signed_response_alg),
     ...keysFrom(body),
     ...tlsClientAuthFrom(body),
     ...(body.backchannel_logout_uri !== undefined && {
@@ -324,6 +326,19 @@ const applyDecision = (client: Client, decision: { requirePkce?: boolean } | und
 }
 
 /** OIDC Dynamic Client Registration 1.0 and RFC 7592. Off unless a deployment turns it on (FR-C9). */
+const idTokenAlgFrom = (config: ResolvedConfig, value: unknown) => {
+  const named = stringFrom(value, 'id_token_signed_response_alg')
+  if (named !== undefined) return { idTokenSignedResponseAlg: named }
+  return config.profile === 'fapi2' ? {} : { idTokenSignedResponseAlg: 'RS256' }
+}
+
+/** Under FAPI 2.0 the response names the algorithm it will sign with: to a DCR client an omitted one means RS256. */
+const settleIdTokenAlg = async (config: ResolvedConfig, client: Client) => {
+  if (client.idTokenSignedResponseAlg) return
+  const alg = defaultSigningAlg(config, client, await config.adapter.keys.active())
+  if (alg) client.idTokenSignedResponseAlg = alg
+}
+
 export const registrationEndpoint = async (config: ResolvedConfig, request: Request) => {
   const url = new URL(request.url)
 
@@ -337,12 +352,13 @@ export const registrationEndpoint = async (config: ResolvedConfig, request: Requ
     )
 
     const { client, issued } = await storableSecret(metadataFrom(config, body), true)
+    await settleIdTokenAlg(config, client)
     await assertRegistrable(config, client)
     applyDecision(client, decision)
     if (!config.adapter.clients.upsert) throw new OAuthError('server_error', { description: 'this adapter cannot create clients' })
     const registrationAccessToken = randomString()
     await config.adapter.clients.upsert({ ...client, registrationAccessToken: await storedId(registrationAccessToken) })
-    await audit(config, 'client.register', { clientId: client.clientId })
+    await guarded(config, request, () => audit(config, 'client.register', { clientId: client.clientId }))
     return Response.json(clientResponse(config, client, registrationAccessToken, issued), {
       status: 201,
       headers: { 'cache-control': 'no-store' }
@@ -357,7 +373,7 @@ export const registrationEndpoint = async (config: ResolvedConfig, request: Requ
 
   if (request.method === 'DELETE') {
     await deleteClient(config, client.clientId)
-    await audit(config, 'client.delete', { clientId: client.clientId })
+    await guarded(config, request, () => audit(config, 'client.delete', { clientId: client.clientId }))
     return new Response(null, { status: 204, headers: { 'cache-control': 'no-store' } })
   }
 
@@ -386,10 +402,11 @@ export const registrationEndpoint = async (config: ResolvedConfig, request: Requ
     },
     true
   )
+  await settleIdTokenAlg(config, updated)
   await assertRegistrable(config, updated)
   applyDecision(updated, decision)
   if (!config.adapter.clients.upsert) throw new OAuthError('server_error', { description: 'this adapter cannot update clients' })
   await config.adapter.clients.upsert(updated)
-  await audit(config, 'client.update', { clientId: client.clientId })
+  await guarded(config, request, () => audit(config, 'client.update', { clientId: client.clientId }))
   return Response.json(clientResponse(config, updated, presented, issued), { headers: { 'cache-control': 'no-store' } })
 }

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test'
 import { OAuthType } from '@oidcraft/core'
 import type { OAuth } from './module'
-import { createOAuth, installStorage, mockOAuthFunctions as mocked, registerOAuthCleanup } from './test-utils'
+import { armHandoff, createOAuth, handoffOf, installStorage, mockOAuthFunctions as mocked, registerOAuthCleanup } from './test-utils'
 import type { OAuthConfig } from './types'
 
 const local = installStorage()
@@ -81,7 +81,7 @@ describe('login — authorization redirect', () => {
 
     const nonce = new URL(url ?? '').searchParams.get('nonce')
     expect(nonce).toBeTruthy()
-    expect(oauth.token().nonce).toBe(nonce ?? undefined)
+    expect(handoffOf().nonce).toBe(nonce ?? undefined)
   })
 
   it('adds an S256 challenge and keeps the verifier when pkce is on', async () => {
@@ -94,8 +94,19 @@ describe('login — authorization redirect', () => {
     expect(params.get('code_challenge_method')).toBe('S256')
     expect(params.get('code_challenge')).toBeTruthy()
     // the verifier stays local — it is what proves ownership of the challenge at token exchange
-    expect(oauth.token().code_verifier).toBeTruthy()
-    expect(params.get('code_challenge')).not.toBe(oauth.token().code_verifier)
+    expect(handoffOf().code_verifier).toBeTruthy()
+    expect(params.get('code_challenge')).not.toBe(handoffOf().code_verifier)
+  })
+
+  // The token is shared by every tab; the handoff is this tab's, so starting a sign-in here ends none elsewhere.
+  it('leaves a live session alone while a sign-in is pending', async () => {
+    build({ scope: 'openid' })
+    oauth.setToken({ access_token: 'live', token_type: 'Bearer' })
+
+    await oauth.login({ redirectUri: 'https://app/cb', responseType: OAuthType.AUTHORIZATION_CODE })
+
+    expect(oauth.token().access_token).toBe('live')
+    expect(handoffOf().state).toBeTruthy()
   })
 
   it('names the problem when authorizePath is missing', async () => {
@@ -120,8 +131,8 @@ describe('login — authorization redirect', () => {
     expect(oauth.token().error_description).toBeUndefined()
     expect(oauth.hasError()).toBe(false)
     // the parameters the new attempt actually needs are still there
-    expect(oauth.token().nonce).toBeTruthy()
-    expect(oauth.token().redirect_uri).toBe('https://app/cb')
+    expect(handoffOf().nonce).toBeTruthy()
+    expect(handoffOf().redirect_uri).toBe('https://app/cb')
   })
 
   it('passes access_type and prompt through for offline consent', async () => {
@@ -162,6 +173,14 @@ describe('logout', () => {
     expect(oauth.token()).toEqual({})
   })
 
+  it('refuses an insecure end-session endpoint, as it refuses every other', async () => {
+    build({ config: { tokenPath: '/t', clientId: 'c', logoutPath: 'http://op.example/logout' } as any })
+    oauth.setToken({ access_token: 'at', token_type: 'Bearer' })
+
+    await expect(oauth.logout('https://app/bye', undefined, { redirect: false })).rejects.toThrow()
+    expect(oauth.token().access_token).toBe('at')
+  })
+
   it('clears the token even when revocation fails', async () => {
     // the IdP answers 4xx for an already-invalid token (Google does). If that aborts the logout, the
     // session survives, the next call 401s, and the interceptor refills the token with the IdP's
@@ -170,7 +189,7 @@ describe('logout', () => {
     functions.revoke.mockRejectedValue(new Error('400 from the revocation endpoint'))
     oauth.setToken({ access_token: 'stale', token_type: 'Bearer' })
 
-    await expect(oauth.logout()).rejects.toThrow()
+    await oauth.logout()
 
     expect(oauth.token()).toEqual({})
     expect(oauth.isAuthorized()).toBe(false)
@@ -222,7 +241,7 @@ describe('oauthCallback', () => {
   })
 
   /** What `login` leaves behind for the callback to match. */
-  const pending = (state = 'xyz', on: OAuth = oauth) => on.setToken({ state, redirect_uri: 'https://h/callback' })
+  const pending = (state = 'xyz') => armHandoff({ state, redirect_uri: 'https://h/callback' })
 
   it('ignores a url with neither a code nor a token', async () => {
     await oauth.oauthCallback('https://h/callback')
@@ -262,7 +281,7 @@ describe('oauthCallback', () => {
 
   it('rejects an implicit redirect whose id_token nonce does not match the stored one', async () => {
     oauth = createOAuth({ config: { tokenPath: '/t', clientId: 'c', authorizePath: '/a' }, functions, strictJwt: false })
-    oauth.setToken({ state: 'st', nonce: 'expected' })
+    armHandoff({ state: 'st', nonce: 'expected' })
 
     // an id_token with no nonce claim at all — the classic replay of a token minted for someone else
     await oauth.oauthCallback(`https://h/callback#access_token=implicit&state=st&id_token=${'header.e30.sig'}`)
@@ -317,7 +336,7 @@ describe('oauthCallback', () => {
     await oauth.oauthCallback(url)
 
     const other = createOAuth({ config: { tokenPath: '/t', clientId: 'c' }, functions })
-    pending('xyz', other)
+    pending('xyz')
     await other.oauthCallback(url)
 
     expect(functions.authorize).toHaveBeenCalledTimes(2)
@@ -367,9 +386,9 @@ describe('redirect: false', () => {
     expect(replaced).toEqual([])
     // the flow is still armed: without these persisted, the caller's own navigation leads to a
     // callback that cannot complete
-    expect(oauth.token().code_verifier).toBeTruthy()
-    expect(oauth.token().nonce).toBeTruthy()
-    expect(oauth.token().redirect_uri).toBe('https://app/cb')
+    expect(handoffOf().code_verifier).toBeTruthy()
+    expect(handoffOf().nonce).toBeTruthy()
+    expect(handoffOf().redirect_uri).toBe('https://app/cb')
   })
 
   it('login navigates by default', async () => {
@@ -430,7 +449,7 @@ describe('the callback url', () => {
     const functions = mocked()
     functions.authorize.mockResolvedValue({ access_token: 'at', token_type: 'Bearer' })
     const oauth = createOAuth({ config: { tokenPath: '/t', clientId: 'c', authorizePath: '/a' }, functions })
-    oauth.setToken({ state: 's1' })
+    armHandoff({ state: 's1' })
     Object.assign(globalThis.location, { href: 'http://localhost/cb?tab=2&code=c1&state=s1', search: '?tab=2&code=c1&state=s1', hash: '' })
 
     await oauth.oauthCallback()
@@ -439,12 +458,24 @@ describe('the callback url', () => {
     expect(replaced).toBe('http://localhost/cb?tab=2')
   })
 
+  it('cleans a URL handed in when it is the address bar, as a router passing location.href does', async () => {
+    const functions = mocked()
+    functions.authorize.mockResolvedValue({ access_token: 'at', token_type: 'Bearer' })
+    const oauth = createOAuth({ config: { tokenPath: '/t', clientId: 'c', authorizePath: '/a' }, functions })
+    armHandoff({ state: 's1' })
+    Object.assign(globalThis.location, { href: 'http://localhost/cb?code=c1&state=s1', search: '?code=c1&state=s1', hash: '' })
+
+    await oauth.oauthCallback(globalThis.location.href)
+
+    expect(replaced).toBe('http://localhost/cb')
+  })
+
   // response_mode=fragment puts a code where the query cleaning would miss it.
   it('loses a code delivered in the fragment, and keeps the app’s own fragment', async () => {
     const functions = mocked()
     functions.authorize.mockResolvedValue({ access_token: 'at', token_type: 'Bearer' })
     const oauth = createOAuth({ config: { tokenPath: '/t', clientId: 'c', authorizePath: '/a' }, functions })
-    oauth.setToken({ state: 's1' })
+    armHandoff({ state: 's1' })
     Object.assign(globalThis.location, {
       href: 'http://localhost/cb#code=c1&state=s1&view=list',
       search: '',

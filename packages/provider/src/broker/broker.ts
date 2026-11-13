@@ -58,7 +58,8 @@ const CHECKS: Record<CallbackCheck, { description: string; spec: string }> = {
     spec: 'RFC 9207 §2.4'
   },
   nonce: { description: 'the upstream ID token did not carry the nonce it was asked for', spec: 'FR-F3' },
-  id_token: { description: 'the upstream ID token failed verification', spec: 'OIDC Core §3.1.3.7' }
+  id_token: { description: 'the upstream ID token failed verification', spec: 'OIDC Core §3.1.3.7' },
+  token: { description: 'the upstream token endpoint answered without an access token', spec: 'RFC 6749 §5.1' }
 }
 
 const upstreamFailure = (provider: string, result: AuthorizationResult | undefined) => {

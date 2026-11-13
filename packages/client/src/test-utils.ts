@@ -41,19 +41,36 @@ export const mockOAuthFunctions = () => ({
 /** A `localStorage` tests can clear deterministically between files. `storage.ts` reads the global
  * lazily, so installing this after import is enough. */
 export const installStorage = (): Storage => {
+  const session = memoryStorage()
+  Object.defineProperty(globalThis, 'sessionStorage', { value: session, configurable: true, writable: true })
+  const local = memoryStorage(() => session.clear())
+  Object.defineProperty(globalThis, 'localStorage', { value: local, configurable: true, writable: true })
+  return local
+}
+
+/** A sign-in this tab started, as `login` leaves it for the callback. */
+export const armHandoff = (handoff: Record<string, string>, storageKey = 'token') =>
+  globalThis.sessionStorage.setItem(`${storageKey}.handoff`, JSON.stringify(handoff))
+
+export const handoffOf = (storageKey = 'token'): Record<string, string | undefined> =>
+  JSON.parse(globalThis.sessionStorage.getItem(`${storageKey}.handoff`) ?? '{}')
+
+/** Clearing the returned `localStorage` clears the tab's `sessionStorage` too, where a pending handoff lives. */
+const memoryStorage = (alsoClear?: () => void): Storage => {
   const m = new Map<string, string>()
-  const storage = {
+  return {
     getItem: (k: string) => (m.has(k) ? (m.get(k) as string) : null),
     setItem: (k: string, v: string) => void m.set(k, String(v)),
     removeItem: (k: string) => void m.delete(k),
-    clear: () => m.clear(),
+    clear: () => {
+      m.clear()
+      alsoClear?.()
+    },
     key: (i: number) => [...m.keys()][i] ?? null,
     get length() {
       return m.size
     }
   } as Storage
-  Object.defineProperty(globalThis, 'localStorage', { value: storage, configurable: true, writable: true })
-  return storage
 }
 
 /** Unsigned id_token — enough for the unverified `parseIdToken` path. */

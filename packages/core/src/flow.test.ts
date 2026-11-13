@@ -174,6 +174,20 @@ describe('completeAuthorization', () => {
     expect(token).toEqual({ ok: false, reason: 'unreachable' })
   })
 
+  // FR-L2: reachable but wrong is a failed check, not a network problem worth retrying.
+  it('reports an answer without an access_token as invalid, not unreachable', async () => {
+    const token = await completeAuthorization(
+      config,
+      'https://app.com/cb?code=c1&state=s1',
+      { state: 's1' },
+      {
+        functions: { authorize: async () => ({ token_type: 'Bearer' }) }
+      }
+    )
+
+    expect(token).toEqual({ ok: false, reason: 'invalid', check: 'token', message: 'The token endpoint answered without an access_token' })
+  })
+
   it('reports a refusal at the token endpoint as the provider’s own answer', async () => {
     const token = await completeAuthorization(
       config,

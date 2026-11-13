@@ -33,7 +33,8 @@ export const createUser = (
     if (idToken) {
       const claims = await jwt(idToken)
       if (stale()) return
-      userStore.setState({ user: claims })
+      // FR-L2: a token that fails verification, an expired one included, is nobody
+      userStore.setState({ user: claims.error ? undefined : claims })
     }
     if (authorized && userPath) {
       const usr = await functions.userInfo(config(), oauthFetch)

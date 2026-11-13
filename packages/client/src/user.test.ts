@@ -18,6 +18,16 @@ describe('user', () => {
     oauth = createOAuth({ functions, strictJwt: false })
   })
 
+  // FR-L2: a token that does not verify, an expired one included, is no profile.
+  it('has no user for an ID token that does not verify', async () => {
+    const strict = createOAuth({ storageKey: 'strict.token', functions: mockOAuthFunctions() })
+    strict.setToken({ id_token: idToken({ name: 'Jane', exp: 1 }) })
+
+    await flush()
+
+    expect(strict.user()).toBeUndefined()
+  })
+
   it('derives the user from the id_token claims', async () => {
     oauth.setToken({ id_token: idToken({ name: 'Jane', email: 'jane@acme.io' }) })
 

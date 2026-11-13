@@ -19,6 +19,21 @@ const refreshAhead = (token: OAuthToken) => Math.min(30_000, ((Number(token.expi
 const isExpiringToken = (token?: OAuthToken) => (token?.expires && Date.now() + refreshAhead(token) > token.expires) || false
 
 // FR-L5: Web Locks span the origin's tabs; without them, this tab alone.
+const REFRESH_PATIENCE = 30_000
+
+// FR-L5: the refresh holds the cross-tab lock, so one that never answers must not hold it, and every tab waiting on it, forever.
+const answeredWithin = async <T>(ms: number, task: Promise<T>) => {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const elapsed = new Promise<undefined>(resolve => {
+    timer = setTimeout(() => resolve(undefined), ms)
+  })
+  try {
+    return await Promise.race([task, elapsed])
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 const exclusively = (name: string, task: () => Promise<void>): Promise<void> => {
   const locks = globalThis.navigator?.locks
   return locks ? locks.request(name, task) : task()
@@ -95,13 +110,16 @@ export const createToken = (
         setExpires(token())
         return
       }
-      await exclusively(`oidcraft.refresh.${storageKey()}`, async () => {
+      const key = storageKey()
+      await exclusively(`oidcraft.refresh.${key}`, async () => {
         // FR-L5, FR-T3: another tab may have rotated the refresh token while this one waited
         storage.reload()
         const t = token()
         if (!isExpiringToken(t)) return
         await autoconfigOauth()
-        const refreshed = await functions.refresh(t, config())
+        const refreshed = await answeredWithin(REFRESH_PATIENCE, functions.refresh(t, config()))
+        // rekeyed meanwhile, the answer belongs to the key it was asked for, not the one now in use
+        if (storageKey() !== key) return
         if (refreshed && !isExpiredToken(refreshed)) {
           if (refreshed.error) {
             setToken(refreshed)

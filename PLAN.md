@@ -87,7 +87,7 @@ release above. In fix order.
 - [x] `authorization_details=[null]` is a 500; device and CIBA requests do not check the client's
   `grant_types`; a JAR-by-value request resumed after an interaction travels as plain parameters
 - [x] Accounts: a password reset leaves `sign_in_attempts` locks in place
-- [ ] Client: redirect classification matches `?barcode=`; `unreachable` is inferred from an echo;
+- [x] Client: redirect classification matches `?barcode=`; `unreachable` is inferred from an echo;
   the handoff shares the token slot, so a login in one tab ends the others; a URL passed to
   `oauthCallback` is not cleaned; a non-redirecting logout and the refresh lock have no timeout; a
   storage key changed mid-refresh; an expired ID token becomes a truthy profile; `logoutPath` skips

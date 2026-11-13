@@ -33,7 +33,8 @@ export const useOAuthSelector = <T>(selector: (token: OAuthToken) => T): T =>
 export const useIsAuthorized = (): boolean => useOAuthSelector(token => tokenState(token).isAuthorized)
 export const useOAuthStatus = (): OAuthStatus => useOAuthSelector(token => tokenState(token).status)
 export const useAccessToken = (): string | undefined => useOAuthSelector(token => tokenState(token).accessToken)
-export const useOAuthError = (): string | undefined => useOAuthSelector(token => tokenState(token).errorDescription)
+export const useOAuthError = (): string | undefined =>
+  useOAuthSelector(token => tokenState(token).errorDescription ?? tokenState(token).error)
 
 export interface OAuthActions {
   login: OAuth['login']
@@ -149,13 +150,13 @@ export const useAuth = (): Auth => {
   const oauth = useOAuthInstance()
   const token = useStoreValue(oauth.tokenStore, state => state.value, serverToken)
   const user = useStoreValue(oauth.userStore, state => state.user, serverUser)
-  const { isAuthorized, errorDescription } = tokenState(token)
+  const { isAuthorized, error, errorDescription } = tokenState(token)
 
   return {
     isLoggedIn: isAuthorized,
     token,
     user,
-    error: errorDescription,
+    error: errorDescription ?? error,
     login: oauth.login,
     logout: oauth.logout
   }

@@ -23,6 +23,16 @@ describe('parseRedirectParameters', () => {
     expect(parameters.code).toBe('c1')
   })
 
+  it('reads parameters by name, so an app parameter that merely ends in code is not one', () => {
+    expect(parseRedirectParameters('https://app.com/scan?barcode=123').flow).toBe('none')
+    expect(parseRedirectParameters('https://app.com/cb?barcode=123&code=c1').parameters.code).toBe('c1')
+    expect(parseRedirectParameters('https://app.com/page?mirror=x#tab').flow).toBe('none')
+  })
+
+  it('finds a fragment code behind an app query string', () => {
+    expect(parseRedirectParameters('https://app.com/cb?tab=2#code=c1&state=s1').parameters).toEqual({ code: 'c1', state: 's1' })
+  })
+
   it('treats an error as the response it belongs to — RFC 6749 §4.1.2.1 returns it on the redirect uri', () => {
     expect(parseRedirectParameters('https://app.com/cb?error=access_denied').flow).toBe('code')
     expect(parseRedirectParameters('https://app.com/cb#error=access_denied').flow).toBe('implicit')

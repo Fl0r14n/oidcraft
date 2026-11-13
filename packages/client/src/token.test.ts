@@ -90,6 +90,19 @@ describe('checkToken', () => {
     expect(oauth.token()).toMatchObject({ access_token: 'fresh', refresh_token: 'r2', id_token: 'id' })
   })
 
+  it('drops a refresh answered after the storage key changed, rather than writing it under the new one', async () => {
+    refresh.mockImplementation(async () => {
+      oauth.setStorageKey('tenant-b')
+      return { access_token: 'fresh', expires_in: 60 }
+    })
+    oauth.setToken({ refresh_token: 'r', access_token: 'stale', expires: Date.now() - 10_000 })
+
+    await oauth.checkToken()
+
+    expect(oauth.token().access_token).toBeUndefined()
+    expect(globalThis.localStorage.getItem('tenant-b')).toBeNull()
+  })
+
   it('derives expires from expires_in on a token that has none', async () => {
     oauth.setToken({ access_token: 'live', expires_in: 60 })
 

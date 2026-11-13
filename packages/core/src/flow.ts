@@ -28,7 +28,7 @@ const verifierFor = (config?: Partial<OpenIdConfig>, verifyIdToken?: IdTokenVeri
   })
 
 /** Which check a callback failed: what it says is not to be believed (FR-L2). */
-export type CallbackCheck = 'state' | 'issuer' | 'nonce' | 'id_token'
+export type CallbackCheck = 'state' | 'issuer' | 'nonce' | 'id_token' | 'token'
 
 /** How a callback ended (FR-L2): `refused` by the provider, `invalid` on a failed check, `unreachable` when the token endpoint was. */
 export type AuthorizationResult =
@@ -104,8 +104,8 @@ export const completeAuthorization = async (
     { ...answer, ...(redirect_uri && { redirect_uri }), ...(code_verifier && { code_verifier }) },
     config
   )
-  if (exchanged?.error) return refused(exchanged)
-  // `authorize` hands back what it was given when there was no answer to take its place.
-  if (!exchanged?.access_token) return { ok: false, reason: 'unreachable' }
+  if (!exchanged) return { ok: false, reason: 'unreachable' }
+  if (exchanged.error) return refused(exchanged)
+  if (!exchanged.access_token) return invalid('token', 'The token endpoint answered without an access_token')
   return checkIdToken(exchanged, handoff, verify)
 }

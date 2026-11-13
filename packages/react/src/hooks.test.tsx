@@ -226,6 +226,13 @@ describe('fine-grained hooks', () => {
 
     expect(html).toContain(`false|${OAuthStatus.NOT_AUTHORIZED}|-|-`)
   })
+  it('useOAuthError reports an error that came without a description', () => {
+    oauth.setToken({ error: 'invalid_token' })
+    const { container } = mount(<NarrowProbe />)
+
+    expect(container.textContent).toEndWith('|invalid_token')
+    cleanup()
+  })
 })
 
 describe('useStoreValue', () => {

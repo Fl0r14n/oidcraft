@@ -88,7 +88,8 @@ export const defaultOAuthFunctions: OAuthFunctions = {
       { code, redirect_uri, grant_type: 'authorization_code', scope, code_verifier },
       config
     )
-    return (exchanged && { ...exchanged, type: OAuthType.AUTHORIZATION_CODE }) || token
+    // No answer is `undefined`, not the input echoed: the caller must tell an unreachable endpoint from a bad answer (FR-L2).
+    return exchanged && { ...exchanged, type: OAuthType.AUTHORIZATION_CODE }
   },
 
   clientCredentialLogin: async config => {

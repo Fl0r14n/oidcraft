@@ -8,7 +8,9 @@ import type {
   ResourceOwnerParameters
 } from '@oidcraft/core'
 import {
+  type AuthorizationHandoff,
   type AuthorizationResult,
+  assertSecure,
   beginAuthorization,
   completeAuthorization,
   type OAuthToken,
@@ -23,6 +25,9 @@ import type { RedirectOptions } from './types'
 const CALLBACK_PARAMETERS = ['code', 'state', 'iss', 'session_state', 'error', 'error_description', 'error_uri']
 
 const REVOCATION_PATIENCE = 3_000
+
+const isAddressBar = (source: string | URL | Location) =>
+  source === globalThis.location || (globalThis.location !== undefined && String(source) === globalThis.location.href)
 
 const settledWithin = async (ms: number, task: () => unknown) => {
   let timer: ReturnType<typeof setTimeout> | undefined
@@ -49,11 +54,32 @@ const failureState = (failure: Exclude<AuthorizationResult, { ok: true }>): OAut
 }
 
 export const createFlows = (
-  { config }: Pick<ConfigContext, 'config'>,
+  { config, storageKey }: Pick<ConfigContext, 'config' | 'storageKey'>,
   { token, setToken, autoconfigOauth }: Pick<TokenContext, 'token' | 'setToken' | 'autoconfigOauth'>,
   functions: OAuthFunctions,
   jwt: Jwt
 ) => {
+  // Per tab, never in the shared token: written there, starting a login signed every other tab out. Survives the redirect.
+  const handoffKey = () => `${storageKey()}.handoff`
+  let pending: Partial<AuthorizationHandoff> | undefined
+  const saveHandoff = (handoff: Partial<AuthorizationHandoff>) => {
+    pending = handoff
+    try {
+      globalThis.sessionStorage?.setItem(handoffKey(), JSON.stringify(handoff))
+    } catch {}
+  }
+  const takeHandoff = (): Partial<AuthorizationHandoff> | undefined => {
+    let stored: Partial<AuthorizationHandoff> | undefined
+    try {
+      const raw = globalThis.sessionStorage?.getItem(handoffKey())
+      globalThis.sessionStorage?.removeItem(handoffKey())
+      stored = raw ? JSON.parse(raw) : undefined
+    } catch {}
+    const handoff = stored ?? pending
+    pending = undefined
+    return handoff
+  }
+
   const stateStore = createStore<{ state?: string | undefined }>({})
   const state = () => stateStore.getState().state
   const setState = (value?: string) => stateStore.setState({ state: value })
@@ -65,8 +91,9 @@ export const createFlows = (
       )
     }
     const { url, handoff } = await beginAuthorization(config(), parameters, { functions })
-    // persisted before the navigation, replacing any previous attempt's state
-    setToken(handoff)
+    saveHandoff(handoff)
+    // a dead session's error is not carried into the new attempt; a live session stays until the callback replaces it
+    if (token().error) setToken({})
     if (redirect) {
       globalThis.location?.replace(url)
     }
@@ -93,6 +120,7 @@ export const createFlows = (
     const { logoutPath, clientId, logoutRedirectUri: configLogoutRedirectUri } = (config() as OpenIdConfig) || {}
     const returnUri = logoutRedirectUri || configLogoutRedirectUri
     if (returnUri && logoutPath) {
+      assertSecure(logoutPath, (config() as OpenIdConfig)?.allowInsecure)
       const { id_token } = token()
       const params = new URLSearchParams({ post_logout_redirect_uri: returnUri })
       if (clientId) params.set('client_id', clientId)
@@ -107,11 +135,9 @@ export const createFlows = (
       }
       return url
     }
-    try {
-      await functions.revoke(token(), config())
-    } finally {
-      setToken({})
-    }
+    // a revocation that hangs or fails never keeps the person signed in
+    await settledWithin(REVOCATION_PATIENCE, () => functions.revoke(token(), config()))
+    setToken({})
     return undefined
   }
 
@@ -130,13 +156,14 @@ export const createFlows = (
     try {
       // an implicit callback after a reload still needs the discovered `jwks_uri` to verify its ID token
       await autoconfigOauth()
-      const result = await completeAuthorization(config(), source as never, token(), { functions, verifyIdToken: jwt })
+      const result = await completeAuthorization(config(), source as never, takeHandoff(), { functions, verifyIdToken: jwt })
       if (result) {
         setToken(result.ok ? result.token : failureState(result))
       }
     } finally {
       // after the exchange, not before: a live Location is read again inside it
-      if (source === globalThis.location && flow !== 'none') forgetCallback(flow)
+      // a URL handed in is cleaned too when it is the address bar's, as a router passing `location.href` does
+      if (flow !== 'none' && isAddressBar(source)) forgetCallback(flow)
     }
   }
 

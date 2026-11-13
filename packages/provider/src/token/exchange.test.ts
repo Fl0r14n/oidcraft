@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
+import { hashClientSecret } from '@oidcraft/adapter'
 import { memoryAdapter } from '@oidcraft/adapter/memory'
 import { randomString, sha256 } from '@oidcraft/core'
 import { base64url } from 'jose'
@@ -10,10 +11,11 @@ import { SESSION_COOKIE } from '../session/session'
 const ISSUER = 'https://op.example.com'
 const REDIRECT = 'https://rp.example.com/cb'
 const SECRET = 'shhh-a-long-enough-secret'
+const SECRET_HASH = await hashClientSecret(SECRET)
 
 const client = (over: Partial<Client> = {}): Client => ({
   clientId: 'rp',
-  clientSecret: SECRET,
+  clientSecretHash: SECRET_HASH,
   redirectUris: [REDIRECT],
   grantTypes: ['authorization_code', 'refresh_token', 'urn:ietf:params:oauth:grant-type:token-exchange'],
   responseTypes: ['code'],

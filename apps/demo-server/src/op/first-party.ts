@@ -1,5 +1,5 @@
 /// <reference types="bun" />
-import type { Adapter, Provider } from '@oidcraft/provider'
+import { type Adapter, hashClientSecret, type Provider } from '@oidcraft/provider'
 import { optional } from './env'
 
 export const ADMIN_CLIENT_ID = 'oidcraft-admin'
@@ -52,7 +52,7 @@ export const seedFirstPartyClients = async (adapter: Adapter, issuer: string) =>
   const now = new Date()
   await adapter.clients.upsert?.({
     clientId: API_CLIENT_ID,
-    clientSecret: apiSecret,
+    clientSecretHash: await hashClientSecret(apiSecret),
     clientName: 'oidcraft first-party API',
     redirectUris: [],
     grantTypes: [],

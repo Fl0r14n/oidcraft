@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
+import { hashClientSecret } from '@oidcraft/adapter'
 import { memoryAdapter } from '@oidcraft/adapter/memory'
 import type { AuditEvent, Client, FullAdapter } from './index'
 import { createProvider, type Provider } from './provider'
@@ -54,6 +55,50 @@ describe('management', () => {
     expect((await provider.management.clients.get('rp'))?.clientName).toBe('Renamed')
 
     expect((await provider.management.clients.list()).clients.map(client => client.clientId)).toEqual(['rp'])
+  })
+
+  // NFR-S11
+  test('generates a secret, returns it once, and stores only its hash', async () => {
+    const created = await provider.management.clients.create(input({ tokenEndpointAuthMethod: 'client_secret_basic' }))
+    expect(created.clientSecret).toBeString()
+    const stored = await adapter.clients.find('rp')
+    expect(stored?.clientSecret).toBeUndefined()
+    expect(stored?.clientSecretHash).toBe(await hashClientSecret(created.clientSecret as string))
+    expect(provider.management.clients.describe(stored as Client).client_secret).toBeUndefined()
+  })
+
+  test('hashes a secret it is given, on create and on update', async () => {
+    const created = await provider.management.clients.create(
+      input({ tokenEndpointAuthMethod: 'client_secret_post', clientSecret: 'a-long-enough-client-secret' })
+    )
+    expect(created.clientSecretHash).toBe(await hashClientSecret('a-long-enough-client-secret'))
+    await provider.management.clients.update('rp', { clientSecret: 'another-long-enough-secret' })
+    const stored = await adapter.clients.find('rp')
+    expect(stored?.clientSecret).toBeUndefined()
+    expect(stored?.clientSecretHash).toBe(await hashClientSecret('another-long-enough-secret'))
+  })
+
+  test('keeps client_secret_jwt’s secret readable, and will not make one from a hash', async () => {
+    const created = await provider.management.clients.create(input({ tokenEndpointAuthMethod: 'client_secret_jwt' }))
+    expect((await adapter.clients.find('rp'))?.clientSecret).toBe(created.clientSecret as string)
+
+    await provider.management.clients.create(input({ clientId: 'basic', tokenEndpointAuthMethod: 'client_secret_basic' }))
+    await expect(provider.management.clients.update('basic', { tokenEndpointAuthMethod: 'client_secret_jwt' })).rejects.toThrow(
+      'cannot give back'
+    )
+    await provider.management.clients.update('basic', { tokenEndpointAuthMethod: 'client_secret_jwt', clientSecret: 'a-long-enough-key' })
+    expect((await adapter.clients.find('basic'))?.clientSecret).toBe('a-long-enough-key')
+  })
+
+  test('rotates a secret, which ends the old one', async () => {
+    const created = await provider.management.clients.create(input({ tokenEndpointAuthMethod: 'client_secret_basic' }))
+    const rotated = await provider.management.clients.rotateSecret('rp')
+    expect(rotated).not.toBe(created.clientSecret as string)
+    expect((await adapter.clients.find('rp'))?.clientSecretHash).toBe(await hashClientSecret(rotated))
+    expect(audit.map(event => event.action)).toContain('client.rotate_secret')
+
+    await provider.management.clients.create(input({ clientId: 'public' }))
+    await expect(provider.management.clients.rotateSecret('public')).rejects.toThrow('uses no secret')
   })
 
   test('generates a client id when none is given', async () => {

@@ -27,7 +27,7 @@ export type {
   Session,
   SessionStore
 } from '@oidcraft/adapter'
-export { ConfigurationError } from '@oidcraft/adapter'
+export { ConfigurationError, hashClientSecret } from '@oidcraft/adapter'
 export type { AuthorizationDetail, AuthorizationRequest } from './authorize/authorization'
 export type { CibaDecision, CibaPayload, CibaPing } from './authorize/ciba'
 export type { DeviceApproval, DevicePayload, UserCodeContext } from './authorize/device'

@@ -1,15 +1,16 @@
 import { describe, expect, test } from 'bun:test'
 import type { Adapter, Client, Realm } from '@oidcraft/adapter'
-import { generatedKeyStore, generateKey, staticKeyStore } from '@oidcraft/adapter'
+import { generatedKeyStore, generateKey, hashClientSecret, staticKeyStore } from '@oidcraft/adapter'
 import { memoryAdapter } from '@oidcraft/adapter/memory'
 import type { AuditEvent, ProviderConfig } from './config'
 import { createRealms, isRealmId, type RealmsConfig } from './realms'
 
 const SECRET = 'the-same-secret-in-every-realm'
+const SECRET_HASH = await hashClientSecret(SECRET)
 
 const service = (): Client => ({
   clientId: 'svc',
-  clientSecret: SECRET,
+  clientSecretHash: SECRET_HASH,
   redirectUris: [],
   grantTypes: ['client_credentials'],
   responseTypes: [],

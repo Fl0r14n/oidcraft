@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import { hashClientSecret } from '@oidcraft/adapter'
 import { memoryAdapter } from '@oidcraft/adapter/memory'
 import { createProvider } from './provider'
 
@@ -10,6 +11,7 @@ import { createProvider } from './provider'
 const ISSUER = 'https://op.example.com'
 const REDIRECT = 'https://rp.example.com/cb'
 const SECRET = 'a-long-enough-client-secret'
+const SECRET_HASH = await hashClientSecret(SECRET)
 const CHALLENGE = 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM'
 const adapter = await memoryAdapter()
 
@@ -23,7 +25,7 @@ const advertisedClient = async (provider: ReturnType<typeof createProvider>) => 
   if (!(await adapter.clients.find(clientId))) {
     await adapter.clients.upsert?.({
       clientId,
-      clientSecret: SECRET,
+      clientSecretHash: SECRET_HASH,
       redirectUris: [REDIRECT],
       grantTypes: metadata.grant_types_supported as string[],
       responseTypes: metadata.response_types_supported as string[],
@@ -200,7 +202,7 @@ describe('discovery metadata', () => {
       const clientId = `probe-${method}`
       await adapter.clients.upsert?.({
         clientId,
-        ...(method === 'none' ? {} : { clientSecret: SECRET }),
+        ...(method === 'client_secret_jwt' ? { clientSecret: SECRET } : method === 'none' ? {} : { clientSecretHash: SECRET_HASH }),
         redirectUris: [REDIRECT],
         grantTypes: ['authorization_code'],
         responseTypes: ['code'],

@@ -3,6 +3,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
 import {
   type Adapter,
+  hashClientSecret,
   type Provider,
   protectedResourceMetadata,
   protectedResourceMetadataUrl,
@@ -32,7 +33,7 @@ export const seedMcpResourceServer = async (adapter: Adapter) => {
   const now = new Date()
   await adapter.clients.upsert?.({
     clientId: MCP_RESOURCE_SERVER,
-    clientSecret: secret,
+    clientSecretHash: await hashClientSecret(secret),
     clientName: 'oidcraft MCP server',
     redirectUris: [],
     grantTypes: [],

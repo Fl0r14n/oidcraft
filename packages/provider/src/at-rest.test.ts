@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
+import { hashClientSecret } from '@oidcraft/adapter'
 import { memoryAdapter } from '@oidcraft/adapter/memory'
 import { randomString, sha256 } from '@oidcraft/core'
 import { base64url, decodeJwt, generateKeyPair, SignJWT } from 'jose'
@@ -9,11 +10,12 @@ import { SESSION_COOKIE } from './session/session'
 const ISSUER = 'https://op.example.com'
 const REDIRECT = 'https://rp.example.com/cb'
 const SECRET = 'a-long-enough-client-secret'
+const SECRET_HASH = await hashClientSecret(SECRET)
 const FORM = { 'content-type': 'application/x-www-form-urlencoded' }
 
 const client = (over: Partial<Client> = {}): Client => ({
   clientId: 'rp',
-  clientSecret: SECRET,
+  clientSecretHash: SECRET_HASH,
   redirectUris: [REDIRECT],
   grantTypes: ['authorization_code', 'refresh_token', 'urn:ietf:params:oauth:grant-type:device_code'],
   responseTypes: ['code'],
@@ -189,6 +191,69 @@ describe('NFR-S11: no bearer credential is stored as itself', () => {
     expect(answer.status).toBe(200)
     expect((await answer.json()).registration_access_token).toBe(created.registration_access_token)
     expect((await read(stored?.registrationAccessToken as string)).status).toBe(401)
+  })
+
+  const revokeAs = (provider: Provider, clientId: string, secret: string) =>
+    post(provider, '/revoke', { token: 'nothing' }, { authorization: `Basic ${btoa(`${clientId}:${secret}`)}` })
+
+  const register = async (provider: Provider, metadata: Record<string, unknown>) =>
+    (
+      await provider.handle(
+        new Request(`${ISSUER}/register`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ redirect_uris: [REDIRECT], ...metadata })
+        })
+      )
+    ).json()
+
+  test('a client secret, shown once at registration and never again', async () => {
+    const provider = build({ features: { dynamicRegistration: true } })
+    const created = await register(provider, {})
+    expect(created.client_secret).toBeString()
+    expect(created.client_secret_expires_at).toBe(0)
+    const stored = await adapter.clients.find(created.client_id)
+    expect(stored?.clientSecret).toBeUndefined()
+    expect(stored?.clientSecretHash).toBe(await hashOf(created.client_secret))
+
+    expect((await revokeAs(provider, created.client_id, created.client_secret)).status).toBe(200)
+    expect((await revokeAs(provider, created.client_id, stored?.clientSecretHash as string)).status).toBe(401)
+
+    const read = await provider.handle(
+      new Request(`${ISSUER}/register?client_id=${created.client_id}`, {
+        headers: { authorization: `Bearer ${created.registration_access_token}` }
+      })
+    )
+    expect((await read.json()).client_secret).toBeUndefined()
+  })
+
+  test('a client secret survives an update, and a method keeping it differently gets a new one', async () => {
+    const provider = build({ features: { dynamicRegistration: true }, clientAuthMethods: ['client_secret_basic', 'client_secret_jwt'] })
+    const created = await register(provider, {})
+    const update = (metadata: Record<string, unknown>) =>
+      provider.handle(
+        new Request(`${ISSUER}/register?client_id=${created.client_id}`, {
+          method: 'PUT',
+          headers: { 'content-type': 'application/json', authorization: `Bearer ${created.registration_access_token}` },
+          body: JSON.stringify({ redirect_uris: [REDIRECT], ...metadata })
+        })
+      )
+
+    expect((await (await update({ client_name: 'Renamed' })).json()).client_secret).toBeUndefined()
+    expect((await revokeAs(provider, created.client_id, created.client_secret)).status).toBe(200)
+
+    const switched = await (await update({ token_endpoint_auth_method: 'client_secret_jwt' })).json()
+    expect(switched.client_secret).toBeString()
+    expect(switched.client_secret).not.toBe(created.client_secret)
+    const stored = await adapter.clients.find(created.client_id)
+    expect(stored?.clientSecret).toBe(switched.client_secret)
+    expect(stored?.clientSecretHash).toBeUndefined()
+  })
+
+  test('a client stored with its secret in the clear does not authenticate with it', async () => {
+    const { clientSecretHash: _hash, ...clear } = client({ clientId: 'clear', clientSecret: SECRET })
+    await adapter.clients.upsert?.(clear)
+    expect((await revokeAs(build(), 'clear', SECRET)).status).toBe(401)
   })
 })
 

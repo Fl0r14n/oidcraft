@@ -1,4 +1,4 @@
-import type { Client } from '@oidcraft/adapter'
+import { type Client, hashClientSecret } from '@oidcraft/adapter'
 import { constantTimeEquals } from '@oidcraft/core'
 import { decodeJwt } from 'jose'
 import { matchesRegisteredCertificate, matchesSubjectDn } from '../binding/mtls'
@@ -102,8 +102,10 @@ export const authenticateClient = async (
     const presented = method === 'client_secret_basic' ? basic?.clientSecret : (postSecret ?? undefined)
     if (basic && method === 'client_secret_post') throw unauthorized(`client ${clientId} must authenticate with client_secret_post`)
     if (!basic && method === 'client_secret_basic') throw unauthorized(`client ${clientId} must authenticate with client_secret_basic`)
-    if (!presented || !client.clientSecret) throw unauthorized('no client secret was presented')
-    if (!(await constantTimeEquals(presented, client.clientSecret))) throw unauthorized('the client secret does not match')
+    if (!presented) throw unauthorized('no client secret was presented')
+    if (!client.clientSecretHash) throw unauthorized(`client ${clientId} has no hashed secret on record`)
+    if (!(await constantTimeEquals(await hashClientSecret(presented), client.clientSecretHash)))
+      throw unauthorized('the client secret does not match')
     return { client, method }
   }
 

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
-import { ConfigurationError } from '@oidcraft/adapter'
+import { ConfigurationError, hashClientSecret } from '@oidcraft/adapter'
 import { memoryAdapter } from '@oidcraft/adapter/memory'
 import { randomString, sha256 } from '@oidcraft/core'
 import { base64url, decodeJwt } from 'jose'
@@ -14,10 +14,11 @@ const REDIRECT = 'https://rp.example.com/cb'
 const MCP = 'https://mcp.example.com/mcp'
 const API = 'https://api.example.com'
 const SECRET = 'shhh-a-long-enough-secret'
+const SECRET_HASH = await hashClientSecret(SECRET)
 
 const client = (over: Partial<Client> = {}): Client => ({
   clientId: 'rp',
-  clientSecret: SECRET,
+  clientSecretHash: SECRET_HASH,
   redirectUris: [REDIRECT],
   grantTypes: ['authorization_code', 'refresh_token', 'client_credentials'],
   responseTypes: ['code'],

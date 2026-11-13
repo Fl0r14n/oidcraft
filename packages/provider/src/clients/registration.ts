@@ -8,6 +8,7 @@ import { supportedGrantTypes } from '../discovery'
 import { OAuthError } from '../errors'
 import { signingAlgorithms } from '../keys/keys'
 import { deleteClient } from './delete'
+import { secretKind, storableSecret } from './secret'
 import { clientProblems } from './validate'
 
 const DEFAULT_GRANTS = ['authorization_code']
@@ -213,7 +214,6 @@ const metadataFrom = (config: ResolvedConfig, body: Record<string, unknown>): Cl
   const now = new Date()
   return {
     clientId: randomString(),
-    ...(method !== 'none' && { clientSecret: randomString() }),
     ...(clientName !== undefined && { clientName }),
     applicationType,
     redirectUris,
@@ -240,30 +240,36 @@ const metadataFrom = (config: ResolvedConfig, body: Record<string, unknown>): Cl
   }
 }
 
-/** The registration access token is stored hashed, so a response carries one only when the caller holds it (NFR-S11). */
-export const clientResponse = (config: ResolvedConfig, client: Client, registrationAccessToken?: string) => ({
-  client_id: client.clientId,
-  ...(client.clientSecret && { client_secret: client.clientSecret }),
-  ...(client.clientName && { client_name: client.clientName }),
-  redirect_uris: client.redirectUris,
-  application_type: client.applicationType ?? 'web',
-  grant_types: client.grantTypes,
-  response_types: client.responseTypes,
-  scope: client.scopes.join(' '),
-  token_endpoint_auth_method: client.tokenEndpointAuthMethod,
-  ...(client.sectorIdentifierUri && { sector_identifier_uri: client.sectorIdentifierUri }),
-  ...(client.subjectType && { subject_type: client.subjectType }),
-  ...(client.backchannelTokenDeliveryMode && { backchannel_token_delivery_mode: client.backchannelTokenDeliveryMode }),
-  ...(client.backchannelClientNotificationEndpoint && {
-    backchannel_client_notification_endpoint: client.backchannelClientNotificationEndpoint
-  }),
-  ...(client.idTokenSignedResponseAlg && { id_token_signed_response_alg: client.idTokenSignedResponseAlg }),
-  client_id_issued_at: Math.floor(client.createdAt.getTime() / 1000),
-  ...(registrationAccessToken && {
-    registration_access_token: registrationAccessToken,
-    registration_client_uri: `${config.issuer}${config.routes.registration}?client_id=${encodeURIComponent(client.clientId)}`
-  })
-})
+/**
+ * The registration access token and a hashed client secret are stored as digests, so a response
+ * carries one only when the caller holds it or it was just issued (NFR-S11).
+ */
+export const clientResponse = (config: ResolvedConfig, client: Client, registrationAccessToken?: string, issuedSecret?: string) => {
+  const secret = issuedSecret ?? client.clientSecret
+  return {
+    client_id: client.clientId,
+    ...(secret && { client_secret: secret, client_secret_expires_at: 0 }),
+    ...(client.clientName && { client_name: client.clientName }),
+    redirect_uris: client.redirectUris,
+    application_type: client.applicationType ?? 'web',
+    grant_types: client.grantTypes,
+    response_types: client.responseTypes,
+    scope: client.scopes.join(' '),
+    token_endpoint_auth_method: client.tokenEndpointAuthMethod,
+    ...(client.sectorIdentifierUri && { sector_identifier_uri: client.sectorIdentifierUri }),
+    ...(client.subjectType && { subject_type: client.subjectType }),
+    ...(client.backchannelTokenDeliveryMode && { backchannel_token_delivery_mode: client.backchannelTokenDeliveryMode }),
+    ...(client.backchannelClientNotificationEndpoint && {
+      backchannel_client_notification_endpoint: client.backchannelClientNotificationEndpoint
+    }),
+    ...(client.idTokenSignedResponseAlg && { id_token_signed_response_alg: client.idTokenSignedResponseAlg }),
+    client_id_issued_at: Math.floor(client.createdAt.getTime() / 1000),
+    ...(registrationAccessToken && {
+      registration_access_token: registrationAccessToken,
+      registration_client_uri: `${config.issuer}${config.routes.registration}?client_id=${encodeURIComponent(client.clientId)}`
+    })
+  }
+}
 
 const authorizeRegistrationAccess = async (config: ResolvedConfig, request: Request, clientId: string | null) => {
   if (!clientId) throw new OAuthError('invalid_request', { description: 'client_id is required', status: 400, spec: 'RFC 7592 §2' })
@@ -305,14 +311,17 @@ export const registrationEndpoint = async (config: ResolvedConfig, request: Requ
       'the registration request'
     )
 
-    const client = metadataFrom(config, body)
+    const { client, issued } = await storableSecret(metadataFrom(config, body), true)
     await assertRegistrable(config, client)
     applyDecision(client, decision)
     if (!config.adapter.clients.upsert) throw new OAuthError('server_error', { description: 'this adapter cannot create clients' })
     const registrationAccessToken = randomString()
     await config.adapter.clients.upsert({ ...client, registrationAccessToken: await storedId(registrationAccessToken) })
     await audit(config, 'client.register', { clientId: client.clientId })
-    return Response.json(clientResponse(config, client, registrationAccessToken), { status: 201, headers: { 'cache-control': 'no-store' } })
+    return Response.json(clientResponse(config, client, registrationAccessToken, issued), {
+      status: 201,
+      headers: { 'cache-control': 'no-store' }
+    })
   }
 
   const { client, presented } = await authorizeRegistrationAccess(config, request, url.searchParams.get('client_id'))
@@ -336,20 +345,26 @@ export const registrationEndpoint = async (config: ResolvedConfig, request: Requ
     }),
     'the update'
   )
-  const replacement = metadataFrom(config, body)
-  await assertRegistrable(config, replacement)
-  applyDecision(replacement, decision)
+  const metadata = metadataFrom(config, body)
+  // A secret survives a method change only where it is kept the same way; otherwise a new one is issued.
+  const sameSecret = secretKind(metadata.tokenEndpointAuthMethod) === secretKind(client.tokenEndpointAuthMethod)
   // Identity and the token that grants access to it are the server's, not the client's to change.
-  const updated: Client = {
-    ...replacement,
-    clientId: client.clientId,
-    ...(client.clientSecret && { clientSecret: client.clientSecret }),
-    registrationAccessToken: client.registrationAccessToken as string,
-    createdAt: client.createdAt,
-    updatedAt: new Date()
-  }
+  const { client: updated, issued } = await storableSecret(
+    {
+      ...metadata,
+      clientId: client.clientId,
+      ...(sameSecret && client.clientSecret && { clientSecret: client.clientSecret }),
+      ...(sameSecret && client.clientSecretHash && { clientSecretHash: client.clientSecretHash }),
+      registrationAccessToken: client.registrationAccessToken as string,
+      createdAt: client.createdAt,
+      updatedAt: new Date()
+    },
+    true
+  )
+  await assertRegistrable(config, updated)
+  applyDecision(updated, decision)
   if (!config.adapter.clients.upsert) throw new OAuthError('server_error', { description: 'this adapter cannot update clients' })
   await config.adapter.clients.upsert(updated)
   await audit(config, 'client.update', { clientId: client.clientId })
-  return Response.json(clientResponse(config, updated, presented), { headers: { 'cache-control': 'no-store' } })
+  return Response.json(clientResponse(config, updated, presented, issued), { headers: { 'cache-control': 'no-store' } })
 }

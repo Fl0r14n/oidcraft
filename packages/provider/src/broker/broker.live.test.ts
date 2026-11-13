@@ -1,5 +1,6 @@
 /// <reference types="bun" />
 import { afterAll, describe, expect, test } from 'bun:test'
+import { hashClientSecret } from '@oidcraft/adapter'
 import { memoryAdapter } from '@oidcraft/adapter/memory'
 import { createProvider } from '../provider'
 import { SESSION_COOKIE } from '../session/session'
@@ -39,7 +40,7 @@ const upstream = createProvider({ issuer: ISSUER, adapter: upstreamAdapter, inte
 
 await upstreamAdapter.clients.upsert?.({
   clientId: 'broker',
-  clientSecret: 'a-long-enough-upstream-secret',
+  clientSecretHash: await hashClientSecret('a-long-enough-upstream-secret'),
   redirectUris: [CALLBACK],
   grantTypes: ['authorization_code'],
   responseTypes: ['code'],

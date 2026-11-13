@@ -203,6 +203,14 @@ not:
   could replay that client's assertions at the others (FR-C4).
 - **Key rotation (NFR-S7).** Verification keys outlive the signing key by at least the longest token
   lifetime, so a rotation never invalidates a live token (FR-C10).
+- **Nothing bearer at rest (NFR-S11).** Codes, access and refresh tokens, device codes, pushed
+  request references, registration access tokens and reset tokens are stored under a SHA-256 of
+  their value, so a copy of the database redeems nothing. So is a client secret used with
+  `client_secret_basic` or `client_secret_post`: registration and `management.clients.create` return
+  a generated one once, and a lost one is replaced with `management.clients.rotateSecret`. A client
+  you seed through the adapter yourself stores `clientSecretHash: await hashClientSecret(secret)`.
+  `client_secret_jwt` keeps its secret readable, as the HMAC key it is, which is a reason to prefer
+  `private_key_jwt`.
 - **Logs (NFR-S10).** No secret is ever logged. A token appears in a log, if at all, as a prefix and
   a hash.
 

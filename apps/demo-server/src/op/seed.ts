@@ -1,5 +1,5 @@
 /// <reference types="bun" />
-import type { Adapter } from '@oidcraft/provider'
+import { type Adapter, hashClientSecret } from '@oidcraft/provider'
 import { optional, withDefault } from './env'
 
 /** The demo relying party in apps/demo-vue. A real deployment registers clients through the admin API. */
@@ -46,7 +46,7 @@ export const seedConformanceClients = async (adapter: Adapter) => {
     if (await adapter.clients.find(entry.client_id)) continue
     await adapter.clients.upsert?.({
       clientId: entry.client_id,
-      clientSecret: entry.client_secret,
+      clientSecretHash: await hashClientSecret(entry.client_secret),
       clientName: `conformance suite (${entry.client_id})`,
       redirectUris: [callback],
       grantTypes: ['authorization_code', 'refresh_token'],

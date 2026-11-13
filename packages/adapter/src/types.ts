@@ -18,6 +18,8 @@ export type Expiring = { expiresAt: Date }
 
 export type Client = ClientCredentials &
   Timestamped & {
+    /** `client_secret_basic` and `client_secret_post` compare against this, from `hashClientSecret`; `clientSecret` is only ever `client_secret_jwt`'s HMAC key (NFR-S11). */
+    clientSecretHash?: string
     clientName?: string
     redirectUris: string[]
     postLogoutRedirectUris?: string[]

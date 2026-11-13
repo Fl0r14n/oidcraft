@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { fromKv, generatedKeyStore, type KvStore } from '@oidcraft/adapter'
+import { fromKv, generatedKeyStore, hashClientSecret, type KvStore } from '@oidcraft/adapter'
 import { memoryKv } from '@oidcraft/adapter/memory'
 import { randomString, sha256 } from '@oidcraft/core'
 import { base64url } from 'jose'
@@ -9,6 +9,7 @@ import { createProvider } from './provider'
 const ISSUER = 'https://op.example.com'
 const REDIRECT = 'https://rp.example.com/cb'
 const SECRET = 'a-long-enough-client-secret'
+const SECRET_HASH = await hashClientSecret(SECRET)
 
 /** Records every prefix scanned, so a request path reading a whole family of records shows up by name. */
 const recording = (kv: KvStore) => {
@@ -40,7 +41,7 @@ test('a sign-in, a refresh, UserInfo, a revocation and a logout scan no whole fa
   const adapter = fromKv(store, { keys: await generatedKeyStore(), accounts })
   const client: Client = {
     clientId: 'rp',
-    clientSecret: SECRET,
+    clientSecretHash: SECRET_HASH,
     redirectUris: [REDIRECT],
     grantTypes: ['authorization_code', 'refresh_token'],
     responseTypes: ['code'],

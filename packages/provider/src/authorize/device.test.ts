@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
+import { hashClientSecret } from '@oidcraft/adapter'
 import { memoryAdapter } from '@oidcraft/adapter/memory'
 import { decodeJwt } from 'jose'
 import type { Adapter, Client } from '../index'
@@ -8,10 +9,11 @@ import { normalizeUserCode, userCode } from './device'
 
 const ISSUER = 'https://op.example.com'
 const SECRET = 'shhh-a-long-enough-secret'
+const SECRET_HASH = await hashClientSecret(SECRET)
 
 const client = (over: Partial<Client> = {}): Client => ({
   clientId: 'tv',
-  clientSecret: SECRET,
+  clientSecretHash: SECRET_HASH,
   redirectUris: ['https://tv.example.com/cb'],
   grantTypes: ['urn:ietf:params:oauth:grant-type:device_code', 'refresh_token'],
   responseTypes: ['code'],

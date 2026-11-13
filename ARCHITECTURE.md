@@ -369,7 +369,16 @@ written back, which is why the person's answer to a device request is a record o
 user code. A registration access token is hashed the same way on the client record, so a response
 carries it only when the caller just presented it. A JWT access token's `jti` is the value its
 record is stored under a hash of: the JWT finds the record once its signature verifies, and the
-`jti` presented bare finds nothing (FR-T2). Client secrets are not hashed yet (PLAN.md).
+`jti` presented bare finds nothing (FR-T2).
+
+A client secret is the one bearer value a host writes itself, seeding a client through its adapter,
+so it is a field rather than a wrapper: `Client.clientSecretHash`, made by `hashClientSecret`, is
+what `client_secret_basic` and `client_secret_post` compare against, and `clientSecret` is only
+ever `client_secret_jwt`'s HMAC key. Registration and the management API store whichever the method
+needs and return a generated secret once; a hashed one cannot be shown again, only rotated
+(`management.clients.rotateSecret`). A secret survives a change of method only between methods
+that keep it the same way. A host-chosen secret is hashed as given, unsalted, so it is only as
+strong as the host made it.
 
 The Drizzle adapter is the demonstration: `explain query plan` in its test suite asserts that
 revoking by grant and looking up a device's user code both hit an index rather than scanning, which

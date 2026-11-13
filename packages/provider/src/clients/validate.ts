@@ -1,6 +1,7 @@
 import type { Client } from '@oidcraft/adapter'
 import type { ResolvedConfig } from '../config'
 import { fapiClientProblems } from '../profile/fapi'
+import { secretKind } from './secret'
 
 /**
  * What must hold of a client however it reaches the store — registration, a metadata document or the
@@ -24,6 +25,12 @@ export const clientProblems = (config: ResolvedConfig, client: Client) => {
       problems.push('redirect_uris span several hosts, so a pairwise client must register a sector_identifier_uri (OIDC Core §8.1)')
     }
   }
+
+  const secret = secretKind(client.tokenEndpointAuthMethod)
+  if (secret === 'hashed' && !client.clientSecretHash) problems.push(`${client.tokenEndpointAuthMethod} needs a client secret`)
+  if (secret === 'hashed' && client.clientSecret) problems.push('a client secret is stored only as its hash (NFR-S11)')
+  if (secret === 'key' && !client.clientSecret)
+    problems.push('client_secret_jwt needs its client secret, which a stored hash cannot give back')
 
   const fapi = fapiClientProblems(config, client)
   if (fapi.length) problems.push(`FAPI 2.0: ${fapi.join('; ')} (FR-C21)`)

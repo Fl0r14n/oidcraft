@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
+import { hashClientSecret } from '@oidcraft/adapter'
 import { memoryAdapter } from '@oidcraft/adapter/memory'
 import { exportJWK, generateKeyPair, SignJWT } from 'jose'
 import { withHashedArtifacts } from '../artifacts'
@@ -7,11 +8,12 @@ import { createProvider, type Provider } from '../provider'
 
 const ISSUER = 'https://op.example.com'
 const SECRET = 'a-long-enough-client-secret'
+const SECRET_HASH = await hashClientSecret(SECRET)
 const ASSERTION_TYPE = 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer'
 
 const client = (over: Partial<Client> = {}): Client => ({
   clientId: 'api',
-  clientSecret: SECRET,
+  clientSecretHash: SECRET_HASH,
   redirectUris: ['https://rp.example.com/cb'],
   grantTypes: ['client_credentials', 'authorization_code'],
   responseTypes: ['code'],
@@ -41,12 +43,12 @@ beforeEach(async () => {
   adapter = await memoryAdapter()
   signing = await generateKeyPair('ES256', { extractable: true })
   await adapter.clients.upsert?.(client())
-  const { clientSecret: _omitted, ...publicClient } = client({ clientId: 'public-api', tokenEndpointAuthMethod: 'none' })
+  const { clientSecretHash: _omitted, ...publicClient } = client({ clientId: 'public-api', tokenEndpointAuthMethod: 'none' })
   await adapter.clients.upsert?.(publicClient)
   await adapter.clients.upsert?.(
     client({ clientId: 'pkj', tokenEndpointAuthMethod: 'private_key_jwt', jwks: { keys: [await exportJWK(signing.publicKey)] } })
   )
-  await adapter.clients.upsert?.(client({ clientId: 'csj', tokenEndpointAuthMethod: 'client_secret_jwt' }))
+  await adapter.clients.upsert?.(client({ clientId: 'csj', tokenEndpointAuthMethod: 'client_secret_jwt', clientSecret: SECRET }))
   provider = createProvider({
     interactionUrl: 'https://op.example.com/interaction',
     issuer: ISSUER,

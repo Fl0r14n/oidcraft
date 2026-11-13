@@ -5,7 +5,7 @@ This file is working state: tick items off and add notes as work lands.
 
 ## Status
 
-**Implemented, as of 2026-11-11**, with 1107 passing tests (151 more skip without Postgres and Redis) and `bun run verify` as the gate — everything
+**Implemented, as of 2026-11-13**, with 1184 passing tests (179 more skip without Postgres and Redis) and `bun run verify` as the gate — everything
 below, FR-T6, FR-C21 and FR-A4's Postgres included. Published as `@oidcraft/*` (the move below), with
 the docs site at https://fl0r14n.github.io/oidcraft/. Items 1–11 under _Next_ are done; item 12, the
 2026-11-12 review, is open, and until its security findings are fixed this is not a provider to put
@@ -403,9 +403,15 @@ text it is held to. In fix order.
   tokens the moment after, so they survived. The existing test passed on the order two promises
   happened to run in, which hashing changed. Fixed: both sides claim one replay-guard entry, and the
   redemption that finds it taken revokes again and fails (`token/code.ts`). NFR-S4
-- [ ] Then client secrets, as their own step: `client_secret_basic` and `client_secret_post` compare
+- [x] Then client secrets, as their own step: `client_secret_basic` and `client_secret_post` compare
   against a stored hash, so `Client` changes shape and the admin shows a secret once, at creation.
   `client_secret_jwt` keeps the secret, as it must. NFR-S11
+  Fixed: `Client.clientSecretHash` from `hashClientSecret`, which `@oidcraft/adapter` exports for a host
+  seeding clients itself; registration and `management.clients.create` return a generated secret
+  once, `rotateSecret` replaces a lost one, and RFC 7592 updates keep the secret unless the method
+  keeps it differently, when a new one is issued. Registration responses now carry
+  `client_secret_expires_at: 0` (RFC 7591 §3.2.1). A client stored with `clientSecret` under a hashed
+  method no longer authenticates
 - [x] End-session takes the client from `client_id` and never compares it with the hint's `aud`; the
   verified claims are used only as a boolean, so a hint issued to one client redirects to another's
   URI and skips the confirmation. The hint's `sid`/`sub` are not compared with the browser's session

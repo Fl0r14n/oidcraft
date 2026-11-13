@@ -759,6 +759,26 @@ a GitHub release through `publish.yml`, waiting for one publish to succeed befor
 Stored tokens, client secrets under `client_secret_basic` and `client_secret_post`, and pairwise
 subjects from before this work do not survive the upgrade; with no deployment yet, that is free.
 
+## The release of the review's security half — 2026-11-13
+
+Versions bumped: `core` 0.4.0, `client` 0.3.0, the provider 0.4.0, and the bindings to majors —
+`vue` 9.0.0, `react` 4.0.0, `angular` 11.0.0 — since each re-exports all of `core`. `adapter` and the
+four storage adapters are unchanged and stay at 0.2.0; `adapter` keeps naming `core` ^0.3.0 for its
+types and `sha256`, identical in 0.4.0, so a consumer may hold both copies until `adapter` next moves.
+
+- [ ] `@oidcraft/core` — breaking: a callback without a pending handoff is `invalid` on `state`; the
+  redirect contributes only its `code`; a strict verifier refuses a token with no `jwksUri`
+- [ ] `@oidcraft/client` — `resourceOrigins`, `onUnauthorized`, a 401 keeps only its error, a refresh
+  without `expires_in` stored; names the new `core`
+- [ ] `@oidcraft/provider` — breaking: `interactions.complete(id, result, cookie)`,
+  `device.signIn(code, { cookie })` returning `setCookie`, the session cookie a secret hashed into
+  `sid`, `InteractionResult.login.authTime`, recovery codes keyed
+- [ ] `@oidcraft/vue`, `react`, `angular` — name the new `client` and `core`
+
+In that order, each a GitHub release through `publish.yml`, waiting for one publish to succeed before
+the next names it. Sessions, interactions in flight and recovery codes from before do not survive the
+upgrade; with no deployment yet, that is free.
+
 ## Provider follow-ups — 2026-11-13
 
 From a read of `provider.ts`, `config.ts` and `authorize/authorization.ts`, the rest only grepped: a

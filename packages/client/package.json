@@ -1,6 +1,6 @@
 {
   "name": "@oidcraft/client",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "The stateful half of an OpenID Connect client, on @oidcraft/core: storage, the token lifecycle, refresh, an authorized fetch and the derived profile. What @oidcraft/vue, @oidcraft/react and @oidcraft/angular are built on.",
   "license": "MIT",
   "author": "Fl0r14n <florian.chis@gmail.com>",

@@ -1,6 +1,6 @@
 {
   "name": "@oidcraft/provider",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "An OpenID Provider library: RFC-compliant core, runtime-portable, pluggable storage, identity brokering built in",
   "license": "MIT",
   "author": "Fl0r14n <florian.chis@gmail.com>",

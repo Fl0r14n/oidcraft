@@ -1,10 +1,10 @@
 import type { Client } from '@oidcraft/adapter'
 import { randomString } from '@oidcraft/core'
-import { createLocalJWKSet, importJWK, type JSONWebKeySet, jwtVerify, SignJWT } from 'jose'
+import { createLocalJWKSet, type JSONWebKeySet, jwtVerify } from 'jose'
 import type { ResolvedConfig } from '../config'
-import { jwksResponseBody, signingKey } from '../keys/keys'
+import { jwksResponseBody } from '../keys/keys'
+import { signerFor } from '../keys/signer'
 import { readArtifact, type Stored, writeArtifact } from '../payloads'
-import { defaultSigningAlg } from '../profile/fapi'
 
 export const JWT_ACCESS_TOKEN_TYPE = 'at+jwt'
 
@@ -105,25 +105,23 @@ export type AccessTokenInput = {
  * locally. That is the part that makes the format a choice rather than a one-way door.
  */
 export const mintJwtAccessToken = async (config: ResolvedConfig, input: AccessTokenInput) => {
-  const keys = await config.adapter.keys.active()
-  const alg = defaultSigningAlg(config, input.client, keys)
-  const key = alg ? signingKey(keys, alg) : undefined
-  if (!key || !alg) throw new Error('no signing key is available for a JWT access token')
+  const signer = await signerFor(config, input.client)
+  if (!signer) throw new Error('no signing key is available for a JWT access token')
 
-  return new SignJWT({
-    scope: input.scopes.join(' '),
-    client_id: input.client.clientId,
-    jti: input.id,
-    ...(input.confirmation && { cnf: input.confirmation }),
-    ...(input.actor && { act: input.actor })
-  })
-    .setProtectedHeader({ alg, kid: key.kid, typ: JWT_ACCESS_TOKEN_TYPE })
-    .setIssuer(config.issuer)
-    .setSubject(input.subject ?? input.client.clientId)
-    .setAudience(input.audience ?? config.issuer)
-    .setIssuedAt()
-    .setExpirationTime(Math.floor(input.expiresAt.getTime() / 1000))
-    .sign(await importJWK(key.privateJwk as never, alg))
+  return signer.sign(
+    {
+      sub: input.subject ?? input.client.clientId,
+      aud: input.audience ?? config.issuer,
+      iat: Math.floor(Date.now() / 1000),
+      exp: Math.floor(input.expiresAt.getTime() / 1000),
+      scope: input.scopes.join(' '),
+      client_id: input.client.clientId,
+      jti: input.id,
+      ...(input.confirmation && { cnf: input.confirmation }),
+      ...(input.actor && { act: input.actor })
+    },
+    JWT_ACCESS_TOKEN_TYPE
+  )
 }
 
 /** An access token by whichever form it was presented in; any other kind by its id. */

@@ -5,7 +5,7 @@ This file is working state: tick items off and add notes as work lands.
 
 ## Status
 
-**Implemented, as of 2026-11-13**, with 1206 passing tests (194 more skip without Postgres and Redis) and `bun run verify` as the gate — everything
+**Implemented, as of 2026-11-13**, with 1207 passing tests (194 more skip without Postgres and Redis) and `bun run verify` as the gate — everything
 below, FR-T6, FR-C21 and FR-A4's Postgres included. Published as `@oidcraft/*` (the move below), with
 the docs site at https://fl0r14n.github.io/oidcraft/. Items 1–11 under _Next_ are done; item 12, the
 2026-11-12 review, is open, and until its security findings are fixed this is not a provider to put
@@ -518,8 +518,10 @@ text it is held to. In fix order.
   a `Flow` naming where its request and answer live. CIBA now puts the client on the approving session
   at approval, as the device flow did; both use `addClient`. The token endpoint's descriptions are
   shared, so a device's say "the user declined" where they said "the request was denied"
-- [ ] Signing is written four times — ID token, JWT access token, UserInfo, logout token — each
+- [x] Signing is written four times — ID token, JWT access token, UserInfo, logout token — each
   reading the key store again. One `signerFor(config, client, alg?)`, one key read per response
+  Fixed: `keys/signer.ts`. The one key read is a memo of `keys.active()` that `dispatch` gives each
+  request, so it holds nothing across requests (FR-A1) and covers every path, verification included
 - [ ] Duplicates: the client key set in `assertion.ts` and `request-object.ts`; the DPoP options in
   the token endpoint, PAR and UserInfo; `MTLS_METHODS` in `config.ts` and `discovery.ts`;
   `noAccounts` in each adapter; about 150 lines of row mapping in each SQL adapter, which belong in

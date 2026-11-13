@@ -1,11 +1,11 @@
 import type { Client } from '@oidcraft/adapter'
-import { CompactEncrypt, importJWK, type JWK, SignJWT } from 'jose'
+import { CompactEncrypt, importJWK, type JWK } from 'jose'
 import { verifyDpopProof } from '../binding/dpop'
 import { publicUrl, type ResolvedConfig } from '../config'
 import type { ClientCertificate } from '../context'
 import { OAuthError } from '../errors'
-import { signingKey } from '../keys/keys'
-import { defaultSigningAlg, FAPI_ALGS, FAPI_IAT_SKEW, underFapi } from '../profile/fapi'
+import { signerFor } from '../keys/signer'
+import { FAPI_ALGS, FAPI_IAT_SKEW, underFapi } from '../profile/fapi'
 import { resolveAccessToken } from '../token/access-token'
 
 const presentedToken = (request: Request, form: URLSearchParams | undefined) => {
@@ -31,17 +31,10 @@ const unauthorized = (description: string, scheme = 'Bearer', code: 'invalid_req
  * whatever answered the request; encryption keeps them from whatever sits between.
  */
 const asJwt = async (config: ResolvedConfig, client: Client, subject: string, claims: Record<string, unknown>) => {
-  const keys = await config.adapter.keys.active()
-  const alg = client.userinfoSignedResponseAlg ?? defaultSigningAlg(config, client, keys)
-  const key = alg ? signingKey(keys, alg) : undefined
-  if (!key || !alg) throw new OAuthError('server_error', { description: 'no key is available to sign the UserInfo response' })
+  const signer = await signerFor(config, client, client.userinfoSignedResponseAlg)
+  if (!signer) throw new OAuthError('server_error', { description: 'no key is available to sign the UserInfo response' })
 
-  const signed = await new SignJWT({ ...claims, sub: subject })
-    .setProtectedHeader({ alg, kid: key.kid })
-    .setIssuer(config.issuer)
-    .setAudience(client.clientId)
-    .setIssuedAt()
-    .sign(await importJWK(key.privateJwk as never, alg))
+  const signed = await signer.sign({ ...claims, sub: subject, aud: client.clientId, iat: Math.floor(Date.now() / 1000) })
 
   if (!client.userinfoEncryptedResponseAlg) return signed
 

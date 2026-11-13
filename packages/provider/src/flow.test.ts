@@ -279,6 +279,27 @@ describe('token endpoint', () => {
     expect(decodeProtectedHeader(body.id_token).alg).toBe('RS256')
   })
 
+  test('a token response signs its ID token and JWT access token from one key read', async () => {
+    await adapter.clients.upsert?.({ ...((await adapter.clients.find('rp')) as Client), accessTokenFormat: 'jwt' })
+    let reads = 0
+    const counted = {
+      ...adapter,
+      keys: {
+        active: () => {
+          reads++
+          return adapter.keys.active()
+        }
+      }
+    }
+    provider = createProvider({ issuer: ISSUER, adapter: counted, interactionUrl: `${ISSUER}/interaction` })
+    const { location } = await loginAndConsent()
+    reads = 0
+    const body = await (await exchange(location.searchParams.get('code') as string)).json()
+    expect(body.id_token).toBeString()
+    expect(body.access_token.split('.')).toHaveLength(3)
+    expect(reads).toBe(1)
+  })
+
   test('a wrong code_verifier is refused', async () => {
     const { location } = await loginAndConsent()
     const response = await exchange(location.searchParams.get('code') as string, { code_verifier: randomString() + randomString() })

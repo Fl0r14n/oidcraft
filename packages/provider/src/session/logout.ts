@@ -1,9 +1,7 @@
 import type { Session } from '@oidcraft/adapter'
 import { randomString } from '@oidcraft/core'
-import { importJWK, SignJWT } from 'jose'
 import type { ResolvedConfig } from '../config'
-import { signingKey } from '../keys/keys'
-import { defaultSigningAlg } from '../profile/fapi'
+import { signerFor } from '../keys/signer'
 import { subjectFor } from '../token/subjects'
 
 export type LogoutNotification = { clientId: string; uri: string; logoutToken: string }
@@ -34,6 +32,8 @@ export const frontChannelLogouts = async (config: ResolvedConfig, session: Sessi
   return out
 }
 
+const LOGOUT_TOKEN_TTL = 120
+
 /**
  * Back-channel logout tokens for the host to deliver (OIDC Back-Channel Logout 1.0 §2.4).
  *
@@ -41,31 +41,29 @@ export const frontChannelLogouts = async (config: ResolvedConfig, session: Sessi
  * fan-out with retries and timeouts that belongs to the host's job runner, not to a request.
  */
 export const logoutTokens = async (config: ResolvedConfig, session: Session): Promise<LogoutNotification[]> => {
-  const keys = await config.adapter.keys.active()
-
   const notifications: LogoutNotification[] = []
   for (const clientId of session.clients) {
     const client = await config.adapter.clients.find(clientId)
     if (!client?.backchannelLogoutUri) continue
     // OIDC Back-Channel Logout 1.0 §2.4: signed as this client's ID tokens are, which is what it verifies with.
-    const alg = client.idTokenSignedResponseAlg ?? defaultSigningAlg(config, client, keys)
-    const key = alg ? signingKey(keys, alg) : undefined
-    if (!key || !alg) continue
+    const signer = await signerFor(config, client, client.idTokenSignedResponseAlg)
+    if (!signer) continue
 
-    const logoutToken = await new SignJWT({
-      // FR-C18: the subject this client knows, never the account id behind a pairwise one.
-      sub: await subjectFor(config, client, session.accountId),
-      sid: session.id,
-      // The marker that makes this a logout token and not a re-usable ID token (§2.4).
-      events: { 'http://schemas.openid.net/event/backchannel-logout': {} },
-      jti: randomString()
-    })
-      .setProtectedHeader({ alg, kid: key.kid, typ: 'logout+jwt' })
-      .setIssuer(config.issuer)
-      .setAudience(clientId)
-      .setIssuedAt()
-      .setExpirationTime('2m')
-      .sign(await importJWK(key.privateJwk as never, alg))
+    const now = Math.floor(Date.now() / 1000)
+    const logoutToken = await signer.sign(
+      {
+        // FR-C18: the subject this client knows, never the account id behind a pairwise one.
+        sub: await subjectFor(config, client, session.accountId),
+        aud: clientId,
+        iat: now,
+        exp: now + LOGOUT_TOKEN_TTL,
+        sid: session.id,
+        // The marker that makes this a logout token and not a re-usable ID token (§2.4).
+        events: { 'http://schemas.openid.net/event/backchannel-logout': {} },
+        jti: randomString()
+      },
+      'logout+jwt'
+    )
 
     notifications.push({ clientId, uri: client.backchannelLogoutUri, logoutToken })
   }

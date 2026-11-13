@@ -21,6 +21,7 @@ import { preflight, withCors } from './cors'
 import { discoveryEndpoint } from './discovery'
 import { errorResponse, OAuthError } from './errors'
 import { jwksEndpoint } from './keys/jwks'
+import { withKeysOnce } from './keys/signer'
 import { management } from './management'
 import { readArtifact } from './payloads'
 import { assertFapiClient, underFapi } from './profile/fapi'
@@ -225,7 +226,7 @@ const dispatch = async (config: ResolvedConfig, route: Route, request: Request, 
       })
     }
     // The issuer is configuration and is never taken from a header (NFR-S6).
-    return await route.handle(config, request, { ...context, issuer: config.issuer })
+    return await route.handle(withKeysOnce(config), request, { ...context, issuer: config.issuer })
   } catch (error) {
     // NFR-D5: only what was not meant. A hook that fails must not turn the answer into something else.
     if (!(error instanceof OAuthError) || error.status >= 500) {

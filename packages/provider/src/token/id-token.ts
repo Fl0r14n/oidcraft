@@ -1,9 +1,8 @@
 import type { Client, Session } from '@oidcraft/adapter'
-import { base64url, importJWK, SignJWT } from 'jose'
+import { base64url } from 'jose'
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
-import { signingKey } from '../keys/keys'
-import { defaultSigningAlg } from '../profile/fapi'
+import { signerFor } from '../keys/signer'
 
 export type IdTokenInput = {
   client: Client
@@ -32,16 +31,19 @@ const released = (claims: Record<string, unknown> | undefined) =>
   Object.fromEntries(Object.entries(claims ?? {}).filter(([name]) => !PROTOCOL_CLAIMS.has(name) && !name.endsWith('_hash')))
 
 export const mintIdToken = async (config: ResolvedConfig, input: IdTokenInput) => {
-  const keys = await config.adapter.keys.active()
-  const alg = input.client.idTokenSignedResponseAlg ?? defaultSigningAlg(config, input.client, keys)
-  const key = alg ? signingKey(keys, alg) : undefined
-  if (!key || !alg) {
-    throw new OAuthError('server_error', { description: `no ${alg ?? ''} signing key is available; the provider cannot issue an ID token` })
+  const signer = await signerFor(config, input.client, input.client.idTokenSignedResponseAlg)
+  if (!signer) {
+    const named = input.client.idTokenSignedResponseAlg ?? ''
+    throw new OAuthError('server_error', { description: `no ${named} signing key is available; the provider cannot issue an ID token` })
   }
+  const { alg } = signer
 
   const now = Math.floor(Date.now() / 1000)
   const payload: Record<string, unknown> = {
     ...released(input.claims),
+    aud: input.client.clientId,
+    iat: now,
+    exp: now + config.ttl.idToken,
     sub: input.subject ?? input.session.accountId,
     auth_time: Math.floor(input.session.authTime.getTime() / 1000),
     ...(input.nonce && { nonce: input.nonce }),
@@ -55,11 +57,5 @@ export const mintIdToken = async (config: ResolvedConfig, input: IdTokenInput) =
     ...(input.code && { c_hash: await halfHash(input.code, alg) })
   }
 
-  return new SignJWT(payload)
-    .setProtectedHeader({ alg, kid: key.kid, typ: 'JWT' })
-    .setIssuer(config.issuer)
-    .setAudience(input.client.clientId)
-    .setIssuedAt(now)
-    .setExpirationTime(now + config.ttl.idToken)
-    .sign(await importJWK(key.privateJwk as never, alg))
+  return signer.sign(payload, 'JWT')
 }

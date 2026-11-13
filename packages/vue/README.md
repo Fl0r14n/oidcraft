@@ -1,7 +1,6 @@
 # @oidcraft/vue
 
-A fully OAuth 2.1 compliant Vue library. It continues `vue-oidc`, whose last
-version was 6; this is 7.
+A fully OAuth 2.1 compliant Vue library. It continues `vue-oidc`, whose last version was 6.
 
 ```sh
 bun add @oidcraft/vue
@@ -11,7 +10,8 @@ bun add @oidcraft/vue
 import { createOAuth } from '@oidcraft/vue'
 
 const oauth = createOAuth({
-  config: { issuerPath: 'https://accounts.google.com', clientId: '…', scope: 'openid email', pkce: true }
+  config: { issuerPath: 'https://accounts.google.com', clientId: '…', scope: 'openid email', pkce: true },
+  resourceOrigins: ['https://api.example.com'] // the access token goes to this page's origin, the provider's, and these only
 })
 app.use(oauth)
 ```

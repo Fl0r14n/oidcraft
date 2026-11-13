@@ -84,7 +84,8 @@ grant. G-3 records why this exception was chosen over FAPI's alternative, rotati
 window: that alternative would weaken reuse detection for every client under the profile.
 
 A refresh token issued without `offline_access` is also bound to its session: it expires no later
-than the session and dies when the session ends, logout included (FR-T6).
+than the session and dies when the session ends, logout included, at the token, introspection and
+token exchange endpoints alike (FR-T6).
 
 **Configurable?** No. FR-T3 says so in as many words. You get the exception only by putting the
 client under the FAPI 2.0 profile, which is a single switch that brings all of that profile's other
@@ -216,7 +217,8 @@ not:
   management API refuses a supplied secret under 32 characters; seed generated ones too. Management
   never hands a hash out.
   `client_secret_jwt` keeps its secret readable, as the HMAC key it is, which is a reason to prefer
-  `private_key_jwt`.
+  `private_key_jwt`. The session cookie carries a secret too: the session is stored under its
+  SHA-256, which is also the ID token's `sid`.
 - **Logs (NFR-S10).** No secret is ever logged. A token appears in a log, if at all, as a prefix and
   a hash.
 
@@ -289,10 +291,10 @@ the clause behind the refusal.
 
 ### Known weaknesses in what is built
 
-- **The lockout counters can be raced.** The failed-attempt counter for local accounts is a plain
-  read-modify-write. Two racing failures can count as one, which loosens the lockout by one attempt
-  ([ARCHITECTURE.md §6.1](/reference/architecture#_6-1-local-accounts)). The device `user_code`
-  guess counter has the same property: a burst can get a few guesses past the limit.
+- **The device-code guess counter can be raced.** The wrong-`user_code` counter is a plain
+  read-modify-write, so a burst can get a few guesses past the limit. The local-accounts counters do
+  not have this property: each attempt claims its slot atomically before the hash is checked
+  ([ARCHITECTURE.md §6.1](/reference/architecture#_6-1-local-accounts)).
 - **A missing FAPI key fails late.** Signing keys are only readable asynchronously. A provider under
   the FAPI 2.0 profile with no PS256, ES256 or EdDSA key is therefore refused at its first signature,
   not at construction (ARCHITECTURE.md §3.3).

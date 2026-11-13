@@ -1,7 +1,6 @@
 # @oidcraft/angular
 
-A fully OAuth 2.1 compliant Angular library. It continues `ngx-oauth`, whose last
-version was 8; this is 9.
+A fully OAuth 2.1 compliant Angular library. It continues `ngx-oauth`, whose last version was 8.
 
 ```ts
 import { provideOAuthConfig } from '@oidcraft/angular'
@@ -9,7 +8,8 @@ import { provideOAuthConfig } from '@oidcraft/angular'
 bootstrapApplication(App, {
   providers: [
     provideOAuthConfig({
-      config: { issuerPath: 'https://accounts.google.com', clientId: '…', scope: 'openid email', pkce: true }
+      config: { issuerPath: 'https://accounts.google.com', clientId: '…', scope: 'openid email', pkce: true },
+      resourceOrigins: ['https://api.example.com'] // the access token goes to this page's origin, the provider's, and these only
     })
   ]
 })
@@ -30,25 +30,18 @@ const { isAuthorized, login, logout } = inject(OAUTH)
 output** — that is the property which lets this package build with tsdown like every other package
 here, instead of needing `ng-packagr`.
 
-## Changed from v8
+## Coming from `ngx-oauth` 8
 
-- **No module-level state.** v8 kept `oauthConfig`, `config` and the JWKS in module signals, so every
-  injector shared one instance. An instance now belongs to the injector that created it, which is what
-  makes one per request safe under concurrent SSR — a process-wide holder cannot be answered correctly
-  there, and hands one request another request's token.
-- **`OAUTH_USER` is a `Signal<UserInfo | undefined>`**, not a `resource`. The profile is derived by the
-  shared runtime, from the id_token or `userinfo`, whichever the session actually has.
+- **No module-level state.** An instance belongs to the injector that created it, not to module
+  signals every injector shared, which is what makes one per request safe under concurrent SSR.
+- **`OAUTH_USER` is a `Signal<UserInfo | undefined>`**, not a `resource`, derived from the id_token or
+  `userinfo`, whichever the session has.
 - **Protocol functions are configuration, not injection tokens.** Override them with
   `provideOAuthConfig({ functions: { … } })` rather than by providing `OAUTH_REFRESH` and friends.
-- **`@oidcraft/angular/component` is gone, replaced by `oauthForm()`.** A published Angular _component_ has to
-  be compiled by `ngc` into partial form, and `ngc` requires a TypeScript this workspace does not use
-  (ARCHITECTURE.md §8.4). What the Material form was actually worth — the validation, the submit
-  lifecycle, the rule that a pristine field does not show an error, the decision to keep the username
-  and clear the password on a rejection — is `oauthForm()`, with the markup left to you. It returns
-  one `view` signal plus the actions; the rules behind it are `@oidcraft/core`'s and the lifecycle is
-  `@oidcraft/client`'s, both shared with `@oidcraft/vue` and `@oidcraft/react`.
-
-  Note that it drives the **resource-owner password grant**, which OAuth 2.1 removed: an `oidcraft`
+- **There is no login component; `oauthForm()` replaces it.** A published Angular component needs
+  `ngc`, which needs a TypeScript this workspace does not use (ARCHITECTURE.md §8.4). `oauthForm()` is
+  the validation and submit lifecycle as one `view` signal plus the actions, with the markup left to
+  you. It drives the **resource-owner password grant**, which OAuth 2.1 removed: an `oidcraft`
   provider does not advertise it, and this is for the IdPs that still accept it.
 - **The flow is the shared implementation**, so `state` is validated on the callback, `iss` is checked
   (RFC 9207), the PKCE verifier and nonce travel in a handoff rather than in the token, and a

@@ -19,7 +19,11 @@ The access token goes only to this page's origin, the provider's, and the origin
 `resourceOrigins` — an API on another host is listed there (`resourceOrigins: ['https://api.example.com']`).
 A call to anywhere else, through the authorized `fetch` or the axios interceptors, carries no token,
 and its 401 leaves the session alone. A 401 from where the token did go ends the session, and of its
-body only `error` and `error_description` become the token state.
+body only `error` and `error_description` become the token state. An HTTP client of your own reports
+a 401 through `onUnauthorized(url, body)`, which applies the same rule; the axios interceptors do.
+
+The ID token is verified against the provider's `jwks_uri`, and refused when there is none.
+`strictJwt: false` is the explicit way to accept one unchecked, for a provider that publishes no keys.
 
 Its consumers are those three and any other browser client. `@oidcraft/provider` uses `@oidcraft/core`
 directly and must never reach this package, which is the entire reason the two are separate rather
@@ -47,9 +51,9 @@ Nothing in this package imports a framework, and nothing may.
 ## The password form
 
 `createOAuthForm(oauth, options)` is the resource-owner password form with no framework and no
-markup: two fields, validation, the submit lifecycle, a dismissable flow error. It lives here because
-all three bindings had grown their own copy of the same rules — when a field may show an error, what
-survives a rejected attempt, when a dismissed error comes back.
+markup: two fields, validation, the submit lifecycle, a dismissable flow error. It lives here so the
+three bindings share one copy of the rules — when a field may show an error, what survives a
+rejected attempt, when a dismissed error comes back.
 
 Only the **stateful** half is here. The rules and the derivation — `oauthFieldError`,
 `oauthFieldErrors`, `oauthFormView` — are in `@oidcraft/core`, because they are pure and the

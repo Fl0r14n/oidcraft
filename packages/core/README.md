@@ -42,7 +42,7 @@ A callback that did not end in a token says which way it went, without a message
 `unreachable` is a token endpoint that did not answer, worth trying again. `undefined` means the URL
 was not a callback at all.
 
-`handoff` carries the `state`, `nonce` and PKCE verifier and nothing else. It is passed back in
+`handoff` carries the `state`, `nonce`, PKCE verifier and `redirect_uri`, and nothing else. It is passed back in
 rather than looked up, which is what makes `completeAuthorization` safe to run concurrently — a
 process-wide holder is another user's nonce.
 
@@ -69,8 +69,8 @@ usable in the case it did not pick.
 
 ## Failure
 
-A request that does not come back returns `undefined`, and a protocol failure comes back as a token
-carrying `error`. A **misconfiguration** — an `http` endpoint, a document asserting the wrong issuer
+Below `completeAuthorization`, a request that does not come back returns `undefined`, and a protocol
+failure comes back as a token carrying `error`. A **misconfiguration** — an `http` endpoint, a document asserting the wrong issuer
 — throws `InsecureEndpointError` or `IssuerMismatchError` instead. The split is on purpose: the first
 two are the network's answer and the third is yours, and reporting a misconfiguration as an outage
 sends you looking in the wrong place.

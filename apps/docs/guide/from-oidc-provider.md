@@ -174,7 +174,7 @@ These are the places where code that worked against `oidc-provider` can be refus
   sends neither PKCE nor a `nonce` will start getting errors.
 - **Refresh-token rotation.** `oidc-provider`'s `rotateRefreshToken` is configurable, and its default
   is a function that decides per token. In oidcraft, every refresh token rotates, and reuse revokes
-  the grant. The only exception is a FAPI 2.0 client. Neither is a setting (FR-T3).
+  its token family. The only exception is a FAPI 2.0 client. Neither is a setting (FR-T3).
 - **Response types.** `oidc-provider` enables `code id_token` and `id_token` by default. oidcraft
   serves `code` only (FR-C1).
 - **Request objects.** oidcraft accepts JAR by value and PAR, and refuses unsigned request objects

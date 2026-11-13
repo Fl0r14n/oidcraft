@@ -47,10 +47,11 @@ runtime, so every runtime needs a context provider (FR-R3, FR-R4):
 - **`clientCertificate`**, the TLS client certificate the listener verified. The token, UserInfo,
   revocation, introspection, device authorization, CIBA and PAR endpoints read it for mTLS client
   authentication and certificate-bound tokens (FR-C4, FR-C13).
-- **`clientIp`**, the peer address. `provider.handle` does not read it today. The device flow's
+- **`clientIp`**, the peer address. `provider.handle` does not read it. The device flow's
   verification screen does, through `provider.device.find`, `resolve` and `signIn`: wrong user codes
   are limited per address (RFC 8628 §5.1), and without an address every guesser shares one wider
-  bucket. Your verification page passes the context's `clientIp` to those calls.
+  bucket. Your verification page passes the context's `clientIp` to those calls, and your login
+  screen to `accounts.authenticate` and `verifySecondFactor`, which count failures per address.
 
 Nothing reads `X-Forwarded-*` on its own authority (FR-R4, NFR-S6). Where a forwarded address is
 used at all, it is because you turned it on, on Node.
@@ -87,7 +88,6 @@ issuer is still your configuration. The lower-level pieces are exported too: `no
 
 **Node version.** Node 24.7 or later, the first with argon2 in `node:crypto`, which
 `nodePasswordHasher` uses; CI imports every published entry on Node 24.7 to keep that floor true.
-`@oidcraft/provider` 0.1.0 claimed Node 22, and on Node 22 this entry failed to load at all.
 
 **mTLS on Node.** With an `https` server that requests client certificates, `nodeContext` supplies
 whatever certificate the client presented — its thumbprint, its subject and issuer as RFC 4514

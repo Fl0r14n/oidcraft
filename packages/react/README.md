@@ -1,7 +1,6 @@
 # @oidcraft/react
 
-A fully OAuth 2.1 compliant React library. It continues `react-oauth-oidc`, whose last
-version was 1; this is 2.
+A fully OAuth 2.1 compliant React library. It continues `react-oauth-oidc`, whose last version was 1.
 
 ```sh
 bun add @oidcraft/react
@@ -14,7 +13,8 @@ before anything renders — and hand it to the provider:
 import { createOAuth, OAuthProvider } from '@oidcraft/react'
 
 const oauth = createOAuth({
-  config: { issuerPath: 'https://accounts.google.com', clientId: '…', scope: 'openid email', pkce: true }
+  config: { issuerPath: 'https://accounts.google.com', clientId: '…', scope: 'openid email', pkce: true },
+  resourceOrigins: ['https://api.example.com'] // the access token goes to this page's origin, the provider's, and these only
 })
 
 createRoot(root).render(

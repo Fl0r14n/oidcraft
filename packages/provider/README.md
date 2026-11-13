@@ -7,6 +7,7 @@ Microsoft or any other OpenID provider. One build runs on Bun, Node, Deno and Cl
 > **Status: early.** The OpenID Foundation conformance suite's `basic`, `config` and FAPI 2.0 plans
 > pass in CI, which is a passing run, not a certification. No deployment has used it in production yet. See
 > [PLAN.md](https://github.com/Fl0r14n/oidcraft/blob/main/PLAN.md) for exactly what that means.
+
 - [Install](#install)
 - [The smallest provider](#the-smallest-provider)
 - [Your login screens](#your-login-screens)
@@ -113,7 +114,7 @@ import { bunPasswordHasher } from '@oidcraft/provider/runtimes/bun' // nodePassw
 const accounts = createAccounts({
   adapter: storage,
   hasher: bunPasswordHasher,
-  secretKey: Bun.env.TOTP_KEY as string, // generateSecretKey() makes one; it seals TOTP secrets at rest
+  secretKey: Bun.env.TOTP_KEY as string, // generateSecretKey() makes one; it seals TOTP secrets and keys recovery codes
   issuer: 'My App' // the name an authenticator app shows
 })
 
@@ -253,7 +254,7 @@ Another backend needs only a `KvStore`: five methods, one of them an atomic inse
 ## Node, Deno and Workers
 
 `provider.handle` is the same everywhere. What differs is how a runtime tells you the client's IP
-address, which oidcraft uses for rate limiting, so each runtime has a small helper:
+address and TLS client certificate, which no runtime puts on `Request`, so each has a small helper:
 
 ```ts
 // Bun
@@ -364,7 +365,8 @@ register dynamically are served by `features: { dynamicRegistration: true }`, an
 - **Rate limiting.** oidcraft limits what only it can count: wrong device codes per address, and
   failed passwords and second-factor codes per account and address. Limiting requests per address at the token,
   authorization and registration endpoints is yours, in front of the provider, where the real peer
-  address is known — pass that address in as `clientIp` for the device verification page.
+  address is known. Pass that address in as `clientIp` to `provider.device.*` and to
+  `accounts.authenticate` and `verifySecondFactor`.
 - **Logout delivery.** oidcraft never makes outbound requests itself. Back-channel logout hands you
   the notifications through `onLogout`, and you send them.
 - **Administration.** `provider.management` has functions, not routes, for clients, grants,
@@ -374,7 +376,7 @@ register dynamically are served by `features: { dynamicRegistration: true }`, an
 ## What it does
 
 The authorization code grant with mandatory PKCE · consent remembered per application · refresh
-tokens that rotate, with a replayed one revoking its grant · UserInfo · revocation and introspection ·
+tokens that rotate, with a replayed one revoking its family · UserInfo · revocation and introspection ·
 RP-initiated, back-channel and front-channel logout · DPoP with nonces · PAR and JAR · dynamic client
 registration · the device grant · CIBA · token exchange · rich authorization requests · step-up ·
 pairwise subjects · brokering with home-realm discovery · a management API.

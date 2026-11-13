@@ -231,7 +231,7 @@ what it got when it does not. It imports no test runner, so it runs under `bun t
 
 <<< @/samples/adapters.test.ts#conformance{ts}
 
-That is the `Map` from the top of this page, held to the same 28 checks as the first-party adapters.
+That is the `Map` from the top of this page, held to the same checks as the first-party adapters.
 They cover each guarantee above, and race parallel callers against `consume`, `claim`, `addClient`
 and the atomic `create`s. `create` is called once per check, so each runs against a fresh adapter —
 give it a fresh database schema or key prefix, as the first-party suites do. The checks for

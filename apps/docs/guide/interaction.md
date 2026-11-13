@@ -126,8 +126,8 @@ What this has to get right:
   issuer is `https`). Drop it and the browser comes back without a session and is asked to sign in
   again, in a loop.
 - **`acr` and `amr` are reported, not checked.** They go into the session and from there into the
-  ID token, with `auth_time` set to the moment of `complete`. Report what actually happened
-  (RFC 8176 names the `amr` values). See [step-up](#step-up-acr-values-and-max-age).
+  ID token, with `auth_time` the moment of `complete` unless `login.authTime` says when the person
+  authenticated. Report what actually happened (RFC 8176 names the `amr` values). See [step-up](#step-up-acr-values-and-max-age).
 - **The field rules return codes, not sentences.** `oauthFieldError` answers `'required'`,
   `'tooLong'` (over 128 characters by default) or `undefined`; the wording, and its language, are
   yours (FR-I6).
@@ -144,8 +144,9 @@ session. Ask for the code first:
 The sample keeps the half-signed-in account in a `Map` to stay short. A real host must bind it to
 the browser and to this interaction, and keep it out of the browser's reach: the reference deployment
 uses a signed, short-lived cookie (`apps/demo-server/src/interaction/cookies.ts`). A TOTP code and a
-recovery code are each accepted once (NFR-S5), and failures count towards the same lockout as
-passwords.
+recovery code are each accepted once (NFR-S5). Failed codes are counted apart from failed
+passwords, so knowing the password does not reset them, and both count towards the account-wide
+limit.
 
 ## Resuming
 
@@ -223,7 +224,9 @@ in the ID token, decides. Never report an `acr` the person did not achieve. A br
 `acr`, `amr` and `auth_time` from the upstream's answer (FR-F6), and `prompt=login`, `max_age` and a
 raised `acr_values` must reach the upstream rather than be satisfied by its session (FR-F9): pass
 `view.prompt`, `view.maxAge` and `view.acrValues` to the broker's `start`, as the reference
-deployment does (`apps/demo-server/src/interaction/broker.ts`).
+deployment does (`apps/demo-server/src/interaction/broker.ts`). Then pass the upstream identity's
+`authTime` as `login.authTime`: one older than the request's `max_age` allows is answered to the
+client as `login_required` rather than started as a session.
 
 ## Errors and aborts
 
@@ -289,7 +292,8 @@ validates.
 
 **`@oidcraft/provider/accounts`** (FR-I7) is optional local accounts over the adapter's `credentials`
 store. A host with its own user store skips it, and nothing in the provider assumes it.
-`createAccounts({ adapter, hasher, secretKey, issuer })` returns:
+`createAccounts({ adapter, hasher, secretKey, issuer })` returns the functions below. `secretKey`
+seals TOTP secrets and keys the recovery-code hashes, so changing it invalidates both.
 
 - `store` — the `AccountStore` to pass as the adapter's `accounts`
 - `register`, `authenticate`, `verifySecondFactor`, `setPassword`
@@ -300,10 +304,11 @@ store. A host with its own user store skips it, and nothing in the provider assu
   the same way. Completing a reset ends the account's sessions.
 
 The hasher is injected: `bunPasswordHasher` from `@oidcraft/provider/runtimes/bun`,
-`nodePasswordHasher` from `@oidcraft/provider/runtimes/node`, or your own. Failed passwords and
-codes are counted per account and peer address: pass `{ clientIp }` from the runtime's context to
-`authenticate` and `verifySecondFactor`, and five failures lock that address out of that account
-for 900 seconds, while fifty from all addresses together within a day lock the account for
+`nodePasswordHasher` from `@oidcraft/provider/runtimes/node`, or your own. Failed passwords, and
+separately failed codes, are counted per account and peer address, each attempt claimed before the
+hash is checked so parallel guesses cannot outrun the count: pass `{ clientIp }` from the runtime's
+context to `authenticate` and `verifySecondFactor`, and five failures lock that address out of that
+account for 900 seconds, while fifty from all addresses together within a day lock the account for
 everyone; the owner signing in does not reset those. An IPv6 address counts by its /64. Without an
 address, five lock the account. All of it is set by `policy` (FR-I7, `G-9`). Answer a locked account
 on the password screen as you answer a wrong password, or the difference confirms the username exists. The provider guide's

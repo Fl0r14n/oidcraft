@@ -21,12 +21,10 @@ await dataSource.runMigrations() // once, in your migration step
 const adapter = typeormAdapter({ dataSource, keys: staticKeyStore(keys) })
 ```
 
-TypeORM also gets them as migration classes, `TYPEORM_SQLITE_MIGRATIONS` and `TYPEORM_POSTGRES_MIGRATIONS`.
-
 The schema ships as migrations, `SQLITE_MIGRATIONS` and `POSTGRES_MIGRATIONS` — the same tables as
-the other SQL adapters, so one database works with any of them — which you run with your own tooling
-before you deploy. The adapter never
-creates or alters a table at startup.
+the other SQL adapters, so one database works with any of them — and as TypeORM migration classes,
+`TYPEORM_SQLITE_MIGRATIONS` and `TYPEORM_POSTGRES_MIGRATIONS`. You run them with your own tooling
+before you deploy; the adapter never creates or alters a table at startup.
 
 It returns a `FullAdapter`, so it satisfies every `@oidcraft/provider` entry point: brokering, local
 accounts and realms included. It passes the shared suite in `@oidcraft/adapter/conformance`, on

@@ -1,7 +1,7 @@
 import { DEFAULT_MAX_LENGTH, oauthFieldError, randomString } from '@oidcraft/core'
 import type { AccountStore, Credential, CredentialsAdapter, Seconds } from '@oidcraft/provider'
 import { base64url } from 'jose'
-import { importSecretKey, open, seal } from './sealed'
+import { importHashingKey, importSecretKey, open, seal } from './sealed'
 import { base32, matchingCounter, otpauthUri, TOTP_PERIOD } from './totp'
 
 export { generateSecretKey } from './sealed'
@@ -75,7 +75,10 @@ const STANDARD_CLAIMS: Record<string, string[]> = {
  */
 export type SignInContext = { clientIp?: string | undefined }
 
-type Attempts = { failures: number; lockedUntil?: number }
+type Attempts = { generation: string; lockedUntil?: number }
+
+/** One count of attempts: whose, how many before it locks, and how long one is remembered. */
+type Bucket = { scope: string; limit: number; ttl: Seconds }
 
 /**
  * Whom an address stands for: an IPv4 address itself, an IPv6 one by its /64, which one subscriber
@@ -122,6 +125,8 @@ export const normalizeUsername = (username: string) => username.normalize('NFKC'
 
 const digest = async (value: string) =>
   base64url.encode(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))))
+
+const SLOTS = 'sign_in'
 
 /** Ten base32 characters in two groups: about 50 bits, enough for a code that is also rate-limited. */
 const recoveryCode = () => {
@@ -172,86 +177,101 @@ export const createAccounts = (options: AccountsOptions) => {
   const lockedUntil = (credential: Credential) =>
     credential.lockedUntil && credential.lockedUntil.getTime() > Date.now() ? credential.lockedUntil : undefined
 
-  /** One record for the account across every address, and one per address (G-9). */
-  const accountWide = (accountId: string) => `${accountId}:*`
-  const perAddress = (accountId: string, clientIp: string) => `${accountId}:${addressBucket(clientIp)}`
-  const attemptsAt = async (id: string) => (await adapter.artifacts.find('sign_in_attempts', id))?.payload as Attempts | undefined
-  const lockedAt = async (id: string) => {
-    const until = (await attemptsAt(id))?.lockedUntil
+  const attemptsAt = async (scope: string) => (await adapter.artifacts.find('sign_in_attempts', scope))?.payload as Attempts | undefined
+  const lockedAt = async (scope: string) => {
+    const until = (await attemptsAt(scope))?.lockedUntil
     return until && until > Date.now() ? new Date(until) : undefined
   }
 
-  /** Locked for everyone, or for this address alone (G-9). */
-  const lockFor = async (credential: Credential, context: SignInContext) => {
-    const account = lockedUntil(credential)
-    if (account || !context.clientIp) return account
-    return (await lockedAt(accountWide(credential.accountId))) ?? (await lockedAt(perAddress(credential.accountId, context.clientIp)))
+  /** Every address together, never reset by a good sign-in: otherwise the owner signing in would restart a spread-out guess (G-9). */
+  const accountWide = (accountId: string): Bucket => ({
+    scope: `${accountId}:*`,
+    limit: policy.maxFailedAttemptsPerAccount,
+    ttl: policy.failureWindow
+  })
+  /** This address, or the account when there is none (G-9); a second factor's apart, so a known password does not reset it. */
+  const ownBucket = (accountId: string, factor: 'password' | 'code', context: SignInContext): Bucket => ({
+    scope: `${accountId}:${factor === 'code' ? 'code:' : ''}${context.clientIp ? addressBucket(context.clientIp) : '-'}`,
+    limit: policy.maxFailedAttempts,
+    ttl: policy.lockout
+  })
+
+  const lockFor = async (credential: Credential, bucket: Bucket) =>
+    lockedUntil(credential) ?? (await lockedAt(accountWide(credential.accountId).scope)) ?? (await lockedAt(bucket.scope))
+
+  /** A fresh generation: the slots of the last one count for nothing. Kept as long as a slot of the new one can live. */
+  const renew = async (bucket: Bucket, accountId: string, lockUntil?: Date) =>
+    adapter.artifacts.upsert({
+      id: bucket.scope,
+      kind: 'sign_in_attempts',
+      clientId: '',
+      accountId,
+      payload: { generation: randomString(8), ...(lockUntil && { lockedUntil: lockUntil.getTime() }) } satisfies Attempts,
+      expiresAt: new Date((lockUntil?.getTime() ?? Date.now()) + bucket.ttl * 1000)
+    })
+
+  /**
+   * One of the bucket's `limit` slots, claimed atomically: a read-then-write count lets a burst of
+   * parallel guesses all pass a check none of them has yet failed (G-9). Undefined when none is free.
+   */
+  const claimSlot = async (bucket: Bucket) => {
+    const generation = (await attemptsAt(bucket.scope))?.generation ?? '0'
+    for (let slot = 0; slot < bucket.limit; slot++) {
+      if (await adapter.replay.claim(SLOTS, `${bucket.scope}:${generation}:${slot}`, bucket.ttl)) return slot
+    }
+    return undefined
   }
 
   const locked = (until: Date) => ({ ok: false, reason: 'locked', until }) as const
   const invalid = { ok: false, reason: 'invalid' } as const
+  const lockoutFromNow = () => new Date(Date.now() + policy.lockout * 1000)
 
-  /** One more failure on this record; true when that reaches `limit`, which locks it until `until`. */
-  const count = async (id: string, accountId: string, limit: number, until: Date, window: Seconds) => {
-    const failures = ((await attemptsAt(id))?.failures ?? 0) + 1
-    const locking = failures >= limit
-    await adapter.artifacts.upsert({
-      id,
-      kind: 'sign_in_attempts',
-      clientId: '',
-      accountId,
-      payload: (locking ? { failures: 0, lockedUntil: until.getTime() } : { failures }) satisfies Attempts,
-      expiresAt: new Date(Math.max(until.getTime(), Date.now() + window * 1000))
-    })
-    return locking
+  /**
+   * Taken before the slow verify, so at most `limit` guesses are ever being checked at once. A
+   * locked account still pays for one hash, or a quick answer would say the username exists (FR-I7).
+   */
+  const admit = async (credential: Credential, bucket: Bucket, password?: string) => {
+    const lockedFor = await lockFor(credential, bucket)
+    const slot = lockedFor ? undefined : await claimSlot(bucket)
+    if (slot === undefined) {
+      if (password !== undefined) await spendDecoy(password)
+      return { refused: locked(lockedFor ?? lockoutFromNow()) }
+    }
+    return { slot }
   }
 
-  const fail = async (credential: Credential, context: SignInContext) => {
-    const until = new Date(Date.now() + policy.lockout * 1000)
+  const fail = async (accountId: string, bucket: Bucket, slot: number, context: SignInContext) => {
+    const until = lockoutFromNow()
     if (context.clientIp) {
-      // The account-wide count lapses with time, not with the next good sign-in: otherwise the owner
-      // signing in would restart a guess spread over many addresses (G-9).
-      if (
-        await count(
-          accountWide(credential.accountId),
-          credential.accountId,
-          policy.maxFailedAttemptsPerAccount,
-          until,
-          policy.failureWindow
-        )
-      ) {
+      const wide = accountWide(accountId)
+      const counted = await claimSlot(wide)
+      if (counted === undefined || counted === wide.limit - 1) {
+        await renew(wide, accountId, until)
         return locked(until)
       }
-      const address = perAddress(credential.accountId, context.clientIp)
-      return (await count(address, credential.accountId, policy.maxFailedAttempts, until, policy.lockout)) ? locked(until) : invalid
     }
-
-    const failedAttempts = credential.failedAttempts + 1
-    const locking = failedAttempts >= policy.maxFailedAttempts
-    const { lockedUntil: _, ...rest } = credential
-    await credentials.upsert({
-      ...rest,
-      failedAttempts: locking ? 0 : failedAttempts,
-      ...(locking && { lockedUntil: until }),
-      updatedAt: new Date()
-    })
-    return locking ? locked(until) : invalid
+    if (slot < bucket.limit - 1) return invalid
+    await renew(bucket, accountId, until)
+    return locked(until)
   }
 
-  const clearAddress = async (accountId: string, context: SignInContext) => {
-    if (context.clientIp) await adapter.artifacts.destroy('sign_in_attempts', perAddress(accountId, context.clientIp))
+  /** Only a bucket someone failed in this generation is renewed, so a clean sign-in writes nothing. */
+  const succeed = async (accountId: string, bucket: Bucket, slot: number) => {
+    if (slot > 0) await renew(bucket, accountId)
   }
 
-  const succeed = async (credential: Credential, context: SignInContext) => {
-    await clearAddress(credential.accountId, context)
-    if (credential.failedAttempts === 0 && !credential.lockedUntil) return
-    const { lockedUntil: _, ...rest } = credential
-    await credentials.upsert({ ...rest, failedAttempts: 0, updatedAt: new Date() })
-  }
+  const hashingKey = importHashingKey(options.secretKey)
+  /** Keyed and bound to the account: 50 bits unsalted are a dictionary away from a dump (FR-I7). */
+  const recoveryHash = async (accountId: string, code: string) =>
+    base64url.encode(
+      new Uint8Array(
+        await crypto.subtle.sign('HMAC', await hashingKey, new TextEncoder().encode(`${accountId}:${normalizeRecoveryCode(code)}`))
+      )
+    )
 
-  const issueRecoveryCodes = async () => {
+  const issueRecoveryCodes = async (accountId: string) => {
     const codes = Array.from({ length: policy.recoveryCodes }, recoveryCode)
-    return { codes, hashes: await Promise.all(codes.map(code => digest(normalizeRecoveryCode(code)))) }
+    return { codes, hashes: await Promise.all(codes.map(code => recoveryHash(accountId, code))) }
   }
 
   const store: AccountStore = {
@@ -308,10 +328,11 @@ export const createAccounts = (options: AccountsOptions) => {
         await spendDecoy(password)
         return invalid
       }
-      const until = await lockFor(credential, context)
-      if (until) return locked(until)
-      if (!(await hasher.verify(password, credential.passwordHash))) return fail(credential, context)
-      await succeed(credential, context)
+      const bucket = ownBucket(credential.accountId, 'password', context)
+      const admitted = await admit(credential, bucket, password)
+      if (admitted.refused) return admitted.refused
+      if (!(await hasher.verify(password, credential.passwordHash))) return fail(credential.accountId, bucket, admitted.slot, context)
+      await succeed(credential.accountId, bucket, admitted.slot)
       return { ok: true, accountId: credential.accountId, secondFactor: Boolean(credential.totp?.confirmedAt) }
     },
 
@@ -319,32 +340,35 @@ export const createAccounts = (options: AccountsOptions) => {
     async verifySecondFactor(accountId: string, code: string, context: SignInContext = {}): Promise<SecondFactorResult> {
       const credential = await credentials.find(accountId)
       if (!credential?.totp?.confirmedAt) return invalid
-      const until = await lockFor(credential, context)
-      if (until) return locked(until)
+      const bucket = ownBucket(accountId, 'code', context)
+      const admitted = await admit(credential, bucket)
+      if (admitted.refused) return admitted.refused
 
       const counter = await matchingCounter(await open(await key, accountId, credential.totp.secret), code.replace(/\s/g, ''))
       if (counter !== undefined && (await adapter.replay.claim('totp', `${accountId}:${counter}`, 3 * TOTP_PERIOD))) {
-        await succeed(credential, context)
+        await succeed(accountId, bucket, admitted.slot)
         return { ok: true, method: 'otp' }
       }
 
-      const hash = await digest(normalizeRecoveryCode(code))
+      const hash = await recoveryHash(accountId, code)
       if (
         credential.recoveryCodes?.includes(hash) &&
         (await adapter.replay.claim('recovery', `${accountId}:${hash}`, RECOVERY_TOMBSTONE))
       ) {
-        const { lockedUntil: _, ...rest } = credential
-        await credentials.upsert({
-          ...rest,
-          recoveryCodes: credential.recoveryCodes.filter(stored => stored !== hash),
-          failedAttempts: 0,
-          updatedAt: new Date()
-        })
-        await clearAddress(accountId, context)
+        // Read again after the claim: written from the copy read before, a reset or TOTP change in between would be undone.
+        const current = await credentials.find(accountId)
+        if (current) {
+          await credentials.upsert({
+            ...current,
+            recoveryCodes: (current.recoveryCodes ?? []).filter(stored => stored !== hash),
+            updatedAt: new Date()
+          })
+        }
+        await succeed(accountId, bucket, admitted.slot)
         return { ok: true, method: 'recovery' }
       }
 
-      return fail(credential, context)
+      return fail(accountId, bucket, admitted.slot, context)
     },
 
     setPassword,
@@ -367,7 +391,7 @@ export const createAccounts = (options: AccountsOptions) => {
         if (!credential?.totp || credential.totp.confirmedAt) return undefined
         const counter = await matchingCounter(await open(await key, accountId, credential.totp.secret), code.replace(/\s/g, ''))
         if (counter === undefined || !(await adapter.replay.claim('totp', `${accountId}:${counter}`, 3 * TOTP_PERIOD))) return undefined
-        const { codes, hashes } = await issueRecoveryCodes()
+        const { codes, hashes } = await issueRecoveryCodes(accountId)
         await credentials.upsert({
           ...credential,
           totp: { secret: credential.totp.secret, confirmedAt: new Date() },
@@ -396,7 +420,7 @@ export const createAccounts = (options: AccountsOptions) => {
       async regenerateRecoveryCodes(accountId: string) {
         const credential = await credentials.find(accountId)
         if (!credential?.totp?.confirmedAt) return undefined
-        const { codes, hashes } = await issueRecoveryCodes()
+        const { codes, hashes } = await issueRecoveryCodes(accountId)
         await credentials.upsert({ ...credential, recoveryCodes: hashes, updatedAt: new Date() })
         return { recoveryCodes: codes }
       }

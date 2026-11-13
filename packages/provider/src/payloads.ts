@@ -84,7 +84,8 @@ export type Payloads = {
   authorization_response: { target: ResponseTarget; values: Record<string, string> }
   user_code_attempts: { failures: number }
   /** Failed sign-ins at one account from one address, written by `./accounts` (G-9). */
-  sign_in_attempts: { failures: number; lockedUntil?: number }
+  /** The generation names the slots attempts claim (G-9); a lock outlives the generation it ended. */
+  sign_in_attempts: { generation: string; lockedUntil?: number }
   password_reset: Empty
 }
 

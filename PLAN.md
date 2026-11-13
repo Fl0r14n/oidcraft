@@ -403,15 +403,15 @@ with a throwaway test. Several predate this week's work and shipped in 0.3.0. In
   victim's session (`authorize/interactions.ts`, `@oidcraft/ui` forms). Bind an interaction to the
   browser that started it, as the broker's handoff is (FR-F3); the device approval form likewise.
   FR-I2, FR-C7
-- [ ] Concurrent wrong passwords get past both lockouts: the lock is checked before the slow verify
+- [x] Concurrent wrong passwords get past both lockouts: the lock is checked before the slow verify
   and the counters are read-then-write (`accounts/index.ts` `count`, `fail`). Probe: 157 of 200
   parallel guesses checked. Count before verifying, atomically (`replay.claim` slots or an atomic
   increment). G-9, FR-I7
-- [ ] A correct password resets the counter TOTP failures share, so a known password gives unlimited
+- [x] A correct password resets the counter TOTP failures share, so a known password gives unlimited
   second-factor guesses in rounds of four. Count second-factor failures apart. FR-I7. Probe
-- [ ] A locked known username answers without hashing, an unknown one pays the decoy: a timing oracle.
+- [x] A locked known username answers without hashing, an unknown one pays the decoy: a timing oracle.
   Spend the decoy when locked. FR-I7. Probe
-- [ ] Recovery codes are an unsalted SHA-256 of 50 bits, crackable from a dump. HMAC them under the
+- [x] Recovery codes are an unsalted SHA-256 of 50 bits, crackable from a dump. HMAC them under the
   accounts `secretKey`. FR-I7
 - [ ] PAR stores the pushing client's `client_secret` and `client_assertion` in the request artifact,
   then in the interaction (`authorize/par.ts`, `applyRequestObject` returning the form). Drop client
@@ -441,7 +441,9 @@ with a throwaway test. Several predate this week's work and shipped in 0.3.0. In
 - [ ] `authorization_details=[null]` is a 500; device and CIBA requests do not check the client's
   `grant_types`; a JAR-by-value request resumed after an interaction travels as plain parameters
 - [ ] Accounts: a reset leaves `sign_in_attempts` locks; `fail` and `succeed` write back a credential
-  read before the verify, so a racing reset or TOTP change can be undone
+  read before the verify, so a racing reset or TOTP change can be undone. The write-back is gone with the lockout rework
+  (2026-11-13): counting no longer touches the credential, and the recovery path reads it again; the
+  reset half is open
 - [ ] Client: the refresh drops `id_token`; redirect classification matches `?barcode=`; `unreachable`
   is inferred from an echo; the handoff shares the token slot, so a login in one tab ends the others;
   a URL passed to `oauthCallback` is not cleaned; a non-redirecting logout and the refresh lock have

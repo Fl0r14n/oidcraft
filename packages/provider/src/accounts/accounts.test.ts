@@ -5,22 +5,23 @@ import { open } from './sealed'
 import { counterAt, fromBase32 } from './totp'
 
 /** Fast and transparent: the hashing itself is the runtime entries' job, tested there. */
-const hasher = (calls: string[] = []): PasswordHasher => ({
+const hasher = (calls: string[] = [], delay = 0): PasswordHasher => ({
   async hash(password) {
     return `h:${password}`
   },
   async verify(password, hash) {
     calls.push(hash)
+    if (delay) await Bun.sleep(delay)
     return hash === `h:${password}`
   }
 })
 
-const setup = async (calls: string[] = []) => {
+const setup = async (calls: string[] = [], delay = 0) => {
   const adapter = await memoryAdapter()
   const secretKey = generateSecretKey()
   const accounts = createAccounts({
     adapter,
-    hasher: hasher(calls),
+    hasher: hasher(calls, delay),
     secretKey,
     issuer: 'oidcraft test',
     newAccountId: username => `id-${username}`
@@ -67,6 +68,29 @@ describe('passwords', () => {
     expect(await accounts.authenticate('nobody', 'whatever1')).toEqual({ ok: false, reason: 'invalid' })
     expect(calls).toHaveLength(1)
   })
+
+  test('a locked account costs a verification too, so a quick answer does not reveal the username', async () => {
+    const calls: string[] = []
+    const { accounts } = await setup(calls)
+    await accounts.register({ username: 'ada', password: 'correct horse' })
+    for (let i = 0; i < 5; i++) await accounts.authenticate('ada', 'nope nope')
+    const before = calls.length
+    expect(await accounts.authenticate('ada', 'nope nope')).toMatchObject({ ok: false, reason: 'locked' })
+    expect(calls.length).toBe(before + 1)
+  })
+
+  // G-9: a read-then-write count let 157 of 200 parallel guesses be checked before any of them was counted.
+  for (const context of [{}, { clientIp: '203.0.113.6' }]) {
+    test(`parallel guesses are counted before they are checked${context.clientIp ? ', per address' : ''}`, async () => {
+      const calls: string[] = []
+      const { accounts } = await setup(calls, 5)
+      await accounts.register({ username: 'ada', password: 'correct horse' })
+      const answers = await Promise.all(Array.from({ length: 200 }, () => accounts.authenticate('ada', 'nope nope', context)))
+      expect(calls.filter(hash => hash === 'h:correct horse')).toHaveLength(5)
+      expect(answers.filter(answer => answer.ok === false && answer.reason === 'locked')).toHaveLength(196)
+      expect(await accounts.authenticate('ada', 'correct horse', context)).toMatchObject({ ok: false, reason: 'locked' })
+    })
+  }
 
   test('five failures lock the account, and the right password does not open it early', async () => {
     const { accounts } = await setup()
@@ -116,12 +140,13 @@ describe('passwords', () => {
     })
 
     test('signing in clears that address’s count', async () => {
-      const { accounts, adapter } = await setup()
+      const { accounts } = await setup()
       await accounts.register({ username: 'ada', password: 'correct horse' })
       for (let i = 0; i < 4; i++) await accounts.authenticate('ada', 'nope nope', at('203.0.113.6'))
       expect(await accounts.authenticate('ada', 'correct horse', at('203.0.113.6'))).toMatchObject({ ok: true })
-      expect(await adapter.artifacts.find('sign_in_attempts', 'id-ada:203.0.113.6')).toBeUndefined()
-      expect(await accounts.authenticate('ada', 'nope nope', at('203.0.113.6'))).toEqual({ ok: false, reason: 'invalid' })
+      for (let i = 0; i < 4; i++)
+        expect(await accounts.authenticate('ada', 'nope nope', at('203.0.113.6'))).toEqual({ ok: false, reason: 'invalid' })
+      expect(await accounts.authenticate('ada', 'nope nope', at('203.0.113.6'))).toMatchObject({ ok: false, reason: 'locked' })
     })
   })
 
@@ -168,6 +193,24 @@ describe('second factor', () => {
     })
     expect(await accounts.verifySecondFactor('id-ada', code)).toEqual({ ok: false, reason: 'invalid' })
     expect((await accounts.totp.status('id-ada')).recoveryCodesLeft).toBe(9)
+  })
+
+  // FR-I7: with the password known, a reset shared with it gave unlimited codes in rounds of four.
+  test('a correct password does not reset the count of wrong codes', async () => {
+    const { accounts } = await enrolled()
+    for (let round = 0; round < 2; round++) {
+      for (let i = 0; i < 2; i++) expect(await accounts.verifySecondFactor('id-ada', '000000')).toEqual({ ok: false, reason: 'invalid' })
+      expect(await accounts.authenticate('ada', 'correct horse')).toMatchObject({ ok: true })
+    }
+    expect(await accounts.verifySecondFactor('id-ada', '000000')).toMatchObject({ ok: false, reason: 'locked' })
+  })
+
+  test('recovery codes are stored keyed, not as a hash anyone can recompute', async () => {
+    const { adapter, recoveryCodes } = await enrolled()
+    const stored = (await adapter.credentials?.find('id-ada'))?.recoveryCodes ?? []
+    const plain = await crypto.subtle.digest('SHA-256', new TextEncoder().encode((recoveryCodes[0] as string).replace('-', '')))
+    expect(stored).toHaveLength(10)
+    expect(stored).not.toContain(Buffer.from(plain).toString('base64url'))
   })
 
   test('the stored secret is sealed to its account and opens nowhere else', async () => {

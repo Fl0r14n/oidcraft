@@ -391,12 +391,12 @@ with a throwaway test. Several predate this week's work and shipped in 0.3.0. In
   looks up (`token/id-token.ts:54`, `session/session.ts:14,42`): any client the person signs in to can
   set that cookie and be them at the provider. The cookie carries a random secret; the session is
   stored under its SHA-256, which is the public `sid`. NFR-S11. Probe
-- [ ] `@oidcraft/core` checks `state` only when it holds one (`flow.ts:56`), and a redirect's
+- [x] `@oidcraft/core` checks `state` only when it holds one (`flow.ts:56`), and a redirect's
   parameters override the stored handoff (`flow.ts:120`, `{ ...handoff, ...parameters }`): an
   unsolicited `#access_token=…` becomes the session, and `?code=&code_verifier=&redirect_uri=` signs
   the person in as the attacker. Refuse a callback without a pending handoff; take `code_verifier`
   and `redirect_uri` from the handoff only. FR-L2, RFC 9700 §4.7. Probe
-- [ ] With no `jwksUri` the ID token is decoded, not verified (`core/src/jwt.ts:62`): statically
+- [x] With no `jwksUri` the ID token is decoded, not verified (`core/src/jwt.ts:62`): statically
   configured endpoints, or an implicit callback after a reload. Refuse rather than decode. FR-L2. Probe
 - [ ] Login CSRF at the provider: an interaction is completed by its id alone, so a page can post the
   attacker's own credentials to the attacker's interaction from the victim's browser and set the

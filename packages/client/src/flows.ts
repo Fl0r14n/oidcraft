@@ -134,9 +134,8 @@ export const createFlows = (
     const { flow, parameters } = parseRedirectParameters(source as never)
     setState(parameters.state)
     try {
-      if (flow === 'code') {
-        await autoconfigOauth()
-      }
+      // An implicit callback after a reload has no discovered `jwks_uri` either, and its ID token is refused without one.
+      await autoconfigOauth()
       // the handoff is read from the token, which is where `toAuthorizationUrl` left it. State, nonce,
       // PKCE and the RFC 9207 `iss` are all checked inside completeAuthorization.
       const result = await completeAuthorization(config(), source as never, token(), { functions, verifyIdToken: jwt })

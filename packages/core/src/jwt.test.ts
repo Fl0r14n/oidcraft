@@ -124,6 +124,16 @@ describe('createIdTokenVerifier', () => {
     })
   })
 
+  // FR-L2: with nothing to check the signature against, decoding would believe whoever wrote the token.
+  it('refuses a token it has no jwks_uri to verify against, unless strict is off', async () => {
+    const token = await sign({ iss: 'https://provider.example', aud: CLIENT_ID, sub: 'u1' })
+
+    expect(await createIdTokenVerifier({ issuer: 'https://provider.example', audience: CLIENT_ID })(token)).toEqual({
+      error: 'No jwks_uri to verify the ID token against'
+    })
+    expect(await createIdTokenVerifier({ audience: CLIENT_ID, strict: false })(token)).toMatchObject({ sub: 'u1' })
+  })
+
   it('answers an absent token with no claims rather than an error', async () => {
     expect(await verifier('https://provider.example')(undefined)).toEqual({})
     expect(parseIdToken(undefined)).toEqual({})

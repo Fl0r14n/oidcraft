@@ -90,7 +90,7 @@ describe('autoStart / start()', () => {
   it('re-arms after a dispose', async () => {
     local.setItem('rearm', JSON.stringify({ access_token: 'at', token_type: 'Bearer' }))
     const functions = mockOAuthFunctions()
-    const oauth = createOAuth({ storageKey: 'rearm', config: { tokenPath: '/t', clientId: 'c' }, functions })
+    const oauth = createOAuth({ storageKey: 'rearm', config: { tokenPath: '/t', clientId: 'c' }, functions, strictJwt: false })
     oauth.dispose()
 
     // disposed: the id_token watcher is gone, so the user is not decoded

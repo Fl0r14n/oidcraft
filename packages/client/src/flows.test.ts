@@ -221,6 +221,9 @@ describe('oauthCallback', () => {
     oauth = createOAuth({ config: { tokenPath: '/t', clientId: 'c', authorizePath: '/a' }, functions })
   })
 
+  /** What `login` leaves behind for the callback to match. */
+  const pending = (state = 'xyz', on: OAuth = oauth) => on.setToken({ state, redirect_uri: 'https://h/callback' })
+
   it('ignores a url with neither a code nor a token', async () => {
     await oauth.oauthCallback('https://h/callback')
     expect(functions.authorize).not.toHaveBeenCalled()
@@ -229,6 +232,7 @@ describe('oauthCallback', () => {
 
   it('exchanges an authorization code and records the state', async () => {
     functions.authorize.mockResolvedValue({ access_token: 'coded', type: OAuthType.AUTHORIZATION_CODE })
+    pending()
 
     await oauth.oauthCallback('https://h/callback?code=abc&state=xyz')
 
@@ -239,6 +243,7 @@ describe('oauthCallback', () => {
 
   it('keeps an error response from the authorization server', async () => {
     functions.authorize.mockResolvedValue({ error: 'access_denied' })
+    pending()
 
     await oauth.oauthCallback('https://h/callback?error=access_denied')
 
@@ -247,6 +252,7 @@ describe('oauthCallback', () => {
   })
 
   it('accepts an implicit redirect from the fragment and marks the grant', async () => {
+    pending('st')
     await oauth.oauthCallback('https://h/callback#access_token=implicit&token_type=Bearer&state=st')
 
     expect(oauth.token().access_token).toBe('implicit')
@@ -255,10 +261,11 @@ describe('oauthCallback', () => {
   })
 
   it('rejects an implicit redirect whose id_token nonce does not match the stored one', async () => {
-    oauth.setToken({ nonce: 'expected' })
+    oauth = createOAuth({ config: { tokenPath: '/t', clientId: 'c', authorizePath: '/a' }, functions, strictJwt: false })
+    oauth.setToken({ state: 'st', nonce: 'expected' })
 
     // an id_token with no nonce claim at all — the classic replay of a token minted for someone else
-    await oauth.oauthCallback(`https://h/callback#access_token=implicit&id_token=${'header.e30.sig'}`)
+    await oauth.oauthCallback(`https://h/callback#access_token=implicit&state=st&id_token=${'header.e30.sig'}`)
 
     expect(oauth.token().error).toBe('Invalid nonce')
   })
@@ -267,6 +274,7 @@ describe('oauthCallback', () => {
     // StrictMode double-invokes effects, so both calls start before either resolves
     functions.authorize.mockResolvedValue({ access_token: 'coded', type: OAuthType.AUTHORIZATION_CODE })
     const url = 'https://h/callback?code=abc&state=xyz'
+    pending()
 
     await Promise.all([oauth.oauthCallback(url), oauth.oauthCallback(url)])
 
@@ -278,7 +286,8 @@ describe('oauthCallback', () => {
     // a browser Back into the callback URL. Re-exchanging a consumed code does not fail harmlessly:
     // the IdP answers invalid_grant, which would land in the token and kill a live session
     functions.authorize.mockResolvedValue({ access_token: 'coded', type: OAuthType.AUTHORIZATION_CODE })
-    const url = 'https://h/callback?code=abc'
+    const url = 'https://h/callback?code=abc&state=xyz'
+    pending()
 
     await oauth.oauthCallback(url)
     await oauth.oauthCallback(url)
@@ -290,10 +299,12 @@ describe('oauthCallback', () => {
 
   it('still handles a genuinely different redirect', async () => {
     functions.authorize.mockResolvedValue({ access_token: 'first', type: OAuthType.AUTHORIZATION_CODE })
-    await oauth.oauthCallback('https://h/callback?code=one')
+    pending('one')
+    await oauth.oauthCallback('https://h/callback?code=one&state=one')
 
     functions.authorize.mockResolvedValue({ access_token: 'second', type: OAuthType.AUTHORIZATION_CODE })
-    await oauth.oauthCallback('https://h/callback?code=two')
+    pending('two')
+    await oauth.oauthCallback('https://h/callback?code=two&state=two')
 
     expect(functions.authorize).toHaveBeenCalledTimes(2)
     expect(oauth.token().access_token).toBe('second')
@@ -301,13 +312,28 @@ describe('oauthCallback', () => {
 
   it('scopes the dedupe to the instance, so a fresh instance re-runs the same url', async () => {
     functions.authorize.mockResolvedValue({ access_token: 'coded', type: OAuthType.AUTHORIZATION_CODE })
-    const url = 'https://h/callback?code=abc'
+    const url = 'https://h/callback?code=abc&state=xyz'
+    pending()
     await oauth.oauthCallback(url)
 
     const other = createOAuth({ config: { tokenPath: '/t', clientId: 'c' }, functions })
+    pending('xyz', other)
     await other.oauthCallback(url)
 
     expect(functions.authorize).toHaveBeenCalledTimes(2)
+  })
+
+  // RFC 9700 §4.7: a link that lands here with a token or code nobody here asked for is not a sign-in.
+  it('refuses a callback with no sign-in in progress', async () => {
+    functions.authorize.mockResolvedValue({ access_token: 'coded', type: OAuthType.AUTHORIZATION_CODE })
+
+    await oauth.oauthCallback('https://h/callback#access_token=planted&token_type=Bearer')
+    expect(oauth.token().access_token).toBeUndefined()
+    expect(oauth.hasError()).toBe(true)
+
+    await oauth.oauthCallback('https://h/callback?code=attackers&code_verifier=attackers')
+    expect(functions.authorize).not.toHaveBeenCalled()
+    expect(oauth.token().access_token).toBeUndefined()
   })
 })
 
@@ -404,6 +430,7 @@ describe('the callback url', () => {
     const functions = mocked()
     functions.authorize.mockResolvedValue({ access_token: 'at', token_type: 'Bearer' })
     const oauth = createOAuth({ config: { tokenPath: '/t', clientId: 'c', authorizePath: '/a' }, functions })
+    oauth.setToken({ state: 's1' })
     Object.assign(globalThis.location, { href: 'http://localhost/cb?tab=2&code=c1&state=s1', search: '?tab=2&code=c1&state=s1', hash: '' })
 
     await oauth.oauthCallback()
@@ -417,6 +444,7 @@ describe('the callback url', () => {
     const functions = mocked()
     functions.authorize.mockResolvedValue({ access_token: 'at', token_type: 'Bearer' })
     const oauth = createOAuth({ config: { tokenPath: '/t', clientId: 'c', authorizePath: '/a' }, functions })
+    oauth.setToken({ state: 's1' })
     Object.assign(globalThis.location, {
       href: 'http://localhost/cb#code=c1&state=s1&view=list',
       search: '',

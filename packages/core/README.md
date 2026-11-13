@@ -46,6 +46,11 @@ was not a callback at all.
 rather than looked up, which is what makes `completeAuthorization` safe to run concurrently — a
 process-wide holder is another user's nonce.
 
+Without a handoff there is nothing to answer, so a callback is refused as `invalid` on `state`: a
+link carrying `#access_token=` or a `code` someone else obtained does not become a sign-in. The
+redirect contributes its `code` and nothing else — `code_verifier` and `redirect_uri` come from the
+handoff only.
+
 ## What it checks, and what it leaves to you
 
 Checked, without a flag to turn any of it off:
@@ -56,6 +61,7 @@ Checked, without a flag to turn any of it off:
 | **The discovery document asserts its own issuer** | OIDC Discovery 1.0 §4.3. Without it, a host that will serve someone else's document hands over that issuer's endpoints. Entra's `{tenantid}` template is the one documented exception.      |
 | **`iss` on the authorization response**           | RFC 9207 §2.4, the mix-up defence. A provider that advertises `authorization_response_iss_parameter_supported` has promised to send it, so from that provider its absence is a failure too. |
 | **`state`, `nonce`, `aud` and `azp`**             | RFC 6749 §10.12 and OIDC Core §3.1.3.7, including the rule that more than one audience requires `azp`.                                                                                      |
+| **The ID token's signature**                      | Against the provider's `jwks_uri`. With none known — static endpoints and no discovery — the token is refused, not decoded. `strict: false` is the explicit way to decode one unchecked.    |
 
 Left to you, deliberately: where the handoff is stored, when to refresh, and what a token means to
 your application. None of those have one right answer, and a library that picks one stops being

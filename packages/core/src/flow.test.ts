@@ -67,20 +67,54 @@ describe('completeAuthorization', () => {
     expect(authorize).not.toHaveBeenCalled()
   })
 
-  it('leaves the check alone when it issued no state', async () => {
+  // RFC 9700 §4.7: with nothing pending, a redirect is an answer to a question nobody here asked.
+  it('refuses a callback when no authorization is in progress', async () => {
     const authorize = jest.fn().mockResolvedValue({ access_token: 'at' })
 
-    const token = await completeAuthorization(
+    for (const handoff of [undefined, {}]) {
+      const token = await completeAuthorization(config, 'https://app.com/cb?code=c1&state=s9', handoff, {
+        functions: { authorize },
+        verifyIdToken: claims({})
+      })
+      expect(token).toEqual({ ok: false, reason: 'invalid', check: 'state', message: 'No authorization in progress' })
+    }
+    expect(authorize).not.toHaveBeenCalled()
+  })
+
+  it('refuses an unsolicited implicit response rather than making it the session', async () => {
+    const token = await completeAuthorization(config, 'https://app.com/cb#access_token=planted&token_type=bearer', undefined, {
+      verifyIdToken: claims({})
+    })
+    expect(token).toEqual({ ok: false, reason: 'invalid', check: 'state', message: 'No authorization in progress' })
+  })
+
+  // FR-L2: a verifier on the link is the attacker's, for the attacker's code — the person would be signed in as them.
+  it('takes code_verifier and redirect_uri from the handoff, never from the redirect', async () => {
+    const authorize = jest.fn().mockResolvedValue({ access_token: 'at' })
+    const handoff = { redirect_uri: 'https://app.com/cb', state: 's1', code_verifier: 'v1' }
+
+    await completeAuthorization(
       config,
-      'https://app.com/cb?code=c1&state=s9',
-      {},
+      'https://app.com/cb?code=c1&state=s1&code_verifier=evil&redirect_uri=https%3A%2F%2Fevil.example%2Fcb',
+      handoff,
+      { functions: { authorize }, verifyIdToken: claims({}) }
+    )
+    expect(authorize).toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'c1', code_verifier: 'v1', redirect_uri: 'https://app.com/cb' }),
+      config
+    )
+
+    authorize.mockClear()
+    await completeAuthorization(
+      config,
+      'https://app.com/cb?code=c1&state=s1&code_verifier=evil',
+      { state: 's1' },
       {
         functions: { authorize },
         verifyIdToken: claims({})
       }
     )
-
-    expect(token).toMatchObject({ ok: true, token: { access_token: 'at' } })
+    expect(authorize.mock.calls[0]?.[0]).not.toHaveProperty('code_verifier')
   })
 
   it('passes an error response through when the provider dropped the state from it', async () => {
@@ -103,20 +137,21 @@ describe('completeAuthorization', () => {
   })
 
   it('checks the nonce against the handoff on the implicit response', async () => {
-    const source = 'https://app.com/cb#access_token=at&id_token=header.payload.sig'
+    const source = 'https://app.com/cb#access_token=at&id_token=header.payload.sig&state=s1'
+    const handoff = { state: 's1', nonce: 'n1' }
 
-    const ok = await completeAuthorization(config, source, { nonce: 'n1' }, { verifyIdToken: claims({ nonce: 'n1' }) })
+    const ok = await completeAuthorization(config, source, handoff, { verifyIdToken: claims({ nonce: 'n1' }) })
     expect(ok).toMatchObject({ ok: true, token: { access_token: 'at', type: OAuthType.IMPLICIT } })
 
-    const bad = await completeAuthorization(config, source, { nonce: 'n1' }, { verifyIdToken: claims({ nonce: 'other' }) })
+    const bad = await completeAuthorization(config, source, handoff, { verifyIdToken: claims({ nonce: 'other' }) })
     expect(bad).toEqual({ ok: false, reason: 'invalid', check: 'nonce', message: 'Invalid nonce' })
   })
 
   it('reports a rejected id token rather than the nonce it could not read', async () => {
     const token = await completeAuthorization(
       config,
-      'https://app.com/cb#access_token=at&id_token=h.p.s',
-      { nonce: 'n1' },
+      'https://app.com/cb#access_token=at&id_token=h.p.s&state=s1',
+      { state: 's1', nonce: 'n1' },
       {
         verifyIdToken: claims({ error: 'Invalid token' })
       }
@@ -129,8 +164,8 @@ describe('completeAuthorization', () => {
   it('reports a token endpoint that did not answer as unreachable', async () => {
     const token = await completeAuthorization(
       config,
-      'https://app.com/cb?code=c1',
-      { redirect_uri: 'https://app.com/cb' },
+      'https://app.com/cb?code=c1&state=s1',
+      { redirect_uri: 'https://app.com/cb', state: 's1' },
       {
         functions: { authorize: async () => undefined }
       }
@@ -142,8 +177,8 @@ describe('completeAuthorization', () => {
   it('reports a refusal at the token endpoint as the provider’s own answer', async () => {
     const token = await completeAuthorization(
       config,
-      'https://app.com/cb?code=c1',
-      {},
+      'https://app.com/cb?code=c1&state=s1',
+      { state: 's1' },
       {
         functions: { authorize: async () => ({ error: 'invalid_grant', error_description: 'code expired' }) }
       }

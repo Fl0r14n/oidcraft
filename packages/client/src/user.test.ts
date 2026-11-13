@@ -14,7 +14,8 @@ describe('user', () => {
     local.clear()
     const functions = mockOAuthFunctions()
     userInfo = functions.userInfo
-    oauth = createOAuth({ functions })
+    // unsigned test tokens: what is checked here is how the user follows the token, not the signature
+    oauth = createOAuth({ functions, strictJwt: false })
   })
 
   it('derives the user from the id_token claims', async () => {
@@ -41,7 +42,7 @@ describe('user', () => {
     functions.userInfo.mockResolvedValue({ name: 'Restored' })
     // token already in storage + userPath configured up front: neither watch source ever changes
     local.setItem('token', JSON.stringify({ access_token: 'at', token_type: 'Bearer', expires: Date.now() + 60_000 }))
-    const restored = createOAuth({ functions, config: { userPath: '/userinfo' } as any })
+    const restored = createOAuth({ functions, strictJwt: false, config: { userPath: '/userinfo' } as any })
 
     await flush()
 
@@ -73,7 +74,7 @@ describe('user', () => {
   it('keeps user state isolated between instances', async () => {
     oauth.setToken({ id_token: idToken({ name: 'Jane' }) })
     // own storageKey: instances sharing a key legitimately share the persisted token
-    const second = createOAuth({ storageKey: 'second.token', functions: mockOAuthFunctions() })
+    const second = createOAuth({ storageKey: 'second.token', functions: mockOAuthFunctions(), strictJwt: false })
 
     await flush()
 

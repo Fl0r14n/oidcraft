@@ -50,10 +50,10 @@ const refused = (answer: { error?: string; error_description?: string }): Author
   ...(answer.error_description && { errorDescription: answer.error_description })
 })
 
-/** RFC 6749 §10.12. Only checked against a state we hold, so a callback arriving without a prior
- * `beginAuthorization` — a deep link, a resumed session — is left to the caller as before. */
+/** RFC 6749 §10.12, RFC 9700 §4.7: a callback answers a request this client made. Without a handoff to
+ * match there is none — an unsolicited `#access_token=`, a code someone else obtained — and it is refused. */
 const checkState = (parameters: Record<string, string>, handoff?: Partial<AuthorizationHandoff>) => {
-  if (!handoff?.state) return undefined
+  if (!handoff?.state) return invalid('state', 'No authorization in progress')
   // some providers drop state from the error response; the error is more useful than a state complaint,
   // and a forged *success* still has to match
   if (parameters.error && !parameters.state) return undefined
@@ -115,9 +115,14 @@ export const completeAuthorization = async (
   const verify = verifierFor(config, verifyIdToken)
   if (flow === 'implicit') return checkIdToken({ ...parameters, type: OAuthType.IMPLICIT }, handoff, verify)
 
-  // the handoff carries redirect_uri and code_verifier, the redirect carries the code — the token
-  // endpoint needs both, and the type is set by `authorize`, so it stays unset here
-  const exchanged = await resolveOAuthFunctions(functions).authorize({ ...handoff, ...parameters }, config)
+  // FR-L2: the redirect carries the code and nothing else that is believed; a `code_verifier` or
+  // `redirect_uri` on it would let whoever wrote the link sign the person in as themselves.
+  const { code_verifier: _verifier, redirect_uri: _redirect, ...answer } = parameters
+  const { code_verifier, redirect_uri } = handoff ?? {}
+  const exchanged = await resolveOAuthFunctions(functions).authorize(
+    { ...answer, ...(redirect_uri && { redirect_uri }), ...(code_verifier && { code_verifier }) },
+    config
+  )
   if (exchanged?.error) return refused(exchanged)
   // `authorize` hands back what it was given when there was no answer to take its place.
   if (!exchanged?.access_token) return { ok: false, reason: 'unreachable' }

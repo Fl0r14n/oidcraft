@@ -12,7 +12,8 @@ export type IdTokenVerifierOptions = {
   jwksUri?: string | undefined
   issuer?: ExpectedIssuer | undefined
   audience?: string | undefined
-  /** off decodes without checking the signature — only for a provider that publishes no JWKS */
+  /** off decodes without checking the signature — only for a provider that publishes no JWKS. On, a
+   * token with no `jwksUri` to check it against is refused (FR-L2). */
   strict?: boolean | undefined
   allowInsecure?: boolean | undefined
 }
@@ -58,6 +59,7 @@ export const createIdTokenVerifier = ({
   const literal = literalIssuer(issuer)
   return async idToken => {
     if (!idToken) return {}
+    if (strict && !jwksSet) return { error: 'No jwks_uri to verify the ID token against' }
     try {
       if (!jwksSet) return decodeJwt<IdTokenClaims>(idToken)
       const { payload } = await jwtVerify(idToken, jwksSet, {

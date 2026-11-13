@@ -119,6 +119,8 @@ describe('useOAuthToken', () => {
 
 describe('useOAuthUser', () => {
   it('re-renders once the id_token claims are decoded', async () => {
+    // an unsigned test token: what is checked is the re-render, not the signature
+    oauth = createOAuth({ config: { tokenPath: '/t', clientId: 'c' }, functions: mockOAuthFunctions(), strictJwt: false })
     mount(<UserProbe />)
 
     await act(async () => {

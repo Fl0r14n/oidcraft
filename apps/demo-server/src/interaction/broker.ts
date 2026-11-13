@@ -45,15 +45,19 @@ export const brokerCallback = async (request: Request, url: URL) => {
     })
     if (!('accountId' in linked)) return screens.error('access_denied', 'this account needs linking by hand')
 
-    const { redirectTo, setCookie } = await provider.interactions.complete(interactionId, {
-      login: {
-        accountId: linked.accountId,
-        idp: identity.provider,
-        ...(identity.acr && { acr: identity.acr }),
-        ...(identity.amr && { amr: identity.amr }),
-        ...(identity.upstreamSessionId && { upstreamSessionId: identity.upstreamSessionId })
-      }
-    })
+    const { redirectTo, setCookie } = await provider.interactions.complete(
+      interactionId,
+      {
+        login: {
+          accountId: linked.accountId,
+          idp: identity.provider,
+          ...(identity.acr && { acr: identity.acr }),
+          ...(identity.amr && { amr: identity.amr }),
+          ...(identity.upstreamSessionId && { upstreamSessionId: identity.upstreamSessionId })
+        }
+      },
+      request.headers.get('cookie')
+    )
     return seeOther(redirectTo, [clearBinding, setCookie])
   } catch (error) {
     const description = error instanceof Error ? error.message : 'the upstream sign-in failed'

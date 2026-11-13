@@ -8,6 +8,9 @@ import { createProvider, type Provider } from '../provider'
 import { SESSION_COOKIE } from '../session/session'
 import { accessTokenHash } from './dpop'
 
+/** The browser-binding cookie the redirect to an interaction set, as the browser would send it back (FR-I2). */
+const browserOf = (response: Response) => response.headers.get('set-cookie')?.split(';')[0] ?? null
+
 const ISSUER = 'https://op.example.com'
 const REDIRECT = 'https://rp.example.com/cb'
 
@@ -88,7 +91,8 @@ const codeFor = async (clientId = 'rp', params = authorizationParams(clientId)) 
     const view = await provider.interactions.find(id)
     const done = await provider.interactions.complete(
       id,
-      view.kind === 'login' ? { login: { accountId: 'ada' } } : { consent: { scopes: view.scopes } }
+      view.kind === 'login' ? { login: { accountId: 'ada' } } : { consent: { scopes: view.scopes } },
+      browserOf(response)
     )
     if (done.setCookie) cookie = `${SESSION_COOKIE}=${done.setCookie.split('=')[1]?.split(';')[0]}`
     response = await provider.handle(new Request(done.redirectTo, { headers: cookie ? { cookie } : {} }))

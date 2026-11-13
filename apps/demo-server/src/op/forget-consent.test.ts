@@ -4,6 +4,9 @@ import { calculatePKCECodeChallenge, randomPKCECodeVerifier } from '@oidcraft/co
 import { createProvider } from '@oidcraft/provider'
 import { forgettingConsent } from './forget-consent'
 
+/** The browser-binding cookie the redirect to an interaction set, as the browser would send it back (FR-I2). */
+const browserOf = (response: Response) => response.headers.get('set-cookie')?.split(';')[0] ?? null
+
 const ISSUER = 'https://op.example.com'
 const REDIRECT = 'https://rp.example.com/cb'
 
@@ -47,9 +50,12 @@ describe('forgettingConsent', () => {
     const { provider } = await setup()
     const go = (url: string, cookie?: string) => provider.handle(new Request(url, { headers: cookie ? { cookie } : {} }))
 
-    const login = await provider.interactions.complete(interactionOf(await go(await authorizeUrl())) as string, {
-      login: { accountId: 'ada' }
-    })
+    const started = await go(await authorizeUrl())
+    const login = await provider.interactions.complete(
+      interactionOf(started) as string,
+      { login: { accountId: 'ada' } },
+      browserOf(started)
+    )
     const cookie = (login.setCookie as string).split(';')[0] as string
 
     let next = await go(login.redirectTo, cookie)
@@ -57,7 +63,7 @@ describe('forgettingConsent', () => {
       if (round > 1) next = await go(await authorizeUrl(), cookie)
       const consentId = interactionOf(next)
       expect({ round, asked: (await provider.interactions.find(consentId as string)).kind }).toEqual({ round, asked: 'consent' })
-      const consent = await provider.interactions.complete(consentId as string, { consent: { scopes: ['openid'] } })
+      const consent = await provider.interactions.complete(consentId as string, { consent: { scopes: ['openid'] } }, browserOf(next))
       const redirect = new URL((await go(consent.redirectTo, cookie)).headers.get('location') as string)
       expect({ round, code: Boolean(redirect.searchParams.get('code')) }).toEqual({ round, code: true })
     }

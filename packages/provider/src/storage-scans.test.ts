@@ -6,6 +6,9 @@ import { base64url } from 'jose'
 import type { Client } from './index'
 import { createProvider } from './provider'
 
+/** The browser-binding cookie the redirect to an interaction set, as the browser would send it back (FR-I2). */
+const browserOf = (response: Response) => response.headers.get('set-cookie')?.split(';')[0] ?? null
+
 const ISSUER = 'https://op.example.com'
 const REDIRECT = 'https://rp.example.com/cb'
 const SECRET = 'a-long-enough-client-secret'
@@ -73,13 +76,14 @@ test('a sign-in, a refresh, UserInfo, a revocation and a logout scan no whole fa
       })
     )
 
-  const login = await provider.interactions.complete(idOf(await authorize()), { login: { accountId: 'ada' } })
+  const started = await authorize()
+  const login = await provider.interactions.complete(idOf(started), { login: { accountId: 'ada' } }, browserOf(started))
   const cookie = (login.setCookie as string).split(';')[0] as string
+  const asked = await provider.handle(new Request(login.redirectTo, { headers: { cookie } }))
   const consent = await provider.interactions.complete(
-    idOf(await provider.handle(new Request(login.redirectTo, { headers: { cookie } }))),
-    {
-      consent: { scopes: ['openid', 'profile', 'offline_access'] }
-    }
+    idOf(asked),
+    { consent: { scopes: ['openid', 'profile', 'offline_access'] } },
+    browserOf(asked)
   )
   const granted = await provider.handle(new Request(consent.redirectTo, { headers: { cookie } }))
   const code = new URL(granted.headers.get('location') as string).searchParams.get('code') as string

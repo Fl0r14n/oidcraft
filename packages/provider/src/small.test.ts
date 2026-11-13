@@ -7,6 +7,9 @@ import type { Adapter, Client, LogoutNotification } from './index'
 import { createProvider } from './provider'
 import { pairwiseSubject } from './token/subjects'
 
+/** The browser-binding cookie the redirect to an interaction set, as the browser would send it back (FR-I2). */
+const browserOf = (response: Response) => response.headers.get('set-cookie')?.split(';')[0] ?? null
+
 const ISSUER = 'https://op.example.com'
 
 const SECRET_HASH = await hashClientSecret('a-long-enough-client-secret')
@@ -107,7 +110,7 @@ describe('the session cookie belongs to one issuer', () => {
     })
     const first = await provider.handle(new Request(`${issuer}/authorize?${params}`))
     const id = (first.headers.get('location') as string).split('/').pop() as string
-    const { setCookie } = await provider.interactions.complete(id, { login: { accountId: 'ada' } })
+    const { setCookie } = await provider.interactions.complete(id, { login: { accountId: 'ada' } }, browserOf(first))
     const pair = (setCookie as string).split(';')[0] as string
     return { provider, name: pair.split('=')[0] as string, pair }
   }

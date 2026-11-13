@@ -6,6 +6,9 @@ import type { Adapter } from '../index'
 import { createProvider, type Provider } from '../provider'
 import { SESSION_COOKIE } from '../session/session'
 
+/** The browser-binding cookie the redirect to an interaction set, as the browser would send it back (FR-I2). */
+const browserOf = (response: Response) => response.headers.get('set-cookie')?.split(';')[0] ?? null
+
 const ISSUER = 'https://op.example.com'
 const CLIENT_ID = 'https://app.example.com/oauth/client-metadata.json'
 const REDIRECT = 'http://localhost:3000/callback'
@@ -81,7 +84,7 @@ describe('client ID metadata documents (FR-C20)', () => {
   test('a document-registered client signs a person in, end to end, with no registration step', async () => {
     const first = await authorize()
     const loginId = new URL(first.headers.get('location') as string).pathname.split('/').pop() as string
-    const login = await provider.interactions.complete(loginId, { login: { accountId: 'ada' } })
+    const login = await provider.interactions.complete(loginId, { login: { accountId: 'ada' } }, browserOf(first))
     const cookie = `${SESSION_COOKIE}=${(login.setCookie as string).split('=')[1]?.split(';')[0]}`
     const second = await provider.handle(new Request(login.redirectTo, { headers: { cookie } }))
     const consentId = new URL(second.headers.get('location') as string).pathname.split('/').pop() as string
@@ -91,7 +94,7 @@ describe('client ID metadata documents (FR-C20)', () => {
     expect(view.clientId).toBe(CLIENT_ID)
     expect(view.redirectUri).toBe(REDIRECT)
 
-    const consent = await provider.interactions.complete(consentId, { consent: { scopes: ['openid'] } })
+    const consent = await provider.interactions.complete(consentId, { consent: { scopes: ['openid'] } }, browserOf(second))
     const third = await provider.handle(new Request(consent.redirectTo, { headers: { cookie } }))
     const code = new URL(third.headers.get('location') as string).searchParams.get('code') as string
 

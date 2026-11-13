@@ -282,7 +282,8 @@ export const authorize = async (
   config: ResolvedConfig,
   request: AuthorizationRequest,
   session: Session | undefined,
-  client?: Client
+  client: Client,
+  browser: string
 ): Promise<AuthorizationOutcome> => {
   // RFC 9470: a resource server can demand a stronger acr, and honouring it means re-authenticating
   // rather than issuing a token that quietly fails to meet it.
@@ -299,7 +300,7 @@ export const authorize = async (
     if (request.prompt.includes('none')) {
       throw new OAuthError('login_required', { description: 'no usable session and prompt=none', spec: 'OIDC Core §3.1.2.6' })
     }
-    return { kind: 'interaction', id: await suspend(config, request, 'login', undefined, client), reason: 'login' }
+    return { kind: 'interaction', id: await suspend(config, request, 'login', browser, undefined, client), reason: 'login' }
   }
 
   const grant = await config.adapter.grants.findByAccountAndClient(session.accountId, request.clientId)
@@ -318,7 +319,7 @@ export const authorize = async (
         spec: 'OIDC Core §3.1.2.6'
       })
     }
-    return { kind: 'interaction', id: await suspend(config, request, 'consent', session), reason: 'consent' }
+    return { kind: 'interaction', id: await suspend(config, request, 'consent', browser, session), reason: 'consent' }
   }
 
   // Spent here, atomically, so one approval yields one code however many replays race for it.
@@ -329,7 +330,7 @@ export const authorize = async (
         spec: 'OIDC Core §3.1.2.6'
       })
     }
-    return { kind: 'interaction', id: await suspend(config, request, 'consent', session), reason: 'consent' }
+    return { kind: 'interaction', id: await suspend(config, request, 'consent', browser, session), reason: 'consent' }
   }
 
   return { kind: 'response', values: await issueCode(config, request, session, grant as Grant) }
@@ -339,6 +340,7 @@ const suspend = async (
   config: ResolvedConfig,
   request: AuthorizationRequest,
   kind: 'login' | 'consent',
+  browser: string,
   session?: Session,
   client?: Client
 ) => {
@@ -364,6 +366,7 @@ const suspend = async (
     payload: {
       request,
       interactionKind: kind,
+      browser,
       ...(upstream && {
         upstream: { chosen: upstream.chosen?.id, candidates: upstream.candidates.map(provider => provider.id) }
       })

@@ -8,6 +8,9 @@ import type { Adapter, Client, ExchangePolicy } from '../index'
 import { createProvider, type Provider } from '../provider'
 import { SESSION_COOKIE } from '../session/session'
 
+/** The browser-binding cookie the redirect to an interaction set, as the browser would send it back (FR-I2). */
+const browserOf = (response: Response) => response.headers.get('set-cookie')?.split(';')[0] ?? null
+
 const ISSUER = 'https://op.example.com'
 const REDIRECT = 'https://rp.example.com/cb'
 const SECRET = 'shhh-a-long-enough-secret'
@@ -99,7 +102,8 @@ const tokensFor = async (provider: Provider, extra: Record<string, string> = {})
       id,
       view.kind === 'login'
         ? { login: { accountId: 'ada', acr: 'pwd' } }
-        : { consent: { scopes: view.scopes, authorizationDetails: view.authorizationDetails } }
+        : { consent: { scopes: view.scopes, authorizationDetails: view.authorizationDetails } },
+      browserOf(response)
     )
     if (done.setCookie) cookie = `${SESSION_COOKIE}=${done.setCookie.split('=')[1]?.split(';')[0]}`
     response = await provider.handle(new Request(done.redirectTo, { headers: cookie ? { cookie } : {} }))
@@ -279,8 +283,9 @@ describe('rich authorization requests', () => {
     }
 
     const loggedIn = async (provider: Provider) => {
-      const id = interactionOf(await provider.handle(new Request(authorizeUrl()))) as string
-      const done = await provider.interactions.complete(id, { login: { accountId: 'ada', acr: 'pwd' } })
+      const first = await provider.handle(new Request(authorizeUrl()))
+      const id = interactionOf(first) as string
+      const done = await provider.interactions.complete(id, { login: { accountId: 'ada', acr: 'pwd' } }, browserOf(first))
       const cookie = `${SESSION_COOKIE}=${done.setCookie?.split('=')[1]?.split(';')[0]}`
       return { cookie, next: await provider.handle(new Request(done.redirectTo, { headers: { cookie } })) }
     }
@@ -293,9 +298,13 @@ describe('rich authorization requests', () => {
       expect(view.kind).toBe('consent')
       expect(view.authorizationDetails).toEqual(JSON.parse(detail))
 
-      const done = await provider.interactions.complete(id, {
-        consent: { scopes: view.scopes, authorizationDetails: view.authorizationDetails }
-      })
+      const done = await provider.interactions.complete(
+        id,
+        {
+          consent: { scopes: view.scopes, authorizationDetails: view.authorizationDetails }
+        },
+        browserOf(next)
+      )
       const final = await provider.handle(new Request(done.redirectTo, { headers: { cookie } }))
       expect(new URL(final.headers.get('location') as string).searchParams.get('code')).toBeTruthy()
     })
@@ -312,9 +321,13 @@ describe('rich authorization requests', () => {
       const { cookie, next } = await loggedIn(provider)
       const id = interactionOf(next) as string
       const view = await provider.interactions.find(id)
-      const done = await provider.interactions.complete(id, {
-        consent: { scopes: view.scopes, authorizationDetails: view.authorizationDetails }
-      })
+      const done = await provider.interactions.complete(
+        id,
+        {
+          consent: { scopes: view.scopes, authorizationDetails: view.authorizationDetails }
+        },
+        browserOf(next)
+      )
       await provider.handle(new Request(done.redirectTo, { headers: { cookie } }))
 
       const again = await provider.handle(new Request(authorizeUrl(), { headers: { cookie } }))
@@ -326,7 +339,9 @@ describe('rich authorization requests', () => {
       const { next } = await loggedIn(provider)
       const id = interactionOf(next) as string
       const view = await provider.interactions.find(id)
-      await expect(provider.interactions.complete(id, { consent: { scopes: view.scopes } })).rejects.toThrow('every authorization detail')
+      await expect(provider.interactions.complete(id, { consent: { scopes: view.scopes } }, browserOf(next))).rejects.toThrow(
+        'every authorization detail'
+      )
     })
 
     test('prompt=none cannot skip it', async () => {
@@ -465,7 +480,7 @@ describe('resuming an interaction', () => {
 
     const first = await provider.handle(new Request(`${ISSUER}/authorize?${params}`))
     const id = new URL(first.headers.get('location') as string).pathname.split('/').pop() as string
-    const { redirectTo } = await provider.interactions.complete(id, { login: { accountId: 'ada' } })
+    const { redirectTo } = await provider.interactions.complete(id, { login: { accountId: 'ada' } }, browserOf(first))
 
     const resumed = new URL(redirectTo).searchParams
     for (const [name, value] of params) {

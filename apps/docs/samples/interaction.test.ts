@@ -50,11 +50,16 @@ const seeOther = (location: string, setCookie?: string) => {
 // #region login
 const pendingSecondFactor = new Map<string, string>()
 
-const submitLogin = async (id: string, form: URLSearchParams) => {
+const submitLogin = async (id: string, request: Request) => {
+  const form = new URLSearchParams(await request.text())
+  // The browser's cookie proves this is the browser the provider sent here, not a page posting to it (FR-I2).
+  const cookie = request.headers.get('cookie')
   if (form.get('decision') === 'cancel') {
-    const { redirectTo } = await provider.interactions.complete(id, {
-      error: { error: 'access_denied', description: 'the user cancelled the sign-in' }
-    })
+    const { redirectTo } = await provider.interactions.complete(
+      id,
+      { error: { error: 'access_denied', description: 'the user cancelled the sign-in' } },
+      cookie
+    )
     return seeOther(redirectTo)
   }
 
@@ -71,15 +76,18 @@ const submitLogin = async (id: string, form: URLSearchParams) => {
     return seeOther(`/interaction/${id}/otp`)
   }
 
-  const { redirectTo, setCookie } = await provider.interactions.complete(id, {
-    login: { accountId: result.accountId, acr: 'pwd', amr: ['pwd'] }
-  })
+  const { redirectTo, setCookie } = await provider.interactions.complete(
+    id,
+    { login: { accountId: result.accountId, acr: 'pwd', amr: ['pwd'] } },
+    cookie
+  )
   return seeOther(redirectTo, setCookie)
 }
 // #endregion login
 
 // #region second-factor
-const submitCode = async (id: string, form: URLSearchParams) => {
+const submitCode = async (id: string, request: Request) => {
+  const form = new URLSearchParams(await request.text())
   const accountId = pendingSecondFactor.get(id)
   if (!accountId) return new Response('Sign in with your password first.', { status: 400 })
 
@@ -88,27 +96,32 @@ const submitCode = async (id: string, form: URLSearchParams) => {
 
   pendingSecondFactor.delete(id)
   const amr = result.method === 'otp' ? ['pwd', 'otp', 'mfa'] : ['pwd', 'mfa']
-  const { redirectTo, setCookie } = await provider.interactions.complete(id, { login: { accountId, acr: 'mfa', amr } })
+  const { redirectTo, setCookie } = await provider.interactions.complete(
+    id,
+    { login: { accountId, acr: 'mfa', amr } },
+    request.headers.get('cookie')
+  )
   return seeOther(redirectTo, setCookie)
 }
 // #endregion second-factor
 
 // #region consent
-const submitConsent = async (id: string, form: URLSearchParams) => {
+const submitConsent = async (id: string, request: Request) => {
+  const form = new URLSearchParams(await request.text())
   const view = await provider.interactions.find(id)
   const outcome: InteractionResult =
     form.get('decision') === 'allow'
       ? { consent: { scopes: view.scopes, authorizationDetails: view.authorizationDetails } }
       : { error: { error: 'access_denied', description: 'the user declined' } }
-  const { redirectTo, setCookie } = await provider.interactions.complete(id, outcome)
+  const { redirectTo, setCookie } = await provider.interactions.complete(id, outcome, request.headers.get('cookie'))
   return seeOther(redirectTo, setCookie)
 }
 // #endregion consent
 
 // #region expired
-const answer = async (id: string, form: URLSearchParams, handler: typeof submitConsent) => {
+const answer = async (id: string, request: Request, handler: typeof submitConsent) => {
   try {
-    return await handler(id, form)
+    return await handler(id, request)
   } catch (error) {
     if (error instanceof OAuthError) return new Response('This sign-in expired. Start again from the application.', { status: 400 })
     throw error
@@ -143,20 +156,32 @@ const authorizeUrl = (over: Record<string, string> = {}) =>
   })}`
 
 const browser = () => {
-  let cookie: string | undefined
+  const jar = new Map<string, string>()
+  const header = () => [...jar].map(([name, value]) => `${name}=${value}`).join('; ')
+  const keep = (response: Response) => {
+    for (const set of response.headers.getSetCookie()) {
+      const [pair = ''] = set.split(';')
+      const [name = '', value = ''] = pair.split('=')
+      if (/max-age=0/i.test(set)) jar.delete(name)
+      else jar.set(name, value)
+    }
+  }
   return {
     get cookie() {
-      return cookie
+      return header()
+    },
+    /** A form post from this browser, carrying its cookies as the real one would. */
+    post(values: Record<string, string>) {
+      return new Request(`${ISSUER}/interaction`, { method: 'POST', headers: { cookie: header() }, body: new URLSearchParams(values) })
     },
     async follow(response: Response) {
       let current = response
       for (;;) {
-        const setCookie = current.headers.get('set-cookie')
-        if (setCookie) cookie = setCookie.split(';')[0]
+        keep(current)
         const location = current.headers.get('location')
         if (!location) throw new Error(`no redirect: ${current.status}`)
         if (!location.startsWith(ISSUER) || location.startsWith(`${ISSUER}/interaction/`)) return new URL(location)
-        current = await provider.handle(new Request(location, { headers: cookie ? { cookie } : {} }))
+        current = await provider.handle(new Request(location, { headers: { cookie: header() } }))
       }
     },
     open(url: string) {
@@ -169,8 +194,6 @@ const interactionId = (url: URL) => {
   expect(url.origin + url.pathname.replace(/\/[^/]+$/, '')).toBe(`${ISSUER}/interaction`)
   return url.pathname.split('/').pop() as string
 }
-
-const form = (values: Record<string, string>) => new URLSearchParams(values)
 
 const exchange = async (code: string) => {
   const response = await provider.handle(
@@ -203,6 +226,7 @@ describe('the interaction contract', () => {
     expect(location.pathname).toStartWith('/interaction/')
     const id = location.pathname.split('/').pop() as string
     // #endregion suspend
+    await ada.follow(response)
 
     // #region read
     const view = await provider.interactions.find(id)
@@ -222,14 +246,14 @@ describe('the interaction contract', () => {
     // #endregion read
 
     // #region resume
-    const signedIn = await submitLogin(id, form({ username: 'ada', password: 'correct horse battery' }))
+    const signedIn = await submitLogin(id, ada.post({ username: 'ada', password: 'correct horse battery' }))
     expect(signedIn.headers.get('set-cookie')).toContain('HttpOnly')
     const next = await ada.follow(signedIn)
     const consentId = interactionId(next)
     expect((await provider.interactions.find(consentId)).kind).toBe('consent')
     // #endregion resume
 
-    const back = await ada.follow(await submitConsent(consentId, form({ decision: 'allow' })))
+    const back = await ada.follow(await submitConsent(consentId, ada.post({ decision: 'allow' })))
     expect(back.origin + back.pathname).toBe(CALLBACK)
     expect(back.searchParams.get('state')).toBe('af0ifjsldkj')
     expect(back.searchParams.get('iss')).toBe(ISSUER)
@@ -241,10 +265,10 @@ describe('the interaction contract', () => {
   test('the field rules reject an empty or overlong field before any lookup', async () => {
     const ada = browser()
     const id = interactionId(await ada.open(authorizeUrl()))
-    const response = await submitLogin(id, form({ username: '', password: 'x'.repeat(200) }))
+    const response = await submitLogin(id, ada.post({ username: '', password: 'x'.repeat(200) }))
     expect(response.status).toBe(400)
     expect(await response.json()).toEqual({ errors: { username: 'required', password: 'tooLong' } })
-    expect((await submitLogin(id, form({ username: 'nobody', password: 'wrong-password' }))).status).toBe(401)
+    expect((await submitLogin(id, ada.post({ username: 'nobody', password: 'wrong-password' }))).status).toBe(401)
     expect((await provider.interactions.find(id)).kind).toBe('login')
   })
 
@@ -257,13 +281,13 @@ describe('the interaction contract', () => {
 
     const grace = browser()
     const id = interactionId(await grace.open(authorizeUrl()))
-    const first = await submitLogin(id, form({ username: 'grace', password: 'correct horse battery' }))
+    const first = await submitLogin(id, grace.post({ username: 'grace', password: 'correct horse battery' }))
     expect(first.headers.get('location')).toBe(`/interaction/${id}/otp`)
     expect(first.headers.get('set-cookie')).toBeNull()
-    expect((await submitCode(id, form({ code: '000000' }))).status).toBe(401)
+    expect((await submitCode(id, grace.post({ code: '000000' }))).status).toBe(401)
 
-    const consentId = interactionId(await grace.follow(await submitCode(id, form({ code: recovery }))))
-    const back = await grace.follow(await submitConsent(consentId, form({ decision: 'allow' })))
+    const consentId = interactionId(await grace.follow(await submitCode(id, grace.post({ code: recovery }))))
+    const back = await grace.follow(await submitConsent(consentId, grace.post({ decision: 'allow' })))
     expect(await exchange(back.searchParams.get('code') as string)).toMatchObject({ acr: 'mfa', amr: ['pwd', 'mfa'] })
   })
 
@@ -273,7 +297,7 @@ describe('the interaction contract', () => {
 
     // #region cancel
     const id = interactionId(await alan.open(authorizeUrl()))
-    const cancelled = await alan.follow(await submitLogin(id, form({ decision: 'cancel' })))
+    const cancelled = await alan.follow(await submitLogin(id, alan.post({ decision: 'cancel' })))
     expect(cancelled.origin + cancelled.pathname).toBe('https://app.example.com/callback')
     expect(Object.fromEntries(cancelled.searchParams)).toEqual({
       error: 'access_denied',
@@ -285,9 +309,9 @@ describe('the interaction contract', () => {
 
     const loginId = interactionId(await alan.open(authorizeUrl()))
     const consentId = interactionId(
-      await alan.follow(await submitLogin(loginId, form({ username: 'alan', password: 'correct horse battery' })))
+      await alan.follow(await submitLogin(loginId, alan.post({ username: 'alan', password: 'correct horse battery' })))
     )
-    const declined = await alan.follow(await submitConsent(consentId, form({ decision: 'deny' })))
+    const declined = await alan.follow(await submitConsent(consentId, alan.post({ decision: 'deny' })))
     expect(declined.searchParams.get('error')).toBe('access_denied')
     expect(declined.searchParams.get('code')).toBeNull()
     expect(await provider.config.adapter.grants.listForAccount(accountId)).toEqual([])
@@ -297,17 +321,32 @@ describe('the interaction contract', () => {
     const accountId = await register('edsger')
     const edsger = browser()
     const id = interactionId(await edsger.open(authorizeUrl()))
-    await submitLogin(id, form({ username: 'edsger', password: 'correct horse battery' }))
+    await submitLogin(id, edsger.post({ username: 'edsger', password: 'correct horse battery' }))
 
     // #region replayed
-    const again = provider.interactions.complete(id, { login: { accountId } })
+    const again = provider.interactions.complete(id, { login: { accountId } }, edsger.cookie)
     await expect(again).rejects.toBeInstanceOf(OAuthError)
     await expect(again).rejects.toMatchObject({ code: 'invalid_request', status: 404 })
     await expect(provider.interactions.find(id)).rejects.toMatchObject({ status: 404 })
     // #endregion replayed
 
-    const page = await answer(id, form({ decision: 'allow' }), submitConsent)
+    const page = await answer(id, edsger.post({ decision: 'allow' }), submitConsent)
     expect(page.status).toBe(400)
+  })
+
+  test('an answer posted from another browser is refused, and the interaction is still there', async () => {
+    await register('hedy')
+    const hedy = browser()
+    const id = interactionId(await hedy.open(authorizeUrl()))
+
+    // #region other-browser
+    const attacker = browser()
+    const planted = submitLogin(id, attacker.post({ username: 'hedy', password: 'correct horse battery' }))
+    await expect(planted).rejects.toMatchObject({ code: 'invalid_request', status: 403, spec: 'FR-I2' })
+    // #endregion other-browser
+
+    const signedIn = await submitLogin(id, hedy.post({ username: 'hedy', password: 'correct horse battery' }))
+    expect(signedIn.status).toBe(303)
   })
 
   test('consent is remembered as a grant, and revoking the grant asks again', async () => {
@@ -315,9 +354,9 @@ describe('the interaction contract', () => {
     const barbara = browser()
     const loginId = interactionId(await barbara.open(authorizeUrl()))
     const consentId = interactionId(
-      await barbara.follow(await submitLogin(loginId, form({ username: 'barbara', password: 'correct horse battery' })))
+      await barbara.follow(await submitLogin(loginId, barbara.post({ username: 'barbara', password: 'correct horse battery' })))
     )
-    await barbara.follow(await submitConsent(consentId, form({ decision: 'allow' })))
+    await barbara.follow(await submitConsent(consentId, barbara.post({ decision: 'allow' })))
 
     // #region remembered
     const again = await barbara.open(authorizeUrl())
@@ -339,15 +378,21 @@ describe('the interaction contract', () => {
     const donald = browser()
     const loginId = interactionId(await donald.open(authorizeUrl({ scope: 'openid profile email' })))
     const consentId = interactionId(
-      await donald.follow(await submitLogin(loginId, form({ username: 'donald', password: 'correct horse battery' })))
+      await donald.follow(await submitLogin(loginId, donald.post({ username: 'donald', password: 'correct horse battery' })))
     )
 
     // #region partial
-    await expect(provider.interactions.complete(consentId, { consent: { scopes: ['openid', 'profile'] } })).rejects.toMatchObject({
+    await expect(
+      provider.interactions.complete(consentId, { consent: { scopes: ['openid', 'profile'] } }, donald.cookie)
+    ).rejects.toMatchObject({
       code: 'invalid_request',
       spec: 'FR-I4'
     })
-    const { redirectTo } = await provider.interactions.complete(consentId, { consent: { scopes: ['openid', 'profile', 'email'] } })
+    const { redirectTo } = await provider.interactions.complete(
+      consentId,
+      { consent: { scopes: ['openid', 'profile', 'email'] } },
+      donald.cookie
+    )
     // #endregion partial
 
     expect(new URL(redirectTo).pathname).toBe('/authorize')
@@ -363,7 +408,7 @@ describe('the interaction contract', () => {
     expect(anonymous.searchParams.get('error')).toBe('login_required')
 
     const loginId = interactionId(await frances.open(authorizeUrl()))
-    await frances.follow(await submitLogin(loginId, form({ username: 'frances', password: 'correct horse battery' })))
+    await frances.follow(await submitLogin(loginId, frances.post({ username: 'frances', password: 'correct horse battery' })))
     const noGrant = await frances.open(authorizeUrl({ prompt: 'none' }))
     expect(noGrant.searchParams.get('error')).toBe('consent_required')
     // #endregion prompt-none
@@ -374,9 +419,9 @@ describe('the interaction contract', () => {
     const john = browser()
     const loginId = interactionId(await john.open(authorizeUrl()))
     const consentId = interactionId(
-      await john.follow(await submitLogin(loginId, form({ username: 'john', password: 'correct horse battery' })))
+      await john.follow(await submitLogin(loginId, john.post({ username: 'john', password: 'correct horse battery' })))
     )
-    await john.follow(await submitConsent(consentId, form({ decision: 'allow' })))
+    await john.follow(await submitConsent(consentId, john.post({ decision: 'allow' })))
 
     // #region reauthenticate
     for (const over of [{ prompt: 'login' }, { prompt: 'select_account' }, { max_age: '0' }, { acr_values: 'mfa' }]) {
@@ -389,7 +434,7 @@ describe('the interaction contract', () => {
     // #endregion reauthenticate
 
     // #region acr-trusted
-    const done = await provider.interactions.complete(stepUp.id, { login: { accountId, acr: 'pwd', amr: ['pwd'] } })
+    const done = await provider.interactions.complete(stepUp.id, { login: { accountId, acr: 'pwd', amr: ['pwd'] } }, john.cookie)
     const back = await john.follow(seeOther(done.redirectTo, done.setCookie))
     expect(back.searchParams.get('code')).toBeString()
     expect(await exchange(back.searchParams.get('code') as string)).toMatchObject({ acr: 'pwd' })
@@ -401,14 +446,14 @@ describe('the interaction contract', () => {
     const first = browser()
     const loginId = interactionId(await first.open(authorizeUrl()))
     const consentId = interactionId(
-      await first.follow(await submitLogin(loginId, form({ username: 'margaret', password: 'correct horse battery' })))
+      await first.follow(await submitLogin(loginId, first.post({ username: 'margaret', password: 'correct horse battery' })))
     )
-    await first.follow(await submitConsent(consentId, form({ decision: 'allow' })))
+    await first.follow(await submitConsent(consentId, first.post({ decision: 'allow' })))
 
     const other = browser()
     const loginFirst = interactionId(await other.open(authorizeUrl({ prompt: 'consent' })))
     const afterLoginOnly = await other.follow(
-      await submitLogin(loginFirst, form({ username: 'margaret', password: 'correct horse battery' }))
+      await submitLogin(loginFirst, other.post({ username: 'margaret', password: 'correct horse battery' }))
     )
     expect(afterLoginOnly.searchParams.get('code')).toBeNull()
     expect((await provider.interactions.find(interactionId(afterLoginOnly))).kind).toBe('consent')
@@ -419,10 +464,14 @@ describe('the interaction contract', () => {
     const view = await provider.interactions.find(id)
     expect(view).toMatchObject({ kind: 'login', prompt: ['consent'] })
 
-    const done = await provider.interactions.complete(id, {
-      login: { accountId, acr: 'pwd', amr: ['pwd'] },
-      ...(view.prompt.includes('consent') && { consent: { scopes: view.scopes } })
-    })
+    const done = await provider.interactions.complete(
+      id,
+      {
+        login: { accountId, acr: 'pwd', amr: ['pwd'] },
+        ...(view.prompt.includes('consent') && { consent: { scopes: view.scopes } })
+      },
+      fresh.cookie
+    )
     // #endregion prompt-consent
     expect((await fresh.follow(seeOther(done.redirectTo, done.setCookie))).searchParams.get('code')).toBeString()
   })
@@ -431,14 +480,14 @@ describe('the interaction contract', () => {
     await register('ken')
     const ken = browser()
     const loginId = interactionId(await ken.open(authorizeUrl()))
-    await ken.follow(await submitLogin(loginId, form({ username: 'ken', password: 'correct horse battery' })))
+    await ken.follow(await submitLogin(loginId, ken.post({ username: 'ken', password: 'correct horse battery' })))
 
     // #region logout
     const confirm = interactionId(await ken.open(`${ISSUER}/session/end`))
     expect((await provider.interactions.find(confirm)).kind).toBe('logout')
 
-    const { redirectTo } = await provider.interactions.complete(confirm, { logout: true })
-    const ended = await provider.handle(new Request(redirectTo, { headers: { cookie: ken.cookie as string } }))
+    const { redirectTo } = await provider.interactions.complete(confirm, { logout: true }, ken.cookie)
+    const ended = await provider.handle(new Request(redirectTo, { headers: { cookie: ken.cookie } }))
     expect(ended.status).toBe(200)
     expect(ended.headers.get('set-cookie')).toContain('Max-Age=0')
     // #endregion logout

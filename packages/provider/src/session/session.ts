@@ -6,11 +6,13 @@ import { parseCookies, serializeCookie } from './cookies'
 
 export const SESSION_COOKIE = 'oidcraft.sid'
 
-/** One cookie per issuer: two issuers on one host, told apart by path, would otherwise overwrite each other's session. */
-export const sessionCookie = (config: Pick<ResolvedConfig, 'issuerUrl'>) => {
+/** One cookie per issuer: two issuers on one host, told apart by path, would otherwise overwrite each other's. */
+export const perIssuer = (config: Pick<ResolvedConfig, 'issuerUrl'>, name: string) => {
   const path = config.issuerUrl.pathname.replace(/^\/+|\/+$/g, '')
-  return path ? `${SESSION_COOKIE}.${path.replace(/[^A-Za-z0-9]/g, '_')}` : SESSION_COOKIE
+  return path ? `${name}.${path.replace(/[^A-Za-z0-9]/g, '_')}` : name
 }
+
+export const sessionCookie = (config: Pick<ResolvedConfig, 'issuerUrl'>) => perIssuer(config, SESSION_COOKIE)
 
 // NFR-S11: the cookie carries a secret and the session is stored under its hash, which is the `sid` clients are told.
 export const readSession = async (config: ResolvedConfig, request: Request) => {

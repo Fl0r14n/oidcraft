@@ -48,7 +48,8 @@ export type RefreshTokenPayload = {
 
 export type DeviceLogin = { userCode: string; scopes: string[] }
 
-export type InteractionPayload =
+/** `browser` is the hash of the binding cookie of the browser sent to it (FR-I2). */
+export type InteractionPayload = { browser: string } & (
   | {
       interactionKind: 'login' | 'consent'
       request: AuthorizationRequest
@@ -56,6 +57,7 @@ export type InteractionPayload =
     }
   | { interactionKind: 'login'; device: DeviceLogin }
   | { interactionKind: 'logout'; sessionId: string; state?: string }
+)
 
 type Empty = Record<string, never>
 

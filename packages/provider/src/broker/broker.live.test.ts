@@ -7,6 +7,9 @@ import { SESSION_COOKIE } from '../session/session'
 import { createBroker } from './broker'
 import { linkIdentity } from './link'
 
+/** The browser-binding cookie the redirect to an interaction set, as the browser would send it back (FR-I2). */
+const browserOf = (response: Response) => response.headers.get('set-cookie')?.split(';')[0] ?? null
+
 /**
  * The upstream is a second oidcraft instance (ARCHITECTURE.md §10). Brokering to ourselves
  * exercises both legs for real — discovery, PKCE, the code exchange, the ID token — without
@@ -88,7 +91,7 @@ const authenticateUpstream = async (authorizationUrl: string) => {
     const view = await upstream.interactions.find(id)
     const outcome = view.kind === 'login' ? { login: { accountId: 'ada' } } : { consent: { scopes: view.scopes } }
 
-    const completed = await upstream.interactions.complete(id, outcome)
+    const completed = await upstream.interactions.complete(id, outcome, browserOf(response))
     if (completed.setCookie) cookie = `${SESSION_COOKIE}=${completed.setCookie.split('=')[1]?.split(';')[0]}`
     response = await upstream.handle(new Request(completed.redirectTo, { headers: cookie ? { cookie } : {} }))
   }

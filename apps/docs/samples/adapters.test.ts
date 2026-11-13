@@ -7,6 +7,9 @@ import { adapterConformance } from '@oidcraft/adapter/conformance'
 import { calculatePKCECodeChallenge, randomPKCECodeVerifier } from '@oidcraft/core'
 import { createProvider, type Provider } from '@oidcraft/provider'
 
+/** The browser-binding cookie the redirect to an interaction set, as the browser would send it back (FR-I2). */
+const browserOf = (response: Response) => response.headers.get('set-cookie')?.split(';')[0] ?? null
+
 // #endregion conformance-import
 
 // #region kv-store
@@ -105,11 +108,15 @@ const signIn = async (op: Provider) => {
   const go = (url: string, cookie = '') => op.handle(new Request(url, { headers: { cookie } }))
 
   people += 1
-  const login = await op.interactions.complete(idOf(await go(`${issuer}/authorize?${query}`)), { login: { accountId: `person-${people}` } })
+  const started = await go(`${issuer}/authorize?${query}`)
+  const login = await op.interactions.complete(idOf(started), { login: { accountId: `person-${people}` } }, browserOf(started))
   const cookie = (login.setCookie as string).split(';')[0] as string
-  const consent = await op.interactions.complete(idOf(await go(login.redirectTo, cookie)), {
-    consent: { scopes: ['openid', 'profile', 'offline_access'] }
-  })
+  const asked = await go(login.redirectTo, cookie)
+  const consent = await op.interactions.complete(
+    idOf(asked),
+    { consent: { scopes: ['openid', 'profile', 'offline_access'] } },
+    browserOf(asked)
+  )
   const code = new URL((await go(consent.redirectTo, cookie)).headers.get('location') as string).searchParams.get('code') as string
   return { code, verifier }
 }

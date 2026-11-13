@@ -398,7 +398,7 @@ with a throwaway test. Several predate this week's work and shipped in 0.3.0. In
   and `redirect_uri` from the handoff only. FR-L2, RFC 9700 §4.7. Probe
 - [x] With no `jwksUri` the ID token is decoded, not verified (`core/src/jwt.ts:62`): statically
   configured endpoints, or an implicit callback after a reload. Refuse rather than decode. FR-L2. Probe
-- [ ] Login CSRF at the provider: an interaction is completed by its id alone, so a page can post the
+- [x] Login CSRF at the provider: an interaction is completed by its id alone, so a page can post the
   attacker's own credentials to the attacker's interaction from the victim's browser and set the
   victim's session (`authorize/interactions.ts`, `@oidcraft/ui` forms). Bind an interaction to the
   browser that started it, as the broker's handoff is (FR-F3); the device approval form likewise.

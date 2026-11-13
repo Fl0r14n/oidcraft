@@ -113,8 +113,10 @@ the original request and may ask again (FR-I1, FR-I2; ARCHITECTURE.md §6 calls 
 - **Reading what is asked.** `provider.interactionDetails(req, res)` becomes
   `provider.interactions.find(id)`. It returns a view whose `kind` is `login`, `consent` or `logout`.
 - **Answering.** `provider.interactionFinished(req, res, result)` and `interactionResult` become
-  `provider.interactions.complete(id, result)`. It returns the redirect and any session cookie for
-  you to send, instead of writing to a Node response.
+  `provider.interactions.complete(id, result, cookie)`, with the request's `cookie` header. It returns
+  the redirect and any session cookie for you to send, instead of writing to a Node response. Like
+  `oidc-provider`'s interaction cookie, the cookie binds the interaction to the browser that started
+  it, so the interaction routes are served on the issuer's host.
 - **Consent.** In `oidc-provider`, your interaction code builds a `Grant` and saves it. In oidcraft,
   consent is a list of scopes in the result, remembered as a durable grant, so a returning user is
   not asked again and revoking the grant asks again (FR-I4).

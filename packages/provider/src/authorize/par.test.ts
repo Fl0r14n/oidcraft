@@ -6,6 +6,9 @@ import { base64url, exportJWK, generateKeyPair, SignJWT } from 'jose'
 import type { Adapter, Client } from '../index'
 import { createProvider, type Provider } from '../provider'
 
+/** The browser-binding cookie the redirect to an interaction set, as the browser would send it back (FR-I2). */
+const browserOf = (response: Response) => response.headers.get('set-cookie')?.split(';')[0] ?? null
+
 const ISSUER = 'https://op.example.com'
 const REDIRECT = 'https://rp.example.com/cb'
 const SECRET = 'shhh-a-long-enough-secret'
@@ -153,13 +156,15 @@ describe('pushed authorization requests', () => {
       return provider.handle(new Request(url, { headers: cookie ? { cookie } : {} }))
     }
 
-    const login = await provider.interactions.complete(await interactionId(await authorize({ client_id: 'strict', request_uri })), {
-      login: { accountId: 'ada' }
-    })
+    const started = await authorize({ client_id: 'strict', request_uri })
+    const login = await provider.interactions.complete(await interactionId(started), { login: { accountId: 'ada' } }, browserOf(started))
     const cookie = login.setCookie?.split(';')[0]
-    const consent = await provider.interactions.complete(await interactionId(await follow(login.redirectTo, cookie)), {
-      consent: { scopes: ['openid', 'profile'] }
-    })
+    const asked = await follow(login.redirectTo, cookie)
+    const consent = await provider.interactions.complete(
+      await interactionId(asked),
+      { consent: { scopes: ['openid', 'profile'] } },
+      browserOf(asked)
+    )
     const done = new URL((await follow(consent.redirectTo, cookie)).headers.get('location') as string)
     expect(done.origin + done.pathname).toBe(REDIRECT)
     expect(done.searchParams.get('code')).toBeTruthy()

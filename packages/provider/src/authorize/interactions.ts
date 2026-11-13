@@ -3,6 +3,7 @@ import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
 import type { InteractionCompletion, InteractionRequest, InteractionResult } from '../interaction'
 import { type DeviceLogin, type InteractionPayload, readArtifact, writeArtifact } from '../payloads'
+import { assertSameBrowser } from '../session/browser'
 import { startSession } from '../session/session'
 import { type AuthorizationRequest, detailsConsentId, type ResponseTarget } from './authorization'
 import { recordConsent } from './consent'
@@ -56,8 +57,9 @@ export const interactions = (config: ResolvedConfig) => ({
    * The result is never carried in the redirect: state that decides an authorization does not
    * belong in a URL the user can edit.
    */
-  async complete(id: string, outcome: InteractionResult): Promise<InteractionCompletion> {
+  async complete(id: string, outcome: InteractionResult, cookie: string | null): Promise<InteractionCompletion> {
     const { artifact, payload } = await load(config, id)
+    await assertSameBrowser(config, cookie, payload.browser)
     if (payload.interactionKind === 'logout') return confirmLogout(config, id, payload, outcome)
     if ('device' in payload) return completeDeviceLogin(config, id, artifact.clientId, payload.device, outcome)
     const { request } = payload

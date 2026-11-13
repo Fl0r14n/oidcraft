@@ -8,6 +8,9 @@ import type { Adapter, Client, LogoutNotification } from './index'
 import { createProvider, type Provider } from './provider'
 import { SESSION_COOKIE } from './session/session'
 
+/** The browser-binding cookie the redirect to an interaction set, as the browser would send it back (FR-I2). */
+const browserOf = (response: Response) => response.headers.get('set-cookie')?.split(';')[0] ?? null
+
 const ISSUER = 'https://op.example.com'
 const REDIRECT = 'https://rp.example.com/cb'
 const SECRET = 'shhh-a-long-enough-secret'
@@ -81,12 +84,16 @@ const tokens = async () => {
   })
   const first = await provider.handle(new Request(`${ISSUER}/authorize?${params}`))
   const loginId = new URL(first.headers.get('location') as string).pathname.split('/').pop() as string
-  const login = await provider.interactions.complete(loginId, { login: { accountId: 'ada' } })
+  const login = await provider.interactions.complete(loginId, { login: { accountId: 'ada' } }, browserOf(first))
   const cookie = `${SESSION_COOKIE}=${(login.setCookie as string).split('=')[1]?.split(';')[0]}`
 
   const second = await provider.handle(new Request(login.redirectTo, { headers: { cookie } }))
   const consentId = new URL(second.headers.get('location') as string).pathname.split('/').pop() as string
-  const consent = await provider.interactions.complete(consentId, { consent: { scopes: ['openid', 'profile', 'offline_access'] } })
+  const consent = await provider.interactions.complete(
+    consentId,
+    { consent: { scopes: ['openid', 'profile', 'offline_access'] } },
+    browserOf(second)
+  )
 
   const third = await provider.handle(new Request(consent.redirectTo, { headers: { cookie } }))
   const code = new URL(third.headers.get('location') as string).searchParams.get('code') as string
@@ -320,12 +327,12 @@ describe('end session', () => {
     const issued = await tokens()
     const asked = await provider.handle(new Request(`${ISSUER}/session/end`, { headers: { cookie: issued.cookie } }))
     expect(asked.status).toBe(303)
-    expect(asked.headers.get('set-cookie')).toBeNull()
+    expect(asked.headers.get('set-cookie') ?? '').not.toContain(SESSION_COOKIE)
     const id = (asked.headers.get('location') as string).split('/').pop() as string
     expect((await provider.interactions.find(id)).kind).toBe('logout')
     expect(await adapter.sessions.listForAccount('ada')).toHaveLength(1)
 
-    const { redirectTo } = await provider.interactions.complete(id, { logout: true })
+    const { redirectTo } = await provider.interactions.complete(id, { logout: true }, browserOf(asked))
     const done = await provider.handle(new Request(redirectTo, { headers: { cookie: issued.cookie } }))
     expect(done.status).toBe(200)
     expect(done.headers.get('set-cookie')).toContain('Max-Age=0')
@@ -338,7 +345,7 @@ describe('end session', () => {
     const issued = await tokens()
     const asked = await provider.handle(new Request(`${ISSUER}/session/end`, { headers: { cookie: issued.cookie } }))
     const id = (asked.headers.get('location') as string).split('/').pop() as string
-    const { redirectTo } = await provider.interactions.complete(id, { logout: true })
+    const { redirectTo } = await provider.interactions.complete(id, { logout: true }, browserOf(asked))
     const other = {
       id: await storedId('other'),
       accountId: 'grace',

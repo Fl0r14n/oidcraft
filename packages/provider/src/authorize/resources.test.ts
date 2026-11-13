@@ -9,6 +9,9 @@ import { createProvider, type Provider } from '../provider'
 import { protectedResourceMetadata, protectedResourceMetadataUrl } from '../resource/protected-resource'
 import { SESSION_COOKIE } from '../session/session'
 
+/** The browser-binding cookie the redirect to an interaction set, as the browser would send it back (FR-I2). */
+const browserOf = (response: Response) => response.headers.get('set-cookie')?.split(';')[0] ?? null
+
 const ISSUER = 'https://op.example.com'
 const REDIRECT = 'https://rp.example.com/cb'
 const MCP = 'https://mcp.example.com/mcp'
@@ -97,11 +100,15 @@ const authorize = (resources: string[], clientId = 'rp') => {
 const codeFor = async (resources: string[], clientId = 'rp') => {
   const first = await authorize(resources, clientId)
   const loginId = new URL(first.headers.get('location') as string).pathname.split('/').pop() as string
-  const login = await provider.interactions.complete(loginId, { login: { accountId: 'ada' } })
+  const login = await provider.interactions.complete(loginId, { login: { accountId: 'ada' } }, browserOf(first))
   const cookie = `${SESSION_COOKIE}=${(login.setCookie as string).split('=')[1]?.split(';')[0]}`
   const second = await provider.handle(new Request(login.redirectTo, { headers: { cookie } }))
   const consentId = new URL(second.headers.get('location') as string).pathname.split('/').pop() as string
-  const consent = await provider.interactions.complete(consentId, { consent: { scopes: ['openid', 'offline_access', 'tools'] } })
+  const consent = await provider.interactions.complete(
+    consentId,
+    { consent: { scopes: ['openid', 'offline_access', 'tools'] } },
+    browserOf(second)
+  )
   const third = await provider.handle(new Request(consent.redirectTo, { headers: { cookie } }))
   return new URL(third.headers.get('location') as string).searchParams.get('code') as string
 }

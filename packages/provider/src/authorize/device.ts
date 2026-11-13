@@ -5,6 +5,7 @@ import type { ResolvedConfig } from '../config'
 import type { ClientCertificate, RequestContext } from '../context'
 import { OAuthError } from '../errors'
 import { readArtifact, readByUserCode, type Stored, writeArtifact } from '../payloads'
+import { bindBrowser } from '../session/browser'
 import type { Binding } from '../token/issue'
 import { type Approval, answer, answered, DEFAULT_INTERVAL, type Flow, type Polled, redeem } from './decoupled'
 
@@ -168,20 +169,23 @@ export const resolveDeviceCode = async (
  * Approving needs a signed-in person, and a verification page has no authorization request to
  * suspend. This is the login interaction it lacks: the same screens, then back to that page (FR-C7).
  */
-export const deviceSignIn = async (config: ResolvedConfig, typed: string, context: UserCodeContext = {}) => {
+export type DeviceSignInContext = UserCodeContext & { cookie: string | null }
+
+export const deviceSignIn = async (config: ResolvedConfig, typed: string, { cookie, ...context }: DeviceSignInContext) => {
   const found = await findByUserCode(config, typed, context)
   if (found?.payload.status !== 'pending') {
     throw new OAuthError('invalid_request', { description: 'that code is not one we are waiting for', status: 404, spec: 'FR-C7' })
   }
   const id = randomString()
+  const { browser, setCookie } = await bindBrowser(config, cookie)
   await writeArtifact(config.adapter.artifacts, {
     id,
     kind: 'interaction',
     clientId: found.artifact.clientId,
-    payload: { interactionKind: 'login', device: { userCode: found.payload.userCode, scopes: found.payload.scopes } },
+    payload: { interactionKind: 'login', browser, device: { userCode: found.payload.userCode, scopes: found.payload.scopes } },
     expiresAt: new Date(Math.min(Date.now() + config.ttl.interaction * 1000, found.artifact.expiresAt.getTime()))
   })
-  return { redirectTo: `${config.interactionUrl}/${id}` }
+  return { redirectTo: `${config.interactionUrl}/${id}`, setCookie }
 }
 
 export const deviceCodeGrant = async (config: ResolvedConfig, client: Client, form: URLSearchParams, binding: Binding) => {

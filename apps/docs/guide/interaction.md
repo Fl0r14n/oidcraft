@@ -20,13 +20,15 @@ adapter: authorize, sign in, consent, exchange the code.
 ## The loop
 
 The contract is two functions on the provider, `provider.interactions.find(id)` and
-`provider.interactions.complete(id, result)`, plus one configuration value, `interactionUrl`:
+`provider.interactions.complete(id, result, cookie)`, plus one configuration value, `interactionUrl`:
 
 1. The authorization endpoint decides what it can. When it cannot finish, it stores the request as a
-   single-use `interaction` record and answers `303` to `interactionUrl/<id>` (FR-I1).
+   single-use `interaction` record and answers `303` to `interactionUrl/<id>` (FR-I1). That response
+   also sets a cookie binding the interaction to this browser, once per browser.
 2. Your route at that URL calls `find(id)` to learn what is being asked, and shows a screen.
-3. When the person has answered, your POST handler calls `complete(id, result)`. That writes the
-   answer to durable state — a session, a grant — and returns `{ redirectTo, setCookie }`.
+3. When the person has answered, your POST handler calls `complete(id, result, cookie)` with the
+   request's `cookie` header. That writes the answer to durable state — a session, a grant — and
+   returns `{ redirectTo, setCookie }`.
 4. You send the browser to `redirectTo` with `setCookie`. `redirectTo` is the authorization
    endpoint again, carrying the original request. The provider re-evaluates it against the state
    you just changed, and either answers the client or suspends again with a new id (FR-I2).
@@ -36,7 +38,8 @@ somewhere the user can edit it, so `complete` stores it and the redirect only sa
 
 `interactionUrl` is required: `createProvider` throws without it (NFR-D2). The provider serves
 nothing under it — `provider.handle` answers 404 for any path that is not a protocol endpoint — so
-the routes there are yours, served beside `provider.handle`.
+the routes there are yours, served beside `provider.handle`, on the issuer's host: the binding
+cookie is host-only, and `__Host-` prefixed when the issuer is `https`.
 
 <<< @/samples/interaction.test.ts#setup{ts}
 
@@ -112,6 +115,13 @@ What this has to get right:
 - **`complete` believes you.** It does not check a password or look the account up; it starts a
   session for whatever `accountId` you pass. Call it only once you have established who this is,
   and only from your own server.
+- **Pass the request's `cookie` header.** An interaction id is not proof of whose browser this is:
+  without the binding, a page could post an attacker's own credentials to the attacker's
+  interaction from someone else's browser, and leave that browser signed in as the attacker. An
+  answer from any other browser is refused with a `403` and leaves the interaction unspent (FR-I2):
+
+<<< @/samples/interaction.test.ts#other-browser{ts}
+
 - **`setCookie` is the provider's session cookie** (`HttpOnly`, `SameSite=Lax`, `Secure` when the
   issuer is `https`). Drop it and the browser comes back without a session and is asked to sign in
   again, in a loop.
@@ -252,9 +262,10 @@ end-session, which ends the session it was asked about and no other:
 
 - **The device flow** (FR-C7). The verification page is yours; `provider.device.find` and
   `provider.device.resolve` look up and answer a typed code. When nobody is signed in,
-  `provider.device.signIn(userCode)` creates a `login` interaction whose view carries the device's
-  scopes, and whose `complete` accepts only a `login` and sends the browser back to the verification
-  page. Approving the code is still a separate step.
+  `provider.device.signIn(userCode, { cookie })` creates a `login` interaction whose view carries
+  the device's scopes, and whose `complete` accepts only a `login` and sends the browser back to the
+  verification page. Send its `setCookie` with the redirect, as the authorization endpoint does with
+  its own. Approving the code is still a separate step.
 - **Brokering** (FR-F4). When upstreams are configured, a `login` view carries `upstream.chosen` when
   home-realm discovery settled on one, and `upstream.candidates` when the screen has to offer a
   choice. The round trip and the account linking are in
@@ -301,6 +312,7 @@ on the password screen as you answer a wrong password, or the difference confirm
 ## Checklist
 
 - Authenticate before `complete({ login })`; the provider takes the `accountId` on trust.
+- Pass the request's `cookie` header to `complete`, and serve the interaction routes on the issuer's host.
 - Forward `setCookie`, and answer with `303`.
 - Report the `acr` and `amr` that actually happened (FR-C16, FR-F6).
 - Consent with every requested scope and every authorization detail, or answer `access_denied`

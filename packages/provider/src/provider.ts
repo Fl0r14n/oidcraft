@@ -9,7 +9,14 @@ import {
   validateAuthorizationRequest
 } from './authorize/authorization'
 import { backchannelAuthenticationEndpoint, type CibaDecision, resolveBackchannelRequest } from './authorize/ciba'
-import { deviceAuthorizationEndpoint, deviceSignIn, findByUserCode, resolveDeviceCode, type UserCodeContext } from './authorize/device'
+import {
+  type DeviceSignInContext,
+  deviceAuthorizationEndpoint,
+  deviceSignIn,
+  findByUserCode,
+  resolveDeviceCode,
+  type UserCodeContext
+} from './authorize/device'
 import { interactions } from './authorize/interactions'
 import { pushedAuthorizationRequestEndpoint, resolvePushedRequest } from './authorize/par'
 import { applyRequestObject } from './authorize/request-object'
@@ -28,6 +35,7 @@ import { assertFapiClient, underFapi } from './profile/fapi'
 import { introspectionEndpoint } from './resource/introspection'
 import { revocationEndpoint } from './resource/revocation'
 import { userinfoEndpoint } from './resource/userinfo'
+import { bindBrowser } from './session/browser'
 import { endSessionEndpoint } from './session/end-session'
 import type { LogoutNotification } from './session/logout'
 import { readSession } from './session/session'
@@ -50,8 +58,11 @@ export type Provider = {
       outcome: Parameters<typeof resolveDeviceCode>[2],
       context?: UserCodeContext
     ) => ReturnType<typeof resolveDeviceCode>
-    /** No session to approve with: a login interaction that returns to the verification page. */
-    signIn: (userCode: string, context?: UserCodeContext) => ReturnType<typeof deviceSignIn>
+    /**
+     * No session to approve with: a login interaction that returns to the verification page. Pass the
+     * request's `cookie` header, and send `setCookie` with the redirect: the interaction is bound to it (FR-I2).
+     */
+    signIn: (userCode: string, context: DeviceSignInContext) => ReturnType<typeof deviceSignIn>
   }
   /** Who this browser is signed in as here, for the screens no authorization request leads to. */
   session(request: Request): Promise<Session | undefined>
@@ -129,10 +140,11 @@ const authorizationHandler: Handler = async (config, request) => {
   }
 
   try {
-    const outcome = await authorize(config, validated, await readSession(config, request), client)
+    const { browser, setCookie } = await bindBrowser(config, request.headers.get('cookie'))
+    const outcome = await authorize(config, validated, await readSession(config, request), client, browser)
     if (outcome.kind === 'response') return authorizationResponse(config.issuer, validated, outcome.values)
 
-    return seeOther(`${config.interactionUrl}/${outcome.id}`)
+    return seeOther(`${config.interactionUrl}/${outcome.id}`, setCookie)
   } catch (error) {
     if (!(error instanceof OAuthError)) throw error
     return authorizationResponse(config.issuer, validated, errorValues(error))

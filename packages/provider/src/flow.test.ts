@@ -7,6 +7,9 @@ import type { Adapter, Client } from './index'
 import { createProvider, type Provider } from './provider'
 import { SESSION_COOKIE } from './session/session'
 
+/** The browser-binding cookie the redirect to an interaction set, as the browser would send it back (FR-I2). */
+const browserOf = (response: Response) => response.headers.get('set-cookie')?.split(';')[0] ?? null
+
 const ISSUER = 'https://op.example.com'
 const REDIRECT = 'https://rp.example.com/cb'
 
@@ -80,13 +83,17 @@ const loginAndConsent = async (over: Record<string, string> = {}) => {
   const first = await go(authorizeUrl(over))
   const loginId = new URL(first.headers.get('location') as string).pathname.split('/').pop() as string
 
-  const login = await provider.interactions.complete(loginId, { login: { accountId: 'ada' } })
+  const login = await provider.interactions.complete(loginId, { login: { accountId: 'ada' } }, browserOf(first))
   const cookie = `${SESSION_COOKIE}=${(login.setCookie as string).split('=')[1]?.split(';')[0]}`
 
   const second = await go(login.redirectTo, cookie)
   const consentId = new URL(second.headers.get('location') as string).pathname.split('/').pop() as string
 
-  const consent = await provider.interactions.complete(consentId, { consent: { scopes: ['openid', 'profile', 'offline_access'] } })
+  const consent = await provider.interactions.complete(
+    consentId,
+    { consent: { scopes: ['openid', 'profile', 'offline_access'] } },
+    browserOf(second)
+  )
   const third = await go(consent.redirectTo, cookie)
   return { location: new URL(third.headers.get('location') as string), cookie }
 }
@@ -181,7 +188,7 @@ describe('authorization endpoint', () => {
   test('prompt=none with a session but no grant is consent_required', async () => {
     const first = await go(authorizeUrl())
     const id = new URL(first.headers.get('location') as string).pathname.split('/').pop() as string
-    const login = await provider.interactions.complete(id, { login: { accountId: 'ada' } })
+    const login = await provider.interactions.complete(id, { login: { accountId: 'ada' } }, browserOf(first))
     const cookie = `${SESSION_COOKIE}=${(login.setCookie as string).split('=')[1]?.split(';')[0]}`
     const response = await go(authorizeUrl({ prompt: 'none' }), cookie)
     expect(new URL(response.headers.get('location') as string).searchParams.get('error')).toBe('consent_required')
@@ -207,13 +214,19 @@ describe('authorization endpoint', () => {
   test('a first consent from two tabs at once makes one grant, and both tabs get a working code', async () => {
     const first = await go(authorizeUrl())
     const loginId = new URL(first.headers.get('location') as string).pathname.split('/').pop() as string
-    const login = await provider.interactions.complete(loginId, { login: { accountId: 'ada' } })
+    const login = await provider.interactions.complete(loginId, { login: { accountId: 'ada' } }, browserOf(first))
     const cookie = `${SESSION_COOKIE}=${(login.setCookie as string).split('=')[1]?.split(';')[0]}`
 
     const tabs = await Promise.all([go(login.redirectTo, cookie), go(authorizeUrl(), cookie)])
     const consentIds = tabs.map(tab => new URL(tab.headers.get('location') as string).pathname.split('/').pop() as string)
     const consents = await Promise.all(
-      consentIds.map(id => provider.interactions.complete(id, { consent: { scopes: ['openid', 'profile', 'offline_access'] } }))
+      consentIds.map((id, tab) =>
+        provider.interactions.complete(
+          id,
+          { consent: { scopes: ['openid', 'profile', 'offline_access'] } },
+          browserOf(tabs[tab] as Response)
+        )
+      )
     )
 
     expect(await adapter.grants.listForAccount('ada')).toHaveLength(1)
@@ -600,13 +613,55 @@ describe('userinfo', () => {
 })
 
 describe('interaction', () => {
+  // Login CSRF: the attacker starts an interaction in their own browser and has the victim's post their credentials to it.
+  test('is answered only from the browser that was sent to it, and a refusal does not spend it', async () => {
+    const first = await go(authorizeUrl())
+    const id = new URL(first.headers.get('location') as string).pathname.split('/').pop() as string
+    const login = { login: { accountId: 'ada' } }
+
+    const elsewhere = browserOf(await go(authorizeUrl()))
+    for (const cookie of [null, '', elsewhere, `${(browserOf(first) as string).split('=')[0]}=forged`]) {
+      await expect(provider.interactions.complete(id, login, cookie)).rejects.toMatchObject({ status: 403 })
+    }
+    expect((await provider.interactions.complete(id, login, browserOf(first))).setCookie).toBeString()
+  })
+
+  test('the binding cookie is set once, HttpOnly and host-only, and a browser that holds it keeps it', async () => {
+    const first = await go(authorizeUrl())
+    const set = first.headers.get('set-cookie') as string
+    expect(set).toStartWith('__Host-oidcraft.browser=')
+    expect(set).toContain('HttpOnly')
+    expect(set).toContain('Secure')
+    expect(set).toContain('Path=/')
+    expect(set).not.toContain('Domain')
+
+    const again = await go(authorizeUrl(), browserOf(first) as string)
+    expect(again.headers.get('set-cookie')).toBeNull()
+    const id = new URL(again.headers.get('location') as string).pathname.split('/').pop() as string
+    expect((await provider.interactions.complete(id, { login: { accountId: 'ada' } }, browserOf(first))).setCookie).toBeString()
+  })
+
+  test('a logout confirmation is bound the same way', async () => {
+    const first = await go(authorizeUrl())
+    const id = new URL(first.headers.get('location') as string).pathname.split('/').pop() as string
+    const { setCookie } = await provider.interactions.complete(id, { login: { accountId: 'ada' } }, browserOf(first))
+    const session = (setCookie as string).split(';')[0] as string
+
+    const asked = await go(`${ISSUER}/session/end`, session)
+    const confirm = (asked.headers.get('location') as string).split('/').pop() as string
+    await expect(provider.interactions.complete(confirm, { logout: true }, null)).rejects.toMatchObject({ status: 403 })
+    expect((await provider.interactions.complete(confirm, { logout: true }, browserOf(asked))).redirectTo).toContain('logout=')
+  })
+
   // FR-I2: an answer that is refused must leave the interaction to be answered properly.
   test('a refused answer does not spend the interaction', async () => {
     const first = await go(authorizeUrl())
     const id = new URL(first.headers.get('location') as string).pathname.split('/').pop() as string
     const scopes = ['openid', 'profile', 'offline_access']
-    await expect(provider.interactions.complete(id, { consent: { scopes } })).rejects.toThrow('without a logged-in account')
-    const login = await provider.interactions.complete(id, { login: { accountId: 'ada' } })
+    await expect(provider.interactions.complete(id, { consent: { scopes } }, browserOf(first))).rejects.toThrow(
+      'without a logged-in account'
+    )
+    const login = await provider.interactions.complete(id, { login: { accountId: 'ada' } }, browserOf(first))
     expect(login.setCookie).toBeTruthy()
   })
 
@@ -614,7 +669,7 @@ describe('interaction', () => {
   test('max_age=0 forces one login and then completes, rather than looping', async () => {
     const first = await go(authorizeUrl({ max_age: '0' }))
     const id = new URL(first.headers.get('location') as string).pathname.split('/').pop() as string
-    const { redirectTo } = await provider.interactions.complete(id, { login: { accountId: 'ada' } })
+    const { redirectTo } = await provider.interactions.complete(id, { login: { accountId: 'ada' } }, browserOf(first))
     // The login just satisfied it; replaying max_age=0 would demand another one forever.
     expect(new URL(redirectTo).searchParams.has('max_age')).toBe(false)
   })
@@ -632,7 +687,7 @@ describe('interaction', () => {
     await loginAndConsent()
     const first = await go(authorizeUrl({ prompt: 'consent' }))
     const loginId = new URL(first.headers.get('location') as string).pathname.split('/').pop() as string
-    const login = await provider.interactions.complete(loginId, { login: { accountId: 'ada' } })
+    const login = await provider.interactions.complete(loginId, { login: { accountId: 'ada' } }, browserOf(first))
     expect(new URL(login.redirectTo).searchParams.get('prompt')).toBe('consent')
 
     const cookie = `${SESSION_COOKIE}=${(login.setCookie as string).split('=')[1]?.split(';')[0]}`
@@ -645,10 +700,14 @@ describe('interaction', () => {
     await loginAndConsent()
     const first = await go(authorizeUrl({ prompt: 'consent' }))
     const id = new URL(first.headers.get('location') as string).pathname.split('/').pop() as string
-    const done = await provider.interactions.complete(id, {
-      login: { accountId: 'ada' },
-      consent: { scopes: ['openid', 'profile', 'offline_access'] }
-    })
+    const done = await provider.interactions.complete(
+      id,
+      {
+        login: { accountId: 'ada' },
+        consent: { scopes: ['openid', 'profile', 'offline_access'] }
+      },
+      browserOf(first)
+    )
     expect(new URL(done.redirectTo).searchParams.has('prompt')).toBe(false)
 
     const cookie = `${SESSION_COOKIE}=${(done.setCookie as string).split('=')[1]?.split(';')[0]}`
@@ -659,7 +718,7 @@ describe('interaction', () => {
     const { cookie } = await loginAndConsent()
     const first = await go(authorizeUrl({ prompt: 'login' }), cookie)
     const id = new URL(first.headers.get('location') as string).pathname.split('/').pop() as string
-    const login = await provider.interactions.complete(id, { login: { accountId: 'ada' } })
+    const login = await provider.interactions.complete(id, { login: { accountId: 'ada' } }, browserOf(first))
     expect(new URL(login.redirectTo).searchParams.has('prompt')).toBe(false)
 
     const fresh = `${SESSION_COOKIE}=${(login.setCookie as string).split('=')[1]?.split(';')[0]}`
@@ -671,9 +730,9 @@ describe('interaction', () => {
     const id = new URL(first.headers.get('location') as string).pathname.split('/').pop() as string
     const login = { accountId: 'ada' }
     await expect(
-      provider.interactions.complete(id, { login, consent: { scopes: ['openid', 'profile', 'offline_access'] } })
+      provider.interactions.complete(id, { login, consent: { scopes: ['openid', 'profile', 'offline_access'] } }, browserOf(first))
     ).rejects.toMatchObject({ code: 'invalid_request', spec: 'FR-I4' })
-    const done = await provider.interactions.complete(id, { login, consent: { scopes: ['openid', 'profile'] } })
+    const done = await provider.interactions.complete(id, { login, consent: { scopes: ['openid', 'profile'] } }, browserOf(first))
     const cookie = `${SESSION_COOKIE}=${(done.setCookie as string).split('=')[1]?.split(';')[0]}`
     expect(new URL((await go(done.redirectTo, cookie)).headers.get('location') as string).searchParams.get('code')).toBeString()
   })
@@ -681,11 +740,11 @@ describe('interaction', () => {
   test('a login naming an account the AccountStore cannot find is refused, and the interaction survives it', async () => {
     const first = await go(authorizeUrl())
     const id = new URL(first.headers.get('location') as string).pathname.split('/').pop() as string
-    await expect(provider.interactions.complete(id, { login: { accountId: 'ghost' } })).rejects.toMatchObject({
+    await expect(provider.interactions.complete(id, { login: { accountId: 'ghost' } }, browserOf(first))).rejects.toMatchObject({
       code: 'invalid_request',
       spec: 'FR-I2'
     })
-    expect((await provider.interactions.complete(id, { login: { accountId: 'ada' } })).setCookie).toBeString()
+    expect((await provider.interactions.complete(id, { login: { accountId: 'ada' } }, browserOf(first))).setCookie).toBeString()
   })
 
   test('prompt=none with another value is invalid_request', async () => {
@@ -705,7 +764,7 @@ describe('interaction', () => {
   test('a denied interaction redirects to the client with access_denied', async () => {
     const first = await go(authorizeUrl())
     const id = new URL(first.headers.get('location') as string).pathname.split('/').pop() as string
-    const { redirectTo } = await provider.interactions.complete(id, { error: { error: 'access_denied' } })
+    const { redirectTo } = await provider.interactions.complete(id, { error: { error: 'access_denied' } }, browserOf(first))
     const delivered = await go(redirectTo)
     const url = new URL(delivered.headers.get('location') as string)
     expect(url.origin + url.pathname).toBe(REDIRECT)
@@ -733,7 +792,7 @@ describe('interaction', () => {
   test('form_post errors are posted too, and a denial carries iss', async () => {
     const first = await go(authorizeUrl({ response_mode: 'form_post' }))
     const id = new URL(first.headers.get('location') as string).pathname.split('/').pop() as string
-    const { redirectTo } = await provider.interactions.complete(id, { error: { error: 'access_denied' } })
+    const { redirectTo } = await provider.interactions.complete(id, { error: { error: 'access_denied' } }, browserOf(first))
     const html = await (await go(redirectTo)).text()
     expect(html).toContain('name="error" value="access_denied"')
     expect(html).toContain(`name="iss" value="${ISSUER}"`)

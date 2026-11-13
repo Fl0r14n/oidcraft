@@ -310,7 +310,7 @@ describe('signing in from the verification page', () => {
 
   test('a login interaction that starts a session and returns to the code', async () => {
     const { user_code } = await start()
-    const { redirectTo } = await provider.device.signIn(user_code.toLowerCase())
+    const { redirectTo, setCookie } = await provider.device.signIn(user_code.toLowerCase(), { cookie: null })
     const id = redirectTo.split('/').pop() as string
 
     const view = await provider.interactions.find(id)
@@ -318,7 +318,7 @@ describe('signing in from the verification page', () => {
     expect(view.clientId).toBe('tv')
     expect(view.scopes).toEqual(['openid', 'profile', 'offline_access'])
 
-    const done = await provider.interactions.complete(id, { login: { accountId: 'ada', amr: ['pwd'] } })
+    const done = await provider.interactions.complete(id, { login: { accountId: 'ada', amr: ['pwd'] } }, cookieOf(setCookie))
     expect(done.redirectTo).toBe(`${ISSUER}/device?user_code=${normalizeUserCode(user_code)}`)
 
     const session = await provider.session(new Request(done.redirectTo, { headers: { cookie: cookieOf(done.setCookie) } }))
@@ -326,20 +326,34 @@ describe('signing in from the verification page', () => {
     expect(session?.clients).toEqual(['tv'])
   })
 
+  // FR-I2: the sign-in a verification page starts belongs to the browser that was sent to it.
+  test('is bound to the browser that started it, reusing a binding it already holds', async () => {
+    const { user_code } = await start()
+    const { redirectTo, setCookie } = await provider.device.signIn(user_code, { cookie: null })
+    const id = redirectTo.split('/').pop() as string
+    await expect(provider.interactions.complete(id, { login: { accountId: 'ada' } }, null)).rejects.toMatchObject({ status: 403 })
+
+    const held = await provider.device.signIn(user_code, { cookie: cookieOf(setCookie) })
+    expect(held.setCookie).toBeUndefined()
+    const again = held.redirectTo.split('/').pop() as string
+    expect((await provider.interactions.complete(again, { login: { accountId: 'ada' } }, cookieOf(setCookie))).setCookie).toBeString()
+  })
+
   test('only a login completes it, and only once', async () => {
     const { user_code } = await start()
-    const { redirectTo } = await provider.device.signIn(user_code)
+    const { redirectTo, setCookie } = await provider.device.signIn(user_code, { cookie: null })
     const id = redirectTo.split('/').pop() as string
-    await expect(provider.interactions.complete(id, { consent: { scopes: ['openid'] } })).rejects.toThrow(/only by signing in/)
-    await provider.interactions.complete(id, { login: { accountId: 'ada' } })
-    await expect(provider.interactions.complete(id, { login: { accountId: 'ada' } })).rejects.toThrow()
+    const browser = cookieOf(setCookie)
+    await expect(provider.interactions.complete(id, { consent: { scopes: ['openid'] } }, browser)).rejects.toThrow(/only by signing in/)
+    await provider.interactions.complete(id, { login: { accountId: 'ada' } }, browser)
+    await expect(provider.interactions.complete(id, { login: { accountId: 'ada' } }, browser)).rejects.toThrow()
   })
 
   test('is refused for a code that is unknown or already answered', async () => {
-    await expect(provider.device.signIn('ZZZZ-ZZZZ')).rejects.toThrow(/not one we are waiting for/)
+    await expect(provider.device.signIn('ZZZZ-ZZZZ', { cookie: null })).rejects.toThrow(/not one we are waiting for/)
     const { user_code } = await start()
     await provider.device.resolve(user_code, { denied: true })
-    await expect(provider.device.signIn(user_code)).rejects.toThrow(/not one we are waiting for/)
+    await expect(provider.device.signIn(user_code, { cookie: null })).rejects.toThrow(/not one we are waiting for/)
   })
 
   test('no cookie, no session', async () => {

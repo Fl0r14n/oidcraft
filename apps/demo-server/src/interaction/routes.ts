@@ -36,9 +36,13 @@ const build = (site: Site) => {
    * not be told it got it. RFC 8176 names the methods.
    */
   const finish = async (request: Request, id: string, accountId: string, amr: string[]) => {
-    const { redirectTo, setCookie } = await provider.interactions.complete(id, {
-      login: { accountId, acr: amr.includes('mfa') ? 'mfa' : 'pwd', amr }
-    })
+    const { redirectTo, setCookie } = await provider.interactions.complete(
+      id,
+      {
+        login: { accountId, acr: amr.includes('mfa') ? 'mfa' : 'pwd', amr }
+      },
+      request.headers.get('cookie')
+    )
     return seeOther(redirectTo, setCookie, pendingSecondFactor.clear(), await knownAccounts.add(request, accountId))
   }
 
@@ -54,9 +58,13 @@ const build = (site: Site) => {
       if (request.method === 'GET' && !action) {
         // This deployment's own apps are not third parties asking for access; whose consent to ask is the host's call.
         if (view.kind === 'consent' && FIRST_PARTY.includes(view.clientId)) {
-          const { redirectTo, setCookie } = await provider.interactions.complete(id, {
-            consent: { scopes: view.scopes, authorizationDetails: view.authorizationDetails }
-          })
+          const { redirectTo, setCookie } = await provider.interactions.complete(
+            id,
+            {
+              consent: { scopes: view.scopes, authorizationDetails: view.authorizationDetails }
+            },
+            request.headers.get('cookie')
+          )
           return seeOther(redirectTo, setCookie)
         }
         if (view.kind === 'consent') return screens.consent(view)
@@ -85,9 +93,13 @@ const build = (site: Site) => {
       if (request.method === 'POST' && action === 'login') {
         const body = await form(request)
         if (body.get('decision') === 'cancel') {
-          const { redirectTo, setCookie } = await provider.interactions.complete(id, {
-            error: { error: 'access_denied', description: 'the user cancelled the sign-in' }
-          })
+          const { redirectTo, setCookie } = await provider.interactions.complete(
+            id,
+            {
+              error: { error: 'access_denied', description: 'the user cancelled the sign-in' }
+            },
+            request.headers.get('cookie')
+          )
           return seeOther(redirectTo, setCookie)
         }
         const username = body.get('username') ?? ''
@@ -109,7 +121,7 @@ const build = (site: Site) => {
         if (result.secondFactor) {
           return seeOther(`/interaction/${encodeURIComponent(id)}/otp`, await pendingSecondFactor.set(id, result.accountId))
         }
-        return finish(request, id, result.accountId, ['pwd'])
+        return await finish(request, id, result.accountId, ['pwd'])
       }
 
       if (action === 'otp' || action === 'recovery') {
@@ -118,7 +130,7 @@ const build = (site: Site) => {
         const recovery = action === 'recovery'
         if (request.method === 'GET') return screens.otp(view, { recovery })
         const result = await accounts.verifySecondFactor(accountId, (await form(request)).get('code') ?? '', { clientIp })
-        if (result.ok) return finish(request, id, accountId, result.method === 'otp' ? ['pwd', 'otp', 'mfa'] : ['pwd', 'mfa'])
+        if (result.ok) return await finish(request, id, accountId, result.method === 'otp' ? ['pwd', 'otp', 'mfa'] : ['pwd', 'mfa'])
         if (result.reason === 'locked') return loginScreen(view, { notice: lockedNotice(result.until), status: 429 })
         return screens.otp(view, { recovery, error: 'That code is not right, or it was already used.', status: 401 })
       }
@@ -129,7 +141,7 @@ const build = (site: Site) => {
         const values = { name: body.get('name') ?? '', email: body.get('email') ?? '', username: body.get('username') ?? '' }
         const claims = { ...(values.name && { name: values.name }), ...(values.email && { email: values.email, email_verified: false }) }
         const result = await accounts.register({ username: values.username, password: body.get('password') ?? '', claims })
-        if (result.ok) return finish(request, id, result.accountId, ['pwd'])
+        if (result.ok) return await finish(request, id, result.accountId, ['pwd'])
         const errors =
           result.reason === 'password'
             ? { password: PASSWORD_MESSAGES[result.problem] }
@@ -158,7 +170,7 @@ const build = (site: Site) => {
       // Declining is not an answer the provider needs: the interaction expires and the session stays.
       if (request.method === 'POST' && action === 'logout') {
         if ((await form(request)).get('decision') !== 'yes') return screens.message('You are still signed in', 'You can close this page.')
-        const { redirectTo } = await provider.interactions.complete(id, { logout: true })
+        const { redirectTo } = await provider.interactions.complete(id, { logout: true }, request.headers.get('cookie'))
         return seeOther(redirectTo)
       }
 
@@ -167,7 +179,7 @@ const build = (site: Site) => {
           (await form(request)).get('decision') === 'allow'
             ? { consent: { scopes: view.scopes, authorizationDetails: view.authorizationDetails } }
             : { error: { error: 'access_denied' as const, description: 'the user declined' } }
-        const { redirectTo, setCookie } = await provider.interactions.complete(id, outcome)
+        const { redirectTo, setCookie } = await provider.interactions.complete(id, outcome, request.headers.get('cookie'))
         return seeOther(redirectTo, setCookie)
       }
 
@@ -204,11 +216,17 @@ const build = (site: Site) => {
   }
 
   const deviceScreens = async (request: Request, url: URL, context: { clientIp: string | undefined }) => {
+    // The sign-in it starts is bound to this browser, by the cookie that goes with the redirect (FR-I2).
+    const signIn = async (typed: string) => {
+      const { redirectTo, setCookie } = await provider.device.signIn(typed, { ...context, cookie: request.headers.get('cookie') })
+      return seeOther(redirectTo, setCookie)
+    }
+
     const confirm = async (typed: string) => {
       const found = await provider.device.find(typed, context)
       if (!found) return screens.deviceCode(typed, 'No device is waiting for that code. Check it and try again.', 404)
       const session = await provider.session(request)
-      if (!session) return seeOther((await provider.device.signIn(typed, context)).redirectTo)
+      if (!session) return signIn(typed)
       return screens.deviceConfirm(typed, found.client.clientName ?? found.client.clientId, found.payload.scopes, session.accountId)
     }
 
@@ -224,7 +242,7 @@ const build = (site: Site) => {
       const typed = body.get('user_code') ?? ''
       // Approving or refusing on someone's behalf is still doing it as someone (FR-C7).
       const session = await provider.session(request)
-      if (!session) return seeOther((await provider.device.signIn(typed, context)).redirectTo)
+      if (!session) return signIn(typed)
       try {
         if (body.get('decision') !== 'allow') {
           await provider.device.resolve(typed, { denied: true }, context)

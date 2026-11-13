@@ -5,6 +5,7 @@ import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
 import { jwksResponseBody } from '../keys/keys'
 import { readArtifact, writeArtifact } from '../payloads'
+import { bindBrowser } from './browser'
 import { clearCookie } from './cookies'
 import { type FrontChannelLogout, frontChannelLogouts, type LogoutNotification, logoutTokens } from './logout'
 import { sessionCookie } from './session'
@@ -70,7 +71,8 @@ export const endSessionEndpoint = async (
   } else if (session && !aboutThisSession(claims, session)) {
     // §2: without a verified hint about this session nothing proves the client sent this, and a bare
     // link would sign anyone out who followed it, so the person is asked first.
-    return { response: await askToConfirm(config, session, client, params.get('state')), notifications: [], frontChannel: [] }
+    const asked = await askToConfirm(config, request, session, client, params.get('state'))
+    return { response: asked, notifications: [], frontChannel: [] }
   }
 
   const notifications = session ? await logoutTokens(config, session) : []
@@ -96,17 +98,26 @@ export const endSessionEndpoint = async (
   return { response: new Response(null, { status: 303, headers }), notifications, frontChannel }
 }
 
-const askToConfirm = async (config: ResolvedConfig, session: Session, client: Client | undefined, state: string | null) => {
+const askToConfirm = async (
+  config: ResolvedConfig,
+  request: Request,
+  session: Session,
+  client: Client | undefined,
+  state: string | null
+) => {
   const id = randomString()
+  const { browser, setCookie } = await bindBrowser(config, request.headers.get('cookie'))
   await writeArtifact(config.adapter.artifacts, {
     id,
     kind: 'interaction',
     clientId: client?.clientId ?? '',
     accountId: session.accountId,
-    payload: { interactionKind: 'logout', sessionId: session.id, ...(state !== null && { state }) },
+    payload: { interactionKind: 'logout', browser, sessionId: session.id, ...(state !== null && { state }) },
     expiresAt: new Date(Date.now() + config.ttl.interaction * 1000)
   })
-  return new Response(null, { status: 303, headers: { location: `${config.interactionUrl}/${id}`, 'cache-control': 'no-store' } })
+  const headers = new Headers({ location: `${config.interactionUrl}/${id}`, 'cache-control': 'no-store' })
+  if (setCookie) headers.set('set-cookie', setCookie)
+  return new Response(null, { status: 303, headers })
 }
 
 /** Only a confirmed logout interaction for this very session ends it, and only once. */

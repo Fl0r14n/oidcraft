@@ -309,8 +309,10 @@ access token was issued to. No cookie is ever sent cross-origin.
 
 ### 3.2 What the core does not do
 
-No HTML beyond the `form_post` response page. No cookies beyond the session cookie, `oidcraft.sid`:
-host-only, `HttpOnly`, `SameSite=Lax`, and `Secure` on an https issuer. No
+No HTML beyond the `form_post` response page. Two cookies, both host-only, `HttpOnly`,
+`SameSite=Lax`, and `Secure` on an https issuer: the session cookie, `oidcraft.sid`, which carries a
+secret whose hash is the session's id and `sid` (NFR-S11), and `oidcraft.browser` (`__Host-` prefixed
+on https), which binds an interaction to the browser it was started in (FR-I2). No
 timers, no background sweeps, no connection pool, no process-level cache that survives a request
 (FR-A1, NFR-P3). Two processes behind a load balancer behave identically to one, which is the
 property that makes horizontal scaling and serverless hosting the same thing.
@@ -509,9 +511,11 @@ upstream ID token is kept only as a logout hint, for a provider that propagates 
 ## 6. Interaction
 
 The authorization endpoint decides what it can and, when it cannot finish, emits an
-`InteractionRequest` and redirects (FR-I1). The interaction app — any HTTP app, including the
-reference one — answers with an `InteractionResult`, and the core re-evaluates the original
-request against it, free to demand another interaction (FR-I2).
+`InteractionRequest` and redirects (FR-I1). The interaction app — any HTTP app on the issuer's
+host, including the reference one — answers with an `InteractionResult`, and the core re-evaluates
+the original request against it, free to demand another interaction (FR-I2). The answer comes with
+the request's `cookie` header, because an interaction is bound to the browser the redirect set the
+`oidcraft.browser` cookie in; an id alone completes nothing.
 
 This is `oidc-provider`'s model, and it is the right one: it keeps HTML out of the protocol core
 and lets a host replace the screens entirely. The difference is that oidcraft ships the screens

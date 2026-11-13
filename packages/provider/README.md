@@ -81,17 +81,20 @@ being asked and answers it:
 const view = await provider.interactions.find(id)
 // view.kind is 'login', 'consent' or 'logout'; view.clientId, view.scopes and view.prompt say what is asked
 
-// POST /interaction/:id/login — once you have checked who this is
-const { redirectTo, setCookie } = await provider.interactions.complete(id, {
-  login: { accountId: 'ada', amr: ['pwd'] }
-})
+// POST /interaction/:id/login — once you have checked who this is. The cookie proves this is the
+// browser the provider sent here, not a page that posted someone else's credentials to it.
+const cookie = request.headers.get('cookie')
+const { redirectTo, setCookie } = await provider.interactions.complete(id, { login: { accountId: 'ada', amr: ['pwd'] } }, cookie)
 const headers = new Headers({ location: redirectTo })
 if (setCookie) headers.append('set-cookie', setCookie)
 return new Response(null, { status: 303, headers })
 
 // POST /interaction/:id/consent — the person agreed (or answer { error: { error: 'access_denied' } })
-await provider.interactions.complete(id, { consent: { scopes: view.scopes } })
+await provider.interactions.complete(id, { consent: { scopes: view.scopes } }, cookie)
 ```
+
+The interaction routes have to be served on the issuer's host: the redirect there sets a
+browser-binding cookie, and `complete` refuses an answer that does not carry it.
 
 After each answer the provider re-evaluates the original request and may ask again. A person who
 just signed in can still be asked for consent, so one interaction can be followed by another.
@@ -125,7 +128,7 @@ await accounts.register({ username: 'ada', password: 'correct horse battery', cl
 // in your login screen's POST handler
 const result = await accounts.authenticate(username, password)
 if (result.ok && !result.secondFactor) {
-  await provider.interactions.complete(id, { login: { accountId: result.accountId, amr: ['pwd'] } })
+  await provider.interactions.complete(id, { login: { accountId: result.accountId, amr: ['pwd'] } }, request.headers.get('cookie'))
 }
 // result.secondFactor: ask for the code, then accounts.verifySecondFactor(result.accountId, code)
 ```
@@ -173,14 +176,18 @@ const linked = await linkIdentity(storage, back.identity, {
   createAccount: async identity => localSubject(identity.provider, identity.subject)
 })
 if ('accountId' in linked) {
-  await provider.interactions.complete(back.interactionId, {
-    login: {
-      accountId: linked.accountId,
-      idp: back.identity.provider,
-      // what an upstream back-channel logout names, and what its own logout is found by
-      upstreamSessionId: back.identity.upstreamSessionId
-    }
-  })
+  await provider.interactions.complete(
+    back.interactionId,
+    {
+      login: {
+        accountId: linked.accountId,
+        idp: back.identity.provider,
+        // what an upstream back-channel logout names, and what its own logout is found by
+        upstreamSessionId: back.identity.upstreamSessionId
+      }
+    },
+    request.headers.get('cookie')
+  )
 }
 ```
 

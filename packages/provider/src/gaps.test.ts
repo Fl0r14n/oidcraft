@@ -10,6 +10,9 @@ import { createProvider, type Provider } from './provider'
 import { meetsRequirement } from './resource/step-up'
 import { SESSION_COOKIE } from './session/session'
 
+/** The browser-binding cookie the redirect to an interaction set, as the browser would send it back (FR-I2). */
+const browserOf = (response: Response) => response.headers.get('set-cookie')?.split(';')[0] ?? null
+
 const ISSUER = 'https://op.example.com'
 const REDIRECT = 'https://rp.example.com/cb'
 const SECRET = 'a-long-enough-client-secret'
@@ -96,7 +99,8 @@ const tokensFor = async (
     const view = await provider.interactions.find(id)
     const done = await provider.interactions.complete(
       id,
-      view.kind === 'login' ? { login: { accountId: 'ada', acr: 'pwd' } } : { consent: { scopes: view.scopes } }
+      view.kind === 'login' ? { login: { accountId: 'ada', acr: 'pwd' } } : { consent: { scopes: view.scopes } },
+      browserOf(response)
     )
     if (done.setCookie) {
       secret = done.setCookie.split('=')[1]?.split(';')[0]

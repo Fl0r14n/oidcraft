@@ -346,7 +346,10 @@ upstream produces a well-formed error response to the downstream client and a lo
 `InteractionRequest` and redirects to the interaction app. The core never renders HTML.
 
 **FR-I2** — The interaction app answers with an `InteractionResult`; the core re-evaluates the
-original authorization request against it and is free to demand another interaction.
+original authorization request against it and is free to demand another interaction. An answer is
+accepted only from the browser the interaction was started in: knowing its id is not enough, or a
+page could sign someone in as an attacker by posting the attacker's credentials to the attacker's
+interaction.
 
 **FR-I3** — The library ships the rules the screens enforce (`@oidcraft/provider/interaction`) and no
 markup. Reference screens for login, consent, account selection, upstream selection, device-code

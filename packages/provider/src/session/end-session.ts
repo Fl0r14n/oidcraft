@@ -62,14 +62,15 @@ export const endSessionEndpoint = async (
   const client = await clientFor(config, claims, params.get('client_id'))
 
   const requested = params.get('post_logout_redirect_uri')
-  const target = resolveTarget(client, requested, Boolean(claims))
+  let target = resolveTarget(client, requested, Boolean(claims))
 
   const confirmation = params.get('logout')
   if (confirmation) {
-    await acceptConfirmation(config, confirmation, session)
+    // The confirmed leg carries neither hint nor redirect; where to go was settled, and checked, when the person was asked.
+    target = (await acceptConfirmation(config, confirmation, session)).target
   } else if (session && !aboutThisSession(claims, session)) {
     // §2: without a verified hint about this session nothing proves the client sent this, so the person is asked.
-    const asked = await askToConfirm(config, request, session, client, params.get('state'))
+    const asked = await askToConfirm(config, request, session, client, params.get('state'), target)
     return { response: asked, notifications: [], frontChannel: [] }
   }
 
@@ -111,7 +112,8 @@ const askToConfirm = async (
   request: Request,
   session: Session,
   client: Client | undefined,
-  state: string | null
+  state: string | null,
+  target: string | undefined
 ) => {
   const id = randomString()
   const { browser, setCookie } = await bindBrowser(config, request.headers.get('cookie'))
@@ -120,7 +122,7 @@ const askToConfirm = async (
     kind: 'interaction',
     clientId: client?.clientId ?? '',
     accountId: session.accountId,
-    payload: { interactionKind: 'logout', browser, sessionId: session.id, ...(state !== null && { state }) },
+    payload: { interactionKind: 'logout', browser, sessionId: session.id, ...(state !== null && { state }), ...(target && { target }) },
     expiresAt: new Date(Date.now() + config.ttl.interaction * 1000)
   })
   const headers = new Headers({ location: `${config.interactionUrl}/${id}`, 'cache-control': 'no-store' })
@@ -139,6 +141,7 @@ const acceptConfirmation = async (config: ResolvedConfig, id: string, session: S
     })
   }
   await config.adapter.artifacts.destroy('interaction', id)
+  return payload
 }
 
 const withState = (target: string, state: string | null) => {

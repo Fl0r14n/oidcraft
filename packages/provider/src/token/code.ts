@@ -151,7 +151,7 @@ export const refreshTokenGrant = async (config: ResolvedConfig, client: Client, 
     familyExpiresAt: artifact.payload.familyExpiresAt,
     audience,
     resources: artifact.payload.resources ?? [],
-    claims: stillConsented(config, grant, artifact.payload.claims)
+    claims: stillConsented(config, grant, artifact.payload.claims, requested?.length ? requested : granted)
   })
   // RFC 9700 §4.14.2: a revocation that raced this refresh, the FAPI rewrite included, is not undone by it.
   await assertFamilyLive(config, familyId, grant.id)

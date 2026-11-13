@@ -1,4 +1,4 @@
-import type { Grant } from '@oidcraft/adapter'
+import type { Client, Grant } from '@oidcraft/adapter'
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
 
@@ -10,6 +10,8 @@ export type ClaimsRequest = RequestedClaims & {
   acr?: { values: string[]; essential: boolean }
   /** §5.5.1: the only subject this request may be answered for. */
   sub?: string
+  /** `acr` named in `id_token` at all, with values or none: it overrides the client's `default_acr_values` (FR-C23). */
+  acrNamed?: true
 }
 
 const invalid = (description: string) => new OAuthError('invalid_request', { description, spec: 'OIDC Core §5.5' })
@@ -39,7 +41,7 @@ export const configuredClaims = (config: ResolvedConfig) => new Set(Object.value
 /** What these scopes already release, so asking for it by name asks for nothing more. */
 const releasedBy = (config: ResolvedConfig, scopes: string[]) => new Set(scopes.flatMap(scope => config.claims[scope] ?? []))
 
-export const parseClaimsRequest = (config: ResolvedConfig, raw: string | null): ClaimsRequest | undefined => {
+export const parseClaimsRequest = (config: ResolvedConfig, client: Client, raw: string | null): ClaimsRequest | undefined => {
   if (raw === null) return undefined
   let parsed: unknown
   try {
@@ -51,8 +53,8 @@ export const parseClaimsRequest = (config: ResolvedConfig, raw: string | null): 
 
   const userinfo = membersOf(parsed, 'userinfo')
   const idToken = membersOf(parsed, 'id_token')
-  // FR-C22: a claim the configuration does not list is ignored, as §5.5 lets an OP ignore what it does not support.
-  const known = configuredClaims(config)
+  // FR-C22: only what a scope this client may request releases; anything else is ignored, as §5.5 lets an OP ignore it.
+  const known = releasedBy(config, client.scopes)
   const names = (claims: Record<string, Individual>) => Object.keys(claims).filter(name => known.has(name))
 
   const acr = idToken.acr
@@ -63,6 +65,7 @@ export const parseClaimsRequest = (config: ResolvedConfig, raw: string | null): 
     userinfo: names(userinfo),
     idToken: names(idToken),
     ...(acrValues.length && { acr: { values: acrValues, essential: acr?.essential === true } }),
+    ...('acr' in idToken && { acrNamed: true as const }),
     ...(typeof sub === 'string' && { sub })
   }
 }
@@ -78,9 +81,15 @@ export const individuallyRequested = (config: ResolvedConfig, scopes: string[], 
 export const heldClaims = (config: ResolvedConfig, grant: Pick<Grant, 'scopes' | 'claims'> | undefined) =>
   new Set([...(grant?.claims ?? []), ...releasedBy(config, grant?.scopes ?? [])])
 
-/** On refresh, what the grant still covers: a consent withdrawn since is not released again. */
-export const stillConsented = (config: ResolvedConfig, grant: Grant, claims: RequestedClaims | undefined) => {
+/** On refresh: what was consented by name, or what the refreshed token's own scopes release — never a narrowed-away scope's. */
+export const stillConsented = (config: ResolvedConfig, grant: Grant, claims: RequestedClaims | undefined, scopes: string[]) => {
   if (!claims) return undefined
-  const held = heldClaims(config, grant)
+  const held = new Set([
+    ...grant.claims,
+    ...releasedBy(
+      config,
+      scopes.filter(scope => grant.scopes.includes(scope))
+    )
+  ])
   return { userinfo: claims.userinfo.filter(name => held.has(name)), idToken: claims.idToken.filter(name => held.has(name)) }
 }

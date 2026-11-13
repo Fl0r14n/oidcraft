@@ -24,6 +24,8 @@ export type AuthorizationRequest = {
   maxAge: number | undefined
   loginHint: string | undefined
   acrValues: string[] | undefined
+  /** FR-C23: the client's `default_acr_values`, voluntary — shown to a login that happens, never a reason to ask for one. */
+  defaultAcrValues: string[] | undefined
   uiLocales: string[] | undefined
   /** RFC 9396: what the client wants to do, not merely which scopes it holds. */
   authorizationDetails: AuthorizationDetail[] | undefined
@@ -137,7 +139,7 @@ export const validateAuthorizationRequest = (
     })
   }
 
-  const claims = parseClaimsRequest(config, params.get('claims'))
+  const claims = parseClaimsRequest(config, client, params.get('claims'))
 
   const responseMode = params.get('response_mode') ?? 'query'
   if (!RESPONSE_MODES.includes(responseMode)) {
@@ -156,7 +158,8 @@ export const validateAuthorizationRequest = (
     prompt,
     maxAge,
     loginHint: params.get('login_hint') ?? undefined,
-    acrValues: acrValuesFor(client, params, claims),
+    acrValues: params.get('acr_values') ? list(params.get('acr_values')) : undefined,
+    defaultAcrValues: params.has('acr_values') || claims?.acrNamed ? undefined : client.defaultAcrValues,
     uiLocales: params.get('ui_locales') ? list(params.get('ui_locales')) : undefined,
     authorizationDetails: parseAuthorizationDetails(config, params.get('authorization_details')),
     resources: requestedResources(config, params),
@@ -164,15 +167,6 @@ export const validateAuthorizationRequest = (
     claims,
     raw: params.toString()
   }
-}
-
-// FR-C23: a client's defaults stand in only for a request that asks for no acr at all; an empty acr_values asks for none.
-const acrValuesFor = (client: Client, params: URLSearchParams, claims: ClaimsRequest | undefined) => {
-  if (params.has('acr_values')) {
-    const named = list(params.get('acr_values'))
-    return named.length ? named : undefined
-  }
-  return claims?.acr ? undefined : client.defaultAcrValues
 }
 
 // An RFC 7638 SHA-256 thumbprint: 32 bytes, base64url without padding.
@@ -273,8 +267,8 @@ const missingClaims = (config: ResolvedConfig, request: AuthorizationRequest, gr
 }
 
 /** Every acr the login is asked for, by `acr_values` or by the `claims` parameter, for the screens and the upstream (FR-C22). */
-export const requestedAcrValues = (request: Pick<AuthorizationRequest, 'acrValues' | 'claims'>) => {
-  const values = [...new Set([...(request.acrValues ?? []), ...(request.claims?.acr?.values ?? [])])]
+export const requestedAcrValues = (request: Pick<AuthorizationRequest, 'acrValues' | 'claims' | 'defaultAcrValues'>) => {
+  const values = [...new Set([...(request.acrValues ?? []), ...(request.claims?.acr?.values ?? []), ...(request.defaultAcrValues ?? [])])]
   return values.length ? values : undefined
 }
 

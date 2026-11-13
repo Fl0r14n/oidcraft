@@ -61,7 +61,7 @@ export type InteractionPayload = { browser: string } & (
       upstream?: { chosen: string | undefined; candidates: string[] }
     }
   | { interactionKind: 'login'; device: DeviceLogin }
-  | { interactionKind: 'logout'; sessionId: string; state?: string }
+  | { interactionKind: 'logout'; sessionId: string; state?: string; target?: string }
 )
 
 type Empty = Record<string, never>

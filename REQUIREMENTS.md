@@ -204,8 +204,8 @@ pushed. A claim named for `userinfo` is released at UserInfo and one named for `
 ID token, beyond what the scopes release — at a token for a resource, which UserInfo refuses, both in
 the ID token (FR-C5) — and only once the person consented to it: individually
 requested claims are consented as scopes are, all or nothing, and remembered in the grant (FR-I4),
-so `prompt=none` without that consent is `consent_required`. A claim the configuration's `claims`
-does not list is ignored, as is a protocol claim except these two. An essential `acr` with
+so `prompt=none` without that consent is `consent_required`. A claim that no scope the client may
+request releases is ignored — naming a claim never gets around the client's scopes — as is a protocol claim except these two. An essential `acr` with
 `value` or `values` is a requirement on the login, as `acr_values` is (FR-C16), and a login that
 does not meet it is a failed authentication, answered `access_denied` (§5.5.1.1). An `id_token`
 `sub` with a `value` is answered only for that subject: another session is asked to sign in again,
@@ -215,10 +215,11 @@ essential or not, as §5.5 requires.
 **FR-C23 — Authentication context classes.** The configuration may list the `acr` values its logins
 report, advertised as `acr_values_supported` (OIDC Discovery 1.0 §3) beside the
 `urn:oidcraft:idp:<id>` value naming each upstream, which home-realm discovery reads (FR-F4); unlisted,
-nothing is advertised. A client's `default_acr_values` (OIDC DCR 1.0 §2) stand in for `acr_values` on a request
-that names neither `acr_values` nor an `acr` in `claims`, which override them. As the specification
-says, they request `acr` as a voluntary claim: like `acr_values` (FR-C16), one login is asked to
-meet them and the ID token reports what it reached. Requiring a level is an essential `acr` in
+nothing is advertised. A client's `default_acr_values` (OIDC DCR 1.0 §2) apply to a request that
+names neither `acr_values` nor an `acr` in `claims`, which override them. As the specification says,
+they request `acr` as a voluntary claim: a login that happens is shown them, and home-realm discovery
+reads them, but they never ask for a login a session would not otherwise need, nor refuse
+`prompt=none`. Asking for a level is `acr_values` (FR-C16); requiring one is an essential `acr` in
 `claims` (FR-C22). When the configuration lists values, a client defaulting to any other is refused.
 
 ## 4. Tokens — `FR-T*`

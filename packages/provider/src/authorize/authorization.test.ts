@@ -202,29 +202,27 @@ describe('default acr values', () => {
   }
   const logins = (views: { kind: string }[]) => views.filter(view => view.kind === 'login').length
 
-  test('a session below them signs in once more, and the code is issued whatever that login reached', async () => {
+  test('a session below them is answered as it is, prompt=none included: they are voluntary', async () => {
     const first = await run({}, 'pwd')
-    await adapter.clients.upsert?.(client({ defaultAcrValues: ['mfa'] }))
+    await adapter.clients.upsert?.(client({ defaultAcrValues: ['mfa', 'urn:oidcraft:idp:google'] }))
     const again = await run({}, 'pwd', first.cookie)
-    expect(logins(again.views)).toBe(1)
-    expect(again.views[0]?.acrValues).toEqual(['mfa'])
-    expect(again.location.searchParams.get('code')).toBeTruthy()
-  })
-
-  test('a session that meets them is not asked again', async () => {
-    await adapter.clients.upsert?.(client({ defaultAcrValues: ['mfa'] }))
-    const first = await run({}, 'mfa')
-    const again = await run({}, 'mfa', first.cookie)
     expect(logins(again.views)).toBe(0)
     expect(again.location.searchParams.get('code')).toBeTruthy()
+    expect((await run({ prompt: 'none' }, 'pwd', first.cookie)).location.searchParams.get('code')).toBeTruthy()
   })
 
-  test('acr_values on the request, or an acr in claims, override them', async () => {
-    const first = await run({}, 'pwd')
+  test('a login that happens anyway is shown them', async () => {
     await adapter.clients.upsert?.(client({ defaultAcrValues: ['mfa'] }))
-    expect(logins((await run({ acr_values: 'pwd' }, 'pwd', first.cookie)).views)).toBe(0)
-    const voluntary = JSON.stringify({ id_token: { acr: { values: ['pwd'] } } })
-    expect(logins((await run({ claims: voluntary }, 'pwd', first.cookie)).views)).toBe(0)
+    const { views, location } = await run({}, 'pwd')
+    expect(views[0]).toMatchObject({ kind: 'login', acrValues: ['mfa'] })
+    expect(location.searchParams.get('code')).toBeTruthy()
+  })
+
+  test('acr_values on the request, or an acr named in claims with or without values, override them', async () => {
+    await adapter.clients.upsert?.(client({ defaultAcrValues: ['mfa'] }))
+    expect((await run({ acr_values: 'pwd' }, 'pwd')).views[0]?.acrValues).toEqual(['pwd'])
+    const named = JSON.stringify({ id_token: { acr: null } })
+    expect((await run({ claims: named }, 'pwd')).views[0]?.acrValues).toBeUndefined()
   })
 
   test('are advertised only when the configuration lists them, and a client naming another is refused', async () => {

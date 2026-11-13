@@ -1,7 +1,8 @@
 import { describe, expect, test } from 'bun:test'
 import { decodeProtectedHeader } from 'jose'
 import type { LogoutNotification } from '../index'
-import { adapter, build, client, endSession, ISSUER, tokensFor, useFlow } from '../test-flow'
+import { adapter, browserOf, build, client, endSession, ISSUER, tokensFor, useFlow } from '../test-flow'
+import { SESSION_COOKIE } from './session'
 
 useFlow()
 
@@ -134,4 +135,24 @@ describe('FR-C11: a logout token is signed as the client asked its ID tokens to 
     await provider.management.sessions.destroy('s1')
     expect(decodeProtectedHeader(delivered[0]?.logoutToken as string).alg).toBe('RS256')
   })
+})
+
+// OIDC RP-Initiated Logout 1.0 §2: a hint about another session is confirmed, and the person still ends where the client asked.
+test('a confirmed logout returns to the registered post_logout_redirect_uri', async () => {
+  await adapter.clients.upsert?.(client({ postLogoutRedirectUris: ['https://rp.example.com/bye'] }))
+  const provider = build()
+  const older = await tokensFor(provider)
+  const newer = await tokensFor(provider)
+  const params = new URLSearchParams({
+    id_token_hint: older.id_token,
+    post_logout_redirect_uri: 'https://rp.example.com/bye',
+    state: 's1'
+  })
+  const asked = await provider.handle(
+    new Request(`${ISSUER}/session/end?${params}`, { headers: { cookie: `${SESSION_COOKIE}=${newer.secret}` } })
+  )
+  const id = new URL(asked.headers.get('location') as string).pathname.split('/').pop() as string
+  const { redirectTo } = await provider.interactions.complete(id, { logout: true }, browserOf(asked))
+  const done = await provider.handle(new Request(redirectTo, { headers: { cookie: `${SESSION_COOKIE}=${newer.secret}` } }))
+  expect(done.headers.get('location')).toBe('https://rp.example.com/bye?state=s1')
 })

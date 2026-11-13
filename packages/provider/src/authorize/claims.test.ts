@@ -8,6 +8,7 @@ import {
   basic,
   browserOf,
   build,
+  client,
   drive,
   go,
   ISSUER,
@@ -119,6 +120,25 @@ describe('the claims request parameter', () => {
   test('a claim a requested scope releases asks for nothing more', async () => {
     const { views } = await authorize({ scope: 'openid profile', claims: JSON.stringify({ userinfo: { name: null } }) })
     expect(views.find(view => view.kind === 'consent')?.claims).toEqual([])
+  })
+
+  // A client's scopes bound what it may learn; naming a claim one by one does not get around them.
+  test('a claim only a scope this client may not request releases is ignored', async () => {
+    await adapter.clients.upsert?.(client({ scopes: ['openid', 'profile', 'offline_access'] }))
+    const { location, views } = await authorize(claims({ userinfo: { email: null }, id_token: { email: null } }))
+    expect(views.find(view => view.kind === 'consent')?.claims).toEqual([])
+    const tokens = await redeem(location)
+    expect(await userinfo(tokens.access_token)).not.toHaveProperty('email')
+    expect(decodeJwt(tokens.id_token)).not.toHaveProperty('email')
+  })
+
+  test('a refresh narrowed away from a scope stops releasing what only that scope covered', async () => {
+    const { location } = await authorize({ scope: 'openid email offline_access', claims: JSON.stringify({ userinfo: { email: null } }) })
+    const { refresh_token } = await redeem(location)
+    const narrowed = await (
+      await post('/token', { grant_type: 'refresh_token', refresh_token, scope: 'openid offline_access' }, { authorization: basic() })
+    ).json()
+    expect(await userinfo(narrowed.access_token)).not.toHaveProperty('email')
   })
 
   test('a claim the configuration does not list is ignored', async () => {

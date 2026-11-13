@@ -141,10 +141,10 @@ request parameter; release those too.
 
 How a person signed in reaches clients as `acr` and `amr`, which your login answer sets: the demo
 reports `acr: 'pwd'` for a password and `'mfa'` after a second factor. List the levels as
-`acrValues` and discovery advertises them. A client asks for one with `acr_values`, or by default
-through its registered `default_acr_values`; either is a request, and one login is asked to meet
-it. To require a level, a client sends it as an essential `acr` in the `claims` parameter, and a
-login that falls short is refused.
+`acrValues` and discovery advertises them. A client asks for one with `acr_values`, and one login is
+asked to meet it. Its registered `default_acr_values` are a softer hint: a login that happens is
+shown them, but they never force one. To require a level, a client sends it as an essential `acr` in
+the `claims` parameter, and a login that falls short is refused.
 
 ## Sign in with Google or Microsoft
 

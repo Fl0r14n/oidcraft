@@ -54,7 +54,7 @@ already do.
 | No session | `login` interaction |
 | `prompt=login` or `prompt=select_account` | `login` interaction, even with a live session (FR-I5) |
 | Session older than `max_age` | `login` interaction (FR-C16) |
-| `acr_values` given, or the client's `default_acr_values` when none is, and the session's `acr` is not one of them | `login` interaction, once (FR-C16, FR-C23) |
+| `acr_values` given and the session's `acr` is not one of them | `login` interaction, once (FR-C16) |
 | Signed in, but the account's grant for this client lacks a requested scope | `consent` interaction |
 | A claim requested by name in `claims` that the grant does not cover (OIDC Core §5.5) | `consent` interaction (FR-C22) |
 | An essential `acr` in `claims` the session does not meet, or a `sub` in it naming someone else | `login` interaction (FR-C22) |
@@ -91,7 +91,7 @@ abandoned one; it expires, and the client never hears back.
 | `claims` | Claims the `claims` parameter asks for beyond what the scopes release; a consent screen lists these too (FR-C22) |
 | `prompt` | `login`, `consent`, `select_account` as requested (`none` never gets here) |
 | `loginHint` | `login_hint`, to prefill the username |
-| `acrValues` | `acr_values`, and any `acr` the `claims` parameter names: the authentication strength the client asked for |
+| `acrValues` | `acr_values`, any `acr` the `claims` parameter names, or the client's `default_acr_values`: the authentication strength the client asked for |
 | `maxAge` | `max_age` in seconds, when the client capped session age |
 | `uiLocales` | `ui_locales`, in preference order, to choose the screen's language (FR-I6) |
 | `redirectUri` | Where the person goes afterwards. Show its host on a consent screen: a client registered by metadata document can call itself anything |

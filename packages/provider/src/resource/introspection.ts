@@ -4,6 +4,7 @@ import type { ResolvedConfig } from '../config'
 import type { ClientCertificate } from '../context'
 import type { Caller } from '../cors'
 import { OAuthError } from '../errors'
+import { readForm } from '../form'
 import type { Stored } from '../payloads'
 import { findPresented } from '../token/access-token'
 import { outlivedItsSession } from '../token/issue'
@@ -58,7 +59,7 @@ export const introspectionEndpoint = async (
   certificate?: ClientCertificate | undefined,
   caller: Caller = {}
 ) => {
-  const form = new URLSearchParams(await request.text())
+  const form = await readForm(request)
   const { client } = await authenticateClient(config, form, request.headers, certificate, caller)
 
   const presented = form.get('token')

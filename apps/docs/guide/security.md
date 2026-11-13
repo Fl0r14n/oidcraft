@@ -95,7 +95,7 @@ refusals with it. Nothing turns off rotation on its own.
 
 FR-T4: an authorization code is single-use, and redeeming it a second time revokes the family it
 started. NFR-S4 states the general rule. A replay means the artifact leaked, so everything derived
-from it has to stop working too.
+from it has to stop working too. The replay reaches `onAudit` as `token.replay` (FR-M3).
 
 This is only as strong as the storage underneath it. Single use cannot be built from a read followed
 by a write. FR-A3 therefore requires an adapter's `insert` to be atomic, so a store that is only
@@ -176,8 +176,8 @@ reads.
 
 FR-M1: the management API over clients, grants, sessions, keys and upstreams is a set of functions
 the host mounts behind its own authentication. oidcraft has no notion of an admin user, an admin
-role or an admin scope. Every write through it emits an audit event, and the host decides where
-audit events go (FR-M3).
+role or an admin scope. Every write through it emits an audit event, as do a replayed token and a
+failed client authentication, and the host decides where audit events go (FR-M3).
 
 **Configurable?** Not applicable. Deciding who is an administrator is your job, and there is no
 default to fall back on.
@@ -234,6 +234,8 @@ the host:
   are yours because each one fetches a URL that someone else chose. Your network policy, size limit
   and caching are what stand between those URLs and your internal network. FR-C20 spells this out
   for metadata documents: block private addresses, cap the body, apply your trust policy.
+- **Request size.** The core reads whatever body arrives. Cap it in front of the provider, beside
+  your rate limits (NFR-S12).
 - **Delivering logout.** The core mints back-channel logout tokens and hands them to `onLogout`. It
   never POSTs them itself (FR-C11).
 - **Keys, https and admin authentication.** See

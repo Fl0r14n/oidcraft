@@ -392,8 +392,12 @@ session inspection and grant revocation. Keys and upstreams are shown, not edite
 host's `KeyStore` and are rotated where it keeps them (FR-C10), and an upstream is deployment
 configuration (FR-F1).
 
-**FR-M3** — Every write through the management API emits an audit event. The host decides where
-audit events go; the library does not persist them.
+**FR-M3** — Every write through the management API or registration emits an audit event, and so does
+every attack the provider detects and answers on its own: a replayed authorization code or refresh
+token, and the family it revoked (FR-T3, FR-T4), and a failed client authentication. What the host
+calls and is answered — a locked account, a wrong device code — it already sees. The host decides
+where audit events go; the library does not persist them, and a failing audit hook changes no answer
+(NFR-D5).
 
 **FR-M4** — Several issuers in one process are possible and never imposed. `createRealms` builds an
 ordinary provider per realm on first use, from a realm record and a host-supplied `configure`; a

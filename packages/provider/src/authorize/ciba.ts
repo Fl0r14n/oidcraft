@@ -4,6 +4,7 @@ import { authenticateClient } from '../clients/authenticate'
 import type { ResolvedConfig } from '../config'
 import type { ClientCertificate } from '../context'
 import { OAuthError } from '../errors'
+import { readForm } from '../form'
 import { readArtifact, type Stored, writeArtifact } from '../payloads'
 import type { Binding } from '../token/issue'
 import { answer, answered, DEFAULT_INTERVAL, type Flow, type Polled, redeem } from './decoupled'
@@ -51,7 +52,7 @@ export const backchannelAuthenticationEndpoint = async (
   request: Request,
   certificate?: ClientCertificate | undefined
 ) => {
-  const form = new URLSearchParams(await request.text())
+  const form = await readForm(request)
   const { client } = await authenticateClient(config, form, request.headers, certificate)
   if (!client.grantTypes.includes(CIBA_GRANT)) {
     throw new OAuthError('unauthorized_client', {

@@ -3,6 +3,8 @@ import { randomString } from '@oidcraft/core'
 import { createLocalJWKSet, type JWTPayload, jwtVerify } from 'jose'
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
+import { readForm } from '../form'
+import { reportError } from '../hooks'
 import { jwksResponseBody } from '../keys/keys'
 import { readArtifact, writeArtifact } from '../payloads'
 import { bindBrowser } from './browser'
@@ -53,7 +55,7 @@ export const endSessionEndpoint = async (
   session: Session | undefined
 ): Promise<EndSessionResult> => {
   const url = new URL(request.url)
-  const params = request.method === 'POST' ? new URLSearchParams(await request.text()) : url.searchParams
+  const params = request.method === 'POST' ? await readForm(request) : url.searchParams
 
   const hint = params.get('id_token_hint')
   const claims = hint ? await verifyHint(config, hint) : undefined
@@ -99,7 +101,7 @@ const signOutUpstream = async (config: ResolvedConfig, request: Request, session
   try {
     return await config.upstreamLogout?.(session, then)
   } catch (error) {
-    await Promise.resolve(config.onError?.(error, { request })).catch(() => undefined)
+    await reportError(config, request, error)
     return undefined
   }
 }

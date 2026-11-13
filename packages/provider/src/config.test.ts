@@ -2,6 +2,8 @@ import { describe, expect, test } from 'bun:test'
 import { ConfigurationError } from '@oidcraft/adapter'
 import { memoryAdapter } from '@oidcraft/adapter/memory'
 import { resolveConfig } from './config'
+import { createProvider } from './provider'
+import { client } from './test-flow'
 
 const adapter = await memoryAdapter()
 const base = { issuer: 'https://op.example.com', adapter, interactionUrl: 'https://op.example.com/interaction' }
@@ -23,6 +25,27 @@ describe('resolveConfig', () => {
     expect(config.ttl.accessToken).toBe(900)
     expect(config.scopes).toContain('openid')
     expect(config.features.dynamicRegistration).toBe(false)
+  })
+
+  // NFR-D2: a hook is never listed again to reach the resolved configuration, so none can be dropped on the way.
+  test('carries every hook and policy through as configured', () => {
+    const hooks = {
+      onLogout: () => {},
+      onFrontChannelLogout: () => {},
+      resolveClientJwks: async () => ({ keys: [] }),
+      upstreamLogout: async () => undefined,
+      resolveSectorIdentifier: async () => [],
+      resolveClientMetadata: async () => undefined,
+      onRegister: () => undefined,
+      onAudit: () => {},
+      onError: () => {},
+      resolveCibaUser: () => undefined,
+      exchangePolicy: () => undefined
+    }
+    const config = resolveConfig({ ...base, ...hooks, pairwiseSalt: 'salt' })
+    for (const [name, hook] of Object.entries(hooks))
+      expect({ name, same: config[name as keyof typeof hooks] === hook }).toEqual({ name, same: true })
+    expect(config.pairwiseSalt).toBe('salt')
   })
 
   test('strips a trailing slash so the issuer matches the token claim exactly', () => {
@@ -78,7 +101,7 @@ describe('resolveConfig', () => {
     const full = await memoryAdapter()
     const crippled = { ...full, clients: { find: full.clients.find } }
     const problems = problemsOf(() => resolveConfig({ ...base, adapter: crippled, features: { dynamicRegistration: true } }))
-    expect(problems?.join()).toContain('clients store implements create')
+    expect(problems?.join()).toContain('clients store implements upsert')
   })
 
   // NFR-D2: each of these would otherwise be a 500 on the first request that needed it.
@@ -96,5 +119,28 @@ describe('resolveConfig', () => {
   test('reports every problem at once rather than the first', () => {
     const problems = problemsOf(() => resolveConfig({ ...base, issuer: 'http://op.example.com', scopes: ['profile'] }))
     expect(problems?.length).toBe(2)
+  })
+})
+
+describe('an issuer with a path', () => {
+  const PATHED = 'https://op.example.com/auth'
+
+  test('serves every route under that path, as discovery publishes them', async () => {
+    await adapter.clients.upsert?.(client())
+    const provider = createProvider({ issuer: PATHED, adapter, interactionUrl: `${PATHED}/interaction` })
+    const discovery = await provider.handle(new Request(`${PATHED}/.well-known/openid-configuration`))
+    expect(discovery.status).toBe(200)
+    const metadata = await discovery.json()
+    expect(metadata.token_endpoint).toBe(`${PATHED}/token`)
+    expect((await provider.handle(new Request(`${PATHED}/jwks`))).status).toBe(200)
+    // A host that mounted the provider under the prefix and stripped it is served too.
+    expect((await provider.handle(new Request('https://op.example.com/jwks'))).status).toBe(200)
+  })
+
+  test('a trailing slash on a pathed issuer changes nothing', async () => {
+    const provider = createProvider({ issuer: `${PATHED}/`, adapter, interactionUrl: `${PATHED}/interaction` })
+    const metadata = await (await provider.handle(new Request(`${PATHED}/.well-known/openid-configuration`))).json()
+    expect(metadata.issuer).toBe(PATHED)
+    expect(metadata.token_endpoint).toBe(`${PATHED}/token`)
   })
 })

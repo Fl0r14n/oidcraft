@@ -19,7 +19,14 @@ const revokeOnReplay = async (config: ResolvedConfig, artifact: SingleUse, what:
   await revokeFamily(config, artifact)
   throw new OAuthError('invalid_grant', {
     description: `this ${what} was already used; every token issued from it has been revoked`,
-    spec: 'RFC 9700 §4.14.2'
+    spec: 'RFC 9700 §4.14.2',
+    event: {
+      action: 'token.replay',
+      clientId: artifact.clientId,
+      ...(artifact.accountId && { accountId: artifact.accountId }),
+      ...(artifact.grantId && { grantId: artifact.grantId }),
+      detail: { kind: artifact.kind, ...(artifact.familyId && { familyId: artifact.familyId }) }
+    }
   })
 }
 

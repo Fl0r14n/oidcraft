@@ -366,12 +366,16 @@ register dynamically are served by `features: { dynamicRegistration: true }`, an
   failed passwords and second-factor codes per account and address. Limiting requests per address at the token,
   authorization and registration endpoints is yours, in front of the provider, where the real peer
   address is known. Pass that address in as `clientIp` to `provider.device.*` and to
-  `accounts.authenticate` and `verifySecondFactor`.
+  `accounts.authenticate` and `verifySecondFactor`. Cap request body sizes there too: oidcraft reads
+  whatever body arrives, refusing only one that is not form-encoded.
 - **Logout delivery.** oidcraft never makes outbound requests itself. Back-channel logout hands you
   the notifications through `onLogout`, and you send them.
 - **Administration.** `provider.management` has functions, not routes, for clients, grants,
   sessions, keys and linked identities, with audit events through `onAudit`. Who may call them is
   your decision: oidcraft never decides who is an administrator.
+- **Security events.** `onAudit` also hears a replayed code or refresh token (`token.replay`, with
+  the grant whose tokens it revoked) and a failed client authentication
+  (`client.authentication_failed`). Route them to whatever alerts you.
 
 ## What it does
 

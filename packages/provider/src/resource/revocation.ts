@@ -3,6 +3,7 @@ import type { ResolvedConfig } from '../config'
 import type { ClientCertificate } from '../context'
 import type { Caller } from '../cors'
 import { OAuthError } from '../errors'
+import { readForm } from '../form'
 import { findPresented } from '../token/access-token'
 import { revokeFamily } from '../token/family'
 
@@ -19,7 +20,7 @@ export const revocationEndpoint = async (
   certificate?: ClientCertificate | undefined,
   caller: Caller = {}
 ) => {
-  const form = new URLSearchParams(await request.text())
+  const form = await readForm(request)
   const { client } = await authenticateClient(config, form, request.headers, certificate, caller)
 
   const presented = form.get('token')

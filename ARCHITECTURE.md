@@ -559,7 +559,8 @@ The root entry exposes the management surface as functions on the provider, `pro
 over clients, grants, sessions, keys and upstreams (FR-M1); none of it is a route. **The library
 never decides who is an administrator** — the host calls these from handlers behind its own
 authentication, and the reference app does so behind its own admin session.
-Writes emit audit events the host routes somewhere; the library persists none of them (FR-M3).
+Writes, replays and failed client authentications emit audit events the host routes somewhere; the
+library persists none of them (FR-M3).
 
 ### 7.1 Realms
 

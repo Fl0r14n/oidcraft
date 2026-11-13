@@ -1,5 +1,6 @@
 import type { Session } from '@oidcraft/adapter'
 import { withHashedArtifacts } from './artifacts'
+import { audit } from './audit'
 import {
   authorizationResponse,
   authorize,
@@ -23,10 +24,12 @@ import { applyRequestObject } from './authorize/request-object'
 import { withClientMetadata } from './clients/metadata-document'
 import { registrationEndpoint } from './clients/registration'
 import { type ProviderConfig, type ResolvedConfig, resolveConfig, routePath } from './config'
-import type { RequestContext } from './context'
+import type { ClientCertificate, RequestContext } from './context'
 import { type Caller, preflight, withCors } from './cors'
 import { discoveryEndpoint } from './discovery'
 import { errorResponse, OAuthError } from './errors'
+import { readForm } from './form'
+import { guarded, reportError } from './hooks'
 import { jwksEndpoint } from './keys/jwks'
 import { withKeysOnce } from './keys/signer'
 import { management } from './management'
@@ -69,12 +72,7 @@ export type Provider = {
   handle(request: Request, context?: Pick<RequestContext, 'clientCertificate'>): Promise<Response>
 }
 
-type Handler = (
-  config: ResolvedConfig,
-  request: Request,
-  context: Pick<RequestContext, 'clientCertificate'>,
-  caller: Caller
-) => Promise<Response>
+type Handler = (config: ResolvedConfig, request: Request, certificate: ClientCertificate | undefined, caller: Caller) => Promise<Response>
 
 const seeOther = (url: string, setCookie?: string) =>
   new Response(null, {
@@ -98,7 +96,7 @@ const deliverStoredResponse = async (config: ResolvedConfig, id: string) => {
 
 const authorizationHandler: Handler = async (config, request) => {
   const url = new URL(request.url)
-  const raw = request.method === 'POST' ? new URLSearchParams(await request.text()) : url.searchParams
+  const raw = request.method === 'POST' ? await readForm(request) : url.searchParams
 
   const stored = raw.get('response')
   if (stored && !raw.has('client_id')) return deliverStoredResponse(config, stored)
@@ -155,8 +153,8 @@ const endSessionHandler: Handler = async (config, request) => {
   const session = await readSession(config, request)
   const { response, notifications, frontChannel } = await endSessionEndpoint(config, request, session)
   // From the resolved config, never module state: two providers in one process must not reach each other's callback (FR-A1).
-  if (notifications.length && config.onLogout) await config.onLogout(notifications)
-  if (frontChannel.length && config.onFrontChannelLogout) await config.onFrontChannelLogout(frontChannel)
+  if (notifications.length) await guarded(config, request, () => config.onLogout?.(notifications))
+  if (frontChannel.length) await guarded(config, request, () => config.onFrontChannelLogout?.(frontChannel))
   return response
 }
 
@@ -190,35 +188,20 @@ const routeTable = (config: ResolvedConfig) => {
   const table = new Map<string, Route>()
   const add = (path: string, methods: string[], handle: Handler) => table.set(path, { methods, handle })
 
-  add(config.routes.discovery, [GET], async cfg => discoveryEndpoint(cfg))
-  add(config.routes.oauthMetadata, [GET], async cfg => discoveryEndpoint(cfg))
-  add(config.routes.jwks, [GET], async cfg => jwksEndpoint(cfg))
+  add(config.routes.discovery, [GET], discoveryEndpoint)
+  add(config.routes.oauthMetadata, [GET], discoveryEndpoint)
+  add(config.routes.jwks, [GET], jwksEndpoint)
   add(config.routes.authorization, [GET, 'POST'], authorizationHandler)
-  add(config.routes.token, ['POST'], async (cfg, req, ctx, caller) => tokenEndpoint(cfg, req, ctx.clientCertificate, caller))
-  add(config.routes.userinfo, [GET, 'POST'], async (cfg, req, ctx, caller) => userinfoEndpoint(cfg, req, ctx.clientCertificate, caller))
+  add(config.routes.token, ['POST'], tokenEndpoint)
+  add(config.routes.userinfo, [GET, 'POST'], userinfoEndpoint)
   add(config.routes.endSession, [GET, 'POST'], endSessionHandler)
-  if (config.features.revocation)
-    add(config.routes.revocation, ['POST'], async (cfg, req, ctx, caller) => revocationEndpoint(cfg, req, ctx.clientCertificate, caller))
-  if (config.features.introspection)
-    add(config.routes.introspection, ['POST'], async (cfg, req, ctx, caller) =>
-      introspectionEndpoint(cfg, req, ctx.clientCertificate, caller)
-    )
-  if (config.features.dynamicRegistration) {
-    add(config.routes.registration, ['POST', GET, 'PUT', 'DELETE'], async (cfg, req) => registrationEndpoint(cfg, req))
-  }
-  if (config.features.deviceFlow) {
-    add(config.routes.deviceAuthorization, ['POST'], async (cfg, req, ctx) => deviceAuthorizationEndpoint(cfg, req, ctx.clientCertificate))
-  }
-  if (config.features.ciba) {
-    add(config.routes.backchannelAuthentication, ['POST'], async (cfg, req, ctx) =>
-      backchannelAuthenticationEndpoint(cfg, req, ctx.clientCertificate)
-    )
-  }
-  if (config.features.pushedAuthorizationRequests) {
-    add(config.routes.pushedAuthorizationRequest, ['POST'], async (cfg, req, ctx) =>
-      pushedAuthorizationRequestEndpoint(cfg, req, ctx.clientCertificate)
-    )
-  }
+  if (config.features.revocation) add(config.routes.revocation, ['POST'], revocationEndpoint)
+  if (config.features.introspection) add(config.routes.introspection, ['POST'], introspectionEndpoint)
+  if (config.features.dynamicRegistration) add(config.routes.registration, ['POST', GET, 'PUT', 'DELETE'], registrationEndpoint)
+  if (config.features.deviceFlow) add(config.routes.deviceAuthorization, ['POST'], deviceAuthorizationEndpoint)
+  if (config.features.ciba) add(config.routes.backchannelAuthentication, ['POST'], backchannelAuthenticationEndpoint)
+  if (config.features.pushedAuthorizationRequests)
+    add(config.routes.pushedAuthorizationRequest, ['POST'], pushedAuthorizationRequestEndpoint)
   return table
 }
 
@@ -239,13 +222,15 @@ const dispatch = async (
         headers: { allow: route.methods.join(', ') }
       })
     }
-    return await route.handle(withKeysOnce(config), request, context ?? {}, caller)
+    return await route.handle(withKeysOnce(config), request, context?.clientCertificate, caller)
   } catch (error) {
-    // NFR-D5: only what was not meant. A hook that fails must not turn the answer into something else.
+    // NFR-D5: only what was not meant.
     if (!(error instanceof OAuthError) || error.status >= 500) {
-      await Promise.resolve()
-        .then(() => config.onError?.(error instanceof OAuthError ? (error.cause ?? error) : error, { request }))
-        .catch(() => undefined)
+      await reportError(config, request, error instanceof OAuthError ? (error.cause ?? error) : error)
+    }
+    if (error instanceof OAuthError && error.event) {
+      const { action, ...detail } = error.event
+      await guarded(config, request, () => audit(config, action, detail))
     }
     return errorResponse(error)
   }

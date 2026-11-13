@@ -281,3 +281,12 @@ describe('client_secret_jwt', () => {
     expect(body.error).toBe('invalid_client')
   })
 })
+
+describe('malformed credentials are client errors, not 500s', () => {
+  test('a Basic header that is not base64, or not percent-decodable, is invalid_client', async () => {
+    for (const authorization of ['Basic !!!not-base64!!!', `Basic ${btoa('api:%E0%A4%A')}`]) {
+      const response = await post({ grant_type: 'authorization_code', code: 'x' }, { authorization })
+      expect({ authorization, status: response.status }).toEqual({ authorization, status: 401 })
+    }
+  })
+})

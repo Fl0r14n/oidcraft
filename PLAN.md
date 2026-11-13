@@ -6,7 +6,7 @@ was done.
 
 ## Status
 
-**Implemented, as of 2026-11-13**, with 1266 passing tests (190 more skip without Postgres and
+**Implemented, as of 2026-11-13**, with 1324 passing tests (215 more skip without Postgres and
 Redis) and `bun run verify` as the gate: every functional requirement in `REQUIREMENTS.md`, FR-T6,
 FR-C21 and FR-A4's Postgres included. `metadata.test.ts` exercises every advertised discovery value
 rather than reading it. Published as `@oidcraft/*` — `core` 0.4.0, `client` 0.3.0, the provider
@@ -16,8 +16,8 @@ for types and `sha256` identical in 0.4.0, so a consumer holds both copies until
 
 **Provider 0.3.0 and earlier are not to be put in front of real identities**: they ship a session
 takeover through `sid` and the other security faults the review after that release found, fixed in
-0.4.0. The review's correctness and small findings are fixed on `main`, unreleased; the provider
-follow-ups are open.
+0.4.0. The review's correctness and small findings, and the provider follow-ups, are fixed on `main`,
+unreleased.
 
 The authorization code grant with mandatory PKCE, interaction suspend/resume, token issuance with
 rotation and replay revocation, UserInfo, revocation, introspection, logout in both directions,
@@ -72,8 +72,8 @@ word: the host is the authenticator, and an essential `acr` would be enforceable
    `adapter` 0.2.1 (the `revoked_family` kind, the suite's new checks, the identity key),
    `drizzle` and `kysely` 0.2.1, `typeorm` 0.3.0 (`OIDCRAFT_ENTITIES` split by dialect), `core`
    0.5.0 (the `token` check), `client` 0.4.0 (the handoff in `sessionStorage`), the provider 0.5.0
-   and the bindings.
-2. **Provider follow-ups**, below. Before 1.0.
+   and the bindings. The provider follow-ups below ride in the provider's 0.5.0: `onAudit` now hears
+   replays and failed client authentications, and a body that is not form-encoded is a 415.
 
 ## Review — 2026-11-13, after the release
 
@@ -119,34 +119,29 @@ shows it. In order.
 
 **Before 1.0**
 
-- [ ] Security events reach no hook. `onAudit` fires for management and registration writes only: a
-  detected replay revokes its family in silence (`token/family.ts:6`), and a failed client
-  authentication, a lockout and a wrong device code are as invisible. Either widen `onAudit` or add
-  a hook for these, and decide which in `REQUIREMENTS.md` first. FR-M3
-- [ ] A throwing `onLogout` turns a logout that happened into a 500: the session is already ended
-  when the hook is awaited, and the notifications are lost (`provider.ts:165`). Guard it as `onError`
-  is guarded and report the failure there; `onFrontChannelLogout` the same. FR-C11, NFR-D5
-- [ ] Nine endpoints read `new URLSearchParams(await request.text())`, with no content-type check and
-  no bound on the body. One `readForm(request)` for all of them; if the size cap stays the host's,
-  the README's _Before production_ says so beside the rate limiting. NFR-S12
-- [ ] `ResolvedConfig` is `ProviderConfig` written out three times — the type, the resolved type and
-  the returned literal, 28 fields each (`config.ts`) — so a new hook is three edits and a missed one
-  is `undefined` without an error. Derive it: defaults for what has them, the hooks carried through.
-  NFR-D2
+- [x] Security events reach no hook. FR-M3 widened rather than a second hook: `onAudit` hears
+  `token.replay` (with the grant and family it revoked) and `client.authentication_failed`, carried
+  on the refusal's `OAuthError` and emitted where the request ends. A lockout and a wrong device code
+  were never invisible: the host calls `accounts` and `provider.device.*` and is answered. A failing
+  audit hook goes to `onError` and changes no answer. FR-M3
+- [x] A throwing `onLogout` turns a logout that happened into a 500. Both logout hooks are guarded as
+  `onError` is (`hooks.ts`), each failure reported there. FR-C11, NFR-D5
+- [x] Nine endpoints read the body with no content-type check. `readForm` refuses a non-empty body
+  that is not form-encoded with a 415; the size cap stays the host's, as NFR-S12 already puts the
+  rate limits, and _Before production_ and the security guide say so. NFR-S12
+- [x] `ResolvedConfig` is `ProviderConfig` written out three times. Now `ProviderConfig` with its
+  defaulted fields resolved; every hook is carried through by the spread, which a test pins. NFR-D2
 
 **Smaller**
 
-- [ ] `authorize` takes an optional `client`, and without one `suspend` drops that client's
-  `upstreamProviders` restriction (`authorize/authorization.ts`). Its one caller passes it; make it
-  required. FR-F4
-- [ ] `grant as Grant` (`authorize/authorization.ts:336`) holds only because `openid` is always
-  requested, so a missing grant always has scopes outstanding. A check in place of the cast
-- [ ] `config.ts:358` tests `clients.upsert` and tells the host to implement "create"
-- [ ] Two doc comments stacked on `Provider.handle`, the first attached to nothing (`provider.ts`)
-- [ ] The route table adapts `(config, request, context, caller)` to each endpoint's own argument
-  order (`provider.ts`). Endpoints that take the `Handler` shape make it a line per route
-- [ ] `gaps.test.ts` and `flow.test.ts` are named for when they were written. Move each case beside
-  the module it tests
+- [x] `suspend` took an optional `client`; it is required, so a consent suspension carries it too. FR-F4
+- [x] `grant as Grant` — a missing grant now asks for consent in its own right
+- [x] `config.ts` tells the host to implement `upsert`
+- [x] Two doc comments stacked on `Provider.handle` — already gone by the time this was picked up
+- [x] The route table is a line per route: the endpoints already take `(config, request, certificate, caller)`
+- [x] `gaps.test.ts` and `flow.test.ts` are split beside the modules they test, over one harness,
+  `test-flow.ts`, whose adapter gets its own `accounts` per test — the old shared one let a test's
+  override of `claims` leak into the next file. `small.test.ts` is named the same way and was left
 
 ## Still open on the client libraries
 

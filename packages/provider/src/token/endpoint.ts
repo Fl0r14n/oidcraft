@@ -7,6 +7,7 @@ import type { ResolvedConfig } from '../config'
 import type { ClientCertificate } from '../context'
 import type { Caller } from '../cors'
 import { OAuthError } from '../errors'
+import { readForm } from '../form'
 import { underFapi } from '../profile/fapi'
 import { clientCredentialsGrant } from './client-credentials'
 import { authorizationCodeGrant, refreshTokenGrant } from './code'
@@ -34,7 +35,7 @@ export const tokenEndpoint = async (
   certificate?: ClientCertificate | undefined,
   caller: Caller = {}
 ) => {
-  const form = new URLSearchParams(await request.text())
+  const form = await readForm(request)
   const { client } = await authenticateClient(config, form, request.headers, certificate, caller)
 
   const grantType = form.get('grant_type')

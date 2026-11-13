@@ -200,7 +200,7 @@ export type ProviderConfig = {
     request: Request,
     context: { existing: Client | undefined }
   ) => RegistrationDecision | undefined | Promise<RegistrationDecision | undefined>
-  /** Every write through registration or the management API. The host decides where these go (FR-M3). */
+  /** Every write through registration or the management API, every replay and every failed client authentication (FR-M3). */
   onAudit?: (event: AuditEvent) => void | Promise<void>
   /**
    * A failure the provider did not expect, with its cause: a store that threw, a key that would not
@@ -229,12 +229,8 @@ export type AuditEvent = {
   detail?: Record<string, unknown>
 }
 
-export type ResolvedConfig = {
-  issuer: string
-  issuerUrl: URL
-  adapter: Adapter
-  profile: 'fapi2' | undefined
-  interactionUrl: string
+/** What has a default, resolved; every hook and the rest carried through as configured (NFR-D2). */
+type Defaulted = {
   routes: Routes
   ttl: Ttl
   scopes: string[]
@@ -242,23 +238,13 @@ export type ResolvedConfig = {
   clientAuthMethods: ClientAuthMethod[]
   features: Features
   capabilities: Capabilities
-  onLogout: ProviderConfig['onLogout']
-  onFrontChannelLogout: ProviderConfig['onFrontChannelLogout']
-  resolveClientJwks: ProviderConfig['resolveClientJwks']
-  upstreamLogout: ProviderConfig['upstreamLogout']
-  resolveSectorIdentifier: ProviderConfig['resolveSectorIdentifier']
-  resolveClientMetadata: ProviderConfig['resolveClientMetadata']
-  onRegister: ProviderConfig['onRegister']
-  onAudit: ProviderConfig['onAudit']
-  onError: ProviderConfig['onError']
   upstreams: UpstreamDescriptor[]
   resources: ResourceDescriptor[]
   subjectType: 'public' | 'pairwise'
-  pairwiseSalt: string | undefined
-  exchangePolicy: ExchangePolicy | undefined
-  resolveCibaUser: ProviderConfig['resolveCibaUser']
   authorizationDetailTypes: string[]
 }
+
+export type ResolvedConfig = Omit<ProviderConfig, keyof Defaulted> & Defaulted & { issuerUrl: URL }
 
 export const MTLS_METHODS: ClientAuthMethod[] = ['tls_client_auth', 'self_signed_tls_client_auth']
 
@@ -345,7 +331,7 @@ export const resolveConfig = (config: ProviderConfig): ResolvedConfig => {
   }
 
   if (features.dynamicRegistration && !config.adapter?.clients.upsert) {
-    problems.push('features.dynamicRegistration needs an adapter whose clients store implements create (FR-C9)')
+    problems.push('features.dynamicRegistration needs an adapter whose clients store implements upsert (FR-C9)')
   }
 
   if ((config.subjectType === 'pairwise' || config.pairwiseSalt !== undefined) && !config.pairwiseSalt) {
@@ -381,11 +367,9 @@ export const resolveConfig = (config: ProviderConfig): ResolvedConfig => {
   if (problems.length) throw new ConfigurationError(problems)
 
   return {
+    ...config,
     issuer: stripTrailingSlash(config.issuer),
     issuerUrl: issuerUrl as URL,
-    adapter: config.adapter,
-    profile: config.profile,
-    interactionUrl: config.interactionUrl,
     routes,
     ttl,
     scopes,
@@ -393,21 +377,9 @@ export const resolveConfig = (config: ProviderConfig): ResolvedConfig => {
     clientAuthMethods,
     features,
     capabilities,
-    onLogout: config.onLogout,
-    onFrontChannelLogout: config.onFrontChannelLogout,
-    resolveClientJwks: config.resolveClientJwks,
-    upstreamLogout: config.upstreamLogout,
-    resolveSectorIdentifier: config.resolveSectorIdentifier,
-    resolveClientMetadata: config.resolveClientMetadata,
-    onRegister: config.onRegister,
-    onAudit: config.onAudit,
-    onError: config.onError,
     upstreams: config.upstreams ?? [],
-    resources: config.resources ?? [],
+    resources,
     subjectType: config.subjectType ?? 'public',
-    pairwiseSalt: config.pairwiseSalt,
-    exchangePolicy: config.exchangePolicy,
-    resolveCibaUser: config.resolveCibaUser,
     authorizationDetailTypes: config.authorizationDetailTypes ?? []
   }
 }

@@ -42,13 +42,32 @@ const fromBasic = (header: string) => {
   }
 }
 
-// FR-C4: credentials in two places are refused, not resolved by precedence, or server and an auditing proxy could disagree.
 export const authenticateClient = async (
   config: ResolvedConfig,
   form: URLSearchParams,
   headers: Headers,
   certificate?: ClientCertificate | undefined,
   caller: Caller = {}
+) => {
+  try {
+    return await authenticate(config, form, headers, certificate, caller)
+  } catch (error) {
+    if (!(error instanceof OAuthError) || error.code !== 'invalid_client') throw error
+    throw error.reporting({
+      action: 'client.authentication_failed',
+      ...(caller.client && { clientId: caller.client.clientId }),
+      detail: { reason: error.description, ...(caller.client && { method: caller.client.tokenEndpointAuthMethod }) }
+    })
+  }
+}
+
+// FR-C4: credentials in two places are refused, not resolved by precedence, or server and an auditing proxy could disagree.
+const authenticate = async (
+  config: ResolvedConfig,
+  form: URLSearchParams,
+  headers: Headers,
+  certificate: ClientCertificate | undefined,
+  caller: Caller
 ): Promise<AuthenticatedClient> => {
   const authorization = headers.get('authorization')
   const basic = authorization?.toLowerCase().startsWith('basic ') ? fromBasic(authorization) : undefined

@@ -5,6 +5,7 @@ import type { ResolvedConfig } from '../config'
 import type { ClientCertificate } from '../context'
 import type { Caller } from '../cors'
 import { OAuthError } from '../errors'
+import { readForm } from '../form'
 import { signerFor } from '../keys/signer'
 import { resolveAccessToken } from '../token/access-token'
 
@@ -57,7 +58,7 @@ export const userinfoEndpoint = async (
   clientCertificate?: ClientCertificate | undefined,
   caller: Caller = {}
 ) => {
-  const form = request.method === 'POST' ? new URLSearchParams(await request.text()) : undefined
+  const form = request.method === 'POST' ? await readForm(request) : undefined
   const presented = presentedToken(request, form)
   if (!presented) throw unauthorized('no access token was presented', 'Bearer', 'invalid_request')
 

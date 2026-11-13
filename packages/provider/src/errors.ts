@@ -1,3 +1,5 @@
+import type { AuditEvent } from './config'
+
 /** The OAuth error codes this provider can emit. RFC 6749 §4.1.2.1 and §5.2, OIDC Core §3.1.2.6. */
 export type OAuthErrorCode =
   | 'invalid_request'
@@ -32,7 +34,11 @@ export type OAuthErrorInit = {
   status?: number
   headers?: Record<string, string>
   cause?: unknown
+  /** An attack the refusal answers, which the host hears about through `onAudit` (FR-M3). */
+  event?: SecurityEvent
 }
+
+export type SecurityEvent = Omit<AuditEvent, 'at'>
 
 export class OAuthError extends Error {
   readonly code: OAuthErrorCode
@@ -40,6 +46,7 @@ export class OAuthError extends Error {
   readonly spec: string | undefined
   readonly status: number
   readonly headers: Record<string, string>
+  readonly event: SecurityEvent | undefined
 
   constructor(code: OAuthErrorCode, init: OAuthErrorInit = {}) {
     super(init.spec ? `${code}: ${init.description ?? ''} (${init.spec})` : `${code}: ${init.description ?? ''}`)
@@ -49,7 +56,21 @@ export class OAuthError extends Error {
     this.spec = init.spec
     this.status = init.status ?? STATUS[code]
     this.headers = init.headers ?? {}
+    this.event = init.event
     if (init.cause !== undefined) this.cause = init.cause
+  }
+
+  /** The same refusal, reported to the host as an attack (FR-M3). */
+  reporting(event: SecurityEvent) {
+    const { code, description, spec, status, headers, cause } = this
+    return new OAuthError(code, {
+      ...(description !== undefined && { description }),
+      ...(spec !== undefined && { spec }),
+      status,
+      headers,
+      ...(cause !== undefined && { cause }),
+      event
+    })
   }
 
   get body() {

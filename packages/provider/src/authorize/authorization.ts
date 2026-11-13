@@ -277,7 +277,7 @@ export const authorize = async (
     if (request.prompt.includes('none')) {
       throw new OAuthError('login_required', { description: 'no usable session and prompt=none', spec: 'OIDC Core §3.1.2.6' })
     }
-    return { kind: 'interaction', id: await suspend(config, request, 'login', browser, undefined, client), reason: 'login' }
+    return { kind: 'interaction', id: await suspend(config, request, 'login', browser, client), reason: 'login' }
   }
 
   const grant = await config.adapter.grants.findByAccountAndClient(session.accountId, request.clientId)
@@ -289,14 +289,14 @@ export const authorize = async (
     outstanding.push('authorization_details')
   }
 
-  if (outstanding.length || request.prompt.includes('consent')) {
+  if (!grant || outstanding.length || request.prompt.includes('consent')) {
     if (request.prompt.includes('none')) {
       throw new OAuthError('consent_required', {
         description: `consent is needed for: ${outstanding.join(', ') || 'a re-confirmation'}`,
         spec: 'OIDC Core §3.1.2.6'
       })
     }
-    return { kind: 'interaction', id: await suspend(config, request, 'consent', browser, session), reason: 'consent' }
+    return { kind: 'interaction', id: await suspend(config, request, 'consent', browser, client, session), reason: 'consent' }
   }
 
   // Spent here, atomically, so one approval yields one code however many replays race for it.
@@ -307,10 +307,10 @@ export const authorize = async (
         spec: 'OIDC Core §3.1.2.6'
       })
     }
-    return { kind: 'interaction', id: await suspend(config, request, 'consent', browser, session), reason: 'consent' }
+    return { kind: 'interaction', id: await suspend(config, request, 'consent', browser, client, session), reason: 'consent' }
   }
 
-  return { kind: 'response', values: await issueCode(config, request, session, grant as Grant) }
+  return { kind: 'response', values: await issueCode(config, request, session, grant) }
 }
 
 const suspend = async (
@@ -318,8 +318,8 @@ const suspend = async (
   request: AuthorizationRequest,
   kind: 'login' | 'consent',
   browser: string,
-  session?: Session,
-  client?: Client
+  client: Client,
+  session?: Session
 ) => {
   const id = randomString()
   // FR-F4: the provider picks the upstream and the host makes the round trip; undecided, the candidates go to the screen, never a guess.
@@ -328,7 +328,7 @@ const suspend = async (
       ? selectUpstream(config.upstreams, {
           loginHint: request.loginHint,
           acrValues: request.acrValues,
-          allowed: client?.upstreamProviders
+          allowed: client.upstreamProviders
         })
       : undefined
 

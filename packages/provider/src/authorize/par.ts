@@ -4,6 +4,7 @@ import { authenticateClient } from '../clients/authenticate'
 import type { ResolvedConfig } from '../config'
 import type { ClientCertificate } from '../context'
 import { OAuthError } from '../errors'
+import { readForm } from '../form'
 import { readArtifact, writeArtifact } from '../payloads'
 import { parseAuthorizationRequest, validateAuthorizationRequest } from './authorization'
 import { applyRequestObject } from './request-object'
@@ -30,7 +31,7 @@ export const pushedAuthorizationRequestEndpoint = async (
   request: Request,
   certificate?: ClientCertificate | undefined
 ) => {
-  const form = new URLSearchParams(await request.text())
+  const form = await readForm(request)
   const { client } = await authenticateClient(config, form, request.headers, certificate)
   // NFR-S11: what authenticated the push is not part of the request, and stored with it would be a credential at rest.
   for (const name of CLIENT_AUTHENTICATION) form.delete(name)

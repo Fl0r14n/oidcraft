@@ -408,6 +408,18 @@ nothing in the core assumes it. It covers:
   so the host sends it (FR-A1). Completing a reset ends sessions and revokes tokens (FR-T7).
 - **Self-service sign-up**, which the host may leave unmounted.
 
+**FR-I8 — Passkeys** (WebAuthn Level 3), in the same entry as FR-I7, as a sign-in of their own —
+username-less, offered through the browser's autofill — and as a second factor after a password.
+An account holds any number, each named, stored through the adapter and found by its credential id.
+Attestation is not requested (`none`), so any authenticator is accepted, and the public key is the
+one the browser's `getPublicKey()` reports, so the library decodes no CBOR (NFR-D4). Each ceremony's
+challenge is single-use, short-lived and bound to the interaction that asked for it (FR-I2, NFR-S5);
+an assertion is accepted only for the issuer's host as relying party ID and the issuer's origin, with
+user verification, and a signature counter that goes backwards refuses it. A passkey sign-in reports
+`acr` `mfa` and `amr` `hwk` and `user` (RFC 8176): possession of the key, verified by the person. The
+login screens still work as posting forms without script; the passkey button is the one enhancement
+that needs it.
+
 ## 8. Administration — `FR-M*`
 
 **FR-M1** — A management API over clients, grants, sessions, keys and upstream providers, exposed

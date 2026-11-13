@@ -90,6 +90,27 @@ Versions are set in each `package.json`. Publish in this order, each from a GitH
    `core` and `client` changed underneath them; React's error hooks report an error without a
    description.
 
+## After the release: passkeys (FR-I8)
+
+Decided 2026-11-14: a sign-in of their own and a second factor; the browser's `getPublicKey()`, no
+CBOR; attestation `none`; `acr` `mfa` with `amr` `hwk`, `user`. In order:
+
+1. **Storage.** A `PasskeyStore` in the adapter contract — many per account, found by credential id:
+   public key, algorithm, counter, transports, name, created and last used. Migration `0004` for the
+   SQL adapters, `fromKv`, and checks in the shared suite.
+2. **Verification in `./accounts`.** `registrationOptions`, `register`, `authenticationOptions`,
+   `authenticate`; challenges as single-use artifacts bound to the interaction; WebCrypto checks of
+   the relying-party ID hash, origin, challenge, flags, counter and signature (ES256, RS256, EdDSA).
+   Tested against a software authenticator built from WebCrypto.
+3. **Demo.** The account app adds, renames and removes passkeys. The login screen gains the passkey
+   button and autofill, the screens' first script, without which the form still posts; the second
+   factor step offers a passkey beside TOTP.
+4. **Docs**, and the conformance plans rerun, though no OpenID plan covers WebAuthn.
+
+Later, not now: accounts with no password (`passwordHash` is required today), attestation for
+enterprise, the admin removing a person's passkeys. A realm on its own subdomain has its own passkeys,
+as the relying-party ID is the issuer's host.
+
 ## Still open on the client libraries
 
 - **The login component's props type is written out, not derived from the protocol.** The SFC imports

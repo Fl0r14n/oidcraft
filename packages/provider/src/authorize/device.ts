@@ -169,9 +169,6 @@ export const resolveDeviceCode = async (
  * suspend. This is the login interaction it lacks: the same screens, then back to that page (FR-C7).
  */
 export const deviceSignIn = async (config: ResolvedConfig, typed: string, context: UserCodeContext = {}) => {
-  if (!config.interactionUrl) {
-    throw new OAuthError('server_error', { description: 'signing in requires an interactionUrl (FR-I1)' })
-  }
   const found = await findByUserCode(config, typed, context)
   if (found?.payload.status !== 'pending') {
     throw new OAuthError('invalid_request', { description: 'that code is not one we are waiting for', status: 404, spec: 'FR-C7' })

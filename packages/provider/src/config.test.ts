@@ -83,7 +83,9 @@ describe('resolveConfig', () => {
 
   // NFR-D2: each of these would otherwise be a 500 on the first request that needed it.
   test('refuses a missing interactionUrl, CIBA without its resolver, and upstreams without their stores', async () => {
-    expect(problemsOf(() => resolveConfig({ issuer: 'https://op.example.com', adapter }))?.join()).toContain('interactionUrl is required')
+    // Required by the type; a JavaScript caller can still leave it out.
+    const untyped = { issuer: 'https://op.example.com', adapter } as unknown as Parameters<typeof resolveConfig>[0]
+    expect(problemsOf(() => resolveConfig(untyped))?.join()).toContain('interactionUrl is required')
     expect(problemsOf(() => resolveConfig({ ...base, features: { ciba: true } }))?.join()).toContain('resolveCibaUser')
     const { identities: _, ...bare } = adapter
     expect(

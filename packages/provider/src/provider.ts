@@ -132,9 +132,6 @@ const authorizationHandler: Handler = async (config, request) => {
     const outcome = await authorize(config, validated, await readSession(config, request), client)
     if (outcome.kind === 'response') return authorizationResponse(config.issuer, validated, outcome.values)
 
-    if (!config.interactionUrl) {
-      throw new OAuthError('server_error', { description: 'an interaction is required but no interactionUrl is configured (FR-I1)' })
-    }
     return seeOther(`${config.interactionUrl}/${outcome.id}`)
   } catch (error) {
     if (!(error instanceof OAuthError)) throw error

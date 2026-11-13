@@ -116,8 +116,8 @@ export type ProviderConfig = {
    */
   profile?: 'fapi2'
 
-  /** Where the authorization endpoint sends a browser when it cannot decide alone (FR-I1). */
-  interactionUrl?: string
+  /** Where the authorization endpoint sends a browser when it cannot decide alone (FR-I1). An absolute URL. */
+  interactionUrl: string
   routes?: Partial<Routes>
   ttl?: Partial<Ttl>
   scopes?: string[]
@@ -233,7 +233,7 @@ export type ResolvedConfig = {
   issuerUrl: URL
   adapter: Adapter
   profile: 'fapi2' | undefined
-  interactionUrl: string | undefined
+  interactionUrl: string
   routes: Routes
   ttl: Ttl
   scopes: string[]

@@ -5,11 +5,10 @@ This file is working state: tick items off and add notes as work lands.
 
 ## Status
 
-**Implemented, as of 2026-11-13**, with 1208 passing tests (194 more skip without Postgres and Redis) and `bun run verify` as the gate — everything
+**Implemented, as of 2026-11-13**, with 1223 passing tests (194 more skip without Postgres and Redis) and `bun run verify` as the gate — everything
 below, FR-T6, FR-C21 and FR-A4's Postgres included. Published as `@oidcraft/*` (the move below), with
-the docs site at https://fl0r14n.github.io/oidcraft/. Items 1–11 under _Next_ are done; item 12, the
-2026-11-12 review, is open, and until its security findings are fixed this is not a provider to put
-real identities behind.
+the docs site at https://fl0r14n.github.io/oidcraft/. Items 1–12 under _Next_ are done, the 2026-11-12
+review included; what it changed is not yet released. Item 13, `tls_client_auth` by SAN, is open.
 
 The authorization code grant with mandatory PKCE, interaction suspend/resume, token issuance with
 rotation and replay revocation, UserInfo, revocation, introspection, logout in both directions,
@@ -370,8 +369,8 @@ What is _not_ claimed: see the status section. Implemented is not the same as ce
     and released in `@oidcraft/provider@0.2.0`.
 11. ~~Adapters as packages~~ — done 2026-11-11, ahead of 1.0: `@oidcraft/adapter` with
     `@oidcraft/drizzle`, `kysely`, `typeorm` and `redis` on it, released (below).
-12. **What the 2026-11-12 review found** — below, in its order: security, then operations, then
-    structure, then the client libraries.
+12. ~~What the 2026-11-12 review found~~ — done 2026-11-13, every item below.
+13. **`tls_client_auth` by SAN** — planned below.
 
 ## Review — 2026-11-12
 

@@ -111,7 +111,7 @@ const submitConsent = async (id: string, request: Request) => {
   const view = await provider.interactions.find(id)
   const outcome: InteractionResult =
     form.get('decision') === 'allow'
-      ? { consent: { scopes: view.scopes, authorizationDetails: view.authorizationDetails } }
+      ? { consent: { scopes: view.scopes, claims: view.claims, authorizationDetails: view.authorizationDetails } }
       : { error: { error: 'access_denied', description: 'the user declined' } }
   const { redirectTo, setCookie } = await provider.interactions.complete(id, outcome, request.headers.get('cookie'))
   return seeOther(redirectTo, setCookie)

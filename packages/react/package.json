@@ -1,6 +1,6 @@
 {
   "name": "@oidcraft/react",
-  "version": "4.0.0",
+  "version": "5.0.0",
   "author": "Fl0r14n <florian.chis@gmail.com>",
   "homepage": "https://github.com/Fl0r14n/oidcraft/tree/main/packages/react",
   "description": "A fully OAuth2.1 compliant react library",

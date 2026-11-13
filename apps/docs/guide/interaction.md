@@ -56,6 +56,8 @@ already do.
 | Session older than `max_age` | `login` interaction (FR-C16) |
 | `acr_values` given and the session's `acr` is not one of them | `login` interaction (FR-C16) |
 | Signed in, but the account's grant for this client lacks a requested scope | `consent` interaction |
+| A claim requested by name in `claims` that the grant does not cover (OIDC Core §5.5) | `consent` interaction (FR-C22) |
+| An essential `acr` in `claims` the session does not meet, or a `sub` in it naming someone else | `login` interaction (FR-C22) |
 | `authorization_details` not yet approved for this exact request (RFC 9396) | `consent` interaction (FR-C15) |
 | `prompt=consent` | `consent` interaction |
 | `prompt=none` and any of the above | No interaction: `login_required` or `consent_required` goes to the client (FR-I5) |
@@ -86,9 +88,10 @@ abandoned one; it expires, and the client never hears back.
 | `kind` | `'login'`, `'consent'` or `'logout'`: which screen to show |
 | `clientId` | Who is asking. The view carries no display name; read the client, as above |
 | `scopes` | The scopes requested — what a consent screen lists |
+| `claims` | Claims the `claims` parameter asks for beyond what the scopes release; a consent screen lists these too (FR-C22) |
 | `prompt` | `login`, `consent`, `select_account` as requested (`none` never gets here) |
 | `loginHint` | `login_hint`, to prefill the username |
-| `acrValues` | `acr_values`: the authentication strength the client asked for |
+| `acrValues` | `acr_values`, and any `acr` the `claims` parameter names: the authentication strength the client asked for |
 | `maxAge` | `max_age` in seconds, when the client capped session age |
 | `uiLocales` | `ui_locales`, in preference order, to choose the screen's language (FR-I6) |
 | `redirectUri` | Where the person goes afterwards. Show its host on a consent screen: a client registered by metadata document can call itself anything |
@@ -168,6 +171,13 @@ forever. A pushed request is pushed again rather than replayed by reference (RFC
   requested scope the account has not already granted throws `invalid_request`, and the interaction
   survives it, so the screen can be shown again. To refuse, answer `access_denied`. A consent naming
   a scope the request did not ask for throws too.
+- **Claims asked for by name are consented by name** (FR-C22). When `view.claims` is not empty,
+  `consent.claims` must repeat each one the grant does not already cover, or `complete` throws
+  `invalid_request`, and naming one the request did not ask for throws too. They are remembered in the
+  grant beside the scopes.
+- **A login can fail the request.** When the `claims` parameter made an `acr` essential, a login
+  reporting another one is answered `access_denied`, a failed authentication (OIDC Core §5.5.1.1); so
+  is a login as anyone but the `sub` the request named.
 - **Authorization details are approved whole.** When the request carried RFC 9396 details,
   `consent.authorizationDetails` must repeat every one of them exactly, or `complete` throws
   `invalid_request`. Unlike scopes, that approval is not remembered: it is spent by the one

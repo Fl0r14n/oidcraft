@@ -1,6 +1,6 @@
 {
   "name": "@oidcraft/angular",
-  "version": "11.0.0",
+  "version": "12.0.0",
   "author": "Fl0r14n <florian.chis@gmail.com>",
   "homepage": "https://github.com/Fl0r14n/oidcraft/tree/main/packages/angular",
   "description": "A fully OAuth2.1 compliant angular library",

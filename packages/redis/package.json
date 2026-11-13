@@ -1,6 +1,6 @@
 {
   "name": "@oidcraft/redis",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "A Redis storage adapter for @oidcraft/provider, through one command function the host supplies \u2014 any client, any runtime.",
   "license": "MIT",
   "author": "Fl0r14n <florian.chis@gmail.com>",

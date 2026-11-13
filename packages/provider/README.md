@@ -91,7 +91,7 @@ if (setCookie) headers.append('set-cookie', setCookie)
 return new Response(null, { status: 303, headers })
 
 // POST /interaction/:id/consent — the person agreed (or answer { error: { error: 'access_denied' } })
-await provider.interactions.complete(id, { consent: { scopes: view.scopes } }, cookie)
+await provider.interactions.complete(id, { consent: { scopes: view.scopes, claims: view.claims } }, cookie)
 ```
 
 The interaction routes have to be served on the issuer's host: the redirect there sets a
@@ -371,7 +371,8 @@ register dynamically are served by `features: { dynamicRegistration: true }`, an
   `accounts.authenticate` and `verifySecondFactor`. Cap request body sizes there too: oidcraft reads
   whatever body arrives, refusing only one that is not form-encoded.
 - **Logout delivery.** oidcraft never makes outbound requests itself. Back-channel logout hands you
-  the notifications through `onLogout`, and you send them.
+  the notifications through `onLogout`, and you send them. A hook that throws is reported to
+  `onError`; the logout it followed stands.
 - **Administration.** `provider.management` has functions, not routes, for clients, grants,
   sessions, keys and linked identities, with audit events through `onAudit`. Who may call them is
   your decision: oidcraft never decides who is an administrator.

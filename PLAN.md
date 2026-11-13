@@ -7,25 +7,22 @@ was done.
 ## Status
 
 **Implemented, as of 2026-11-13**, with 1341 passing tests (215 more skip without Postgres and
-Redis) and `bun run verify` as the gate: every functional requirement in `REQUIREMENTS.md`, FR-T6,
-FR-C21 and FR-A4's Postgres included. `metadata.test.ts` exercises every advertised discovery value
-rather than reading it. Published as `@oidcraft/*` — `core` 0.4.0, `client` 0.3.0, the provider
-0.4.0, `adapter` and the four storage adapters 0.2.0, `vue` 9.0.0, `react` 4.0.0, `angular` 11.0.0 —
-with the docs site at https://fl0r14n.github.io/oidcraft/. `adapter` 0.2.0 still names `core` ^0.3.0,
-for types and `sha256` identical in 0.4.0, so a consumer holds both copies until `adapter` next moves.
+Redis) and `bun run verify` as the gate: every functional requirement in `REQUIREMENTS.md`.
+`metadata.test.ts` exercises every advertised discovery value rather than reading it. Published as
+`@oidcraft/*` — `core` 0.4.0, `client` 0.3.0, the provider 0.4.0, `adapter` and the four storage
+adapters 0.2.0, `vue` 9.0.0, `react` 4.0.0, `angular` 11.0.0 — with the docs site at
+https://fl0r14n.github.io/oidcraft/. `main` carries the next release (below).
 
 **Provider 0.3.0 and earlier are not to be put in front of real identities**: they ship a session
-takeover through `sid` and the other security faults the review after that release found, fixed in
-0.4.0. The review's correctness and small findings, and the provider follow-ups, are fixed on `main`,
-unreleased.
+takeover through `sid` and the other security faults fixed in 0.4.0.
 
 The authorization code grant with mandatory PKCE, interaction suspend/resume, token issuance with
 rotation and replay revocation, UserInfo, revocation, introspection, logout in both directions,
-DPoP with nonces, PAR, JAR by value, the `claims` parameter, dynamic client registration with RFC 7592 management, the
-device grant, CIBA in poll and ping, token exchange, RAR, step-up, pairwise subjects, identity
-brokering with home-realm discovery chosen by the provider, five storage adapters (memory, Drizzle,
-Kysely, TypeORM, Redis) passing one conformance suite, four runtime context providers, a management
-API and an admin UI.
+DPoP with nonces, PAR, JAR by value, the `claims` parameter, dynamic client registration with RFC
+7592 management, the device grant, CIBA in poll and ping, token exchange, RAR, step-up, pairwise
+subjects, identity brokering with home-realm discovery chosen by the provider, five storage adapters
+(memory, Drizzle, Kysely, TypeORM, Redis) passing one conformance suite, four runtime context
+providers, a management API and an admin UI.
 
 ### What is NOT done, and will not be silently forgotten
 
@@ -66,86 +63,30 @@ in the `claims` parameter (FR-C22) refuses a login that reports less, but nothin
 - **Renaming the demo's `/federation/callback`** — it is the redirect URI registered with Google
   (`.env.example`), and renaming a URL people have registered breaks their sign-in for a word.
 
-## Next, in this order
+## Next: the release on `main`
 
-1. **Release the review's fixes** — below, all done 2026-11-13 on `main`. The release needs
-   `adapter` 0.2.1 (the `revoked_family` kind, the suite's new checks, the identity key),
-   `drizzle` and `kysely` 0.2.1, `typeorm` 0.3.0 (`OIDCRAFT_ENTITIES` split by dialect), `core`
-   0.5.0 (the `token` check), `client` 0.4.0 (the handoff in `sessionStorage`), the provider 0.5.0
-   and the bindings. The provider follow-ups below ride in the provider's 0.5.0: `onAudit` now hears
-   replays and failed client authentications, and a body that is not form-encoded is a 415.
-   So does the `claims` parameter (FR-C22): `InteractionRequest.claims` is new, and a consent answer
-   to a request naming claims must repeat them in `consent.claims` — a host's own consent screen
-   needs that one line, as `apps/demo-server`'s did. `@oidcraft/ui`'s consent screen lists them.
-   `adapter`'s `AccountStore.claims` documents its third argument, which the stores now honour.
+Versions are set in each `package.json`. Publish in this order, each from a GitHub release tagged
+`<name>@<version>` (ARCHITECTURE.md §11), waiting for one to reach npm before the next that names it:
 
-## Review — 2026-11-13, after the release
-
-Four readers in parallel, none told what the code was meant to do: the provider core; the broker and
-local accounts; storage, TypeORM and `@oidcraft/ui`; the client libraries. Each finding was traced in
-the code before it was written here. Its security findings are fixed on `main` and wait on the
-release above. In fix order.
-
-**Correctness**
-
-- [x] `upstreamLogout` throwing loses the back-channel notifications of a session already destroyed;
-      a malformed stored `frontchannelLogoutUri` blocks logout with a 500; `id_token_hint`'s `typ` is
-      not checked
-- [x] Revocation racing a refresh: the FAPI rewrite can resurrect a revoked token, a rotated one can
-      land in a family just revoked; `fromKv.consume` is read-then-insert
-- [x] `authorization_details=[null]` is a 500; device and CIBA requests do not check the client's
-      `grant_types`; a JAR-by-value request resumed after an interaction travels as plain parameters
-- [x] Accounts: a password reset leaves `sign_in_attempts` locks in place
-- [x] Client: redirect classification matches `?barcode=`; `unreachable` is inferred from an echo;
-      the handoff shares the token slot, so a login in one tab ends the others; a URL passed to
-      `oauthCallback` is not cleaned; a non-redirecting logout and the refresh lock have no timeout; a
-      storage key changed mid-refresh; an expired ID token becomes a truthy profile; `logoutPath` skips
-      `assertSecure`; React's error hook reads `errorDescription` only
-- [x] Storage: TypeORM's entities say `bigint` where the SQLite migrations say `integer`, so its schema
-      builder rebuilds every table; the SQL adapters ignore `Grant.expiresAt`; artifact prune can delete a
-      row rewritten since its select; the conformance suite never prunes artifacts and cannot tell a
-      merging grant upsert from a replacing one
-
-**Small**
-
-- [x] The broker's binding cookie can be planted from a sibling subdomain; NAT64 addresses share a
-      /64; `@oidcraft/ui` asset paths are fixed at `/assets`; TypeORM deletes trust the host's
-      undefined-where setting; `fromKv` identity keys are not encoded. The binding cookie is `__Host-`
-      over https; TypeORM refuses a missing value in a lookup as well as a delete, since the same
-      setting makes a find match any row; `fromKv`'s identity key changed, so a Redis store's links
-      made before it are not found
-
-## Provider follow-ups
-
-From a read of `provider.ts`, `config.ts` and `authorize/authorization.ts`, the rest only grepped: a
-list of what was seen, not a review. Each fix starts with the requirement's text and a test that
-shows it. In order.
-
-**Before 1.0**
-
-- [x] Security events reach no hook. FR-M3 widened rather than a second hook: `onAudit` hears
-      `token.replay` (with the grant and family it revoked) and `client.authentication_failed`, carried
-      on the refusal's `OAuthError` and emitted where the request ends. A lockout and a wrong device code
-      were never invisible: the host calls `accounts` and `provider.device.*` and is answered. A failing
-      audit hook goes to `onError` and changes no answer. FR-M3
-- [x] A throwing `onLogout` turns a logout that happened into a 500. Both logout hooks are guarded as
-      `onError` is (`hooks.ts`), each failure reported there. FR-C11, NFR-D5
-- [x] Nine endpoints read the body with no content-type check. `readForm` refuses a non-empty body
-      that is not form-encoded with a 415; the size cap stays the host's, as NFR-S12 already puts the
-      rate limits, and _Before production_ and the security guide say so. NFR-S12
-- [x] `ResolvedConfig` is `ProviderConfig` written out three times. Now `ProviderConfig` with its
-      defaulted fields resolved; every hook is carried through by the spread, which a test pins. NFR-D2
-
-**Smaller**
-
-- [x] `suspend` took an optional `client`; it is required, so a consent suspension carries it too. FR-F4
-- [x] `grant as Grant` — a missing grant now asks for consent in its own right
-- [x] `config.ts` tells the host to implement `upsert`
-- [x] Two doc comments stacked on `Provider.handle` — already gone by the time this was picked up
-- [x] The route table is a line per route: the endpoints already take `(config, request, certificate, caller)`
-- [x] `gaps.test.ts` and `flow.test.ts` are split beside the modules they test, over one harness,
-      `test-flow.ts`, whose adapter gets its own `accounts` per test — the old shared one let a test's
-      override of `claims` leak into the next file. `small.test.ts` is named the same way and was left
+1. `@oidcraft/core@0.5.0` — a callback answer without an `access_token` fails a new `token` check;
+   `CallbackCheck` gains `'token'`; `authorize` returns `undefined` when nothing answered.
+2. `@oidcraft/client@0.4.0` — a sign-in's handoff lives in the tab's `sessionStorage`; redirects are
+   classified by parameter name; an ID token that does not verify is no profile; the refresh lock
+   times out.
+3. `@oidcraft/adapter@0.3.0` — the `revoked_family` artifact kind; `fromKv`'s identity key changed,
+   so links a Redis store made before it are not found; `AccountStore.claims` documents its third
+   argument; the conformance suite checks prune, grant expiry and replacing upserts.
+4. `@oidcraft/provider@0.5.0` — the review's security and correctness fixes; the `claims` parameter
+   (FR-C22), whose consent answers must repeat `view.claims` in `consent.claims`; `onAudit` hears
+   `token.replay` and `client.authentication_failed`; a body that is not form-encoded is a 415; a
+   throwing logout hook goes to `onError`.
+5. `@oidcraft/drizzle@0.3.0`, `@oidcraft/kysely@0.3.0`, `@oidcraft/redis@0.3.0` — peer on `adapter`
+   ^0.3.0; the SQL ones enforce `Grant.expiresAt` and prune by expiry at the delete.
+6. `@oidcraft/typeorm@0.3.0` — the same, and `OIDCRAFT_ENTITIES` becomes `OIDCRAFT_SQLITE_ENTITIES`
+   and `OIDCRAFT_POSTGRES_ENTITIES`.
+7. `@oidcraft/vue@10.0.0`, `@oidcraft/react@5.0.0`, `@oidcraft/angular@12.0.0` — majors for what
+   `core` and `client` changed underneath them; React's error hooks report an error without a
+   description.
 
 ## Still open on the client libraries
 
@@ -167,10 +108,9 @@ shows it. In order.
 
 **TypeScript 7.1, in beta (`7.1.0-beta`).** `rolldown-plugin-dts` 0.30.x warns that its `tsgo`
 generator on TypeScript 7.0 "will be removed in the next minor", which would fail every package's
-declaration build here, not only Vue's. The lockfile holds 0.30.1 and CI installs frozen, but the root
-`package.json` asks for `tsdown@latest`, so the next lockfile refresh can bring it in. Move to 7.1 when
-it is stable, before taking `rolldown-plugin-dts` 0.31; 7.1 is also what the plugin names for custom
-languages, so the shim above is worth retrying then.
+declaration build here, not only Vue's. `tsdown` is pinned to ^0.23.7 so a lockfile refresh cannot
+bring that in. Move to 7.1 when it is stable, before taking `rolldown-plugin-dts` 0.31; 7.1 is also
+what the plugin names for custom languages, so the Vue shim above is worth retrying then.
 
 **Bun, checked 2026-11-13.** Nothing tracks exposing the client certificate to a `Bun.serve` handler:
 no issue, no PR. The only movement is on `node:https`: oven-sh/bun#16834 (its `req.socket` is not a
@@ -178,10 +118,6 @@ no issue, no PR. The only movement is on `node:https`: oven-sh/bun#16834 (its `r
 and unmerged, last touched 2026-11-06. If it lands, mTLS works on Bun through `./runtimes/node`'s
 `toNodeHandler` on a `node:https` server, not through `Bun.serve`, and G-8's re-verification is the
 first thing to repeat.
-
-## Decisions waiting on an answer
-
-None.
 
 ## Recorded here because code and docs point at it
 

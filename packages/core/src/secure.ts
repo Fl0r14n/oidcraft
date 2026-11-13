@@ -23,7 +23,11 @@ export const assertSecure = <T extends string | undefined>(url: T, allowInsecure
 /** Entra's multi-tenant issuer placeholder; it never matches `iss` literally, so the id-token verifier resolves it per token. */
 export const TENANT_TEMPLATE = '{tenantid}'
 
-const trimmed = (url: string) => url.replace(/\/+$/, '')
+const trimmed = (url: string) => {
+  let end = url.length
+  while (end > 0 && url[end - 1] === '/') end--
+  return url.slice(0, end)
+}
 
 /** Issuers compare as strings (OIDC Discovery 1.0 §4.3, RFC 9207 §2.4), ignoring only a trailing slash. */
 export const sameIssuer = (a: string, b: string) => trimmed(a) === trimmed(b)

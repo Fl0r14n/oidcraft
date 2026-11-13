@@ -4,10 +4,9 @@ import { render } from './src/entry-server'
 // Read, never run: being imported is what puts it in `bun --watch`'s graph, like the rest of src/.
 import './src/entry-client.tsx' with { type: 'text' }
 
-// dev IdPs are routinely fronted by a self-signed cert; the SSR pass must not die on it
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'
-
 const production = Bun.env.NODE_ENV === 'production'
+// Development only: a dev IdP is routinely fronted by a self-signed cert, and the SSR pass must not die on it.
+if (!production) process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'
 const port = Number(Bun.env.PORT || 3000)
 const key = Bun.file('../../.cert/key.pem')
 const cert = Bun.file('../../.cert/cert.pem')
@@ -88,7 +87,7 @@ const server = serve({
       return new Response(page, { headers: { 'content-type': 'text/html; charset=utf-8' } })
     } catch (error) {
       console.error('SSR error:', error)
-      return new Response(production ? 'Internal Server Error' : String((error as Error).stack), { status: 500 })
+      return new Response('Internal Server Error', { status: 500 })
     }
   },
   websocket: { message() {} }

@@ -84,3 +84,10 @@ describe('isTenantTemplate', () => {
     expect(isTenantTemplate(undefined)).toBe(false)
   })
 })
+
+// A crafted `iss` of slashes must cost linear time: a regex trimming them was quadratic.
+it('comparing an issuer of many slashes stays fast', () => {
+  const started = performance.now()
+  expect(sameIssuer(`${'/'.repeat(200_000)}x`, 'https://op.example.com')).toBe(false)
+  expect(performance.now() - started).toBeLessThan(100)
+})

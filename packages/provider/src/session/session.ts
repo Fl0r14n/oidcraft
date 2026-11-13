@@ -8,7 +8,12 @@ export const SESSION_COOKIE = 'oidcraft.sid'
 
 /** One cookie per issuer: two issuers on one host, told apart by path, would otherwise overwrite each other's. */
 export const perIssuer = (config: Pick<ResolvedConfig, 'issuerUrl'>, name: string) => {
-  const path = config.issuerUrl.pathname.replace(/^\/+|\/+$/g, '')
+  const { pathname } = config.issuerUrl
+  let start = 0
+  let end = pathname.length
+  while (start < end && pathname[start] === '/') start++
+  while (end > start && pathname[end - 1] === '/') end--
+  const path = pathname.slice(start, end)
   return path ? `${name}.${path.replace(/[^A-Za-z0-9]/g, '_')}` : name
 }
 

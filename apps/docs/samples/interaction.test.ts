@@ -180,8 +180,9 @@ const browser = () => {
         keep(current)
         const location = current.headers.get('location')
         if (!location) throw new Error(`no redirect: ${current.status}`)
-        if (!location.startsWith(ISSUER) || location.startsWith(`${ISSUER}/interaction/`)) return new URL(location)
-        current = await provider.handle(new Request(location, { headers: { cookie: header() } }))
+        const next = new URL(location, ISSUER)
+        if (next.origin !== new URL(ISSUER).origin || next.pathname.startsWith('/interaction/')) return next
+        current = await provider.handle(new Request(next, { headers: { cookie: header() } }))
       }
     },
     open(url: string) {

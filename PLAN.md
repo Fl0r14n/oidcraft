@@ -58,8 +58,6 @@ in the `claims` parameter (FR-C22) refuses a login that reports less, but nothin
   SQLite and Postgres, so they replace on the `(account_id, client_id)` conflict. `recordConsent`
   reads back and writes again; a first consent landing after the other's read-back still loses its
   scopes, and the person is asked once more (FR-I4).
-- **A single-statement bounded prune** — a composite key has no portable one across SQLite and
-  Postgres, so the session and replay sweeps delete a row at a time (NFR-P3).
 - **Renaming the demo's `/federation/callback`** — it is the redirect URI registered with Google
   (`.env.example`), and renaming a URL people have registered breaks their sign-in for a word.
 

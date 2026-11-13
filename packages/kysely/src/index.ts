@@ -100,60 +100,55 @@ export const kyselyAdapter = (options: KyselyAdapterOptions): FullAdapter => {
     },
 
     async prune(before: Date, limit: number) {
-      const doomed = await db
-        .selectFrom('oidc_artifacts')
-        .select(['kind', 'id'])
-        .where('expires_at', '<=', before.getTime())
-        .limit(limit)
-        .execute()
-      // Expired still, at the delete: a row rewritten since the select is live again (NFR-P3).
-      for (const row of doomed) {
-        await db
-          .deleteFrom('oidc_artifacts')
-          .where('kind', '=', row.kind)
-          .where('id', '=', row.id)
-          .where('expires_at', '<=', before.getTime())
-          .execute()
-      }
-      return doomed.length
+      const at = before.getTime()
+      // One bounded statement, expired still at the delete: a row rewritten since the select is live again (NFR-P3).
+      const { numDeletedRows } = await db
+        .deleteFrom('oidc_artifacts')
+        .where(eb =>
+          eb(
+            eb.refTuple('kind', 'id'),
+            'in',
+            eb.selectFrom('oidc_artifacts').select(['kind', 'id']).where('expires_at', '<=', at).limit(limit).$asTuple('kind', 'id')
+          )
+        )
+        .where('expires_at', '<=', at)
+        .executeTakeFirstOrThrow()
+      return Number(numDeletedRows)
     }
   }
 
   const sessions = {
     async prune(before: Date, limit: number) {
-      const doomed = await db.selectFrom('oidc_sessions').select('id').where('expires_at', '<=', before.getTime()).limit(limit).execute()
-      if (doomed.length) {
-        await db
-          .deleteFrom('oidc_sessions')
-          .where(
-            'id',
-            'in',
-            doomed.map(row => row.id)
-          )
-          .where('expires_at', '<=', before.getTime())
-          .execute()
-      }
-      return doomed.length
+      const at = before.getTime()
+      const { numDeletedRows } = await db
+        .deleteFrom('oidc_sessions')
+        .where('id', 'in', eb => eb.selectFrom('oidc_sessions').select('id').where('expires_at', '<=', at).limit(limit))
+        .where('expires_at', '<=', at)
+        .executeTakeFirstOrThrow()
+      return Number(numDeletedRows)
     }
   }
 
   const replay = {
     async prune(before: Date, limit: number) {
-      const doomed = await db
-        .selectFrom('oidc_replay')
-        .select(['namespace', 'value'])
-        .where('expires_at', '<=', before.getTime())
-        .limit(limit)
-        .execute()
-      for (const row of doomed) {
-        await db
-          .deleteFrom('oidc_replay')
-          .where('namespace', '=', row.namespace)
-          .where('value', '=', row.value)
-          .where('expires_at', '<=', before.getTime())
-          .execute()
-      }
-      return doomed.length
+      const at = before.getTime()
+      const { numDeletedRows } = await db
+        .deleteFrom('oidc_replay')
+        .where(eb =>
+          eb(
+            eb.refTuple('namespace', 'value'),
+            'in',
+            eb
+              .selectFrom('oidc_replay')
+              .select(['namespace', 'value'])
+              .where('expires_at', '<=', at)
+              .limit(limit)
+              .$asTuple('namespace', 'value')
+          )
+        )
+        .where('expires_at', '<=', at)
+        .executeTakeFirstOrThrow()
+      return Number(numDeletedRows)
     }
   }
 

@@ -33,6 +33,23 @@ export type TypeormAdapterOptions = {
 const now = () => Date.now()
 
 // FR-A6: the DataSource is the host's, and its `invalidWhereValuesBehavior` can drop a missing value, so a lookup matches any row and a delete every one.
+/** A bounded sweep in one statement: the key's rows among the first `limit` expired, still expired at the delete (NFR-P3). */
+const pruneWhere = async (rows: Repository<any>, key: string[], before: Date, limit: number) => {
+  const doomed = rows
+    .createQueryBuilder('doomed')
+    .select(key.map(column => `doomed.${column}`))
+    .where('doomed.expires_at <= :before')
+    .limit(limit)
+  const result = await rows
+    .createQueryBuilder()
+    .delete()
+    .where(`(${key.join(', ')}) in (${doomed.getQuery()})`)
+    .andWhere('expires_at <= :before')
+    .setParameters({ before: before.getTime() })
+    .execute()
+  return result.affected ?? 0
+}
+
 const by = <T extends object>(where: T) => {
   for (const [column, value] of Object.entries(where)) {
     if (value === undefined || value === null) throw new TypeError(`the ${column} to look up by is ${value}`)
@@ -142,21 +159,8 @@ export const typeormAdapter = (options: TypeormAdapterOptions): FullAdapter => {
     },
 
     async prune(before: Date, limit: number) {
-      const doomed = await artifactRows
-        .createQueryBuilder('a')
-        .select(['a.kind', 'a.id'])
-        .where('a.expires_at <= :before', { before: before.getTime() })
-        .limit(limit)
-        .getMany()
-      // Expired still, at the delete: a row rewritten since the select is live again (NFR-P3).
-      for (const row of doomed) {
-        await artifactRows
-          .createQueryBuilder()
-          .delete()
-          .where('kind = :kind and id = :id and expires_at <= :before', { kind: row.kind, id: row.id, before: before.getTime() })
-          .execute()
-      }
-      return doomed.length
+      // One bounded statement, expired still at the delete: a row rewritten since the select is live again (NFR-P3).
+      return pruneWhere(artifactRows, ['kind', 'id'], before, limit)
     }
   }
 
@@ -236,20 +240,7 @@ export const typeormAdapter = (options: TypeormAdapterOptions): FullAdapter => {
         await sessions.delete(by({ id }))
       },
       async prune(before, limit) {
-        const doomed = await sessions
-          .createQueryBuilder('s')
-          .select(['s.id'])
-          .where('s.expires_at <= :before', { before: before.getTime() })
-          .limit(limit)
-          .getMany()
-        for (const row of doomed) {
-          await sessions
-            .createQueryBuilder()
-            .delete()
-            .where('id = :id and expires_at <= :before', { id: row.id, before: before.getTime() })
-            .execute()
-        }
-        return doomed.length
+        return pruneWhere(sessions, ['id'], before, limit)
       }
     },
 
@@ -335,20 +326,7 @@ export const typeormAdapter = (options: TypeormAdapterOptions): FullAdapter => {
         )
       },
       async prune(before, limit) {
-        const doomed = await replay
-          .createQueryBuilder('r')
-          .select(['r.namespace', 'r.value'])
-          .where('r.expires_at <= :before', { before: before.getTime() })
-          .limit(limit)
-          .getMany()
-        for (const row of doomed) {
-          await replay
-            .createQueryBuilder()
-            .delete()
-            .where('namespace = :namespace and value = :value and expires_at <= :before', { ...row, before: before.getTime() })
-            .execute()
-        }
-        return doomed.length
+        return pruneWhere(replay, ['namespace', 'value'], before, limit)
       }
     },
 

@@ -12,7 +12,7 @@ import type {
   Session
 } from '@oidcraft/adapter'
 import { noAccounts } from '@oidcraft/adapter'
-import { type AnyRelations, and, eq, gt, isNull, lte, or } from 'drizzle-orm'
+import { type AnyRelations, and, eq, gt, inArray, isNull, lte, or, sql } from 'drizzle-orm'
 import type { PgQueryResultHKT } from 'drizzle-orm/pg-core'
 import type { PgAsyncDatabase } from 'drizzle-orm/pg-core/async'
 import type { SQLiteAsyncDatabase } from 'drizzle-orm/sqlite-core'
@@ -170,16 +170,17 @@ export const drizzleAdapter = (options: DrizzleAdapterOptions): FullAdapter => {
         await db.delete(artifacts).where(eq(artifacts.clientId, clientId))
       },
       async prune(before, limit) {
-        const doomed = await db
+        const doomed = db
           .select({ kind: artifacts.kind, id: artifacts.id })
           .from(artifacts)
           .where(lte(artifacts.expiresAt, before))
           .limit(limit)
-        // Expired still, at the delete: a row rewritten since the select is live again (NFR-P3).
-        for (const row of doomed) {
-          await db.delete(artifacts).where(and(eq(artifacts.kind, row.kind), eq(artifacts.id, row.id), lte(artifacts.expiresAt, before)))
-        }
-        return doomed.length
+        // One bounded statement, expired still at the delete: a row rewritten since the select is live again (NFR-P3).
+        const gone = await db
+          .delete(artifacts)
+          .where(and(sql`(${artifacts.kind}, ${artifacts.id}) in ${doomed}`, lte(artifacts.expiresAt, before)))
+          .returning({ id: artifacts.id })
+        return gone.length
       }
     },
 
@@ -240,9 +241,12 @@ export const drizzleAdapter = (options: DrizzleAdapterOptions): FullAdapter => {
         await db.delete(sessions).where(eq(sessions.id, id))
       },
       async prune(before, limit) {
-        const doomed = await db.select({ id: sessions.id }).from(sessions).where(lte(sessions.expiresAt, before)).limit(limit)
-        for (const row of doomed) await db.delete(sessions).where(and(eq(sessions.id, row.id), lte(sessions.expiresAt, before)))
-        return doomed.length
+        const doomed = db.select({ id: sessions.id }).from(sessions).where(lte(sessions.expiresAt, before)).limit(limit)
+        const gone = await db
+          .delete(sessions)
+          .where(and(inArray(sessions.id, doomed), lte(sessions.expiresAt, before)))
+          .returning({ id: sessions.id })
+        return gone.length
       }
     },
 
@@ -311,17 +315,16 @@ export const drizzleAdapter = (options: DrizzleAdapterOptions): FullAdapter => {
         return won.length === 1
       },
       async prune(before, limit) {
-        const doomed = await db
+        const doomed = db
           .select({ namespace: replay.namespace, value: replay.value })
           .from(replay)
           .where(lte(replay.expiresAt, before))
           .limit(limit)
-        for (const row of doomed) {
-          await db
-            .delete(replay)
-            .where(and(eq(replay.namespace, row.namespace), eq(replay.value, row.value), lte(replay.expiresAt, before)))
-        }
-        return doomed.length
+        const gone = await db
+          .delete(replay)
+          .where(and(sql`(${replay.namespace}, ${replay.value}) in ${doomed}`, lte(replay.expiresAt, before)))
+          .returning({ value: replay.value })
+        return gone.length
       }
     },
 

@@ -69,6 +69,17 @@ describe('checkToken', () => {
     expect(refresh).not.toHaveBeenCalled()
   })
 
+  // A request sent at the boundary would arrive with a token that has just lapsed.
+  it('refreshes a token about to expire, not only one that has', async () => {
+    refresh.mockResolvedValue({ access_token: 'fresh', expires_in: 3600 })
+    oauth.setToken({ refresh_token: 'r', access_token: 'ending', expires_in: 3600, expires: Date.now() + 10_000 })
+
+    await oauth.checkToken()
+
+    expect(refresh).toHaveBeenCalledTimes(1)
+    expect(oauth.token().access_token).toBe('fresh')
+  })
+
   it('derives expires from expires_in on a token that has none', async () => {
     oauth.setToken({ access_token: 'live', expires_in: 60 })
 

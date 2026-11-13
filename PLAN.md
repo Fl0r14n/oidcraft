@@ -586,9 +586,12 @@ new requirements ask that the code does not yet do:
   Fixed: `AuthorizationResult`, `ok` with the token or `refused`, `invalid` with the `CallbackCheck`, or
   `unreachable`, which had read as "Invalid nonce". The client keeps the strings it rendered from; the
   broker maps each case without matching text
-- [ ] Smaller: a token is refreshed only after it has expired, so the request at the boundary fails;
+- [x] Smaller: a token is refreshed only after it has expired, so the request at the boundary fails;
   `logout` with a redirect does not revoke the refresh token; the callback leaves the code in the
   address bar
+  Fixed: refreshed thirty seconds ahead, or half its lifetime when shorter; a redirecting logout revokes
+  first and goes ahead when revocation fails; the callback's own parameters, or an implicit response's
+  whole fragment, leave the address bar once the exchange has read them
 
 ## Server review — 2026-10-10
 

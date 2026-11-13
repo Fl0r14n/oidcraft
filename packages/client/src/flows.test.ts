@@ -184,7 +184,19 @@ describe('logout', () => {
 
     // the redirect itself is a no-op in the test environment; what matters is that the local
     // session is dropped rather than left behind if the navigation never happens
-    expect(functions.revoke).not.toHaveBeenCalled()
+    expect(oauth.token()).toEqual({})
+  })
+
+  // Ending the session at the provider leaves an offline_access refresh token working.
+  it('revokes the tokens before redirecting, and still signs out when revocation fails', async () => {
+    build({ config: { tokenPath: '/t', clientId: 'c', logoutPath: 'https://idp/logout' } })
+    oauth.setToken({ access_token: 'at', refresh_token: 'rt', id_token: 'idt' })
+    await oauth.logout('https://app/')
+    expect(functions.revoke).toHaveBeenCalledWith(expect.objectContaining({ refresh_token: 'rt' }), expect.anything())
+
+    functions.revoke.mockRejectedValue(new Error('the revocation endpoint is down'))
+    oauth.setToken({ access_token: 'at', refresh_token: 'rt', id_token: 'idt' })
+    expect(await oauth.logout('https://app/')).toStartWith('https://idp/logout?')
     expect(oauth.token()).toEqual({})
   })
 })
@@ -356,5 +368,50 @@ describe('redirect: false', () => {
     oauth.setToken({ access_token: 'at' })
 
     expect(await oauth.logout()).toBeUndefined()
+  })
+})
+
+// The code or tokens left in the address bar outlive the callback in history and in a shared link.
+describe('the callback url', () => {
+  const realHistory = globalThis.history
+  let replaced: string | undefined
+
+  beforeEach(() => {
+    local.clear()
+    replaced = undefined
+    Object.defineProperty(globalThis, 'history', {
+      value: { state: null, replaceState: (_: unknown, __: string, url: string) => (replaced = url) },
+      configurable: true
+    })
+  })
+
+  afterEach(() => {
+    Object.defineProperty(globalThis, 'history', { value: realHistory, configurable: true })
+    Object.assign(globalThis.location, { href: 'http://localhost/', search: '', hash: '' })
+  })
+
+  it('loses the code and state once exchanged, and keeps the app’s own parameters', async () => {
+    const functions = mocked()
+    functions.authorize.mockResolvedValue({ access_token: 'at', token_type: 'Bearer' })
+    const oauth = createOAuth({ config: { tokenPath: '/t', clientId: 'c', authorizePath: '/a' }, functions })
+    Object.assign(globalThis.location, { href: 'http://localhost/cb?tab=2&code=c1&state=s1', search: '?tab=2&code=c1&state=s1', hash: '' })
+
+    await oauth.oauthCallback()
+
+    expect(oauth.token().access_token).toBe('at')
+    expect(replaced).toBe('http://localhost/cb?tab=2')
+  })
+
+  it('loses the whole fragment of an implicit response', async () => {
+    const oauth = createOAuth({ config: { clientId: 'c' }, functions: mocked() })
+    Object.assign(globalThis.location, {
+      href: 'http://localhost/cb#access_token=at&token_type=Bearer',
+      search: '',
+      hash: '#access_token=at&token_type=Bearer'
+    })
+
+    await oauth.oauthCallback()
+
+    expect(replaced).toBe('http://localhost/cb')
   })
 })

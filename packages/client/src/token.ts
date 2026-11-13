@@ -15,6 +15,13 @@ import { watchStore } from './store'
 
 export const isExpiredToken = (token?: OAuthToken) => (token?.expires && Date.now() > token.expires) || false
 
+/**
+ * Refreshed this far ahead of its expiry, so a request sent at the boundary does not arrive with a
+ * token that has just lapsed: thirty seconds, or half its lifetime when that is shorter.
+ */
+const refreshAhead = (token: OAuthToken) => Math.min(30_000, ((Number(token.expires_in) || Number.POSITIVE_INFINITY) * 1e3) / 2)
+const isExpiringToken = (token?: OAuthToken) => (token?.expires && Date.now() + refreshAhead(token) > token.expires) || false
+
 /** Web Locks span the tabs of an origin, which an in-memory flag cannot; without them, this tab alone (FR-L5). */
 const exclusively = (name: string, task: () => Promise<void>): Promise<void> => {
   const locks = globalThis.navigator?.locks
@@ -87,7 +94,7 @@ export const createToken = (
   const checkToken = () => {
     if (inFlight) return inFlight
     inFlight = (async () => {
-      if (!isExpiredToken(token())) {
+      if (!isExpiringToken(token())) {
         setExpires(token())
         return
       }
@@ -96,7 +103,7 @@ export const createToken = (
         // would be a replay to a provider that rotates, and would sign both tabs out (FR-L5, FR-T3).
         storage.reload()
         const t = token()
-        if (!isExpiredToken(t)) return
+        if (!isExpiringToken(t)) return
         await autoconfigOauth()
         const refreshed = await functions.refresh(t, config())
         if (refreshed && !isExpiredToken(refreshed)) {

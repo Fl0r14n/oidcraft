@@ -20,6 +20,9 @@ import { createStore } from './store'
 import type { TokenContext } from './token'
 import type { RedirectOptions } from './types'
 
+/** RFC 6749 §4.1.2 and §4.1.2.1, RFC 9207, OIDC Session Management: what a code callback adds to the URL. */
+const CALLBACK_PARAMETERS = ['code', 'state', 'iss', 'session_state', 'error', 'error_description', 'error_uri']
+
 /** A callback that ended without a token becomes the token state, so the app renders why from where it reads the token (FR-L6). */
 const failureState = (failure: Exclude<AuthorizationResult, { ok: true }>): OAuthToken => {
   if (failure.reason === 'refused') {
@@ -80,6 +83,13 @@ export const createFlows = (
       if (clientId) params.set('client_id', clientId)
       if (id_token) params.set('id_token_hint', id_token)
       if (logoutState) params.set('state', logoutState)
+      // Ending the session at the provider leaves an offline refresh token working; revoked first, and
+      // a failure to revoke does not stand between the person and signing out.
+      try {
+        await functions.revoke(token(), config())
+      } catch {
+        // signing out goes ahead
+      }
       setToken({})
       const url = `${logoutPath}${logoutPath.includes('?') ? '&' : '?'}${params}`
       if (redirect) {
@@ -95,17 +105,30 @@ export const createFlows = (
     return undefined
   }
 
+  /** The code or tokens in the address bar would outlive the callback in history and in a shared link. */
+  const forgetCallback = (flow: 'code' | 'implicit') => {
+    const url = new URL(globalThis.location.href)
+    if (flow === 'implicit') url.hash = ''
+    else for (const name of CALLBACK_PARAMETERS) url.searchParams.delete(name)
+    globalThis.history?.replaceState(globalThis.history.state, '', url.toString())
+  }
+
   const runCallback = async (source: string | URL | Location) => {
     const { flow, parameters } = parseRedirectParameters(source as never)
     setState(parameters.state)
-    if (flow === 'code') {
-      await autoconfigOauth()
-    }
-    // the handoff is read from the token, which is where `toAuthorizationUrl` left it. State, nonce,
-    // PKCE and the RFC 9207 `iss` are all checked inside completeAuthorization.
-    const result = await completeAuthorization(config(), source as never, token(), { functions, verifyIdToken: jwt })
-    if (result) {
-      setToken(result.ok ? result.token : failureState(result))
+    try {
+      if (flow === 'code') {
+        await autoconfigOauth()
+      }
+      // the handoff is read from the token, which is where `toAuthorizationUrl` left it. State, nonce,
+      // PKCE and the RFC 9207 `iss` are all checked inside completeAuthorization.
+      const result = await completeAuthorization(config(), source as never, token(), { functions, verifyIdToken: jwt })
+      if (result) {
+        setToken(result.ok ? result.token : failureState(result))
+      }
+    } finally {
+      // after the exchange, not before: a live Location is read again inside it
+      if (source === globalThis.location && flow !== 'none') forgetCallback(flow)
     }
   }
 

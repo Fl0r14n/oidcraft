@@ -71,6 +71,7 @@ export const createOAuth = (cfg?: OAuthConfig): OAuth => {
       functions: core.functions,
       fetch: core.fetch,
       authHeaders: core.authHeaders,
+      onUnauthorized: core.onUnauthorized,
       token,
       user,
       state,
@@ -176,6 +177,8 @@ export interface OAuth {
   functions: OAuthFunctions
   fetch: OAuthFetch
   authHeaders: (url?: string) => Promise<Record<string, string>>
+  /** a 401 at `url`: ends the token when it went there, keeping only the body's error (FR-L6) */
+  onUnauthorized: (url: string | undefined, body: unknown) => void
   token: WritableComputedRef<OAuthToken>
   user: Ref<UserInfo | undefined>
   state: Ref<string | undefined>

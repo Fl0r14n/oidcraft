@@ -38,6 +38,26 @@ export const createConfig = (cfg?: OAuthConfig) => {
     return patterns.some(pattern => candidates.some(candidate => pattern.test(candidate)))
   }
 
+  const originOf = (url: string | undefined) => {
+    try {
+      return url ? new URL(url).origin : undefined
+    } catch {
+      return undefined
+    }
+  }
+
+  /**
+   * RFC 9700 §2.3: a bearer token goes where it is meant for — this page's origin, the provider's,
+   * and the origins the application names — never to whatever URL a call happens to be for (FR-L6).
+   * A relative URL is this page's. No URL is the caller asking for the headers themselves.
+   */
+  const isResourceUrl = (url?: string) => {
+    if (!url || !URL.canParse(url)) return true
+    const { issuerPath, issuer, userPath } = (config() ?? {}) as { issuerPath?: string; issuer?: string; userPath?: string }
+    const allowed = [globalThis.location?.origin, ...[issuerPath, issuer, userPath].map(originOf), ...(oauthConfig().resourceOrigins ?? [])]
+    return allowed.includes(new URL(url).origin)
+  }
+
   const storageKey = () => oauthConfig().storageKey || 'token'
   const setStorageKey = (storageKey: string) => setOAuthConfig({ storageKey })
 
@@ -51,6 +71,7 @@ export const createConfig = (cfg?: OAuthConfig) => {
     setConfig,
     ignorePath,
     isPathIgnored,
+    isResourceUrl,
     storageKey,
     setStorageKey,
     strictJwt

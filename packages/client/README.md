@@ -15,6 +15,12 @@ tab just wrote instead of presenting the refresh token that tab spent. A provide
 refresh tokens treats that as a replay and signs the browser out. Where Web Locks are missing, as
 when rendering on a server, each instance is on its own.
 
+The access token goes only to this page's origin, the provider's, and the origins named in
+`resourceOrigins` — an API on another host is listed there (`resourceOrigins: ['https://api.example.com']`).
+A call to anywhere else, through the authorized `fetch` or the axios interceptors, carries no token,
+and its 401 leaves the session alone. A 401 from where the token did go ends the session, and of its
+body only `error` and `error_description` become the token state.
+
 Its consumers are those three and any other browser client. `@oidcraft/provider` uses `@oidcraft/core`
 directly and must never reach this package, which is the entire reason the two are separate rather
 than two entries of one.

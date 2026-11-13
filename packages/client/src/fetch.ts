@@ -3,11 +3,13 @@ import type { ConfigContext } from './config'
 import type { TokenContext } from './token'
 
 export const createFetch = (
-  { isPathIgnored }: Pick<ConfigContext, 'isPathIgnored'>,
+  { isPathIgnored, isResourceUrl }: Pick<ConfigContext, 'isPathIgnored' | 'isResourceUrl'>,
   { setToken, accessToken, checkToken }: Pick<TokenContext, 'setToken' | 'accessToken' | 'checkToken'>
 ) => {
+  const carriesToken = (url?: string) => !isPathIgnored(url) && isResourceUrl(url)
+
   const authHeaders = async (url?: string): Promise<Record<string, string>> => {
-    if (isPathIgnored(url)) return {}
+    if (!carriesToken(url)) return {}
     await checkToken()
     const bearer = accessToken()
     return (bearer && { Authorization: bearer }) || {}
@@ -27,18 +29,31 @@ export const createFetch = (
     }
     const response = await fetch(input, { ...init, headers })
     if (response.status === 401) {
-      // the resource server's answer replaces the token, so a dead credential is dropped rather than
-      // resent on every subsequent call
-      const body = await response
-        .clone()
-        .json()
-        .catch(() => undefined)
-      setToken((typeof body === 'object' && body) || {})
+      onUnauthorized(
+        url,
+        await response
+          .clone()
+          .json()
+          .catch(() => undefined)
+      )
     }
     return response
   }
 
-  return { authHeaders, oauthFetch }
+  /**
+   * FR-L6: a 401 from where the token went ends it, so a dead credential is not resent on every call.
+   * Of the body only what says why is kept: anything else in it would become the token state.
+   */
+  const onUnauthorized = (url: string | undefined, body: unknown) => {
+    if (!carriesToken(url)) return
+    const { error, error_description } = (typeof body === 'object' && body ? body : {}) as Record<string, unknown>
+    setToken({
+      ...(typeof error === 'string' && { error }),
+      ...(typeof error_description === 'string' && { error_description })
+    })
+  }
+
+  return { authHeaders, oauthFetch, onUnauthorized }
 }
 
 export type FetchContext = ReturnType<typeof createFetch>

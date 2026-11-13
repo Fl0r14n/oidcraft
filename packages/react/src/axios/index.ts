@@ -12,20 +12,17 @@ import axios, { type AxiosInstance, type CreateAxiosDefaults, type InternalAxios
 export const authorizationInterceptor =
   (oauth: OAuth) =>
   async (req: InternalAxiosRequestConfig): Promise<InternalAxiosRequestConfig> => {
-    for (const [key, value] of Object.entries(await oauth.authHeaders(req.url))) {
+    // the URL the request goes to, baseURL and all: the token is sent only where it is meant for (FR-L6)
+    for (const [key, value] of Object.entries(await oauth.authHeaders(axios.getUri(req)))) {
       req.headers.set(key, value)
     }
     return req
   }
 
-/** Stores a 401's body as the new token state — same branch as the core's `fetch.ts`. Re-rejects: this is
- * bookkeeping, not error handling. */
+/** A 401 from where the token went ends it — the same `onUnauthorized` the core's `fetch` uses. Re-rejects:
+ * this is bookkeeping, not error handling. */
 export const unauthorizedInterceptor = (oauth: OAuth) => (error: any) => {
-  if (error?.response?.status === 401) {
-    // axios hands `data` over as a string when the body is HTML or empty, and a string is not token state
-    const { data } = error.response
-    oauth.setToken((typeof data === 'object' && data) || {})
-  }
+  if (error?.response?.status === 401) oauth.onUnauthorized(error.config && axios.getUri(error.config), error.response.data)
   return Promise.reject(error)
 }
 

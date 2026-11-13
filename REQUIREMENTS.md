@@ -469,9 +469,12 @@ injected into the page reads the refresh token.
 **FR-L5** — One refresh at a time, across tabs as within one. Two tabs presenting the same refresh
 token is a replay to a provider that rotates (FR-T3), and signs that browser out.
 
-**FR-L6** — A `401` ends the session and its body becomes the token state: the stored value is the
-server's error, so the application renders why it was signed out from the same place it reads the
-token. A body that is not a JSON object leaves an empty token.
+**FR-L6** — The access token is sent only to the page's own origin, the provider's, and the origins
+the application names (RFC 9700 §2.3): a call to any other URL carries none. A `401` from one of
+those ends the session, and its `error` and `error_description` become the token state, so the
+application renders why it was signed out from the same place it reads the token; nothing else in
+the body is kept, and a body that is not a JSON object leaves an empty token. A `401` from anywhere
+else is not about this token and changes nothing.
 
 **FR-L7** — No module-level instance. Every binding resolves its instance through its framework's
 injection, so one instance per request is isolated under concurrent server rendering, and

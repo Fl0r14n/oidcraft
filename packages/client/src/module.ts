@@ -78,7 +78,8 @@ export const createOAuth = (cfg?: OAuthConfig) => {
     functions,
     jwt,
     fetch: fetchContext.oauthFetch,
-    authHeaders: fetchContext.authHeaders
+    authHeaders: fetchContext.authHeaders,
+    onUnauthorized: fetchContext.onUnauthorized
   }
 
   // Construction is inert — no subscriptions, no network — because an instance is normally built at

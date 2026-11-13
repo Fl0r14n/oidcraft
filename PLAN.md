@@ -423,7 +423,7 @@ with a throwaway test. Several predate this week's work and shipped in 0.3.0. In
 - [x] After logout a session-bound refresh token still introspects `active` and is accepted as a
   token-exchange subject (`resource/introspection.ts`, `token/exchange.ts`); only the refresh grant
   checks the session. FR-T6, FR-T7
-- [ ] The client's authorized `fetch` and the axios interceptors send the bearer token to any origin,
+- [x] The client's authorized `fetch` and the axios interceptors send the bearer token to any origin,
   and store any 401 body whole as the token state, from any origin. Limit both to the configured
   resource origins; keep only `error` and `error_description`. RFC 9700 §2.3, FR-L6
 - [ ] A refresh response without `expires_in` is dropped (`client/src/token.ts` `setExpires`), so a

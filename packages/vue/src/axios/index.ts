@@ -16,17 +16,14 @@ import { type App, hasInjectionContext, type InjectionKey, inject } from 'vue'
 
 export const axiosInterceptors = (oauth: OAuth) => ({
   authorizationInterceptor: async (req: InternalAxiosRequestConfig) => {
-    for (const [key, value] of Object.entries(await oauth.authHeaders(req.url))) {
+    // the URL the request goes to, baseURL and all: the token is sent only where it is meant for (FR-L6)
+    for (const [key, value] of Object.entries(await oauth.authHeaders(axios.getUri(req)))) {
       req.headers.set(key, value)
     }
     return req
   },
   unauthorizedInterceptor: (error: any) => {
-    if (401 === error?.response?.status) {
-      // a string body (HTML, empty, a proxy's plain-text error) is not token state
-      const { data } = error.response
-      oauth.token.value = (typeof data === 'object' && data) || {}
-    }
+    if (401 === error?.response?.status) oauth.onUnauthorized(error.config && axios.getUri(error.config), error.response.data)
     return Promise.reject(error)
   }
 })

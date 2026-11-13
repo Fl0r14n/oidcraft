@@ -60,7 +60,7 @@ importing it by name would hold a second store that never sees the provider's to
 | `useOAuthUser()`       | the profile, from the id_token or `userinfo`                                                |
 | `useIsAuthorized()`    | one boolean, re-rendering only when it changes                                              |
 | `useOAuthSelector(fn)` | any slice of the token, re-rendering only when that slice changes                           |
-| `useOAuthFetch()`      | a `fetch` that sends the access token, and drops it when a resource server answers 401      |
+| `useOAuthFetch()`      | a `fetch` that sends the access token to `resourceOrigins`, and drops it on their 401       |
 | `useOAuthForm()`       | the resource-owner password form — see below                                                |
 
 Each reads through `useSyncExternalStore`, with a server snapshot that is empty on purpose: the user

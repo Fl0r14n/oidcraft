@@ -34,7 +34,7 @@ describe('authorized transport', () => {
     })
     const functions = mockOAuthFunctions()
     refresh = functions.refresh
-    oauth = createOAuth({ ignorePaths: [/public/], functions })
+    oauth = createOAuth({ ignorePaths: [/public/], functions, resourceOrigins: [origin()] })
   })
 
   describe('authHeaders', () => {
@@ -175,6 +175,37 @@ describe('authorized transport', () => {
       expect(await response.json()).toEqual({ error: 'invalid_token' })
       expect(oauth.token()).toEqual({ error: 'invalid_token' })
       expect(oauth.hasError()).toBe(true)
+    })
+
+    // FR-L6: the error says why the session ended; anything else a server put in the body is not token state.
+    it('keeps only error and error_description from a 401 body', async () => {
+      oauth.setToken({ access_token: 'at' })
+      respond = () =>
+        Response.json(
+          { error: 'invalid_token', error_description: 'expired', access_token: 'planted', refresh_token: 'planted' },
+          { status: 401 }
+        )
+
+      await oauth.fetch(`${origin()}/api/orders`)
+
+      expect(oauth.token()).toEqual({ error: 'invalid_token', error_description: 'expired' })
+    })
+
+    // RFC 9700 §2.3: a token sent to every URL a call names is a token handed to whoever owns the URL.
+    it('sends the bearer only to this page, the provider and the origins named, and heeds only their 401s', async () => {
+      const elsewhere = createOAuth({ ignorePaths: [/public/], functions: mockOAuthFunctions() })
+      elsewhere.setConfig({ issuerPath: 'https://op.example.com' })
+      elsewhere.setToken({ access_token: 'at', token_type: 'Bearer' })
+      respond = () => Response.json({ error: 'invalid_token' }, { status: 401 })
+
+      await elsewhere.fetch(`${origin()}/api/orders`)
+
+      expect(seen[0]?.authorization).toBeNull()
+      expect(elsewhere.token().access_token).toBe('at')
+      for (const url of ['/api/orders', `${globalThis.location.origin}/api`, 'https://op.example.com/userinfo']) {
+        expect(await elsewhere.authHeaders(url)).toEqual({ Authorization: 'Bearer at' })
+      }
+      expect(await elsewhere.authHeaders('https://op.example.com.evil.test/x')).toEqual({})
     })
 
     it('clears the session on a 401 with no JSON body, without rejecting', async () => {

@@ -48,8 +48,7 @@ export const tokenEndpoint = async (
 
   const jkt = await bindingFor(config, client, request)
   const fapi = underFapi(config, client)
-  // RFC 8705 §3: binding to the certificate the client already presented costs nothing extra and
-  // makes a stolen token useless without the private key behind it.
+  // RFC 8705 §3: binding to the certificate already presented costs nothing and makes a stolen token useless.
   const binding = { jkt, x5t: client.certificateBoundAccessTokens || fapi ? certificate?.thumbprint : undefined }
   if (fapi && !binding.jkt && !binding.x5t) {
     throw new OAuthError('invalid_request', {

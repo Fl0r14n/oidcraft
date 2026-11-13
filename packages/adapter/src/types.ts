@@ -4,13 +4,10 @@ export type { ClientAuthMethod } from '@oidcraft/core'
 
 export type Seconds = number
 
-/** A record keyed by an opaque id of its own. */
 export type Entity = { id: string }
 
-/** A record that belongs to one account. */
 export type AccountOwned = { accountId: string }
 
-/** A record that is edited after it is written: when it appeared, and when it last changed. */
 export type Timestamped = { createdAt: Date; updatedAt: Date }
 
 /** A record that lapses. Storage enforces it in the query, so an expired one is never served (FR-T5). */
@@ -18,7 +15,7 @@ export type Expiring = { expiresAt: Date }
 
 export type Client = ClientCredentials &
   Timestamped & {
-    /** `client_secret_basic` and `client_secret_post` compare against this, from `hashClientSecret`; `clientSecret` is only ever `client_secret_jwt`'s HMAC key (NFR-S11). */
+    /** From `hashClientSecret`, for `client_secret_basic`/`_post`; `clientSecret` is only `client_secret_jwt`'s HMAC key (NFR-S11). */
     clientSecretHash?: string
     clientName?: string
     redirectUris: string[]
@@ -45,10 +42,7 @@ export type Client = ClientCredentials &
     userinfoSignedResponseAlg?: string
     userinfoEncryptedResponseAlg?: string
     userinfoEncryptedResponseEnc?: string
-    /**
-     * RFC 8705 §2.1.2: what a `tls_client_auth` client's certificate must carry — exactly one of its
-     * subject DN, or a SAN of one of four types.
-     */
+    /** RFC 8705 §2.1.2: a `tls_client_auth` client sets exactly one of these five, and its certificate must carry that value. */
     tlsClientAuthSubjectDn?: string
     tlsClientAuthSanDns?: string
     tlsClientAuthSanUri?: string
@@ -69,10 +63,7 @@ export type Client = ClientCredentials &
     registrationAccessToken?: string
     /** OIDC DCR 1.0 §2. `native` may redirect to `http://localhost`; `web`, the default, may not (NFR-S2). */
     applicationType?: 'web' | 'native'
-    /**
-     * May introspect access tokens issued to other clients, unless a token is restricted to another
-     * audience (FR-C8). Never set by dynamic registration: it is the operator's to grant.
-     */
+    /** May introspect other clients' access tokens not restricted to another audience (FR-C8); operator-granted, never by registration. */
     resourceServer?: boolean
   }
 
@@ -130,17 +121,14 @@ export type Artifact = Entity &
   Expiring & {
     kind: ArtifactKind
     grantId?: string
-    /** One authorization and every token descending from it: what a replay or a revoked refresh token ends, leaving the grant's other devices alone (FR-T3). */
+    /** One authorization and its descendant tokens: a replay or revoked refresh token ends this, not the grant's other devices (FR-T3). */
     familyId?: string
     clientId: string
     payload: Record<string, unknown>
     consumedAt?: Date
   }
 
-/**
- * What `@oidcraft/provider/accounts` keeps per local account (FR-I7). Every secret here is either a one-way hash
- * or, for the TOTP secret the server must read back, ciphertext bound to `accountId`.
- */
+/** A local account (FR-I7): every secret is a one-way hash or, for the TOTP secret read back, ciphertext bound to `accountId`. */
 export type Credential = AccountOwned &
   Timestamped & {
     /** Normalized, and unique across the store. */
@@ -153,10 +141,7 @@ export type Credential = AccountOwned &
     lockedUntil?: Date
   }
 
-/**
- * One issuer among several in a process (FR-M4). A single-issuer deployment never has one. Its `id`
- * is a DNS label, because it ends up in an issuer's host or path.
- */
+/** One issuer among several in a process (FR-M4); its `id` is a DNS label, because it ends up in an issuer's host or path. */
 export type Realm = Entity &
   Timestamped & {
     displayName?: string

@@ -19,10 +19,7 @@ export type CibaPayload = Polled & {
 
 const KIND = 'backchannel_authentication_request'
 
-/**
- * The person's answer is a record of its own, beside the request: a poll rewrites the request it
- * read to keep its clock, and an answer written into that same record would be lost to it (FR-C7).
- */
+// The answer is its own record: a poll rewrites the request it read, losing any answer written into it (FR-C7).
 const answerId = (authReqId: string) => `${authReqId}:answer`
 
 const cibaFlow: Flow<Stored<typeof KIND>, CibaPayload> = {
@@ -48,14 +45,7 @@ const cibaFlow: Flow<Stored<typeof KIND>, CibaPayload> = {
   destroyAnswer: (config, request) => config.adapter.artifacts.destroy(KIND, answerId(request.id))
 }
 
-/**
- * Client-Initiated Backchannel Authentication.
- *
- * The defining property is that the client never touches the user's browser: it names who it wants
- * and the provider reaches them out of band. That makes identifying the user the provider's problem
- * entirely, which is why `resolveCibaUser` has no default — a library guessing which `login_hint`
- * means which account would be inventing an authentication decision.
- */
+// `resolveCibaUser` has no default: guessing which hint means which account would invent an authentication (FR-C17).
 export const backchannelAuthenticationEndpoint = async (
   config: ResolvedConfig,
   request: Request,
@@ -72,8 +62,7 @@ export const backchannelAuthenticationEndpoint = async (
   }
 
   const hints = ['login_hint', 'login_hint_token', 'id_token_hint'].filter(name => form.has(name))
-  // OIDC CIBA 1.0 §7.1: more than one hint is ambiguous, and resolving it by precedence would let a
-  // caller make the provider and an auditor disagree about who was asked.
+  // OIDC CIBA 1.0 §7.1: exactly one hint, or precedence could make the provider and an auditor disagree on who was asked.
   if (hints.length !== 1) {
     throw new OAuthError('invalid_request', {
       description: hints.length === 0 ? 'one of login_hint, login_hint_token or id_token_hint is required' : 'only one hint may be given',

@@ -120,8 +120,7 @@ const length = 128
 const { t } = useLocale()
 const { login, logout, isAuthorized } = useOAuth()
 const user = useOAuthUser()
-// Repeated from ./props rather than imported: @vue/compiler-sfc cannot resolve an imported type
-// without filesystem access, which it refuses under Bun. ./props fails the typecheck if these drift.
+// repeated from ./props: @vue/compiler-sfc cannot resolve an imported type under Bun
 const props = defineProps<{
   username?: string
   password?: string
@@ -141,7 +140,6 @@ const { view, username, password, dismissError, togglePasswordVisible, submit } 
   maxLength: length
 })
 
-// the composable reports a code; the wording is this component's, and its locale's
 const messagesFor = (field: 'username' | 'password') =>
   computed(() => {
     const { error: code, showError } = view.value[field]

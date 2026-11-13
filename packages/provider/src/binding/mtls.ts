@@ -35,11 +35,7 @@ const ATTRIBUTE_TYPES: Record<string, string> = {
 
 const SPECIAL = new Set([',', '+', '"', '\\', '<', '>', ';', '=', '#', ' '])
 
-/**
- * An RFC 4514 distinguished name as its RDNs, most specific first, each a sorted list of
- * `type=value` with the type in one spelling and the value case-folded and its spaces collapsed —
- * the comparison RFC 4517 §4.2.15 `distinguishedNameMatch` makes. Undefined when it does not parse.
- */
+// RFC 4517 §4.2.15 `distinguishedNameMatch`: types in one spelling, values case-folded with spaces collapsed.
 export const parseDistinguishedName = (dn: string) => {
   const rdns: string[][] = []
   let rdn: string[] = []
@@ -132,13 +128,7 @@ const sameEmail = (a: string, b: string) => {
 const carries = (values: string[] | undefined, registered: string, same: (a: string, b: string) => boolean) =>
   (values ?? []).some(value => same(value, registered))
 
-/**
- * `tls_client_auth` (RFC 8705 §2.1): the client is whoever holds a certificate, issued by a CA the
- * listener trusts, carrying the one name it registered (§2.1.2) — a subject compared as a name, a
- * DNS name case-insensitively, an IP whatever its spelling, an email by its domain case-insensitively,
- * a URI exactly. An unverified certificate never qualifies: only the chain makes a name mean anything
- * (FR-R4). Nor does a client with no name, or more than one, on record.
- */
+// RFC 8705 §2.1: only a verified chain makes a name mean anything (FR-R4), and the client must have exactly one on record.
 export const matchesTlsClientAuth = (client: Client, certificate: ClientCertificate) => {
   const [name, ...others] = registeredNames(client)
   const registered = name && client[name]
@@ -157,11 +147,7 @@ export const matchesTlsClientAuth = (client: Client, certificate: ClientCertific
   }
 }
 
-/**
- * `self_signed_tls_client_auth` (RFC 8705 §2.2): no chain to check, so identity rests entirely on
- * the certificate matching one the client registered. A `verified` flag is irrelevant here: the TLS
- * handshake already proved the client holds that certificate's private key.
- */
+// RFC 8705 §2.2: `verified` is irrelevant; the handshake proved the key, and only a registered certificate matches.
 export const matchesRegisteredCertificate = (client: Client, certificate: ClientCertificate) => {
   const registered = (client.jwks?.keys as { 'x5t#S256'?: string }[] | undefined) ?? []
   if (!registered.length) return false

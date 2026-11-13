@@ -18,7 +18,6 @@ export { failureMessage } from '../shared/api'
 /** The realm the panels manage; empty is the control plane itself. */
 export const currentRealm = shallowRef('')
 
-/** Every call but the realm list itself is aimed at the current realm. */
 export const useAdminApi = () => {
   const api = useApi('/admin/api')
   return <T>(path: string, init?: RequestInit) => {

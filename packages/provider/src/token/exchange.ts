@@ -49,14 +49,7 @@ const resolveToken = async (config: ResolvedConfig, value: string, declaredType:
   return artifact && !artifact.consumedAt && !(await outlivedItsSession(config, artifact)) ? artifact : undefined
 }
 
-/**
- * Token exchange (RFC 8693).
- *
- * There is no sensible default policy here, so there is none: without an `exchangePolicy` the grant
- * is refused. Exchange is how one party asks to act as another, and a library cannot know which of
- * those requests a deployment considers legitimate — guessing would mean inventing an authorization
- * rule on the operator's behalf.
- */
+// RFC 8693: no default policy; without an `exchangePolicy` the grant is refused rather than inventing an authorization rule.
 export const tokenExchange = async (config: ResolvedConfig, client: Client, form: URLSearchParams) => {
   if (!config.exchangePolicy) {
     throw new OAuthError('unsupported_grant_type', {

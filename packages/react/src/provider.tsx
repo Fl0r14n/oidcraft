@@ -1,4 +1,3 @@
-// by package name — see the note in hooks.ts and AGENTS.md
 import type { OAuth } from '@oidcraft/react/core'
 import { createContext, type ReactNode, useContext } from 'react'
 
@@ -10,13 +9,10 @@ export interface OAuthProviderProps {
   children?: ReactNode
 }
 
-/** The instance is not created here: interceptors and route loaders need it before anything renders, so the
- * app builds it and passes it in. Context is the only way a hook resolves it, which is what makes
- * concurrent SSR safe — no ambient pointer can hand one request another request's token. */
+/** Provides an instance the app built in its bootstrap; context is the only way a hook resolves one. */
 export const OAuthProvider = ({ oauth, children }: OAuthProviderProps) => <OAuthContext value={oauth}>{children}</OAuthContext>
 
-/** Throws rather than falling back to an ambient instance: a missing provider is a wiring mistake, and
- * guessing cannot be done correctly under concurrent SSR. */
+/** The instance from the nearest `OAuthProvider`; throws without one, as there is no ambient fallback. */
 export const useOAuthInstance = (): OAuth => {
   const oauth = useContext(OAuthContext)
   if (!oauth) {

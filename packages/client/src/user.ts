@@ -15,18 +15,10 @@ export const createUser = (
   const userStore = createStore<{ user?: UserInfo | undefined }>({})
   const user = () => userStore.getState().user
 
-  /** `userInfo` and `jwt` are async, so a response belonging to a session that has since ended would
-   * otherwise re-populate the profile after it was cleared. Every run takes a ticket and drops its
-   * result if another started meanwhile. */
+  // a run drops its result if another started meanwhile, so an ended session's response cannot repopulate the profile
   let generation = 0
 
-  /** Rebuilds the profile from whatever the session currently is — one function, because clearing is
-   * not a special case: a token going away has to take the profile with it, or a signed-out app still
-   * renders the previous user. `logout()` without a redirect, a 401 and a failed refresh all land here.
-   *
-   * The id_token is read without regard to `isAuthorized`: its claims *are* the authentication, and a
-   * flow that returns no access token still authenticated someone. A `userinfo` response wins over the
-   * claims, which is the order the two are written in below. */
+  // the id_token is read regardless of `isAuthorized`: a flow without an access token still authenticated someone
   const sync = async () => {
     const mine = ++generation
     const stale = () => mine !== generation
@@ -50,7 +42,6 @@ export const createUser = (
     }
   }
 
-  // deferred to start() so constructing an instance is inert — see createOAuth
   let teardowns: Array<() => void> = []
 
   const start = () => {
@@ -67,8 +58,7 @@ export const createUser = (
         () => void sync()
       )
     ]
-    // eagerly: with a stored token and a statically configured userPath both sources are already
-    // truthy at start and never change, so without this the fetch never happens
+    // eagerly: a stored token and a static userPath never change, so neither watcher would fire
     void sync()
   }
 
@@ -81,7 +71,6 @@ export const createUser = (
         teardown()
       }
       teardowns = []
-      // a request already in flight must not land on the next session
       generation++
     }
   }

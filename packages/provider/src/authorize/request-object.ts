@@ -6,24 +6,14 @@ import { OAuthError } from '../errors'
 import { CLIENT_SIGNING_ALGS } from '../keys/algorithms'
 import { FAPI_ALGS, underFapi } from '../profile/fapi'
 
-/**
- * Parameters that must agree with what was sent outside the object, when present (§6.1). They are
- * also the only ones taken from outside: OIDC Core §6.1 requires them in the query even when the
- * object carries them, so an object that omits them still names its client and response type.
- */
+// Must agree when present, and the only ones taken from outside: OIDC Core §6.1 requires them in the query too.
 const MUST_AGREE = ['client_id', 'response_type']
 
 const JWT_CLAIMS = ['iss', 'aud', 'exp', 'nbf', 'iat', 'jti']
 
 const invalid = (description: string, spec = 'RFC 9101 §6.1') => new OAuthError('invalid_request', { description, spec })
 
-/**
- * Verifies a JAR request object and folds its parameters into the request (RFC 9101).
- *
- * Only the object's parameters are used (RFC 9101 §5): one left out of it is absent, not
- * something the unsigned query may supply — otherwise an attacker adds a `code_challenge` or a
- * `prompt` the client never signed. The two that must agree are checked rather than overridden.
- */
+// RFC 9101 §5: only the object's parameters count, or the unsigned query could add a `code_challenge` the client never signed.
 export const applyRequestObject = async (config: ResolvedConfig, client: Client, params: URLSearchParams) => {
   const jwt = params.get('request')
   if (!jwt) return params

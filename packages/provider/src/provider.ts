@@ -46,10 +46,7 @@ export type Provider = {
   interactions: ReturnType<typeof interactions>
   /** Operator-facing, and deliberately not an HTTP route: the host authorizes it (FR-M1). */
   management: ReturnType<typeof management>
-  /**
-   * The device flow's human half. The verification screen is the host's (FR-I3), so these are
-   * functions rather than routes: look up what was typed, then approve or deny it (FR-C7).
-   */
+  /** The device flow's human half, functions rather than routes because the verification screen is the host's (FR-I3, FR-C7). */
   device: {
     /** Pass the peer address: wrong codes are limited per address (RFC 8628 §5.1). */
     find: (userCode: string, context?: UserCodeContext) => ReturnType<typeof findByUserCode>
@@ -59,8 +56,8 @@ export type Provider = {
       context?: UserCodeContext
     ) => ReturnType<typeof resolveDeviceCode>
     /**
-     * No session to approve with: a login interaction that returns to the verification page. Pass the
-     * request's `cookie` header, and send `setCookie` with the redirect: the interaction is bound to it (FR-I2).
+     * With no session, a login interaction that returns to the verification page. Pass the request's
+     * `cookie` header and send `setCookie` with the redirect: the interaction is bound to it (FR-I2).
      */
     signIn: (userCode: string, context: DeviceSignInContext) => ReturnType<typeof deviceSignIn>
   }
@@ -68,8 +65,7 @@ export type Provider = {
   session(request: Request): Promise<Session | undefined>
   /** CIBA's out-of-band half, for whatever channel actually asks the person (FR-C17). */
   ciba: { resolve: (authReqId: string, outcome: CibaDecision) => ReturnType<typeof resolveBackchannelRequest> }
-  /** The whole surface: a WHATWG Request in, a Response out, no I/O of its own (FR-R1, FR-A1). */
-  /** Reads only the certificate of the context; the host keeps the peer address for its own limits. */
+  /** A WHATWG Request in, a Response out, no I/O of its own (FR-R1, FR-A1). Of the context it reads only the certificate. */
   handle(request: Request, context?: Pick<RequestContext, 'clientCertificate'>): Promise<Response>
 }
 
@@ -151,28 +147,19 @@ const authorizationHandler: Handler = async (config, request) => {
   }
 }
 
-/**
- * Back-channel logout tokens are handed to the host rather than delivered here: the core performs
- * no I/O (FR-A1), and a fan-out with retries does not belong inside a request.
- */
+/** Back-channel logout tokens go to the host: the core performs no I/O (FR-A1), and a fan-out with retries is no request's job. */
 export type LogoutDelivery = (notifications: LogoutNotification[]) => void | Promise<void>
 
 const endSessionHandler: Handler = async (config, request) => {
   const session = await readSession(config, request)
   const { response, notifications, frontChannel } = await endSessionEndpoint(config, request, session)
-  // From the resolved config, never a module-level pointer: two providers in one process must not
-  // be able to reach each other's callback (FR-A1).
+  // From the resolved config, never module state: two providers in one process must not reach each other's callback (FR-A1).
   if (notifications.length && config.onLogout) await config.onLogout(notifications)
-  // The iframe page belongs to the host, so the URLs are handed over rather than rendered here.
   if (frontChannel.length && config.onFrontChannelLogout) await config.onFrontChannelLogout(frontChannel)
   return response
 }
 
-/**
- * A pushed reference or a signed request object stands in for the parameters. JAR by reference
- * (`request_uri` pointing at the client's own server) is deliberately absent: resolving it means
- * the core fetching a URL the client chose, which it does not do (FR-A1).
- */
+// JAR by reference is deliberately absent: resolving it means fetching a URL the client chose (FR-A1).
 const resolveParameters = async (config: ResolvedConfig, raw: URLSearchParams) => {
   const requestUri = raw.get('request_uri')
   if (requestUri) {
@@ -260,10 +247,7 @@ const dispatch = async (
   }
 }
 
-/**
- * Validates everything it can here rather than on the first request (NFR-D2), then returns a handler
- * that holds no state across calls — two processes behind a load balancer behave as one (FR-A1).
- */
+/** Validates the configuration now rather than on the first request (NFR-D2); the handler holds no state across calls (FR-A1). */
 export const createProvider = (config: ProviderConfig): Provider => {
   const checked = resolveConfig(config)
   const base = { ...checked, adapter: withHashedArtifacts(checked.adapter) }

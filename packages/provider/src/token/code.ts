@@ -13,11 +13,7 @@ import { underFapi } from '../profile/fapi'
 import { revokeFamily } from './family'
 import { type Binding, issueTokens, loadGrantAndSession, loadGrantAndSignIn } from './issue'
 
-/**
- * Replaying a single-use artifact revokes its family rather than merely failing: a replay means the
- * code or refresh token leaked, and everything derived from it must stop working. The grant's other
- * families — the same app on another device — are not what leaked (FR-T3, FR-T4, NFR-S4, RFC 9700 §4.14.2).
- */
+// A replay means it leaked: revoke its family, not the grant's others (FR-T3, FR-T4, NFR-S4, RFC 9700 §4.14.2).
 const revokeOnReplay = async (config: ResolvedConfig, artifact: SingleUse, what: string) => {
   await replayed(config, artifact)
   await revokeFamily(config, artifact)
@@ -30,10 +26,7 @@ const revokeOnReplay = async (config: ResolvedConfig, artifact: SingleUse, what:
 /** How long a replay is remembered: longer than any redemption takes to write its tokens. */
 const REPLAY_WINDOW = 60
 
-/**
- * True for the first caller. A replay claims it before revoking; the redemption that won claims it
- * after writing its tokens, and a `false` there means the revocation ran first and missed them.
- */
+// A replay claims this before revoking, the winner after writing; `false` for the winner means the revocation missed its tokens.
 const replayed = async (config: ResolvedConfig, artifact: SingleUse) =>
   !(await config.adapter.replay.claim('redeemed', await storedId(`${artifact.kind}:${artifact.id}`), REPLAY_WINDOW))
 
@@ -122,9 +115,7 @@ export const refreshTokenGrant = async (config: ResolvedConfig, client: Client, 
     throw new OAuthError('invalid_grant', { description: 'this refresh token is bound to a different certificate', spec: 'RFC 8705 §4' })
   }
 
-  // FR-T3: rotation is what makes the replay rule above meaningful. Its one exception is a FAPI client:
-  // confidential and sender-constrained, so the token is useless without its key, and rotating would
-  // only lose the grant to a dropped response (FAPI 2.0 Security Profile §5.3.2.1).
+  // FR-T3: always rotate, save a FAPI client, whose token is useless without its key (FAPI 2.0 Security Profile §5.3.2.1).
   const rotate = !underFapi(config, client)
   if (rotate && !(await config.adapter.artifacts.consume('refresh_token', presented))) {
     await revokeOnReplay(config, artifact, 'refresh token')

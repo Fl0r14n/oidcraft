@@ -3,11 +3,7 @@ import { OAuthError } from '../errors'
 
 const refuse = (description: string, spec = 'FR-I4') => new OAuthError('invalid_request', { description, spec, status: 400 })
 
-/**
- * What the host reports back from an out-of-band approval (device, CIBA): every scope that was asked,
- * no other, as in the browser (FR-I4), and only for the person the session belongs to. Declining is
- * `{ denied: true }`.
- */
+// Every scope asked and no other, as in the browser (FR-I4), and only for the person the session belongs to.
 export const checkApproval = async (
   config: ResolvedConfig,
   requested: string[],

@@ -25,11 +25,6 @@ export const pushParameters = async (config: ResolvedConfig, clientId: string, p
   return `${REQUEST_URI_PREFIX}${id}`
 }
 
-/**
- * Pushed authorization requests (RFC 9126). The client posts the request over an authenticated
- * back channel and receives a reference, so the parameters never travel through the browser where
- * they can be read, reordered or replaced.
- */
 export const pushedAuthorizationRequestEndpoint = async (
   config: ResolvedConfig,
   request: Request,
@@ -63,8 +58,7 @@ export const pushedAuthorizationRequestEndpoint = async (
     params.set('dpop_jkt', jkt)
   }
 
-  // Validating now means a malformed request fails on this authenticated call rather than later,
-  // in a browser redirect where the user sees it (§2.2).
+  // Validated now, so a malformed request fails on this call rather than in a browser redirect (§2.2).
   const { redirectUri } = await parseAuthorizationRequest(config, params)
   validateAuthorizationRequest(config, client, redirectUri, params)
 

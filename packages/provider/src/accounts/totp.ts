@@ -50,10 +50,7 @@ export const hotp = async (secret: Uint8Array, counter: number) => {
 
 export const counterAt = (time: number) => Math.floor(time / 1000 / TOTP_PERIOD)
 
-/**
- * The counter the code was generated for, or undefined. One step either side absorbs clock drift
- * (RFC 6238 §6); the caller still has to make the counter single-use.
- */
+// One step either side absorbs clock drift (RFC 6238 §6); the caller must still make the counter single-use.
 export const matchingCounter = async (secret: Uint8Array, code: string, time = Date.now()) => {
   if (!/^\d{6}$/.test(code)) return undefined
   const now = counterAt(time)

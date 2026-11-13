@@ -11,11 +11,7 @@ import {
 } from '@oidcraft/provider'
 import { issuer, optional } from '../op/env'
 
-/**
- * An MCP server on this OP, as an MCP client meets one: a protected resource whose tokens this OP
- * issues for it alone (FR-C19, MCP 2026-07-28). Off unless OIDCRAFT_MCP=on, since it also opens
- * client registration — an MCP client registers itself or names a metadata document (FR-C9, FR-C20).
- */
+/** Off unless OIDCRAFT_MCP=on, since an MCP resource (FR-C19) also opens client registration (FR-C9, FR-C20). */
 export const mcpEnabled = optional('OIDCRAFT_MCP') === 'on'
 
 export const MCP_PATH = '/mcp'
@@ -46,10 +42,7 @@ export const seedMcpResourceServer = async (adapter: Adapter) => {
   console.log(`[oidcraft] MCP server at ${mcpUri()}`)
 }
 
-/**
- * The client's metadata document, fetched as FR-C20 leaves to the host: a short timeout, no redirects
- * and a small body. The core has already refused anything but a canonical https URL.
- */
+/** Fetched as FR-C20 leaves to the host: short timeout, no redirects, small body; the core already refused a non-canonical URL. */
 export const resolveClientMetadata = async (clientId: string) => {
   const response = await fetch(clientId, { redirect: 'error', signal: AbortSignal.timeout(5000) }).catch(() => undefined)
   if (!response?.ok) return undefined

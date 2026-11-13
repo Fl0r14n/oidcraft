@@ -14,21 +14,13 @@ const clientRoutes = (config: ResolvedConfig) => [
 
 const EXPOSED = 'www-authenticate, dpop-nonce'
 
-/**
- * The client a request came from, as its handler found it: by the credentials it presented, or at
- * UserInfo by its access token. Recorded on finding it, so an error the handler throws afterwards is
- * still readable by that client's pages.
- */
+// Set as soon as the handler finds the client, so an error thrown afterwards is still readable by that client's pages.
 export type Caller = { client?: Client }
 
 const allowed = (caller: Caller, origin: string) =>
   Boolean(caller.client?.redirectUris.some(uri => URL.canParse(uri) && new URL(uri).origin === origin))
 
-/**
- * A preflight on a client route is answered for any origin: it only lets the browser send what a
- * form post from that origin already could. Whether the page may *read* the answer is decided on the
- * real response, by the client it came from.
- */
+// Any origin's preflight is answered: it permits only what a form post could send. Reading is decided on the real response.
 export const preflight = (config: ResolvedConfig, path: string, request: Request, methods: string[]) => {
   const origin = request.headers.get('origin')
   if (!origin || (!publicRoutes(config).includes(path) && !clientRoutes(config).includes(path))) return undefined
@@ -44,10 +36,7 @@ export const preflight = (config: ResolvedConfig, path: string, request: Request
   })
 }
 
-/**
- * Lets a page read the response only when it is on the origin of one of the calling client's
- * registered redirect URIs. Nothing is configured: the registration already says where the client lives.
- */
+// Readable only from the origin of one of the calling client's registered redirect URIs.
 export const withCors = (config: ResolvedConfig, path: string, request: Request, response: Response, caller: Caller) => {
   const origin = request.headers.get('origin')
   if (!origin) return response

@@ -4,13 +4,9 @@ import type { OAuthFunctions, OpenIdConfig } from './types'
 
 const nonceFor = (scope: string) => (scope.indexOf('openid') > -1 ? randomNonce() : undefined)
 
-/** Builds the authorization URL and the handoff that has to outlive the redirect. Redirects nothing and
- * stores nothing: where the handoff lives is the caller's decision, and it is the decision that differs
- * between a browser app and a confidential client. */
+/** Builds the authorization URL and the handoff to keep until the redirect returns; redirects and stores nothing. */
 export const authorizationUrl: OAuthFunctions['authorizationUrl'] = async (parameters, config) => {
   const { authorizePath, clientId, scope = '', pkce: usePkce, allowInsecure } = (config || {}) as OpenIdConfig
-  // Sending the browser to an http authorization endpoint puts the whole round trip, redirect uri
-  // included, on the wire in clear.
   assertSecure(authorizePath, allowInsecure)
   const nonce = nonceFor(scope)
   const code_verifier = (usePkce && randomPKCECodeVerifier()) || undefined

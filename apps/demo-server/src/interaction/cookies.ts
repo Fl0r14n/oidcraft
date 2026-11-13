@@ -39,10 +39,7 @@ const verified = async <T>(value: string | undefined): Promise<T | undefined> =>
 const PENDING = 'oidcraft.demo.pending'
 const KNOWN = 'oidcraft.demo.known'
 
-/**
- * A password that was right, waiting for its second factor. Bound to the interaction, so it cannot
- * finish any other sign-in, and short-lived, so a walked-away screen does not stay half signed in.
- */
+/** A right password awaiting its second factor: bound to the interaction so it finishes no other, and short-lived. */
 export const pendingSecondFactor = {
   set: async (interactionId: string, accountId: string) =>
     serialize(PENDING, await sign({ interactionId, accountId, until: Date.now() + 300_000 }), 300, '/interaction'),

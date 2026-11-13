@@ -13,7 +13,7 @@ import { clientProblems } from './validate'
 
 const DEFAULT_GRANTS = ['authorization_code']
 
-/** How a caller refuses a value. Registration answers with RFC 7591's codes; a metadata document, read at the authorization endpoint, does not. */
+/** Registration refuses with RFC 7591's codes; a metadata document, read at the authorization endpoint, does not. */
 export type Refuse = (description: string) => OAuthError
 
 const invalid: Refuse = description => new OAuthError('invalid_client_metadata', { description, spec: 'RFC 7591 §3.2.2', status: 400 })
@@ -25,7 +25,6 @@ const isLoopbackIp = (url: URL) => url.hostname === '127.0.0.1' || url.hostname 
 // Each would run script, or read a file, wherever the browser is sent or a form is posted.
 const FORBIDDEN_SCHEMES = ['javascript:', 'data:', 'vbscript:', 'file:']
 
-/** A URI the browser is sent to: absolute, matchable, no script, https unless on a loopback IP. */
 export const browserUri = (raw: unknown, name: string, { native = false, fail = invalid }: { native?: boolean; fail?: Refuse } = {}) => {
   if (typeof raw !== 'string' || !URL.canParse(raw)) throw fail(`${name} ${String(raw)} is not an absolute URL`)
   const url = new URL(raw)
@@ -42,11 +41,7 @@ export const browserUri = (raw: unknown, name: string, { native = false, fail = 
 
 const isIpLiteral = (hostname: string) => hostname.startsWith('[') || /^\d+\.\d+\.\d+\.\d+$/.test(hostname)
 
-/**
- * A URI the host fetches or posts to on a stranger's say-so. An address literal or `localhost`
- * aims that request inside the network (SSRF); a name that resolves there is the host's to refuse,
- * since only it does the resolving (FR-A1).
- */
+// SSRF: an address literal or `localhost` is refused here; a name resolving inside the network is the host's to refuse (FR-A1).
 export const serverUri = (raw: unknown, name: string, fail: Refuse = invalid) => {
   if (typeof raw !== 'string' || !URL.canParse(raw)) throw fail(`${name} ${String(raw)} is not an absolute URL`)
   const url = new URL(raw)
@@ -63,10 +58,7 @@ const uriList = (value: unknown, name: string) => {
   return value.map(each => browserUri(each, name))
 }
 
-/**
- * Registration is the one endpoint that lets a stranger write to the client store, so the metadata
- * it accepts is checked as strictly as anything a human would have registered (NFR-S2).
- */
+// The one endpoint that lets a stranger write to the client store, so its metadata is checked as strictly as an operator's (NFR-S2).
 const validateRedirectUris = (uris: unknown, native: boolean) => {
   if (!Array.isArray(uris) || uris.length === 0) throw invalidRedirect('redirect_uris is required and must be a non-empty array')
   return uris.map(each => browserUri(each, 'redirect_uri', { native, fail: invalidRedirect }))
@@ -159,10 +151,7 @@ const grantsFrom = (config: ResolvedConfig, body: Record<string, unknown>, metho
   return { grantTypes, responseTypes }
 }
 
-/**
- * OIDC CIBA 1.0 §4: a client of the CIBA grant says how it gets its result, and a ping client where.
- * Push is out of scope (FR-C17).
- */
+// OIDC CIBA 1.0 §4; push mode is out of scope (FR-C17).
 const cibaMetadataFrom = (body: Record<string, unknown>, grantTypes: string[]) => {
   const mode = body.backchannel_token_delivery_mode
   const ciba = grantTypes.includes(CIBA_GRANT)
@@ -259,10 +248,7 @@ const metadataFrom = (config: ResolvedConfig, body: Record<string, unknown>): Cl
   }
 }
 
-/**
- * What registration reads from metadata, and so what an update replaces or, left out, removes
- * (RFC 7592 §2.2). The rest of a stored client is the operator's: an update keeps it (FR-C9, FR-C21).
- */
+// What an update replaces or, left out, removes (RFC 7592 §2.2); the rest of a stored client is the operator's (FR-C9, FR-C21).
 const REGISTERED = new Set<string>([
   ...['clientName', 'applicationType', 'redirectUris', 'postLogoutRedirectUris', 'grantTypes', 'responseTypes', 'scopes'],
   ...['tokenEndpointAuthMethod', 'clientSecret', 'clientSecretHash', 'sectorIdentifierUri', 'subjectType', 'requirePkce'],
@@ -272,10 +258,7 @@ const REGISTERED = new Set<string>([
 
 const operatorFields = (client: Client) => Object.fromEntries(Object.entries(client).filter(([name]) => !REGISTERED.has(name)))
 
-/**
- * The registration access token and a hashed client secret are stored as digests, so a response
- * carries one only when the caller holds it or it was just issued (NFR-S11).
- */
+// Secrets are stored as digests, so a response carries one only when the caller holds it or it was just issued (NFR-S11).
 export const clientResponse = (
   config: ResolvedConfig,
   client: Omit<Client, 'clientSecretHash' | 'registrationAccessToken'>,
@@ -378,8 +361,7 @@ export const registrationEndpoint = async (config: ResolvedConfig, request: Requ
     return new Response(null, { status: 204, headers: { 'cache-control': 'no-store' } })
   }
 
-  // An update is a registration of new metadata, so the host vets it as it vetted the first; its
-  // answer, not the stored client, decides any PKCE exemption (FR-C3).
+  // The host vets an update as it vetted the first registration; its answer, not the stored client, decides PKCE (FR-C3).
   const decision = config.onRegister ? await config.onRegister(request.clone(), { existing: client }) : undefined
   const body = objectFrom(
     await request.json().catch(() => {

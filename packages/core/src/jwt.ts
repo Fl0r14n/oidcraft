@@ -12,15 +12,13 @@ export type IdTokenVerifierOptions = {
   jwksUri?: string | undefined
   issuer?: ExpectedIssuer | undefined
   audience?: string | undefined
-  /** off decodes without checking the signature — only for a provider that publishes no JWKS. On, a
-   * token with no `jwksUri` to check it against is refused (FR-L2). */
+  /** off decodes without checking the signature, for a provider with no JWKS; on, a token without `jwksUri` is refused (FR-L2). */
   strict?: boolean | undefined
   allowInsecure?: boolean | undefined
 }
 
 const isTemplate = (issuer?: ExpectedIssuer) => typeof issuer === 'string' && issuer.includes(TENANT_TEMPLATE)
 
-/** What jose can compare itself — a literal or a set. The rest is resolved per token, below. */
 const literalIssuer = (issuer?: ExpectedIssuer) =>
   (Array.isArray(issuer) && issuer) || (typeof issuer === 'string' && !isTemplate(issuer) && issuer) || undefined
 
@@ -29,8 +27,7 @@ const resolveIssuer = (issuer: ExpectedIssuer, claims: IdTokenClaims) => {
   return (isTemplate(issuer) && claims.tid && (issuer as string).replace(TENANT_TEMPLATE, String(claims.tid))) || undefined
 }
 
-/** Decodes without verifying anything. The claims are the provider's word, unchecked — read them only
- * after `createIdTokenVerifier` has passed the token, or for a value nothing is decided on. */
+/** Decodes without verifying: decide nothing on the claims unless `createIdTokenVerifier` has passed the token. */
 export const parseIdToken = (idToken?: string): IdTokenClaims => {
   try {
     return idToken ? decodeJwt<IdTokenClaims>(idToken) : {}
@@ -39,9 +36,7 @@ export const parseIdToken = (idToken?: string): IdTokenClaims => {
   }
 }
 
-/** Holds the remote JWKS for its lifetime, so build one per configuration and keep it — jose caches keys
- * on the set, and a fresh one per verification refetches them. Verifying a second token (to read its
- * claims, say) costs a signature check and no network. */
+/** Holds the remote JWKS for its lifetime: build one per configuration and keep it, or every verification refetches keys. */
 export const createIdTokenVerifier = ({
   jwksUri,
   issuer,
@@ -49,11 +44,8 @@ export const createIdTokenVerifier = ({
   strict = true,
   allowInsecure
 }: IdTokenVerifierOptions): IdTokenVerifier => {
-  // Keys fetched over http are keys an attacker on the path chooses, which makes every signature
-  // check below decorative.
   assertSecure(jwksUri, allowInsecure)
-  // jose is handed the platform fetch: left to itself it reaches for `node:http`, which drags a Node
-  // shim into Bun, Deno, workers and the browser for what is one GET of a JSON document.
+  // the platform fetch: left to itself jose reaches for `node:http`, which the core never imports
   const jwksSet =
     jwksUri && strict ? createRemoteJWKSet(new URL(jwksUri), { [customFetch]: (url, init) => fetch(url, init as RequestInit) }) : undefined
   const literal = literalIssuer(issuer)

@@ -3,10 +3,7 @@ import { CLIENT_SECRET_ALGS, CLIENT_SIGNING_ALGS } from './keys/algorithms'
 import { signingAlgorithms } from './keys/keys'
 import { FAPI_ALGS, FAPI_AUTH_METHODS } from './profile/fapi'
 
-/**
- * Advertises only what this configuration can actually do (FR-C6). A capability the runtime cannot
- * supply removes the methods that need it rather than listing them (FR-R5).
- */
+// Advertises only what this configuration can do (FR-C6), dropping methods the runtime cannot supply (FR-R5).
 export const supportedGrantTypes = ({ features, exchangePolicy }: ResolvedConfig) => [
   'authorization_code',
   'refresh_token',
@@ -19,8 +16,7 @@ export const supportedGrantTypes = ({ features, exchangePolicy }: ResolvedConfig
 export const metadata = (config: ResolvedConfig, signing: string[]) => {
   const url = (path: string) => `${config.issuer}${path}`
   const { features, routes } = config
-  // FR-C21: a provider-wide profile advertises only what it accepts. A per-client one cannot narrow
-  // discovery, which speaks for every client.
+  // FR-C21: only a provider-wide profile narrows discovery, which speaks for every client.
   const fapi = config.profile === 'fapi2'
   const algorithms = fapi ? signing.filter(alg => FAPI_ALGS.includes(alg)) : signing
   const clientAlgs = fapi ? FAPI_ALGS : CLIENT_SIGNING_ALGS
@@ -51,8 +47,7 @@ export const metadata = (config: ResolvedConfig, signing: string[]) => {
       backchannel_user_code_parameter_supported: false
     }),
     scopes_supported: config.scopes,
-    // FR-C1: `code` only. OAuth 2.1 removes the implicit and hybrid response types, and anything
-    // returning an id_token through the front channel hands it to the browser's history and Referer.
+    // FR-C1: `code` only; an id_token through the front channel lands in the browser's history and Referer.
     response_types_supported: ['code'],
     response_modes_supported: ['query', 'fragment', 'form_post'],
     grant_types_supported: supportedGrantTypes(config),

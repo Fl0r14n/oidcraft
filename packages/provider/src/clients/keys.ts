@@ -3,10 +3,7 @@ import { createLocalJWKSet, type JSONWebKeySet } from 'jose'
 import type { ResolvedConfig } from '../config'
 import type { OAuthError } from '../errors'
 
-/**
- * The keys a client signs with: those it registered, or what the host resolves from its `jwks_uri`.
- * Fetching that here would be outbound I/O in the core, to a URL the client chose (FR-A1).
- */
+// The host resolves `jwks_uri`: fetching it here would be outbound I/O to a URL the client chose (FR-A1).
 export const clientKeySet = async (
   config: ResolvedConfig,
   client: Client,

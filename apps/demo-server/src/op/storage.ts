@@ -10,10 +10,7 @@ import { drizzle as drizzlePostgres } from 'drizzle-orm/bun-sql'
 import { drizzle } from 'drizzle-orm/bun-sqlite'
 import { withDefault } from './env'
 
-/**
- * This app is the host, so applying the library's migrations is its call (FR-A4). It runs one
- * process, so doing it at boot is safe here; a deployment with several runs them before rollout.
- */
+// Migrating at boot is safe only because this host runs one process; with several, migrate before rollout (FR-A4).
 const migrate = (sqlite: Database) => {
   sqlite.run('create table if not exists demo_migrations (id text primary key, applied_at integer not null)')
   const applied = new Set(
@@ -44,7 +41,7 @@ const poolFor = (url: string) => {
   return pool
 }
 
-/** The same, for a Postgres schema: its own migrations table, and the tables land where the search path says. */
+/** A Postgres schema keeps its own migrations table, and its tables land where the search path says. */
 const migratePostgres = async (sql: SQL, schema: string) => {
   await sql.unsafe(`create schema if not exists ${schema}`)
   await sql.unsafe(`create table if not exists ${schema}.demo_migrations (id text primary key, applied_at bigint not null)`)
@@ -64,10 +61,6 @@ export const dropPostgresSchema = (url: string, schema: string) => poolFor(url).
 
 type StorageOptions = { keys: KeyStore | undefined; schema?: string }
 
-/**
- * A SQLite file at `location`, migrated; a Postgres schema when it is a postgres:// URL (`public`
- * unless named); or nothing kept at all when it is `memory`.
- */
 export const openAdapter = async (location: string, { keys, schema }: StorageOptions): Promise<FullAdapter> => {
   if (location === 'memory') return memoryAdapter({ ...(keys && { keys }) })
   if (isPostgres(location)) {

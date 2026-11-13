@@ -1,7 +1,7 @@
 import { DEFAULT_MAX_LENGTH, type OAuthFormState, type OAuthFormView, oauthFormView } from '@oidcraft/core'
 import { createStore, type Subscribable } from './store'
 
-/** What the form needs of an instance, and nothing more — which is what makes it testable. */
+/** What the form needs of an instance. */
 export interface OAuthFormHost {
   login: (parameters?: { username: string; password: string }) => Promise<unknown>
   isAuthorized: () => boolean
@@ -27,16 +27,7 @@ export interface OAuthFormController {
   maxLength: number
 }
 
-/**
- * The resource-owner password form, without a framework and without markup.
- *
- * It exists once here because all three bindings had grown their own copy of the same rules — when a
- * field may show an error, what survives a rejected attempt, when a dismissed error comes back. A
- * binding wraps this in its reactive primitive and renders it; none of them re-decides any of it.
- *
- * Note the grant: OAuth 2.1 removed resource-owner password, so an `@oidcraft/provider` provider does not
- * advertise it. This is for the providers that still accept it.
- */
+/** The resource-owner password form, without framework or markup. OAuth 2.1 removed the grant; `@oidcraft/provider` does not offer it. */
 export const createOAuthForm = (
   oauth: OAuthFormHost,
   { username = '', password = '', maxLength = DEFAULT_MAX_LENGTH }: OAuthFormOptions = {}
@@ -68,8 +59,6 @@ export const createOAuthForm = (
       if (oauth.isAuthorized()) {
         reset()
       } else {
-        // the password goes, the username stays: a rejection is usually a typo in one of the two,
-        // and retyping the address every time is the wrong thing to make someone do
         patch({ password: '', submitted: false })
       }
     }

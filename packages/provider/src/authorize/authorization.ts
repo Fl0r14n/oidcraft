@@ -29,11 +29,7 @@ export type AuthorizationRequest = {
   resources: string[]
   /** RFC 9449 §10: the DPoP key the code is for; only a proof made with it may redeem the code. */
   dpopJkt: string | undefined
-  /**
-   * The request exactly as it arrived. Resuming after an interaction replays this rather than
-   * rebuilding from the fields above: a hand-maintained list silently drops every parameter nobody
-   * remembered to add to it, which is how `authorization_details` went missing once already.
-   */
+  /** The request as it arrived. Resuming replays this, never a rebuild from the fields above, which would drop what they omit. */
   raw: string
   /** Arrived by pushed reference, so it resumes by one: its parameters never cross the front channel (RFC 9126). */
   pushed?: true
@@ -54,10 +50,7 @@ const withoutPort = (url: URL) => {
   return copy.href
 }
 
-/**
- * NFR-S2: exact string match — except the port of a loopback IP literal, which a native app picks
- * from the OS per request (RFC 8252 §7.3, RFC 9700 §2.1). The hostname `localhost` gets no exception.
- */
+// NFR-S2: exact match, save the port of a loopback IP literal and never `localhost` (RFC 8252 §7.3, RFC 9700 §2.1).
 export const redirectMatches = (registered: string, presented: string) => {
   if (registered === presented) return true
   if (!URL.canParse(registered) || !URL.canParse(presented)) return false
@@ -67,11 +60,7 @@ export const redirectMatches = (registered: string, presented: string) => {
   return withoutPort(a) === withoutPort(b)
 }
 
-/**
- * Everything before a redirect is safe. A bad `client_id` or an unregistered `redirect_uri` must NOT
- * redirect — that turns the provider into an open redirector for attacker-chosen URLs
- * (RFC 6749 §4.1.2.1, RFC 9700 §4.1).
- */
+// A bad `client_id` or unregistered `redirect_uri` must not redirect: open redirector (RFC 6749 §4.1.2.1, RFC 9700 §4.1).
 export const parseAuthorizationRequest = async (config: ResolvedConfig, params: URLSearchParams) => {
   const clientId = params.get('client_id')
   if (!clientId) throw new OAuthError('invalid_request', { description: 'client_id is required', spec: 'RFC 6749 §4.1.1' })
@@ -92,7 +81,7 @@ export const parseAuthorizationRequest = async (config: ResolvedConfig, params: 
   return { client, redirectUri }
 }
 
-/** Past this point a failure is reported to the client by redirect, as the spec requires. */
+// Past this point a failure is reported to the client by redirect.
 export const validateAuthorizationRequest = (
   config: ResolvedConfig,
   client: Client,
@@ -203,8 +192,7 @@ const parseAuthorizationDetails = (config: ResolvedConfig, raw: string | null) =
         spec: 'RFC 9396 §2'
       })
     }
-    // Only the host knows what its types mean, so it declares them; an unknown one is refused
-    // rather than silently granted.
+    // Only the host knows what its types mean, so an undeclared one is refused rather than silently granted.
     if (!config.authorizationDetailTypes.includes(type)) {
       throw new OAuthError('invalid_authorization_details', {
         description: `authorization_details type ${type} is not supported`,
@@ -249,21 +237,14 @@ const formPost = (target: ResponseTarget, values: Record<string, string>) => {
   })
 }
 
-/**
- * Every authorization response, success or error, goes out here: it always carries `iss`
- * (RFC 9207, FR-C14) and always honours the `response_mode` the request asked for.
- */
+// Every authorization response, success or error, goes out here, with `iss` (RFC 9207, FR-C14) and the requested `response_mode`.
 export const authorizationResponse = (issuer: string, target: ResponseTarget, values: Record<string, string>) => {
   const all = { ...values, ...(target.state !== undefined && { state: target.state }), iss: issuer }
   if (target.responseMode === 'form_post') return formPost(target, all)
   return new Response(null, { status: 303, headers: { location: redirectTo(target, all), 'cache-control': 'no-store' } })
 }
 
-/**
- * Where an approval of these exact details for this account and client is kept. Never remembered
- * past one authorization: a payment approved once must not cover the next request that repeats it
- * (RFC 9396 §7, FR-C15).
- */
+// Never remembered past one authorization: a payment approved once must not cover a repeat of it (RFC 9396 §7, FR-C15).
 export const detailsConsentId = async (accountId: string, clientId: string, details: AuthorizationDetail[]) =>
   base64url.encode(await sha256(JSON.stringify([accountId, clientId, details])))
 
@@ -274,10 +255,7 @@ export type AuthorizationOutcome =
   | { kind: 'response'; values: Record<string, string> }
   | { kind: 'interaction'; id: string; reason: 'login' | 'consent' }
 
-/**
- * Decides what it can and suspends when it cannot (FR-I1). `prompt=none` converts every suspension
- * into the error the client asked for instead (OIDC Core §3.1.2.6).
- */
+// Suspends what it cannot decide (FR-I1); `prompt=none` turns every suspension into an error (OIDC Core §3.1.2.6).
 export const authorize = async (
   config: ResolvedConfig,
   request: AuthorizationRequest,
@@ -285,8 +263,7 @@ export const authorize = async (
   client: Client,
   browser: string
 ): Promise<AuthorizationOutcome> => {
-  // RFC 9470: a resource server can demand a stronger acr, and honouring it means re-authenticating
-  // rather than issuing a token that quietly fails to meet it.
+  // RFC 9470: an unmet acr means re-authenticating, never a token that quietly falls short.
   const acrUnmet = Boolean(request.acrValues?.length && (!session?.acr || !request.acrValues.includes(session.acr)))
   // FR-I5: select_account asks which identity to use, so it goes to the login screen even with a session.
   const needsLogin =
@@ -345,9 +322,7 @@ const suspend = async (
   client?: Client
 ) => {
   const id = randomString()
-  // FR-F4: which upstream to use is a decision, so the provider makes it here; performing the round
-  // trip is I/O, so the host does that. When nothing decides it, the candidates go to the screen
-  // rather than one being guessed.
+  // FR-F4: the provider picks the upstream and the host makes the round trip; undecided, the candidates go to the screen, never a guess.
   const upstream =
     kind === 'login' && config.upstreams.length
       ? selectUpstream(config.upstreams, {
@@ -361,7 +336,6 @@ const suspend = async (
     id,
     kind: 'interaction',
     clientId: request.clientId,
-    // A consent interaction already knows who is consenting; a login one does not yet.
     ...(session && { accountId: session.accountId }),
     payload: {
       request,

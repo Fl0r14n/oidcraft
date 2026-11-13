@@ -2,21 +2,11 @@ import { createOAuth, type OAuth, type OAuthConfig } from '@oidcraft/vue'
 import axios, { type AxiosInstance, type CreateAxiosDefaults, type InternalAxiosRequestConfig } from 'axios'
 import { type App, hasInjectionContext, type InjectionKey, inject } from 'vue'
 
-/** The axios adapter, published as `@oidcraft/vue/axios`.
- *
- * The core speaks `fetch` and has no HTTP client dependency — axios used to be a required peer for every
- * consumer, including the ones who never touched it. This entry keeps the ergonomics for apps that do
- * want interceptors, and it is the only place axios is imported, so the dependency is optional. That is
- * also why the composition lives here rather than behind a `createOAuth(cfg, withAxios)` flag: a flag
- * would put an axios branch in the core entry and the separate build would stop meaning anything.
- *
- * The core is imported by package name, not relatively, so the bundler keeps it external and this entry
- * sees the same `oauthKey` the app provided to. A relative import would inline a second copy of it and
- * every composable here would resolve nothing. */
+// `@oidcraft/vue` by package name, never relatively: an inlined copy would carry a second `oauthKey`.
 
 export const axiosInterceptors = (oauth: OAuth) => ({
   authorizationInterceptor: async (req: InternalAxiosRequestConfig) => {
-    // the URL the request goes to, baseURL and all: the token is sent only where it is meant for (FR-L6)
+    // the full URL, baseURL included: the token goes only where it is meant for (FR-L6)
     for (const [key, value] of Object.entries(await oauth.authHeaders(axios.getUri(req)))) {
       req.headers.set(key, value)
     }
@@ -28,10 +18,7 @@ export const axiosInterceptors = (oauth: OAuth) => ({
   }
 })
 
-/** A fresh axios instance with both interceptors attached.
- *
- * One per OAuth instance, never a shared default: on the server two concurrent requests sharing
- * interceptors would mean one request's bearer on another request's call. */
+/** A fresh axios instance with both interceptors attached; one per OAuth instance, never a shared default. */
 export const createAxiosClient = (oauth: OAuth, defaults?: CreateAxiosDefaults): AxiosInstance => {
   const client = axios.create({ headers: { 'Content-Type': 'application/json' }, ...defaults })
   const { authorizationInterceptor: onRequest, unauthorizedInterceptor: onError } = axiosInterceptors(oauth)
@@ -52,7 +39,7 @@ export const createAxiosOAuth = (cfg?: OAuthConfig, defaults?: CreateAxiosDefaul
     install: (app: App) => {
       install(app)
       app.provide(httpKey, http)
-      // v4 provided the axios client under the plain 'http' key; keep it for `inject('http')` callers
+      // also under the plain 'http' key, for `inject('http')` callers
       app.provide('http', http)
     }
   })

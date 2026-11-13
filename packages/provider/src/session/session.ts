@@ -53,6 +53,6 @@ export const startSession = async (config: ResolvedConfig, login: LoginInput, cl
   }
 }
 
-/** A session's age is what `max_age` and `prompt=login` are measured against (FR-C16, FR-F9). `max_age=0` is `prompt=login` (OIDC Core §3.1.2.1). */
+/** What `max_age` and `prompt=login` are measured against (FR-C16, FR-F9); `max_age=0` is `prompt=login` (OIDC Core §3.1.2.1). */
 export const isFresh = (session: Session, maxAge: number | undefined) =>
   maxAge === undefined || (maxAge > 0 && Date.now() - session.authTime.getTime() <= maxAge * 1000)

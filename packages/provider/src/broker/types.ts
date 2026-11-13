@@ -8,8 +8,7 @@ export type UpstreamProvider = ClientCredentials & {
   scopes: string[]
   /** Extra authorization-request parameters, e.g. `prompt`, `hd`, `domain_hint`. */
   authorizationParams?: Record<string, string>
-  /** How client credentials reach this upstream's token endpoint. `client_secret_post` by default;
-   * some providers only honour the Basic header (RFC 6749 §2.3.1). */
+  /** How client credentials reach its token endpoint, `client_secret_post` by default; some honour only Basic (RFC 6749 §2.3.1). */
   tokenEndpointAuthMethod?: TokenAuthMethod
   /** Email domains this provider owns, for home-realm discovery (FR-F4). */
   domains?: string[]
@@ -27,9 +26,8 @@ export type UpstreamProvider = ClientCredentials & {
 export type ClaimMapper = (upstream: Record<string, unknown>) => Record<string, unknown>
 
 /**
- * How a brokered identity attaches to a local account.
- * `subject` alone is the only safe default: matching on email lets an upstream that does not verify
- * addresses take over any local account with that address (NFR-S8).
+ * How a brokered identity attaches to a local account. Only `subject` is a safe default: matching on email lets
+ * an upstream that does not verify addresses take over any local account with that address (NFR-S8).
  */
 export type LinkPolicy = 'subject' | 'verified-email' | 'interactive'
 

@@ -18,8 +18,7 @@ const parseOauthUri = (fragment?: string) => {
   return (Object.keys(params).length && params) || {}
 }
 
-/** Classifies a redirect back from the authorization endpoint and parses its parameters. An `error=` in
- * either place is still that flow's response — RFC 6749 §4.1.2.1 returns it on the redirect uri. */
+/** Classifies a redirect from the authorization endpoint; an `error=` is still that flow's response (RFC 6749 §4.1.2.1). */
 export const parseRedirectParameters = (source?: RedirectSource): ParsedRedirect => {
   const { hash, search } = parts(source)
   if (hash && /(access_token=)|(error=)/.test(hash)) {

@@ -4,17 +4,14 @@ import { optional } from './env'
 
 export const ADMIN_CLIENT_ID = 'oidcraft-admin'
 export const ACCOUNT_CLIENT_ID = 'oidcraft-account'
-/** The resource server both apps' APIs introspect as. Not a client anyone signs in to. */
+/** The resource server both apps' APIs introspect as; not a client anyone signs in to. */
 export const API_CLIENT_ID = 'oidcraft-api'
 export const FIRST_PARTY = [ADMIN_CLIENT_ID, ACCOUNT_CLIENT_ID, API_CLIENT_ID]
 
 /** Only this process introspects with it, so it is minted per boot and never written down. */
 const apiSecret = crypto.randomUUID()
 
-/**
- * Who may administer this deployment: account ids from OIDCRAFT_ADMINS. The library never decides
- * this (FR-M1). Empty means nobody, never everybody.
- */
+/** The library never decides who administers (FR-M1): OIDCRAFT_ADMINS does, and empty means nobody, never everybody. */
 export const administrators = () =>
   new Set(
     (optional('OIDCRAFT_ADMINS') ?? '')
@@ -42,10 +39,7 @@ const publicClient = (clientId: string, clientName: string, issuer: string, path
   }
 }
 
-/**
- * The admin and account apps are ordinary public clients of this OP, and their APIs one resource
- * server that introspects what the apps send. Re-registered at boot so the secret is current.
- */
+/** Re-registered at boot, so the API's per-boot secret is current. */
 export const seedFirstPartyClients = async (adapter: Adapter, issuer: string) => {
   await adapter.clients.upsert?.(publicClient(ADMIN_CLIENT_ID, 'oidcraft admin', issuer, '/admin'))
   await adapter.clients.upsert?.(publicClient(ACCOUNT_CLIENT_ID, 'oidcraft account', issuer, '/account'))
@@ -65,10 +59,7 @@ export const seedFirstPartyClients = async (adapter: Adapter, issuer: string) =>
   })
 }
 
-/**
- * Who is calling, by introspecting their bearer token in this process (RFC 7662). Only a live token
- * issued to `clientId` counts: one the same person holds for another client does not.
- */
+/** Only a live token issued to `clientId` counts, not one the same person holds for another client (RFC 7662). */
 export const callerOf = async (provider: Provider, request: Request, clientId: string) => {
   const header = request.headers.get('authorization')
   if (!header?.toLowerCase().startsWith('bearer ')) return undefined

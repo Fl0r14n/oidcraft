@@ -20,10 +20,8 @@ import { createStore } from './store'
 import type { TokenContext } from './token'
 import type { RedirectOptions } from './types'
 
-/** RFC 6749 §4.1.2 and §4.1.2.1, RFC 9207, OIDC Session Management: what a code callback adds to the URL. */
 const CALLBACK_PARAMETERS = ['code', 'state', 'iss', 'session_state', 'error', 'error_description', 'error_uri']
 
-/** Milliseconds a redirecting logout waits for revocation before it signs out regardless. */
 const REVOCATION_PATIENCE = 3_000
 
 const settledWithin = async (ms: number, task: () => unknown) => {
@@ -41,7 +39,7 @@ const settledWithin = async (ms: number, task: () => unknown) => {
   clearTimeout(timer)
 }
 
-/** A callback that ended without a token becomes the token state, so the app renders why from where it reads the token (FR-L6). */
+// FR-L6: a callback that ended without a token becomes the token state.
 const failureState = (failure: Exclude<AuthorizationResult, { ok: true }>): OAuthToken => {
   if (failure.reason === 'refused') {
     return { error: failure.error, ...(failure.errorDescription && { error_description: failure.errorDescription }) }
@@ -67,8 +65,7 @@ export const createFlows = (
       )
     }
     const { url, handoff } = await beginAuthorization(config(), parameters, { functions })
-    // persisted before the navigation, and by itself — the handoff is the whole of what has to
-    // survive the round trip, and anything left over from a previous attempt is not part of it
+    // persisted before the navigation, replacing any previous attempt's state
     setToken(handoff)
     if (redirect) {
       globalThis.location?.replace(url)
@@ -101,8 +98,7 @@ export const createFlows = (
       if (clientId) params.set('client_id', clientId)
       if (id_token) params.set('id_token_hint', id_token)
       if (logoutState) params.set('state', logoutState)
-      // Ending the session at the provider leaves an offline refresh token working; revoked first, and
-      // neither a failure to revoke nor an endpoint that hangs stands between the person and signing out.
+      // revoked first, as ending the session leaves an offline refresh token working; a failing revocation never blocks sign-out
       await settledWithin(REVOCATION_PATIENCE, () => functions.revoke(token(), config()))
       setToken({})
       const url = `${logoutPath}${logoutPath.includes('?') ? '&' : '?'}${params}`
@@ -119,11 +115,9 @@ export const createFlows = (
     return undefined
   }
 
-  /** The code or tokens in the address bar would outlive the callback in history and in a shared link. */
   const forgetCallback = (flow: 'code' | 'implicit') => {
     const url = new URL(globalThis.location.href)
     for (const name of CALLBACK_PARAMETERS) url.searchParams.delete(name)
-    // An implicit response is all fragment; a code can arrive there too, under response_mode=fragment.
     const fragment = new URLSearchParams(url.hash.slice(1))
     for (const name of CALLBACK_PARAMETERS) fragment.delete(name)
     url.hash = flow === 'implicit' ? '' : fragment.toString()
@@ -134,10 +128,8 @@ export const createFlows = (
     const { flow, parameters } = parseRedirectParameters(source as never)
     setState(parameters.state)
     try {
-      // An implicit callback after a reload has no discovered `jwks_uri` either, and its ID token is refused without one.
+      // an implicit callback after a reload still needs the discovered `jwks_uri` to verify its ID token
       await autoconfigOauth()
-      // the handoff is read from the token, which is where `toAuthorizationUrl` left it. State, nonce,
-      // PKCE and the RFC 9207 `iss` are all checked inside completeAuthorization.
       const result = await completeAuthorization(config(), source as never, token(), { functions, verifyIdToken: jwt })
       if (result) {
         setToken(result.ok ? result.token : failureState(result))
@@ -151,22 +143,18 @@ export const createFlows = (
   const inFlight = new Map<string, Promise<void>>()
 
   const oauthCallback = async (url?: string | URL) => {
-    // never on the server: the verifier that has to match this code is in the user's browser storage
+    // never on the server: the handoff this code must match is in the browser's storage
     if (typeof window === 'undefined') return
     const source = (url && new URL(url)) || globalThis.location
     if (!source) return
     const { flow } = parseRedirectParameters(source as never)
     if (flow === 'none') return
 
-    // Keyed on the redirect itself, and kept for the life of the instance rather than for the life
-    // of the request. A component mounting twice is only half of it: a browser Back into the callback
-    // url would otherwise re-exchange a code the IdP has already consumed, and that does not fail
-    // harmlessly — the `invalid_grant` lands in the token and ends a session that was working.
+    // kept for the instance's life: a Back into the callback would re-exchange a spent code and end a working session
     const key = `${source.search || ''}${source.hash || ''}`
     const existing = inFlight.get(key)
     if (existing) return existing
 
-    // registered before the first await, so a synchronous second call sees it
     const run = runCallback(source)
     inFlight.set(key, run)
     return run

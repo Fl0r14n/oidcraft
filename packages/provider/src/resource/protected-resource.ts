@@ -2,11 +2,7 @@ import type { ResolvedConfig } from '../config'
 import { CLIENT_SIGNING_ALGS } from '../keys/algorithms'
 import { FAPI_ALGS } from '../profile/fapi'
 
-/**
- * RFC 9728 §3.2: what a resource server publishes so a client can find the provider that issues its
- * tokens. An MCP server must serve this (FR-C6, FR-C19); the core only builds it, since the resource
- * server, not the provider, answers at that URL.
- */
+/** RFC 9728 §3.2 metadata for a resource server to serve, as an MCP server must (FR-C6, FR-C19); the provider only builds it. */
 export const protectedResourceMetadata = (config: ResolvedConfig, uri: string) => {
   const resource = config.resources.find(known => known.uri === uri)
   if (!resource) throw new Error(`${uri} is not one of this provider's configured resources`)

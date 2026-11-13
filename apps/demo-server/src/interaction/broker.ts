@@ -11,10 +11,7 @@ const seeOther = (location: string, cookies: (string | undefined)[]) => {
   return new Response(null, { status: 303, headers })
 }
 
-/**
- * The upstream leg of a login interaction (FR-F3, FR-F9). The provider chose the candidates; this
- * only refuses a provider it did not offer, then hands what the client asked for upstream.
- */
+/** The provider chose the candidates; this refuses only an upstream it did not offer (FR-F3, FR-F9). */
 export const startUpstream = async (interactionId: string, request: Request) => {
   if (!broker) return undefined
   const view = await provider.interactions.find(interactionId)
@@ -32,10 +29,7 @@ export const startUpstream = async (interactionId: string, request: Request) => 
   return seeOther(url, [setCookie])
 }
 
-/**
- * Where the upstream sends the browser back. Linking is by `(provider, subject)` and nothing else
- * (FR-F5); the local account id says where it came from, so it never collides with a typed username.
- */
+/** Linking is by `(provider, subject)` alone (FR-F5); the local id names its provider, so it never collides with a typed username. */
 export const brokerCallback = async (request: Request, url: URL) => {
   if (!broker) return undefined
   try {
@@ -66,7 +60,6 @@ export const brokerCallback = async (request: Request, url: URL) => {
   }
 }
 
-/** The labels for the login screen's buttons, by the ids the provider offered. */
 export const upstreamLabels = (ids: string[]) =>
   ids.flatMap(id => {
     const upstream = upstreams.find(candidate => candidate.id === id)

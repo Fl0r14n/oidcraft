@@ -1,12 +1,6 @@
 import { index, integer, primaryKey, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
-/**
- * Real columns and real indexes for every value the core queries by (FR-A5).
- *
- * The shape a key-value adapter is forced into — one row of JSON per artifact — turns revocation
- * and the user-code lookup into full scans. Those are on the hot path of every token request, so a
- * relational adapter must not reproduce it.
- */
+/** A real column and index for every value the core queries by: one JSON row per artifact would make revocation a scan (FR-A5). */
 export const clients = sqliteTable('oidc_clients', {
   clientId: text('client_id').primaryKey(),
   data: text('data', { mode: 'json' }).notNull(),

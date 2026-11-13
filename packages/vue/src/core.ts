@@ -1,6 +1,2 @@
-/**
- * Published as `@oidcraft/vue/core`, and now a re-export: the protocol lives in `@oidcraft/core`, which
- * `oidcraft` and the Angular and React bindings share. The entry stays because it shipped in v6 and
- * removing it would break every consumer that imported from it — there is nothing here that is Vue's.
- */
+// `@oidcraft/vue/core`: a re-export of `@oidcraft/core`, kept so imports of this entry still resolve.
 export * from '@oidcraft/core'

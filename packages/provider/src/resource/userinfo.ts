@@ -24,12 +24,6 @@ const unauthorized = (description: string, scheme = 'Bearer', code: 'invalid_req
     headers: { 'www-authenticate': `${scheme} error="${code}", error_description="${description}"` }
   })
 
-/**
- * A signed — and optionally encrypted — UserInfo response (OIDC Core §5.3.2, FR-C5).
- *
- * Signing is what lets a client treat these claims as coming from the provider rather than from
- * whatever answered the request; encryption keeps them from whatever sits between.
- */
 const asJwt = async (config: ResolvedConfig, client: Client, subject: string, claims: Record<string, unknown>) => {
   const signer = await signerFor(config, client, client.userinfoSignedResponseAlg)
   if (!signer) throw new OAuthError('server_error', { description: 'no key is available to sign the UserInfo response' })

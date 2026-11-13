@@ -15,10 +15,7 @@ const proveSecondFactor = async (accountId: string, code: string | undefined) =>
     : json({ error: 'invalid_code', error_description: 'That code is not right, or it was already used.' }, 400)
 }
 
-/**
- * The signed-in person's own account, for the account app. Every route acts on the token's subject
- * and nothing else: there is no account id in any path to swap for someone else's.
- */
+/** Every route acts on the token's subject alone: there is no account id in any path to swap for someone else's. */
 export const accountApi = async (request: Request, url: URL): Promise<Response | undefined> => {
   const path = url.pathname.replace(/^\/account\/api/, '')
   if (!path) return undefined

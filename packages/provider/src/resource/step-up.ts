@@ -10,14 +10,8 @@ export type StepUpRequirement = {
 export type StepUpVerdict = { sufficient: true } | { sufficient: false; challenge: string }
 
 /**
- * The resource-server half of step-up (RFC 9470, FR-C16).
- *
- * The provider honours `acr_values` on the way in; this is how a resource server *asks* for that to
- * happen. Returning 403 with no challenge tells the client it failed but not what would succeed,
- * which is why the header carries the requirement rather than only the error.
- *
- * The token's own `acr` is not consulted from the JWT: this reads the stored artifact and the
- * session behind it, so a client cannot re-present an old token with a rewritten claim.
+ * The resource-server half of step-up (RFC 9470, FR-C16); the challenge carries the requirement, not only the error.
+ * It reads the stored artifact and session, never the JWT's own `acr`.
  */
 export const meetsRequirement = (
   requirement: StepUpRequirement,

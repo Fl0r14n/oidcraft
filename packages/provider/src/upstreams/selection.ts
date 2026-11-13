@@ -1,7 +1,6 @@
 /**
- * Choosing which upstream to broker to is a decision, not I/O, so it belongs in the core (FR-F4).
- * Performing the round trip is I/O, so it does not: `@oidcraft/provider/broker` does that, driven by the
- * host, the same division as the device flow and CIBA.
+ * An upstream as home-realm discovery sees it (FR-F4). Choosing is a decision, so the core makes it;
+ * the round trip is I/O, so `@oidcraft/provider/broker` makes it, driven by the host.
  */
 export type UpstreamDescriptor = {
   id: string
@@ -22,11 +21,7 @@ export const ACR_PREFIX = 'urn:oidcraft:idp:'
 
 const domainOf = (loginHint: string | undefined) => loginHint?.split('@')[1]?.toLowerCase()
 
-/**
- * In order: an explicit id, then `acr_values`, then the email domain, then the single remaining
- * candidate. When none of those decides it, the candidates are returned and nobody is chosen —
- * guessing here would sign the user in somewhere they did not ask for.
- */
+/** An explicit id, then `acr_values`, then the email domain, then a sole candidate; otherwise the candidates, never a guess. */
 export const selectUpstream = <T extends UpstreamDescriptor>(providers: T[], hints: SelectionHints, explicit?: string) => {
   const allowed = hints.allowed?.length ? providers.filter(provider => hints.allowed?.includes(provider.id)) : providers
 

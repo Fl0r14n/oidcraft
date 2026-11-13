@@ -13,13 +13,7 @@ import { storeSignal, writableStoreSignal } from './signals'
 
 export const OAUTH_CONFIG = new InjectionToken<OAuthConfig>('OAUTH_CONFIG', { providedIn: 'root', factory: () => ({}) })
 
-/**
- * Registers the configuration the root `OAUTH` instance is built from.
- *
- * Unlike v8 there is no module-level signal behind this. An instance belongs to the injector that
- * created it, which is what makes one per request safe on a server — a process-wide holder cannot be
- * answered correctly under concurrent SSR, and would hand one request another request's token.
- */
+/** Registers the configuration the root `OAUTH` instance is built from; the instance belongs to that injector. */
 export const provideOAuthConfig = (cfg: OAuthConfig = {}): EnvironmentProviders =>
   makeEnvironmentProviders([{ provide: OAUTH_CONFIG, useValue: cfg }])
 
@@ -48,16 +42,10 @@ export interface NgxOAuth {
   autoconfigOauth: () => Promise<void>
 }
 
-/**
- * Builds one instance. Must run in an injection context — it takes a `DestroyRef` so the
- * subscriptions stop when the injector does.
- *
- * Exported rather than inlined into the token below so a child injector can hold its own instance,
- * and so this is reachable from a test without a TestBed.
- */
+/** Builds one instance, for a child injector to hold its own; must run in an injection context, and stops with its injector. */
 export const createNgxOAuth = (cfg: OAuthConfig = {}): NgxOAuth => {
   {
-    // inert until the signals below exist, so nothing can fire into them mid-construction
+    // inert until the signals exist, so nothing fires into them mid-construction
     const core = createOAuth({ ...cfg, autoStart: false })
 
     const token = writableStoreSignal(core.tokenStore, core.token, core.setToken)
@@ -66,8 +54,6 @@ export const createNgxOAuth = (cfg: OAuthConfig = {}): NgxOAuth => {
     const config = storeSignal(core.configStore, core.config)
     const storageKey = storeSignal(core.configStore, core.storageKey)
 
-    // one derivation for all seven, from the same pure function the other bindings use, so what a
-    // template renders and what `core.status()` answers cannot disagree
     const derived = computed(() => tokenState(token()))
 
     inject(DestroyRef).onDestroy(() => core.dispose())
@@ -105,14 +91,13 @@ export const OAUTH = new InjectionToken<NgxOAuth>('OAUTH', {
   factory: () => createNgxOAuth(inject(OAUTH_CONFIG))
 })
 
-/** Kept from v8 so `inject(OAUTH_FETCH)` still resolves the instance's authorized transport. */
+/** The root instance's authorized `fetch`. */
 export const OAUTH_FETCH = new InjectionToken<OAuthFetch>('OAUTH_FETCH', {
   providedIn: 'root',
   factory: () => inject(OAUTH).fetch
 })
 
-/** v8 resolved a `resource<UserInfo>`; the profile is now derived by the shared runtime, so this is
- * the signal it maintains. `undefined` until there is a session to describe. */
+/** The root instance's user profile; `undefined` until there is a session. */
 export const OAUTH_USER = new InjectionToken<Signal<UserInfo | undefined>>('OAUTH_USER', {
   providedIn: 'root',
   factory: () => inject(OAUTH).user

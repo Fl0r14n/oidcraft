@@ -32,10 +32,7 @@ export type AccessTokenRequest = {
   audience?: string | undefined
 }
 
-/**
- * The one place an access token is made: stored, then shaped as the client asked (FR-T2). The
- * stored record is the authority either way, which is what keeps a JWT revocable.
- */
+// The one place an access token is made (FR-T2); the stored record is the authority, which keeps a JWT revocable.
 export const issueAccessToken = async (config: ResolvedConfig, request: AccessTokenRequest) => {
   const id = randomString()
   const jwt = request.client.accessTokenFormat === 'jwt'
@@ -96,14 +93,7 @@ export type AccessTokenInput = {
   actor?: { client_id: string } | undefined
 }
 
-/**
- * RFC 9068. Opt-in per client, because the trade is real: a JWT a resource server can verify
- * offline is a JWT that keeps verifying after it is revoked.
- *
- * The artifact is stored either way, found by the `jti` — so revocation and introspection work
- * on a JWT exactly as on an opaque token, for any resource server that asks rather than verifying
- * locally. That is the part that makes the format a choice rather than a one-way door.
- */
+// RFC 9068, opt-in per client: a JWT verified offline outlives its revocation. Stored either way, so introspection still sees it.
 export const mintJwtAccessToken = async (config: ResolvedConfig, input: AccessTokenInput) => {
   const signer = await signerFor(config, input.client)
   if (!signer) throw new Error('no signing key is available for a JWT access token')
@@ -135,11 +125,8 @@ export const findPresented = (
 const looksLikeJwt = (value: string) => value.split('.').length === 3
 
 /**
- * Finds the artifact behind a presented access token, whichever format it is in.
- *
- * A JWT is only a representation: the record is the authority, so a revoked JWT stops working here
- * even though it would still verify offline. Its `jti` finds that record only once the signature
- * verifies, and never when presented bare: a `jti` is in every resource server's logs (FR-T2).
+ * The stored record behind a presented access token, whatever its format: a revoked JWT stops working here.
+ * A `jti` finds it only once the JWT's signature verifies, never bare: it is in every resource server's logs (FR-T2).
  */
 export const resolveAccessToken = async (config: ResolvedConfig, presented: string) => {
   if (!looksLikeJwt(presented)) {

@@ -52,10 +52,8 @@ export const interactions = (config: ResolvedConfig) => ({
   },
 
   /**
-   * Applies the answer to durable state and sends the browser back to the authorization endpoint,
-   * which re-evaluates the original request against it and may demand another interaction (FR-I2).
-   * The result is never carried in the redirect: state that decides an authorization does not
-   * belong in a URL the user can edit.
+   * Applies the answer and sends the browser back to the authorization endpoint, which re-evaluates the
+   * request and may suspend again (FR-I2). The result is never carried in the URL, where the user could edit it.
    */
   async complete(id: string, given: InteractionResult, cookie: string | null): Promise<InteractionCompletion> {
     const { artifact, payload } = await load(config, id)
@@ -108,8 +106,7 @@ export const interactions = (config: ResolvedConfig) => ({
 
     if (outcome.error) {
       await config.adapter.artifacts.destroy('interaction', id)
-      // A form_post response cannot be a URL handed to the host, so every error goes back through the
-      // authorization endpoint, which delivers it in the mode the client asked for.
+      // A form_post response is not a URL, so every error goes back through the authorization endpoint to be delivered.
       const responseId = randomString()
       const target: ResponseTarget = { redirectUri: request.redirectUri, responseMode: request.responseMode, state: request.state }
       await writeArtifact(config.adapter.artifacts, {
@@ -235,8 +232,7 @@ const staleLogin = (config: ResolvedConfig, expiresAt: Date, maxAge: number | un
   return authTime.getTime() < requestedAt - (maxAge + AUTH_TIME_SKEW) * 1000
 }
 
-// What each part of a finished interaction answers. A prompt it answered must go, or the replay
-// loops forever; one it did not must stay, or it is skipped (FR-I5, OIDC Core §3.1.2.1).
+// An answered prompt must go, or the replay loops; an unanswered one must stay, or it is skipped (FR-I5, OIDC Core §3.1.2.1).
 const ANSWERS = { login: ['login', 'select_account'], consent: ['consent'] } as const
 
 const authorizationUrl = async (config: ResolvedConfig, request: AuthorizationRequest, outcome: InteractionResult) => {
@@ -247,14 +243,11 @@ const authorizationUrl = async (config: ResolvedConfig, request: AuthorizationRe
   const remaining = (params.get('prompt') ?? '').split(' ').filter(value => value && !answered.has(value))
   if (remaining.length) params.set('prompt', remaining.join(' '))
   else params.delete('prompt')
-  // acr_values was put to the login that just ran; what it achieved is the answer, and the ID token
-  // reports it (OIDC Core §3.1.2.1, FR-C16). Replaying an unmeetable one loops forever too.
+  // The login just run answered acr_values and the ID token reports what it achieved (FR-C16); replaying it can loop.
   if (loggedIn) params.delete('acr_values')
-  // max_age was measured against the login that just ran; replaying it loops whenever it is shorter
-  // than the round trip, which max_age=0 always is (OIDC Core §3.1.2.1).
+  // Replaying max_age loops whenever it is shorter than the round trip, as max_age=0 always is (OIDC Core §3.1.2.1).
   if (loggedIn) params.delete('max_age')
-  // A pushed or signed request was already resolved into these parameters; replaying the reference
-  // would consume it a second time (RFC 9126 §4).
+  // Already resolved into these parameters; replaying the reference would consume it twice (RFC 9126 §4).
   params.delete('request_uri')
   params.delete('request')
   url.search = request.pushed

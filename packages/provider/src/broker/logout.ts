@@ -14,12 +14,7 @@ export type UpstreamLogout = {
   sessions: Session[]
 }
 
-/**
- * Handles a back-channel logout token from an upstream (FR-F8).
- *
- * The token arrives keyed by the *upstream's* session id, which is why `SessionStore` records it:
- * without that index there is no way back from "their session ended" to "these are ours".
- */
+/** Handles an upstream's back-channel logout token (FR-F8), finding the sessions by the upstream session id they record. */
 export const upstreamLogout = async (
   adapter: BrokeringAdapter,
   provider: UpstreamProvider,
@@ -38,8 +33,7 @@ export const upstreamLogout = async (
     throw new Error(`a logout token must be typed logout+jwt, not ${protectedHeader.typ}`)
   }
 
-  // OIDC Back-Channel Logout 1.0 §2.4: the events claim is what distinguishes a logout token from
-  // an ID token, and accepting one without it would let a replayed ID token end sessions.
+  // OIDC Back-Channel Logout 1.0 §2.4: without the events claim, a replayed ID token could end sessions.
   const events = payload.events as Record<string, unknown> | undefined
   const event = events?.['http://schemas.openid.net/event/backchannel-logout']
   if (typeof event !== 'object' || event === null || Array.isArray(event)) {
@@ -56,7 +50,6 @@ export const upstreamLogout = async (
     throw new Error('this logout token was already used')
   }
 
-  // The upstream ended that session itself; there is nothing left to sign out of there.
   if (sid) await adapter.artifacts.destroy('upstream_id_token', logoutHintId(provider.id, sid))
 
   const sessions = sid

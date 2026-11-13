@@ -37,8 +37,7 @@ const now = () => new Date()
 const live = (column: typeof artifacts.expiresAt) => gt(column, now())
 
 export const drizzleAdapter = (options: DrizzleAdapterOptions): FullAdapter => {
-  // Every query here is one both dialects' builders accept, over tables with the same columns and the
-  // same JS values; typing them as SQLite's once is what lets one body serve both (FR-A4).
+  // Typed as SQLite's: every query here is one both dialects accept, over the same columns and JS values (FR-A4).
   const db = options.db as DrizzleDatabase
   const { clients, artifacts, sessions, grants, identities, replay, credentials, realms } = (options.tables ?? schema) as typeof schema
 
@@ -100,7 +99,6 @@ export const drizzleAdapter = (options: DrizzleAdapterOptions): FullAdapter => {
           .from(clients)
           .where(cursor === undefined ? undefined : gt(clients.clientId, cursor))
           .orderBy(clients.clientId)
-        // One more than asked, to know whether another page follows.
         const rows = await (limit === undefined ? ordered : ordered.limit(limit + 1))
         const more = limit !== undefined && rows.length > limit
         const shown = more ? rows.slice(0, limit) : rows
@@ -160,7 +158,7 @@ export const drizzleAdapter = (options: DrizzleAdapterOptions): FullAdapter => {
         await db.delete(artifacts).where(and(eq(artifacts.kind, kind), eq(artifacts.id, id)))
       },
       async revokeByGrantId(grantId) {
-        // One indexed delete, not a scan — this is the whole point of a relational adapter (FR-A5).
+        // One indexed delete, not a scan (FR-A5).
         await db.delete(artifacts).where(eq(artifacts.grantId, grantId))
       },
       async revokeByFamilyId(familyId) {
@@ -217,9 +215,7 @@ export const drizzleAdapter = (options: DrizzleAdapterOptions): FullAdapter => {
         }
         await db.insert(sessions).values(row).onConflictDoUpdate({ target: sessions.id, set: row })
       },
-      // Compare-and-swap on the list just read, retried when another writer won: two clients
-      // signing in at once must both be recorded (FR-C11). A lost round means another writer won
-      // it, so each round makes progress; the bound only stops a pathological loop.
+      // Compare-and-swap, retried while another writer wins, so concurrent sign-ins are all recorded (FR-C11).
       async addClient(id, clientId) {
         for (let attempt = 0; attempt < 64; attempt++) {
           const [row] = await db.select({ clients: sessions.clients }).from(sessions).where(eq(sessions.id, id)).limit(1)

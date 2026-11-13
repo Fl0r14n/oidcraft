@@ -12,11 +12,7 @@ const REVOCABLE: Revocable[] = ['refresh_token', 'access_token']
 
 const order = (hint: string | null): Revocable[] => (hint === 'access_token' ? ['access_token', 'refresh_token'] : REVOCABLE)
 
-/**
- * RFC 7009 §2.2: an unknown token is a 200, not an error. Anything else turns this endpoint into an
- * oracle for guessing which tokens exist. The same reasoning applies to a token belonging to
- * someone else — it is reported as success and nothing is revoked.
- */
+// RFC 7009 §2.2: an unknown token, or someone else's, is a 200 with nothing revoked, or this is an oracle for which exist.
 export const revocationEndpoint = async (
   config: ResolvedConfig,
   request: Request,
@@ -35,9 +31,7 @@ export const revocationEndpoint = async (
     const artifact = await findPresented(config, kind, presented)
     if (!artifact || artifact.clientId !== client.clientId) continue
 
-    // Revoking a refresh token takes its family with it: leaving the access tokens it minted alive
-    // would make "sign this application out" mean nothing for their remaining lifetime. The same app
-    // on another device, and the consent, stay (FR-C8, FR-I4).
+    // A refresh token takes its family with it; the same app on another device, and the consent, stay (FR-C8, FR-I4).
     if (kind === 'refresh_token' && (artifact.familyId || artifact.grantId)) {
       await revokeFamily(config, artifact)
     } else {

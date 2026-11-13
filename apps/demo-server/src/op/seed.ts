@@ -2,7 +2,7 @@
 import { type Adapter, hashClientSecret } from '@oidcraft/provider'
 import { optional, withDefault } from './env'
 
-/** The demo relying party in apps/demo-vue. A real deployment registers clients through the admin API. */
+/** The relying party apps/demo-vue signs in as. */
 export const seedDemoClient = async (adapter: Adapter) => {
   const clientId = withDefault('OIDCRAFT_PUBLIC_CLIENT_ID', 'demo-client')
   const origin = withDefault('OIDCRAFT_PUBLIC_ORIGIN', 'http://localhost:3000')
@@ -27,10 +27,7 @@ export const seedDemoClient = async (adapter: Adapter) => {
 
 type PlanClient = { client_id: string; client_secret: string }
 
-/**
- * The OpenID Foundation suite's two static clients, only when OIDCRAFT_CONFORMANCE_SUITE names the
- * suite's base URL. Read from conformance/plan.json so the credentials exist in one place.
- */
+/** Read from conformance/plan.json, so the suite's credentials exist in one place. */
 export const seedConformanceClients = async (adapter: Adapter) => {
   const suite = optional('OIDCRAFT_CONFORMANCE_SUITE')
   if (!suite) return
@@ -65,10 +62,7 @@ export const seedConformanceClients = async (adapter: Adapter) => {
 
 type FapiPlanClient = { client_id: string; scope: string; jwks: { keys: Record<string, unknown>[] } }
 
-/**
- * The FAPI 2.0 plan's two clients, under OIDCRAFT_PROFILE=fapi2 for the suite (FR-C21). The plan
- * holds their private keys; only the public halves are registered here.
- */
+/** The FAPI 2.0 plan holds these clients' private keys; only the public halves are registered here (FR-C21). */
 export const seedFapiConformanceClients = async (adapter: Adapter) => {
   const suite = optional('OIDCRAFT_CONFORMANCE_SUITE')
   if (!suite || optional('OIDCRAFT_PROFILE') !== 'fapi2') return

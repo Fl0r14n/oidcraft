@@ -21,10 +21,7 @@ import { pickClaims } from './claims'
 import { logoutHintId } from './logout'
 import type { BrokerCallback, BrokeredIdentity, Handoff, UpstreamProvider } from './types'
 
-/**
- * OIDC Core §5.4: with an access token issued, scope claims come from UserInfo, not the ID token.
- * A response whose `sub` differs from the ID token's must not be used (§5.3.4).
- */
+// OIDC Core §5.4: scope claims come from UserInfo, and one whose `sub` differs from the ID token's is not used (§5.3.4).
 const userInfoOf = async (resolved: OpenIdConfig, token: OAuthToken | undefined, subject: string) => {
   if (!resolved.userPath || !token?.access_token) return {}
   const bearer = (input: string | URL | Request, init?: RequestInit) =>
@@ -36,19 +33,16 @@ const userInfoOf = async (resolved: OpenIdConfig, token: OAuthToken | undefined,
 export type BrokerConfig = {
   adapter: BrokeringAdapter
   providers: UpstreamProvider[]
-  /** Where the upstream sends the browser back. Must be registered with every upstream. */
+  /** Where the upstream sends the browser back. Register it with every upstream. */
   callbackUri: string
   /**
    * Where an upstream sends the browser back after signing it out (FR-F8). Registered with every
    * upstream that has `propagateLogout`; the host's route there calls `completeLogout`.
    */
   postLogoutRedirectUri?: string
-  /**
-   * The provider's `ttl.session`: pass `provider.config.ttl.session`. An upstream ID token kept as its
-   * logout's hint lives as long as the local session it may end, and no longer (FR-F8, FR-F10).
-   */
+  /** Pass `provider.config.ttl.session`: an upstream ID token kept as a logout hint lives as long as that session (FR-F8, FR-F10). */
   sessionTtl?: number
-  /** Seconds a handoff stays usable. Short on purpose: it is a single-use one-way ticket (FR-F3). */
+  /** Seconds a single-use handoff stays usable (FR-F3). */
   handoffTtl?: number
   /** Development only: lets discovery and the token exchange run over http. */
   allowInsecure?: boolean
@@ -56,7 +50,7 @@ export type BrokerConfig = {
 
 const DEFAULT_HANDOFF_TTL = 600
 
-/** What each check the RP core makes means for the downstream client (FR-L2). */
+// Every check the RP core makes before believing a callback (FR-L2) maps to its own downstream error.
 const CHECKS: Record<CallbackCheck, { description: string; spec: string }> = {
   state: { description: 'the upstream callback did not match the handoff that started it', spec: 'RFC 6749 §10.12' },
   issuer: {
@@ -67,10 +61,6 @@ const CHECKS: Record<CallbackCheck, { description: string; spec: string }> = {
   id_token: { description: 'the upstream ID token failed verification', spec: 'OIDC Core §3.1.3.7' }
 }
 
-/**
- * FR-F11: a failed upstream leg leaves the downstream client with a well-formed OAuth error rather
- * than a stack trace or a silent `undefined`.
- */
 const upstreamFailure = (provider: string, result: AuthorizationResult | undefined) => {
   if (!result) {
     return new OAuthError('server_error', {
@@ -93,12 +83,7 @@ const upstreamFailure = (provider: string, result: AuthorizationResult | undefin
   })
 }
 
-/**
- * FR-F3: the handoff is bound to the browser that started it. Without this, a callback URL is a
- * bearer credential — an attacker starts a sign-in, authenticates upstream as themselves, and sends
- * the callback to a victim, whose browser then finishes signing in as the attacker. One cookie per
- * state, so two tabs signing in at once do not overwrite each other.
- */
+// FR-F3: binds the handoff to the browser that started it, or a callback URL is a bearer credential (login CSRF).
 const bindingCookie = (state: string) => `oidcraft.fed.${state}`
 
 const cookieValue = (header: string | null | undefined, name: string) => {
@@ -124,9 +109,7 @@ export const createBroker = (config: BrokerConfig) => {
       `Max-Age=${maxAge}`
     ].join('; ')
 
-  // FR-F6/FR-F7 read `sub`, `acr`, `amr` and `auth_time` off the upstream ID token, so a provider
-  // configured without `openid` could never produce a brokered identity. Failing here rather than at
-  // the callback (NFR-D2).
+  // FR-F6/FR-F7 read the upstream ID token, so a provider without `openid` fails here rather than at the callback (NFR-D2).
   for (const provider of config.providers) {
     if (provider.propagateLogout && !config.postLogoutRedirectUri) {
       throw new OAuthError('server_error', {
@@ -142,8 +125,7 @@ export const createBroker = (config: BrokerConfig) => {
     }
   }
 
-  // Latency only: discovery documents are immutable enough to cache, and a cold process simply
-  // fetches them again. No request's outcome depends on whether this is warm (FR-A1).
+  // A latency cache only: no request's outcome depends on whether it is warm (FR-A1).
   const discover = createDiscovery()
   const verifiers = new Map<string, IdTokenVerifier>()
 
@@ -154,13 +136,11 @@ export const createBroker = (config: BrokerConfig) => {
       ...(provider.clientSecret !== undefined && { clientSecret: provider.clientSecret }),
       ...(provider.tokenEndpointAuthMethod && { tokenEndpointAuthMethod: provider.tokenEndpointAuthMethod }),
       scope: provider.scopes.join(' '),
-      // FR-C3 applies to what this provider asks of others as much as to what it demands of its own
-      // clients; there is no upstream worth brokering to that cannot do S256.
+      // FR-C3 holds upstream too: no upstream worth brokering to lacks S256.
       pkce: true,
       ...(config.allowInsecure && { allowInsecure: true })
     }
-    // `applyDiscovery` refuses a document asserting an issuer other than the one it was fetched from
-    // (OIDC Discovery 1.0 §4.3), which is the check that makes the endpoints below trustworthy.
+    // The endpoints below are trusted only because `applyDiscovery` checks the issuer (OIDC Discovery 1.0 §4.3).
     const resolved = applyDiscovery(base, await discover(base))
     if (!resolved.authorizePath || !resolved.tokenPath) {
       throw new OAuthError('temporarily_unavailable', {
@@ -174,8 +154,7 @@ export const createBroker = (config: BrokerConfig) => {
   const verifierFor = (provider: UpstreamProvider, resolved: OpenIdConfig) => {
     let verifier = verifiers.get(provider.id)
     if (!verifier) {
-      // Held per provider because jose caches the remote key set on the verifier; one built per
-      // callback refetches the JWKS every sign-in.
+      // Per provider, not per callback: jose caches the key set on the verifier.
       verifier = createIdTokenVerifier({
         jwksUri: resolved.jwksUri,
         issuer: resolved.issuer || resolved.issuerPath,
@@ -201,11 +180,7 @@ export const createBroker = (config: BrokerConfig) => {
     /** Home-realm discovery (FR-F4); returns the candidates when it cannot decide alone. */
     select: (hints: SelectionHints, explicit?: string) => selectUpstream(config.providers, hints, explicit),
 
-    /**
-     * Begins the upstream leg and records the handoff against the downstream interaction it will
-     * resume (FR-F3). The handoff is single-use, expiring, and carries the PKCE verifier — it never
-     * travels in the URL.
-     */
+    /** Begins the upstream leg; the single-use handoff holds the PKCE verifier and the interaction it resumes (FR-F3). */
     async start(
       interactionId: string,
       providerId: string,
@@ -223,8 +198,7 @@ export const createBroker = (config: BrokerConfig) => {
         extras: {
           ...provider.authorizationParams,
           ...(options.loginHint && { login_hint: options.loginHint }),
-          // FR-F9: the downstream client asked for these, and satisfying them from whatever session
-          // the upstream happens to hold would answer a question nobody asked.
+          // FR-F9: re-authentication demands pass through rather than being met by the upstream's existing session.
           ...(prompt && { prompt }),
           ...(options.maxAge !== undefined && { max_age: String(options.maxAge) }),
           ...(options.acrValues?.length && { acr_values: options.acrValues.join(' ') }),
@@ -260,14 +234,11 @@ export const createBroker = (config: BrokerConfig) => {
         expiresAt
       })
 
-      /** `setCookie` must reach the browser with the redirect to `url`, or the callback is refused. */
+      // `setCookie` must reach the browser with the redirect to `url`, or the callback is refused.
       return { url: request.url, state: handoff.state, setCookie: cookieFor(handoff.state, binding, ttl) }
     },
 
-    /**
-     * Completes the upstream leg and yields the identity plus the interaction to resume. `cookieHeader`
-     * is the callback request's `Cookie` header: the handoff completes only in the browser it began in.
-     */
+    /** Completes the upstream leg; `cookieHeader` is the callback's `Cookie` header, as it completes only in the browser it began in. */
     async complete(currentUrl: URL, cookieHeader: string | null | undefined): Promise<BrokerCallback> {
       const state = currentUrl.searchParams.get('state')
       if (!state) throw new Error('the upstream returned no state; this sign-in did not start here')
@@ -275,21 +246,18 @@ export const createBroker = (config: BrokerConfig) => {
       const stored = await config.adapter.artifacts.find('broker_handoff', state)
       if (!stored) throw new Error('this sign-in did not start here, or it expired')
       const handoff = stored.payload as Omit<Handoff, 'expiresAt'>
-      // Checked before the handoff is spent, so a stranger holding the callback URL cannot burn it.
+      // Before the handoff is spent, so a stranger holding the callback URL cannot burn it.
       const presented = cookieValue(cookieHeader, bindingCookie(state))
       const expected = handoff.browserBinding
       if (!presented || !(await constantTimeEquals(await hashOf(presented), expected))) {
         throw new Error('this sign-in did not start in this browser')
       }
-      // Single-use: a replayed callback must not mint a second identity.
       if (!(await config.adapter.artifacts.consume('broker_handoff', state))) throw new Error('this sign-in was already completed')
       await config.adapter.artifacts.destroy('broker_handoff', state)
 
       const provider = required(handoff.provider)
 
-      // RFC 6749 §4.1.2.1: an error on the redirect uri is the upstream's answer, and there is no
-      // code to exchange. It is read here, after the handoff bound the callback, so it cannot be
-      // forged into a refusal for a sign-in somebody else started.
+      // RFC 6749 §4.1.2.1: read only after the binding check, so it cannot forge a refusal of someone else's sign-in.
       const refused = currentUrl.searchParams.get('error')
       if (refused) {
         const description = currentUrl.searchParams.get('error_description')
@@ -313,14 +281,11 @@ export const createBroker = (config: BrokerConfig) => {
       if (failure || !result?.ok) throw failure
       const { token } = result
 
-      // Verified already, as part of the nonce check; this re-reads the claims, which costs one
-      // signature check and no network because jose caches the key set on the verifier.
       const claims = await verify(token?.id_token)
       if (!claims.sub)
         throw new OAuthError('server_error', { description: `the ID token from ${provider.id} carried no subject`, spec: 'FR-F7' })
 
-      // FR-F8: the upstream returns the browser after its logout only to a client its hint names, and
-      // the hint is this ID token. Kept for that alone, and only where logout propagates (FR-F10).
+      // FR-F8: kept only as the upstream logout's hint, and only where logout propagates (FR-F10).
       if (provider.propagateLogout && typeof claims.sid === 'string' && token?.id_token) {
         await config.adapter.artifacts.upsert({
           id: logoutHintId(provider.id, claims.sid),
@@ -360,11 +325,9 @@ export const createBroker = (config: BrokerConfig) => {
     },
 
     /**
-     * The upstream's end-session request for a brokered session the provider has just ended, for
-     * `ProviderConfig.upstreamLogout` (OIDC RP-Initiated Logout 1.0 §2, FR-F8). Undefined when its
-     * upstream does not propagate logout or advertises no `end_session_endpoint`. The upstream ID
-     * token kept at sign-in is the hint, spent here; `then` waits under the state rather than
-     * travelling through the upstream, so the round trip cannot become an open redirect.
+     * The upstream end-session URL for a brokered session just ended, for `ProviderConfig.upstreamLogout` (FR-F8).
+     * Undefined when the upstream does not propagate logout or has no `end_session_endpoint`. `then` is held
+     * under the state, never sent upstream, so the round trip cannot become an open redirect.
      */
     async logoutUrl(session: Session, then: string | undefined) {
       const provider = session.idp ? providerById(session.idp) : undefined

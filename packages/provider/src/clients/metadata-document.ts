@@ -7,10 +7,7 @@ const SPEC = 'draft-ietf-oauth-client-id-metadata-document §4.1'
 
 const refuse = (description: string) => new OAuthError('invalid_client', { description, spec: SPEC, status: 400 })
 
-/**
- * §3: https, a path, and nothing that hides what it names. Requiring the URL's canonical form also
- * rules out dot segments, which a parser would otherwise resolve away unseen.
- */
+// §3: the canonical form is required, which also rules out dot segments a parser would resolve away unseen.
 const assertClientIdUrl = (clientId: string) => {
   const url = URL.canParse(clientId) ? new URL(clientId) : undefined
   if (!url || url.href !== clientId) throw refuse(`client_id ${clientId} is not a URL in canonical form`)
@@ -25,7 +22,6 @@ const assertClientIdUrl = (clientId: string) => {
 const ALLOWED_METHODS: ClientAuthMethod[] = ['none', 'private_key_jwt']
 const ALLOWED_GRANTS = ['authorization_code', 'refresh_token']
 
-/** The client a metadata document describes, or a refusal saying why it cannot be one. */
 const clientFrom = (config: ResolvedConfig, clientId: string, document: unknown): Client => {
   const body = objectFrom(document, `the document at ${clientId}`, refuse)
   if (body.client_id !== clientId) throw refuse(`the document at ${clientId} names a different client_id`)
@@ -74,12 +70,7 @@ const clientFrom = (config: ResolvedConfig, clientId: string, document: unknown)
   }
 }
 
-/**
- * Client ID Metadata Documents (FR-C20): an `https` client_id the store does not hold is resolved
- * through the host's `resolveClientMetadata`, which does the fetching, caching and trust policy the
- * core cannot (FR-A1). Everything the document says is checked here, so every grant sees an
- * ordinary client.
- */
+// FR-C20: the host fetches and trusts (FR-A1); everything the document says is checked here, so every grant sees an ordinary client.
 export const withClientMetadata = (config: ResolvedConfig, resolve: (clientId: string) => Promise<unknown>): Adapter => ({
   ...config.adapter,
   clients: {

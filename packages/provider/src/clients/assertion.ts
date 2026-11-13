@@ -15,14 +15,7 @@ const SKEW = 5
 const unauthorized = (description: string, spec = 'RFC 7523 §3') =>
   new OAuthError('invalid_client', { description, spec, headers: { 'www-authenticate': 'Basic realm="oidcraft"' } })
 
-/**
- * Verifies a JWT client assertion (RFC 7523 §3, OIDC Core §9).
- *
- * The audience is the thing that makes this safe to hand over: an assertion made out to this
- * provider cannot be replayed at another one, and the `jti` guard stops it being replayed here.
- * Accepting an assertion with no audience check would turn every provider a client talks to into
- * an oracle able to impersonate it everywhere else.
- */
+// RFC 7523 §3: without the audience check, any provider the client talks to could replay its assertion here.
 export const verifyClientAssertion = async (config: ResolvedConfig, client: Client, assertion: string) => {
   const method = client.tokenEndpointAuthMethod
   const fapi = underFapi(config, client)
@@ -56,8 +49,7 @@ export const verifyClientAssertion = async (config: ResolvedConfig, client: Clie
   const jti = payload.jti
   if (typeof jti !== 'string' || !jti) throw unauthorized('the client assertion has no jti', 'RFC 7523 §3')
   if (!payload.exp) throw unauthorized('the client assertion has no exp', 'RFC 7523 §3')
-  // Measured from now, not from the client's own iat: an iat it chose a year ahead would otherwise
-  // make a year-long assertion look five minutes old.
+  // From now, not the client's iat: one dated a year ahead would make a year-long assertion look fresh.
   const now = Math.floor(Date.now() / 1000)
   if (payload.iat !== undefined && payload.iat > now + (fapi ? FAPI_IAT_SKEW : SKEW)) {
     throw unauthorized('the client assertion was issued in the future')

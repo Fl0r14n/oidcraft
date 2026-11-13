@@ -1,13 +1,6 @@
 import { type FromKvOptions, type FullAdapter, fromKv, type KvEntry, type KvStore } from '@oidcraft/adapter'
 
-/**
- * One Redis command, as the host's client sends it. Taking a function rather than a client keeps
- * this entry free of any one runtime or library:
- *
- * - Bun: `(command, args) => client.send(command, args)` with `new RedisClient(url)`
- * - ioredis: `(command, args) => redis.call(command, ...args)`
- * - node-redis: `(command, args) => client.sendCommand([command, ...args])`
- */
+/** One Redis command as the host's client sends it, e.g. ioredis `(command, args) => redis.call(command, ...args)`. */
 export type RedisCommand = (command: string, args: string[]) => Promise<unknown>
 
 export type RedisKvOptions = {
@@ -19,12 +12,7 @@ export type RedisKvOptions = {
 
 export type RedisAdapterOptions = FromKvOptions & RedisKvOptions
 
-/**
- * Redis has no way to ask which keys start with a prefix: `SCAN MATCH` reads every key in the
- * database and filters. So the adapter keeps the answer itself, in two sorted sets beside the data:
- * every key's name under one score, which makes a prefix a lexicographic range, and every expiring
- * key's name scored by when it lapses, which is how the first set forgets it (NFR-P1).
- */
+// `SCAN MATCH` reads every key, so names live in a sorted set read by lex range, and lapses in one scored by expiry (NFR-P1).
 const NAMES = '~keys'
 const LAPSES = '~expiry'
 
@@ -73,14 +61,7 @@ const FORGET = `
   return 1
 `
 
-/**
- * A `KvStore` over Redis (FR-A3). `insert` is `SET NX`, which Redis applies atomically, so single
- * use holds across every process sharing the instance — the property the memory store gets for free
- * and a distributed one has to earn. Expiry is Redis's own `PX`, so nothing needs sweeping.
- *
- * Each write is one script touching the entry and the two sets, so it needs them on one node: a
- * single Redis, or a cluster where the prefix carries a hash tag.
- */
+/** A `KvStore` over Redis (FR-A3); each write is one script over three keys, so on a cluster the prefix must carry a hash tag. */
 export const redisKv = (send: RedisCommand, options: RedisKvOptions = {}): KvStore => {
   const prefix = options.prefix ?? 'oidcraft:'
   const count = String(options.scanCount ?? 200)

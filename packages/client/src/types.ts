@@ -8,14 +8,11 @@ export type OAuthConfig<TExtra = unknown> = {
   resourceOrigins?: string[]
   strictJwt?: boolean
   functions?: Partial<OAuthFunctions>
-  /** share one across per-request instances to fetch each issuer's well-known document once; omitted,
-   * the instance gets its own, which still collapses concurrent lookups into a single request */
+  /** share one across per-request instances to fetch each issuer's well-known document once; omitted, each instance has its own */
   discovery?: Discovery
-  /** off leaves the instance inert until `start()`. Construction is already side-effect free; this
-   * only decides whether `createOAuth` arms it for you. */
+  /** off leaves the instance inert until `start()` */
   autoStart?: boolean
 } & TExtra
 
-/** Whether a call that would navigate the browser is allowed to. Off returns the URL instead, for a
- * caller doing its own routing, and for a test. */
+/** `redirect: false` returns the URL instead of navigating. */
 export type RedirectOptions = { redirect?: boolean }

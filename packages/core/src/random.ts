@@ -8,15 +8,12 @@ export const randomState = () => randomString()
 
 export const randomNonce = () => randomString()
 
-/** RFC 7636 §4.1 — 43..128 characters of the unreserved set, which `randomString`'s base64url alphabet is */
+/** RFC 7636 §4.1: 43..128 characters of the unreserved set, which base64url is */
 export const randomPKCECodeVerifier = () => randomString()
 
 export const calculatePKCECodeChallenge = async (verifier: string) => base64url.encode(await sha256(verifier))
 
-/**
- * Length-independent only once both sides are hashed, so the comparison itself leaks nothing about
- * the secret — a plain `===` on a secret leaks its prefix through timing (NFR-S3).
- */
+/** Compares hashes of both sides, so timing leaks nothing about the secret; never `===` a secret (NFR-S3). */
 export const constantTimeEquals = async (a: string, b: string) => {
   const [left, right] = await Promise.all([sha256(a), sha256(b)])
   let diff = 0

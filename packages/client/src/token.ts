@@ -15,14 +15,10 @@ import { watchStore } from './store'
 
 export const isExpiredToken = (token?: OAuthToken) => (token?.expires && Date.now() > token.expires) || false
 
-/**
- * Refreshed this far ahead of its expiry, so a request sent at the boundary does not arrive with a
- * token that has just lapsed: thirty seconds, or half its lifetime when that is shorter.
- */
 const refreshAhead = (token: OAuthToken) => Math.min(30_000, ((Number(token.expires_in) || Number.POSITIVE_INFINITY) * 1e3) / 2)
 const isExpiringToken = (token?: OAuthToken) => (token?.expires && Date.now() + refreshAhead(token) > token.expires) || false
 
-/** Web Locks span the tabs of an origin, which an in-memory flag cannot; without them, this tab alone (FR-L5). */
+// FR-L5: Web Locks span the origin's tabs; without them, this tab alone.
 const exclusively = (name: string, task: () => Promise<void>): Promise<void> => {
   const locks = globalThis.navigator?.locks
   return locks ? locks.request(name, task) : task()
@@ -38,7 +34,7 @@ export interface TokenState {
   errorDescription: string | undefined
 }
 
-/** One pure derivation, so a binding's reactive view and the instance's own getters cannot drift. */
+/** The derived token state a binding renders and the instance's getters read. */
 export const tokenState = (token?: OAuthToken): TokenState => {
   const { token_type, access_token, error, error_description, type } = token || {}
   const expired = isExpiredToken(token)
@@ -76,9 +72,7 @@ export const createToken = (
     const c = (config() || {}) as OpenIdConfig
     if (!needsDiscovery(c)) return
     const discovered = await discovery(c)
-    // `applyDiscovery` throws when the document asserts a different issuer than the one it came from.
-    // Left to propagate on purpose: every caller of this is a login, a logout or a token check, and
-    // each has somebody waiting who needs to hear it (OIDC Discovery 1.0 §4.3).
+    // an issuer mismatch throws from `applyDiscovery` and propagates to the caller (OIDC Discovery 1.0 §4.3)
     if (discovered) setConfig(applyDiscovery(c, discovered))
   }
 
@@ -102,8 +96,7 @@ export const createToken = (
         return
       }
       await exclusively(`oidcraft.refresh.${storageKey()}`, async () => {
-        // Another tab may have refreshed while this one waited. Presenting the refresh token it spent
-        // would be a replay to a provider that rotates, and would sign both tabs out (FR-L5, FR-T3).
+        // FR-L5, FR-T3: another tab may have rotated the refresh token while this one waited
         storage.reload()
         const t = token()
         if (!isExpiringToken(t)) return
@@ -111,13 +104,9 @@ export const createToken = (
         const refreshed = await functions.refresh(t, config())
         if (refreshed && !isExpiredToken(refreshed)) {
           if (refreshed.error) {
-            // RFC 6749 §5.2 error (invalid_grant and friends) — persisted like the 401 interceptor
-            // does, so the dead token is dropped rather than retried forever
             setToken(refreshed)
           } else {
-            // Stored whether or not it says when it expires: dropped, a rotated refresh token is lost
-            // and the spent one replayed, which ends the session (FR-L5). A refresh response need not
-            // repeat the refresh token or the ID token (RFC 6749 §6, OIDC Core §12.2), so both are kept.
+            // FR-L5: stored even without an expiry; RFC 6749 §6 and OIDC Core §12.2 let it omit the refresh and ID tokens
             const kept = { ...(t.refresh_token && { refresh_token: t.refresh_token }), ...(t.id_token && { id_token: t.id_token }) }
             setToken(withExpiry({ ...kept, ...refreshed }))
           }
@@ -129,35 +118,27 @@ export const createToken = (
     return inFlight
   }
 
-  // the raw `access_token`, not the derived `accessToken()`: that one is undefined once expired, which
-  // is exactly the case this exists to refresh. A string, so a setExpires write cannot loop the watcher.
+  // raw, not `accessToken()`, which is undefined once expired: the very case this refreshes
   const rawAccessToken = () => token()?.access_token
   const revalidate = () => {
     if (config() && rawAccessToken()) {
-      // nobody is waiting on this one, and a discovery document that fails to validate must not become
-      // an unhandled rejection. It is raised instead at the first call that has a caller.
+      // nobody awaits this; a discovery failure surfaces at the next call that has a caller
       void checkToken().catch(() => undefined)
     }
   }
 
-  // deferred to start() so constructing an instance is inert — see createOAuth
   let teardowns: Array<() => void> = []
 
   const start = () => {
     if (teardowns.length) return
-    // reconcile before subscribing: the watchers fire only on *change*, so a storageKey set while the
-    // instance was inert — or between a dispose and a restart — would otherwise leave the token read
-    // from the old key while the config claims the new one
+    // the watchers fire only on change, so a storageKey set while inert must be reconciled first
     storage.rekey(storageKey())
     teardowns = [
-      // another tab signing in or out has to reach this one
       storage.listen(),
-      // the storage key is runtime-mutable: a multi-tenant app gives each tenant its own
       watchStore(configStore, storageKey, key => storage.rekey(key)),
       watchStore(configStore, config, revalidate),
       watchStore(storage.store, rawAccessToken, revalidate)
     ]
-    // a stored token may already be expired, and discovery may not have run yet
     revalidate()
   }
 

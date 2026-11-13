@@ -21,7 +21,6 @@ export const useStoreValue = <S, T>(store: Subscribable<S>, selector: (state: S)
 
 const SERVER_TOKEN: OAuthToken = Object.freeze({})
 const serverToken = () => SERVER_TOKEN
-// the user is derived from the id_token, and `fetchUser` is async — neither resolves during a server pass
 const serverUser = () => undefined
 
 export const useOAuthSelector = <T>(selector: (token: OAuthToken) => T): T =>

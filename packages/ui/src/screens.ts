@@ -94,10 +94,7 @@ export const createScreens = ({ brand, theme, urls: overrides }: ScreensOptions)
   const messageScreen = (title: string, text: string, status?: number) => page(title, MessageScreen, { title, text }, status)
 
   return {
-    /**
-     * `required` and `maxlength` are the browser's copy of the rules the POST re-checks with
-     * `oauthFieldError`. Both are needed: the attribute is absent the moment someone posts without a browser.
-     */
+    // `required` and `maxlength` only mirror the rules; the POST re-checks them with `oauthFieldError`
     login: (view: ScreenView, { attempt, upstreams = [], notice, forgot = false, register = false, status }: LoginOptions = {}) =>
       page(
         'Sign in',
@@ -194,10 +191,7 @@ export const createScreens = ({ brand, theme, urls: overrides }: ScreensOptions)
         ...destinationOf(view)
       }),
 
-    /**
-     * Reached by a person typing a code they read elsewhere, so it accepts the code in whatever
-     * shape they typed it (RFC 8628 §6.1) and says plainly what approving means.
-     */
+    /** Accepts the user code in whatever shape it was typed (RFC 8628 §6.1). */
     deviceCode: (code = '', error = '', status?: number) =>
       page('Connect a device', DeviceCodeScreen, { action: urls.device, code, error }, status),
 

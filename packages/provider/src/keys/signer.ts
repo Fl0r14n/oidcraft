@@ -4,10 +4,7 @@ import type { ResolvedConfig } from '../config'
 import { defaultSigningAlg } from '../profile/fapi'
 import { signingKey } from './keys'
 
-/**
- * Signs as this provider for one client: with the algorithm it registered for this kind of token,
- * else the first the profile allows (FR-T1, FR-C21). Undefined when no active key has that algorithm.
- */
+// The algorithm the client registered for this kind of token, else the first the profile allows (FR-T1, FR-C21).
 export const signerFor = async (config: ResolvedConfig, client: Client | undefined, registered?: string | undefined) => {
   const keys = await config.adapter.keys.active()
   const alg = registered ?? defaultSigningAlg(config, client, keys)

@@ -2,8 +2,7 @@ import { resolveOAuthFunctions } from './functions'
 import { InsecureEndpointError, isTenantTemplate, sameIssuer } from './secure'
 import type { Discovery, OAuthFunctions, OpenIdConfig, OpenIdConfiguration } from './types'
 
-/** Same class as `InsecureEndpointError`: the document is not trustworthy, and that is a fact about
- * the configuration rather than a request that happened not to work. */
+/** The discovery document asserts an issuer other than the one it was fetched from: a configuration fault, not an outage. */
 export class IssuerMismatchError extends Error {
   readonly expected: string
   readonly actual: string
@@ -16,29 +15,20 @@ export class IssuerMismatchError extends Error {
   }
 }
 
-/** Endpoints already configured statically win — discovery is the fallback, not the source of truth. */
+/** Endpoints configured statically win; discovery is the fallback. */
 export const needsDiscovery = (config?: Partial<OpenIdConfig>) => {
   const { tokenPath, authorizePath } = (config || {}) as OpenIdConfig
   return !(tokenPath || authorizePath)
 }
 
-/**
- * OIDC Discovery 1.0 §4.3: the `issuer` the document asserts must be the URL it was fetched from.
- * Without this check a provider that will happily serve a document for someone else's issuer — a
- * multi-tenant host, an open redirect, a misrouted proxy — hands over that issuer's endpoints.
- *
- * Entra's multi-tenant document is the one documented exception: it advertises a `{tenantid}`
- * template because the tenant is not known until a token arrives, so it can never match literally
- * and the id-token verifier resolves it per token instead (`jwt.ts`).
- */
+// OIDC Discovery 1.0 §4.3; Entra's `{tenantid}` template is the one exception, resolved per token in `jwt.ts`.
 const assertIssuer = (issuerPath: string | undefined, discovered: OpenIdConfiguration) => {
   if (!issuerPath || !discovered.issuer) return
   if (isTenantTemplate(discovered.issuer)) return
   if (!sameIssuer(discovered.issuer, issuerPath)) throw new IssuerMismatchError(issuerPath, discovered.issuer)
 }
 
-/** The well-known document mapped onto the config's own names. Absent members leave the config's value
- * alone, so a static override survives a later discovery. */
+/** Maps the well-known document onto the config; an absent member leaves a static value in place. */
 export const applyDiscovery = (config: Partial<OpenIdConfig> | undefined, discovered?: OpenIdConfiguration) => {
   const c = (config || {}) as OpenIdConfig
   if (!discovered) return c
@@ -63,17 +53,14 @@ export const applyDiscovery = (config: Partial<OpenIdConfig> | undefined, discov
   }
 }
 
-/** An issuer-keyed lookup, so a process serving many requests fetches each well-known document once.
- * A failed lookup is not cached — a transient outage would otherwise stick for the process lifetime. */
+/** An issuer-keyed discovery cache, so a process fetches each well-known document once; a failed lookup is not cached. */
 export const createDiscovery = ({ functions }: { functions?: Partial<OAuthFunctions> } = {}): Discovery => {
   const cache = new Map<string, Promise<OpenIdConfiguration | undefined>>()
   return async (config?: Partial<OpenIdConfig>) => {
     const key = `${(config as OpenIdConfig)?.issuerPath}|${config?.clientId || ''}`
     let discovered = cache.get(key)
     if (!discovered) {
-      // wrapped, not assumed: `functions` is a user-supplied partial, and one whose
-      // `openIdConfiguration` returns a bare value rather than a promise would otherwise crash the
-      // cache rather than simply not discover anything
+      // a user-supplied `openIdConfiguration` may return a bare value rather than a promise
       discovered = Promise.resolve(resolveOAuthFunctions(functions).openIdConfiguration(config))
       cache.set(key, discovered)
     }

@@ -1,10 +1,6 @@
 import type { Account, Artifact, ArtifactKind, Client, Credential, Grant, LinkedIdentity, Realm, Seconds, Session } from './types'
 
-/**
- * Storage is a set of narrow capability stores, not one stringly-typed table (ARCHITECTURE.md §4).
- * This is what a custom adapter implements: the seven every provider reads, and whichever optional
- * store a feature it uses needs. `fromKv` derives all of them from a single key-value store.
- */
+/** The seven stores every provider reads, plus the optional ones its features need; `fromKv` derives them all from one KV store. */
 export type Adapter = {
   clients: ClientStore
   artifacts: ArtifactStore
@@ -35,11 +31,7 @@ export type RealmsAdapter = Adapter & { realms: RealmStore }
 /** What every first-party adapter returns, so it satisfies every entry point. */
 export type FullAdapter = BrokeringAdapter & CredentialsAdapter & RealmsAdapter
 
-/**
- * What every record-holding store shares. `Id` is a tuple so a composite key reads as arguments:
- * `artifacts.find(kind, id)`, `identities.destroy(provider, subject)`. Each store adds only the
- * lookups the protocol needs indexed, which is what keeps it from being one blob table (FR-A2).
- */
+/** Each store adds only the lookups the protocol needs indexed, which keeps storage from being one blob table (FR-A2). */
 export type EntityStore<T, Id extends unknown[] = [id: string]> = {
   find(...id: Id): Promise<T | undefined>
   upsert(value: T): Promise<void>
@@ -49,7 +41,7 @@ export type EntityStore<T, Id extends unknown[] = [id: string]> = {
 /** Writes are optional so a deployment can serve a fixed set of clients; registration then refuses (FR-C9). */
 export type ClientStore = Pick<EntityStore<Client>, 'find'> &
   Partial<Omit<EntityStore<Client>, 'find'>> & {
-    /** In client id order. `cursor` is the one a previous page returned; a page without one is the last. No `limit` lists them all. */
+    /** In client id order; `cursor` is the previous page's, and a page without one is the last. No `limit` lists them all. */
     list?(cursor?: string, limit?: number): Promise<{ clients: Client[]; cursor?: string }>
   }
 
@@ -57,11 +49,7 @@ export type ClientStore = Pick<EntityStore<Client>, 'find'> &
 export type ArtifactStore = EntityStore<Artifact, [kind: ArtifactKind, id: string]> & {
   /** Device flow pairs a user code with a device code (FR-C7). */
   findByUserCode?(userCode: string): Promise<Artifact | undefined>
-  /**
-   * Marks a live artifact used, atomically: `true` for exactly one caller, `false` when it was
-   * already consumed, is unknown or has expired. A check-then-write lets two parallel redemptions
-   * both win (FR-T3, FR-T4, NFR-S4).
-   */
+  /** Atomically marks a live artifact used: `true` for one caller only, `false` if consumed, unknown or expired (FR-T3, FR-T4, NFR-S4). */
   consume(kind: ArtifactKind, id: string): Promise<boolean>
   revokeByGrantId(grantId: string): Promise<void>
   revokeByFamilyId(familyId: string): Promise<void>
@@ -73,10 +61,7 @@ export type ArtifactStore = EntityStore<Artifact, [kind: ArtifactKind, id: strin
 
 export type SessionStore = EntityStore<Session> & {
   listForAccount(accountId: string): Promise<Session[]>
-  /**
-   * Records that a client signed in through this session, atomically: two clients signing in at
-   * once must both be on the list logout notifies (FR-C11). A session that is gone stays gone.
-   */
+  /** Atomically adds a client: concurrent sign-ins must all reach the logout list (FR-C11); a session that is gone stays gone. */
   addClient(id: string, clientId: string): Promise<void>
   /** Upstream back-channel logout arrives keyed by the upstream session, not ours (FR-F8). */
   findByUpstreamSession?(provider: string, upstreamSessionId: string): Promise<Session[]>
@@ -85,9 +70,8 @@ export type SessionStore = EntityStore<Session> & {
 }
 
 /**
- * One grant per account and client: `upsert` of a grant for a pair another id already holds writes
- * into that grant, keeping its id and `createdAt`, atomically — two first consents at once are two
- * writes to one grant, never a second grant or a failed insert (FR-I4).
+ * One grant per account and client: `upsert` for a pair another id holds writes into that grant, keeping its id and `createdAt`,
+ * atomically — concurrent first consents never make a second grant or fail the insert (FR-I4).
  */
 export type GrantStore = EntityStore<Grant> & {
   findByAccountAndClient(accountId: string, clientId: string): Promise<Grant | undefined>

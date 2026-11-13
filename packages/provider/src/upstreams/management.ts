@@ -2,11 +2,7 @@ import { audit } from '../audit'
 import type { ResolvedConfig } from '../config'
 
 export const upstreamManagement = (config: ResolvedConfig) => ({
-  /**
-   * Read-only on purpose. Upstreams are deployment configuration — an issuer and client
-   * credentials — not runtime state, so they are set where the rest of the deployment is set
-   * and an operator screen shows what is configured rather than editing it (FR-M2).
-   */
+  /** Read-only on purpose: upstreams are deployment configuration, not runtime state (FR-M2). */
   list() {
     return config.upstreams
   }

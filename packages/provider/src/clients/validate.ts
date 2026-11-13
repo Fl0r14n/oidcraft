@@ -4,11 +4,7 @@ import type { ResolvedConfig } from '../config'
 import { fapiClientProblems } from '../profile/fapi'
 import { secretKind } from './secret'
 
-/**
- * What must hold of a client however it reaches the store — registration, a metadata document or the
- * management API, on create and on update alike (FR-M1). Each of these is otherwise found at the
- * token endpoint, as a 500 nobody there can fix.
- */
+// However a client reaches the store (FR-M1); otherwise each is found at the token endpoint, as a 500 nobody there can fix.
 export const clientProblems = (config: ResolvedConfig, client: Client) => {
   const problems: string[] = []
 

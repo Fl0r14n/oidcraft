@@ -12,16 +12,7 @@ const MAX_AGE = 60
 
 export type DpopProof = { jkt: string; jti: string }
 
-/**
- * A server-chosen nonce the proof must echo (RFC 9449 §8).
- *
- * Without one a proof's freshness rests entirely on `iat`, so a clock-skew allowance is also a
- * window in which a captured proof is replayable at a server that has not seen its `jti`. The nonce
- * removes that: the server names the value, so it knows the proof was minted after it asked.
- *
- * Issued nonces are only ever read back, never recorded on sight: a check that stored the value it
- * was refusing would let a client name its own nonce and have it accepted on the next proof.
- */
+// RFC 9449 §8: issued nonces are only read back, never recorded on sight, or a client could name its own.
 export const issueNonce = async (config: ResolvedConfig, clientId: string) => {
   const nonce = randomString()
   await writeArtifact(config.adapter.artifacts, {
@@ -70,10 +61,7 @@ export type VerifyOptions = {
   accessToken?: string | undefined
   /** The thumbprint the token was issued against; a mismatch means a different key is presenting it. */
   expectedJkt?: string | undefined
-  /**
-   * The URI the proof must name. Defaults to the request's own URL, which is right only where that is
-   * the URL the client used; behind a proxy, pass the public one (NFR-S6).
-   */
+  /** The URI the proof must name. Defaults to the request's URL; behind a proxy, pass the public one (NFR-S6). */
   htu?: string | undefined
   /** Narrower than every asymmetric algorithm, as FAPI 2.0 requires of its clients (FR-C21). */
   algorithms?: string[] | undefined
@@ -81,10 +69,6 @@ export type VerifyOptions = {
   futureSkew?: number | undefined
 }
 
-/**
- * What every endpoint verifying a client's proof requires of it: the provider's public URL, a nonce
- * when the provider demands them, and FAPI 2.0's narrower algorithms and skew (NFR-S6, FR-C21).
- */
 export const proofOptions = (config: ResolvedConfig, request: Request, clientId: string, client: Client | undefined): VerifyOptions => {
   const fapi = underFapi(config, client)
   return {
@@ -96,11 +80,8 @@ export const proofOptions = (config: ResolvedConfig, request: Request, clientId:
 }
 
 /**
- * Verifies a DPoP proof and returns the key's thumbprint (RFC 9449 §4.3).
- *
- * The proof is self-signed by a key the client chose, so it proves possession of that key and
- * nothing else. What makes it useful is binding: the access token records the thumbprint, and a
- * stolen token is worthless without the private key that matches it.
+ * Verifies a DPoP proof and returns the key's thumbprint (RFC 9449 §4.3). It proves possession of a key the
+ * client chose and nothing else; binding a token to the thumbprint is what makes it useful.
  */
 export const verifyDpopProof = async (config: ResolvedConfig, request: Request, options: VerifyOptions = {}): Promise<DpopProof> => {
   const proof = request.headers.get('dpop')
@@ -149,8 +130,7 @@ export const verifyDpopProof = async (config: ResolvedConfig, request: Request, 
 
   if (options.requireNonceFor) {
     const presented = payload.nonce
-    // A nonce stays usable until it expires: it marks freshness, and it is the jti check above that
-    // stops a proof being replayed (RFC 9449 §8).
+    // A nonce stays usable until it expires; the jti check above is what stops replay (RFC 9449 §8).
     const issued = typeof presented === 'string' ? await readArtifact(config.adapter.artifacts, 'dpop_nonce', presented) : undefined
     if (issued?.clientId !== options.requireNonceFor) await requireNonce(config, options.requireNonceFor, presented)
   }

@@ -5,11 +5,7 @@ import type { ResolvedConfig } from '../config'
 /** Each round answers a write that raced this one; past a few, a scope still missing is asked for again, never granted. */
 const ROUNDS = 5
 
-/**
- * Adds what was just consented to the one grant per account and client (FR-I4), and returns it as
- * stored. A first consent racing another may land in that one's grant and lose its scopes to it, so
- * it is read back and written again until it holds what was consented.
- */
+// FR-I4: a first consent racing another may lose its scopes to that grant, so it is reread and rewritten until it holds them.
 export const recordConsent = async (config: ResolvedConfig, accountId: string, clientId: string, scopes: string[]) => {
   const find = () => config.adapter.grants.findByAccountAndClient(accountId, clientId)
   let previous = await find()

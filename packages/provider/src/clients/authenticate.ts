@@ -42,12 +42,7 @@ const fromBasic = (header: string) => {
   }
 }
 
-/**
- * Resolves and authenticates the client presenting this request (FR-C4).
- *
- * Credentials in two places at once is rejected rather than resolved by precedence: it is what an
- * attacker does to make the server and an auditing proxy disagree about who is calling.
- */
+// FR-C4: credentials in two places are refused, not resolved by precedence, or server and an auditing proxy could disagree.
 export const authenticateClient = async (
   config: ResolvedConfig,
   form: URLSearchParams,
@@ -93,8 +88,7 @@ export const authenticateClient = async (
   if (assertion) throw unauthorized(`client ${clientId} is registered for ${method}, not a client assertion`)
 
   if (method === 'tls_client_auth' || method === 'self_signed_tls_client_auth') {
-    // tls_client_auth trusts a subject only on a chain the listener verified; the self-signed method
-    // trusts the registered certificate itself, which the handshake proved the client holds (RFC 8705 §2).
+    // RFC 8705 §2: tls_client_auth needs a verified chain; the self-signed method trusts the registered certificate itself.
     if (!certificate) throw unauthorized(`client ${clientId} must authenticate with ${method}, and no client certificate was presented`)
     const ok = method === 'tls_client_auth' ? matchesTlsClientAuth(client, certificate) : matchesRegisteredCertificate(client, certificate)
     if (!ok) throw unauthorized('the client certificate does not match the one registered for this client', 'RFC 8705 §2')

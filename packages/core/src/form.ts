@@ -1,15 +1,4 @@
-/**
- * The credential form's rules, and nothing else.
- *
- * These are here rather than in `@oidcraft/client` because both halves of the protocol need them and
- * only one of them has a browser. A relying party collecting a password for the resource-owner grant
- * and an authorization server asking for its own password on its own login page are the same two
- * fields with the same validation; what differs is where the credentials go, which is the caller's
- * business and not this module's.
- *
- * Everything here is pure — no state, no storage, no markup — so a server-rendered screen can use it
- * as readily as a reactive binding (FR-A1, FR-I1).
- */
+// Pure — no state, storage or markup — so a server-rendered screen shares it with a reactive binding (FR-A1, FR-I1).
 
 export const DEFAULT_MAX_LENGTH = 128
 
@@ -39,14 +28,14 @@ export interface OAuthFormState {
   submitted: boolean
   submitting: boolean
   passwordVisible: boolean
-  /** the flow error the user has already dismissed, so a *different* one still shows */
+  /** the flow error the user dismissed, so a different one still shows */
   dismissed: string | undefined
 }
 
 export interface OAuthFormFieldView {
   value: string
   error: OAuthFieldError
-  /** gate the display on this: a pristine form should not shout about empty required fields */
+  /** false until the form is submitted, so a pristine form shows no error */
   showError: boolean
 }
 
@@ -61,11 +50,7 @@ export interface OAuthFormView {
   maxLength: number
 }
 
-/**
- * One pure derivation, the way `tokenState` is, so what a binding renders and what a controller
- * believes cannot drift. `flowError` is passed in rather than read, because a reactive caller has to
- * observe it through its own primitive for the view to update when it changes.
- */
+/** What a binding renders; `flowError` is passed in so a reactive caller observes it through its own primitive. */
 export const oauthFormView = (state: OAuthFormState, flowError: string | undefined, maxLength = DEFAULT_MAX_LENGTH): OAuthFormView => {
   const { username, password } = oauthFieldErrors(state.username, state.password, maxLength)
   return {

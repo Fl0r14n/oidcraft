@@ -6,10 +6,6 @@ import { optional, withDefault } from './env'
 
 const PROFILE = ['name', 'given_name', 'family_name', 'preferred_username', 'picture', 'locale']
 
-/**
- * Production supplies OIDCRAFT_TOTP_KEY. Without it development generates one per process, and every
- * enrolled authenticator stops working at the next restart — say so rather than fail later.
- */
 let generatedTotpKey: string | undefined
 
 const totpKey = () => {
@@ -32,10 +28,7 @@ export const createDemoAccounts = (adapter: CredentialsAdapter, issuerName: stri
     newAccountId: username => username
   })
 
-/**
- * Local accounts first; an account created by brokering has no password and reports what its
- * upstream said instead, the mapped claims linking recorded (FR-F7).
- */
+/** Local accounts first; a brokered account has no password and reports the mapped claims linking recorded (FR-F7). */
 export const accountStore = (adapter: Adapter, accounts: Accounts): AccountStore => ({
   async find(accountId) {
     const local = await accounts.store.find(accountId)
@@ -57,10 +50,7 @@ export const accountStore = (adapter: Adapter, accounts: Accounts): AccountStore
   }
 })
 
-/**
- * Demo only: three people to sign in as, with one password from OIDCRAFT_DEMO_PASSWORD. The
- * conformance suite's user exists only when the suite is configured, with the password its plan types.
- */
+/** Demo only; the conformance suite's user exists only when the suite is configured. */
 export const seedDemoAccounts = async (accounts: Accounts, adapter: Adapter) => {
   // Looked up first: registering hashes the password, and argon2id is deliberately not cheap.
   const register = async (person: Parameters<Accounts['register']>[0]) => {

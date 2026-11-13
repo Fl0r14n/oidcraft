@@ -25,15 +25,13 @@ export const realmIssuer = (id: string) => `${controlUrl.protocol}//${id}.${cont
 
 const memory = storageLocation() === 'memory'
 const postgres = isPostgres(storageLocation())
-// Beside the control plane's database: data/oidcraft.sqlite keeps its realms in data/realms/. On
-// Postgres a realm is a schema in the same database, and only its keys are files.
+// SQLite realms sit beside the control plane's file; on Postgres a realm is a schema, and only its keys are files.
 const directory = postgres ? 'data/realms' : `${storageLocation().replace(/[^/]*$/, '')}realms`
 // A realm id is a DNS label, so this is injective and needs no quoting: no id holds an underscore.
 const schemaOf = (id: string) => `realm_${id.replaceAll('-', '_')}`
 const file = (id: string, extension: string) => `${directory}/${id}.${extension}`
 
-// Each realm's own keys, never generatedKeyStore(): its RSA key is one per process, and createRealms
-// refuses two realms that share a signing key.
+// Never generatedKeyStore(): its RSA key is one per process, and createRealms refuses realms sharing a signing key.
 const keysInMemory = new Map<string, ActiveKey[]>()
 const readKeys = async (id: string): Promise<ActiveKey[]> =>
   memory ? (keysInMemory.get(id) ?? []) : JSON.parse(await Bun.file(file(id, 'jwks.json')).text())
@@ -94,10 +92,7 @@ export const realms = realmsEnabled
     })
   : undefined
 
-/**
- * The site a request is for: the control plane on its own host, a realm on a subdomain of it, and
- * undefined for a subdomain that names no enabled realm.
- */
+/** Undefined for a subdomain that names no enabled realm. */
 export const siteOf = async (request: Request): Promise<Site | undefined> => {
   if (!realms) return control
   const id = realmOf(request)

@@ -22,11 +22,7 @@ export type Polled = Answer & { interval: number; lastPolledAt?: number }
 
 type Request = Omit<Artifact, 'kind' | 'payload'>
 
-/**
- * Device authorization and CIBA are one state machine: a client polls a request a person answers
- * somewhere else (RFC 8628 §3.5, OIDC CIBA 1.0 §11). A flow names only where its request and its
- * answer are kept, and what to call them.
- */
+// Device authorization and CIBA are one state machine (RFC 8628 §3.5, OIDC CIBA 1.0 §11); a flow names only its storage.
 export type Flow<R extends Request, P extends Polled> = {
   kind: 'device_code' | 'backchannel_authentication_request'
   /** As the client knows it, for error descriptions. */
@@ -97,11 +93,7 @@ export const redeem = async <R extends Request, P extends Polled>(
 
 export type Approval = { accountId: string; sessionId: string; scopes: string[] } | { denied: true }
 
-/**
- * Records the person's answer to a pending request: every scope asked or `{ denied: true }`, as in
- * the browser (FR-I4). The approving session takes the client onto its list now, so ending it
- * reaches the client that is about to hold its tokens (FR-C11).
- */
+// All scopes or a denial, as in the browser (FR-I4); the session lists the client now, so ending it reaches its tokens (FR-C11).
 export const answer = async <R extends Request, P extends Polled>(
   config: ResolvedConfig,
   flow: Flow<R, P>,

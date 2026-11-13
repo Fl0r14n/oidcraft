@@ -40,12 +40,7 @@ const audiencesOf = (artifact: Token) => {
   return [access?.aud, access?.resource].filter((value): value is string => value !== undefined)
 }
 
-/**
- * The token's own client may always ask. Of access tokens — a refresh token is never presented to a
- * resource — the server a configured resource names may ask about those issued for that resource,
- * and nothing else (FR-C19); a client flagged `resourceServer` about any not restricted to some other
- * audience (FR-C8).
- */
+// Its own client may always ask; a resource's server only of tokens for it (FR-C19); a `resourceServer` of unrestricted ones (FR-C8).
 const mayIntrospect = (config: ResolvedConfig, client: Client, artifact: Token) => {
   if (artifact.clientId === client.clientId) return true
   if (artifact.kind !== 'access_token') return false
@@ -56,10 +51,7 @@ const mayIntrospect = (config: ResolvedConfig, client: Client, artifact: Token) 
   return audiences.length === 0 || audiences.includes(client.clientId)
 }
 
-/**
- * RFC 7662 §2.2: a token the caller may not see is `active: false`, never an error — the difference
- * between "expired" and "belongs to someone else" is exactly what an attacker wants to learn.
- */
+// RFC 7662 §2.2: a token the caller may not see is `active: false`, never an error telling expired from someone else's.
 export const introspectionEndpoint = async (
   config: ResolvedConfig,
   request: Request,

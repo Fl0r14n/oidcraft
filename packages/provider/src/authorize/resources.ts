@@ -14,10 +14,7 @@ export const requestedResources = (config: ResolvedConfig, params: URLSearchPara
   return named
 }
 
-/**
- * The one audience a token gets (FR-C19). Naming a resource narrows a token, so a token request may
- * name any configured one when the authorization named none; once it did, only those.
- */
+// FR-C19: a token request may name any configured resource when the authorization named none; once it did, only those.
 export const audienceFor = (requested: string[], authorized: string[]) => {
   if (requested.length > 1) throw refuse('a token request names at most one resource')
   const [named] = requested

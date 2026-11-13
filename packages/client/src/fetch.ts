@@ -40,10 +40,7 @@ export const createFetch = (
     return response
   }
 
-  /**
-   * FR-L6: a 401 from where the token went ends it, so a dead credential is not resent on every call.
-   * Of the body only what says why is kept: anything else in it would become the token state.
-   */
+  // FR-L6: a 401 from where the token went ends it; only the body's error fields become the token state.
   const onUnauthorized = (url: string | undefined, body: unknown) => {
     if (!carriesToken(url)) return
     const { error, error_description } = (typeof body === 'object' && body ? body : {}) as Record<string, unknown>

@@ -34,10 +34,7 @@ export const issueTokens = async (
     authorizationDetails?: unknown[] | undefined
     /** RFC 6749 §6: a rotated refresh token keeps its own scope even when the access token is narrowed. */
     refreshScopes?: string[]
-    /**
-     * FR-T6: a refresh token even without offline_access, living no longer than the session. Only the
-     * code grant passes it: a device or CIBA approval's session is the approver's browser, not the client's.
-     */
+    /** FR-T6: a refresh token that dies with the session; code grant only, as a device or CIBA session is the approver's. */
     sessionBound?: boolean
     /** FR-T3's one exception: the refresh token presented stays the client's, and no new one is minted. */
     keepRefreshToken?: string | undefined
@@ -49,8 +46,7 @@ export const issueTokens = async (
     resources?: string[]
   }
 ) => {
-  // FR-C11: logout notifies the session's clients, so every client it signs in to must be on the list.
-  // An offline refresh may outlive the session; addClient does not bring an ended one back.
+  // FR-C11: logout notifies the session's clients, so each one signed in is listed; addClient never revives an ended session.
   if (!session.clients.includes(client.clientId)) await config.adapter.sessions.addClient(session.id, client.clientId)
 
   // FR-C18: what this client is told the user is called, which may not be the local account id.
@@ -87,15 +83,12 @@ export const issueTokens = async (
       accountId: session.accountId,
       grantId: grant.id,
       familyId,
-      // The binding must survive rotation, or it evaporates on the first refresh. Only a public
-      // client's refresh token is bound, to a DPoP key or a certificate: a confidential one is
-      // already held to its client by authentication (RFC 9449 §5, RFC 8705 §4).
+      // Kept across rotation; only a public client's is bound, as authentication holds a confidential one (RFC 9449 §5, RFC 8705 §4).
       payload: {
         iat: now,
         scopes: refreshScopes,
         sessionId: session.id,
-        // offline_access is for when the user is gone: the sign-in it rests on travels with it. Without
-        // it there is no snapshot, so the token dies with the session (FR-T6).
+        // FR-T6: offline_access carries the sign-in it rests on; without it the token dies with the session.
         ...(offline ? { signIn: snapshotOf(session) } : { sessionBound: true }),
         familyExpiresAt: familyEnd,
         ...(resources.length && { resources }),
@@ -105,9 +98,7 @@ export const issueTokens = async (
     })
   }
 
-  // OIDC Core §3.1.2.1: without openid this is plain OAuth, and an ID token would answer a question nobody asked.
-  // OIDC Core §5.4: scope claims are UserInfo's to release while the access token can be used there. One
-  // issued for a resource cannot (FR-C5), which is §5.4's other case: the ID token carries them.
+  // No ID token without openid (OIDC Core §3.1.2.1); one for a resource carries the scope claims UserInfo cannot release (§5.4, FR-C5).
   const claims = scopes.includes('openid') && audience ? await config.adapter.accounts.claims(session.accountId, scopes, []) : undefined
   const idToken = scopes.includes('openid')
     ? await mintIdToken(config, { client, session, subject, nonce, accessToken, claims })
@@ -133,10 +124,7 @@ const snapshotOf = (session: Session): SignIn => ({
   ...(session.idp && { idp: session.idp })
 })
 
-/**
- * The session behind a refresh token, or the sign-in it recorded once that session has ended:
- * offline access must not die with the browser session (OIDC Core §11). Revoking the grant still ends it.
- */
+// Offline access must not die with the browser session (OIDC Core §11); revoking the grant still ends it.
 export const loadGrantAndSignIn = async (config: ResolvedConfig, artifact: Stored<'refresh_token'>) => {
   const grant = artifact.grantId ? await config.adapter.grants.find(artifact.grantId) : undefined
   if (!grant) throw new OAuthError('invalid_grant', { description: 'the grant behind this token no longer exists', spec: 'RFC 6749 §5.2' })

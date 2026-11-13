@@ -22,8 +22,7 @@ HwYDVR0jBBgwFoAU8kT4Zv8caYCu3LYq6ALekxD0g3owDwYDVR0TAQH/BAUwAwEB
 jNu7IAIhAK7fygBU1iHLknYNtZ6wazLchT4SeE2YVppjuk3UXDXo
 -----END CERTIFICATE-----`
 
-// Signed by a throwaway CA, carrying one SAN of each type RFC 8705 §2.1.2 registers; its URI holds a
-// comma, which Node and Bun print JSON-quoted.
+// One SAN of each type RFC 8705 §2.1.2 registers; its URI holds a comma, which Node and Bun print JSON-quoted.
 export const SAN_CERTIFICATE = `-----BEGIN CERTIFICATE-----
 MIIB0TCCAXegAwIBAgIUSqienqQBH/eKYbLlEMY6XfRLHKkwCgYIKoZIzj0EAwIw
 EjEQMA4GA1UEAwwHVGVzdCBDQTAeFw0yNjExMTMwNzQ5MjNaFw0zNjExMTAwNzQ5

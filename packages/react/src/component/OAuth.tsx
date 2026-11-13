@@ -21,8 +21,7 @@ import ListItemAvatar from '@mui/material/ListItemAvatar'
 import ListItemText from '@mui/material/ListItemText'
 import Menu from '@mui/material/Menu'
 import TextField from '@mui/material/TextField'
-// by package name, never a relative path: this entry is bundled separately, so a relative import inlines a
-// second copy of the core — a second React context — and the component goes blind to the app's instance
+// by package name, never relatively: an inlined copy would carry a second React context
 import {
   type AuthorizationCodeParameters,
   type OAuthFieldError,
@@ -37,7 +36,7 @@ import {
 } from '@oidcraft/react'
 import { type ReactNode, type SyntheticEvent, useState } from 'react'
 
-/** Every string the component renders. Pass your own to translate — the library carries no i18n dep. */
+/** Every string the component renders; pass your own to translate. */
 export interface OAuthLabels {
   login: string
   logout: string
@@ -71,7 +70,6 @@ export type OAuthProps = Partial<ResourceOwnerParameters & AuthorizationCodePara
 
 const interpolate = (template: string, value: unknown) => template.replace('{0}', String(value))
 
-/** `useOAuthForm` reports error codes, not sentences — this is where they become words. */
 const messageFor = (error: OAuthFieldError, required: string, tooLong: string, maxLength: number) =>
   (error === 'required' && required) || (error === 'tooLong' && interpolate(tooLong, maxLength)) || ''
 
@@ -80,15 +78,10 @@ const initialsOf = (user?: UserInfo) => {
   return `${given_name?.charAt(0) || ''}${family_name?.charAt(0) || ''}` || '?'
 }
 
-/** Falls back to the generic label so the row is never blank — some providers return only a `sub`. */
 const displayName = (user: UserInfo | undefined, fallback: string) =>
   user?.name || user?.email || user?.preferred_username || user?.sub || fallback
 
-/** Account menu: the user's row when signed in, otherwise the login affordance for the configured grant —
- * one button for the redirect flows, a username/password form for the resource-owner grant.
- *
- * Server-renders the signed-out view, since the token comes from `localStorage`. The hooks report
- * signed-out during hydration too, then re-render — no mount gate, markup present from the first paint. */
+/** Account menu: the user's row when signed in, otherwise a login button or a username/password form. Server-renders signed out. */
 export const OAuth = ({ labels, renderUserInfo, logoutRedirectUri, username, password, ...parameters }: OAuthProps) => {
   const t = { ...defaultOAuthLabels, ...labels }
   const isAuthorized = useIsAuthorized()
@@ -120,17 +113,12 @@ export const OAuth = ({ labels, renderUserInfo, logoutRedirectUri, username, pas
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
         transformOrigin={{ vertical: 'top', horizontal: 'right' }}
         slotProps={{ list: { sx: { py: 0 } } }}>
-        {/* a Card inside the Menu, not MenuItems: the content is a form and a user card, neither of
-            which should close the menu or take keyboard focus as a list option */}
-        {/* no width here: only the credentials form needs a floor, and putting it on the Card stretched
-            the single-button and error views to match */}
         <Card elevation={0}>
           {isAuthorized ? (
             renderUserInfo ? (
               renderUserInfo({ user, logout: () => void signOut() })
             ) : (
-              // unconditional: logout lives in this row, so skipping it for a user with no name or
-              // email would leave no way to sign out
+              // unconditional: logout lives in this row
               <List>
                 <ListItem
                   secondaryAction={
@@ -143,7 +131,6 @@ export const OAuth = ({ labels, renderUserInfo, logoutRedirectUri, username, pas
                       {!user?.picture && initialsOf(user)}
                     </Avatar>
                   </ListItemAvatar>
-                  {/* the email only repeats as the secondary line when it is not already the primary one */}
                   <ListItemText primary={displayName(user, t.account)} secondary={user?.name ? user.email : undefined} />
                 </ListItem>
               </List>

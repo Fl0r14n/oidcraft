@@ -24,17 +24,13 @@ const lockedNotice = (until: Date) =>
 
 const form = async (request: Request) => new URLSearchParams(await request.text())
 
-/** The screens' routes for one site; built once per site, which is once per realm. */
 const build = (site: Site) => {
   const { provider, accounts, screens } = site
 
   const loginScreen = (view: ScreenView, options: Parameters<typeof screens.login>[1] = {}) =>
     screens.login(view, { upstreams: offeredUpstreams(view), forgot: true, register: signUp(), ...options })
 
-  /**
-   * FR-F9 / FR-C16: the acr says what actually happened, because a client that asked for more must
-   * not be told it got it. RFC 8176 names the methods.
-   */
+  /** The acr says what actually happened: a client that asked for more must not be told it got it (FR-F9, FR-C16, RFC 8176). */
   const finish = async (request: Request, id: string, accountId: string, amr: string[]) => {
     const { redirectTo, setCookie } = await provider.interactions.complete(
       id,
@@ -106,7 +102,6 @@ const build = (site: Site) => {
         const password = body.get('password') ?? ''
         const errors = { username: oauthFieldError(username), password: oauthFieldError(password) }
         if (errors.username || errors.password) {
-          // re-rendered with what was typed: losing it and saying nothing is how the old branch failed
           return loginScreen(view, { attempt: { username, errors }, status: 400 })
         }
         const result = await accounts.authenticate(username, password, { clientIp })
@@ -201,7 +196,6 @@ const build = (site: Site) => {
     return screens.message('This link no longer works', 'It expired or was already used. Ask for a new one from the sign-in screen.', 400)
   }
 
-  /** The device flow's human half: a person types a code they read on another screen (FR-C7). */
   const deviceRoutes = async (request: Request, url: URL, clientIp: string | undefined) => {
     try {
       return await deviceScreens(request, url, { clientIp })

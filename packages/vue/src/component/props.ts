@@ -1,14 +1,6 @@
 import type { AuthorizationCodeParameters, ResourceOwnerParameters } from '@oidcraft/core'
 
-/**
- * Written as a literal, and repeated in the SFC's `defineProps`, because `@vue/compiler-sfc` resolves
- * a type imported from another module only with filesystem access — which it refuses to take under
- * Bun ("No fs option provided to compileScript in non-Node environment"). The SFC therefore cannot
- * name a protocol type, and this is the only duplication that buys.
- *
- * The two assignments below are the guard: if either side drifts, `bun run typecheck` fails here
- * rather than a prop quietly disappearing from the published component.
- */
+// Repeated in the SFC's `defineProps`, which cannot import a type under Bun; the assignments below fail the typecheck on drift.
 export type OAuthProps = {
   username?: string
   password?: string

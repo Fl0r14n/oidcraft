@@ -1,10 +1,5 @@
 import type { Artifact, ArtifactKind, Client, Credential, Grant, LinkedIdentity, Realm, Session } from '@oidcraft/adapter'
 
-/**
- * The rows of the shared schema as Kysely and TypeORM read and write them: JSON as text, times as
- * epoch milliseconds. Drizzle declares its columns as JSON and timestamps and maps them itself.
- */
-
 export type ClientRow = { client_id: string; data: string; created_at: number; updated_at: number }
 
 export type ArtifactRow = {

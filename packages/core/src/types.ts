@@ -1,7 +1,6 @@
 export type OAuthFetch = (input: string | URL | Request, init?: RequestInit) => Promise<Response>
 
-/** Every client authentication method, from the RFC 7591 `token_endpoint_auth_method` registry: what a
- * provider may let a registered client use. */
+/** Every client authentication method in the RFC 7591 `token_endpoint_auth_method` registry. */
 export type ClientAuthMethod =
   | 'none'
   | 'client_secret_basic'
@@ -12,13 +11,10 @@ export type ClientAuthMethod =
   | 'self_signed_tls_client_auth'
   | 'attest_jwt_client_auth'
 
-/** The methods this library can send as a client. `client_secret_post` carries the credentials in the
- * body and is what most providers accept; some only honour the Basic header, and a public client sends
- * neither (RFC 6749 §2.3.1). */
+/** The methods this library sends as a client (RFC 6749 §2.3.1); a public client uses `none`. */
 export type TokenAuthMethod = Extract<ClientAuthMethod, 'client_secret_post' | 'client_secret_basic' | 'none'>
 
-/** A client's identity, the same whichever side holds it: a client signing in, the provider brokering
- * as one, or the provider's record of one it registered. */
+/** A client's identity, whichever side holds it. */
 export type ClientCredentials = {
   clientId: string
   clientSecret?: string
@@ -31,8 +27,7 @@ export type ClientCredentialConfig = ClientCredentials & {
   userPath?: string
   introspectionPath?: string
   tokenEndpointAuthMethod?: TokenAuthMethod
-  /** Development only. Every endpoint this library fetches or sends a browser to must be https
-   * otherwise: a code or token crossing http is a code or token anyone on the path already has. */
+  /** Development only: permits `http` endpoints, which are otherwise refused. */
   allowInsecure?: boolean
 }
 
@@ -43,8 +38,10 @@ export type ImplicitConfig = Pick<ClientCredentials, 'clientId'> & {
   revokePath?: string
   scope?: string
   logoutPath?: string
-  redirectUri?: string // if not using OAuthParameters
-  logoutRedirectUri?: string // if not using OAuthParameters
+  /** used when the call passes none */
+  redirectUri?: string
+  /** used when the call passes none */
+  logoutRedirectUri?: string
   userPath?: string
   allowInsecure?: boolean
 }
@@ -52,8 +49,10 @@ export type ImplicitConfig = Pick<ClientCredentials, 'clientId'> & {
 export type AuthorizationCodeConfig = ResourceOwnerConfig & {
   authorizePath: string
   logoutPath?: string
-  redirectUri?: string // if not using OAuthParameters
-  logoutRedirectUri?: string // if not using OAuthParameters
+  /** used when the call passes none */
+  redirectUri?: string
+  /** used when the call passes none */
+  logoutRedirectUri?: string
 }
 
 export type AuthorizationCodePKCEConfig = AuthorizationCodeConfig & {
@@ -63,13 +62,10 @@ export type AuthorizationCodePKCEConfig = AuthorizationCodeConfig & {
 export type OpenIdConfig = AuthorizationCodePKCEConfig & {
   /** where the well-known document lives */
   issuerPath: string
-  /** the issuer identifier as the provider asserts it in `iss`, filled in by discovery. Usually the same
-   * as `issuerPath`; Entra's multi-tenant document advertises a `{tenantid}` template instead, which the
-   * id-token verifier resolves per token. Falls back to `issuerPath` when absent. */
+  /** the issuer as asserted in `iss`, set by discovery; falls back to `issuerPath`, and may be Entra's `{tenantid}` template */
   issuer?: string
   jwksUri?: string
-  /** RFC 9207: the provider states it returns `iss` on the authorization response. That turns a missing
-   * `iss` from an omission into an error, which is the whole point of the parameter. Set by discovery. */
+  /** RFC 9207: the provider returns `iss` on the authorization response, so a missing one is an error. Set by discovery. */
   issuerParameter?: boolean
 }
 
@@ -83,10 +79,9 @@ export type AuthorizationCodeParameters = {
   prompt?: 'none' | 'consent' | 'login' | 'select_account'
   redirectUri: string
   responseType: typeof OAuthType.IMPLICIT | typeof OAuthType.AUTHORIZATION_CODE | string
-  /** omit to get a generated one — `completeAuthorization` only checks state it issued or was given here */
+  /** generated when omitted */
   state?: string
-  /** merged last, so anything the standard set does not cover — `ui_locales`, `login_hint`, `acr_values`,
-   * Auth0's `audience`, Entra's `resource` — reaches the authorization endpoint without an override */
+  /** extra authorization request parameters, merged last — `ui_locales`, `login_hint`, Auth0's `audience` */
   extras?: Record<string, string | undefined>
 }
 
@@ -99,9 +94,7 @@ export type OAuthTypeConfig =
   | ResourceOwnerConfig
   | ClientCredentialConfig
 
-/** A const object rather than an `enum`: an enum is not erasable syntax, and this package is compiled
- * under `erasableSyntaxOnly` (ARCHITECTURE.md §9.2). `OAuthType` remains usable as both a value and a
- * type; only a *member* in type position has to be written `typeof OAuthType.IMPLICIT`. */
+/** Not an `enum`, which `erasableSyntaxOnly` forbids: a member in type position is `typeof OAuthType.IMPLICIT`. */
 export const OAuthType = {
   RESOURCE: 'password',
   AUTHORIZATION_CODE: 'code',
@@ -111,8 +104,7 @@ export const OAuthType = {
 
 export type OAuthType = (typeof OAuthType)[keyof typeof OAuthType]
 
-/** Open on purpose: RFC 6749 §5.1 permits additional parameters, and this arrives parsed off the wire, so
- * there is no author to protect from a typo. Name the extras you use through `TExtra` for autocomplete. */
+/** Open, as RFC 6749 §5.1 permits additional parameters; name the ones you use through `TExtra`. */
 export type OAuthToken<TExtra = unknown> = {
   id_token?: string
   access_token?: string
@@ -133,9 +125,7 @@ export type OAuthToken<TExtra = unknown> = {
   [x: string]: any
 } & TExtra
 
-/** What an authorization request must carry across the user's round trip to the provider, and nothing else.
- * The caller owns where it lives: browser storage in an SPA, a cookie or a server-side store in a confidential
- * client. Whatever holds it must be scoped to the one request — a process-wide holder is another user's nonce. */
+/** What an authorization request carries across the round trip; store it scoped to that one request, never process-wide. */
 export type AuthorizationHandoff = {
   redirect_uri: string
   state?: string
@@ -156,10 +146,7 @@ export const OAuthStatus = {
 
 export type OAuthStatus = (typeof OAuthStatus)[keyof typeof OAuthStatus]
 
-/** The well-known document as a client reads it: everything optional, because every member of it is
- * optional to some provider, and open, because a provider may publish anything else alongside. An OP
- * writing one wants the opposite shape — see `packages/provider`'s `metadata`, which is pinned to this
- * type by `metadata.contract.test.ts` so the two cannot drift apart silently. */
+/** The well-known document as a client reads it: all optional and open. Pinned to the provider's `metadata` by a contract test. */
 export type OpenIdConfiguration = {
   issuer?: string
   authorization_endpoint?: string
@@ -176,8 +163,7 @@ export type OpenIdConfiguration = {
   [x: string]: any
 }
 
-/** Resolves an issuer's well-known document. `createDiscovery` builds a caching one; a consumer may pass
- * its own — one shared across per-request instances is how a server fetches each issuer once. */
+/** Resolves an issuer's well-known document; share one from `createDiscovery` across instances to fetch each issuer once. */
 export type Discovery = (config?: Partial<OpenIdConfig>) => Promise<OpenIdConfiguration | undefined>
 
 /** The standard OIDC claims, open for the rest — a claim set is whatever the provider issues. */
@@ -208,9 +194,7 @@ export interface OAuthFunctions {
   refresh: (token?: OAuthToken, config?: Partial<OpenIdConfig>) => Promise<OAuthToken | undefined>
   revoke: (token?: OAuthToken, config?: Partial<OpenIdConfig>) => Promise<void>
   authorize: (token?: OAuthToken, config?: Partial<OpenIdConfig>) => Promise<OAuthToken | undefined>
-  /** builds the authorization URL and the state that must survive until the redirect comes back. It performs
-   * no redirect and writes nothing — override it for a provider whose authorization endpoint is non-standard
-   * beyond what `AuthorizationCodeParameters.extras` can express. */
+  /** builds the authorization URL and handoff without redirecting; override it for an endpoint `extras` cannot express */
   authorizationUrl: (parameters: AuthorizationCodeParameters, config?: Partial<OpenIdConfig>) => Promise<AuthorizationRequest>
   resourceOwnerLogin: (parameters: ResourceOwnerParameters, config?: ResourceOwnerConfig) => Promise<OAuthToken | undefined>
   clientCredentialLogin: (config?: ClientCredentialConfig) => Promise<OAuthToken | undefined>

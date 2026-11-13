@@ -1,7 +1,6 @@
 import { customType, index, integer, pgSchema, pgTable, primaryKey, text, uniqueIndex } from 'drizzle-orm/pg-core'
 
-// Columns that read and write what the SQLite schema's do — a Date, parsed JSON, a boolean — over the
-// shared POSTGRES_MIGRATIONS tables, so one adapter serves both dialects.
+// These map to the same JS values as the SQLite schema's columns, so one adapter body serves both dialects.
 const millis = customType<{ data: Date; driverData: string | number }>({
   dataType: () => 'bigint',
   toDriver: value => value.getTime(),
@@ -18,11 +17,7 @@ const flag = customType<{ data: boolean; driverData: number }>({
   fromDriver: value => Boolean(value)
 })
 
-/**
- * The oidcraft tables for Postgres, in `schema` or in the search path when it is omitted. A factory,
- * because Drizzle fixes a table's schema when the table is defined: a realm with a schema of its own
- * (G-6) needs tables of its own. Pass the result as `drizzleAdapter`'s `tables`.
- */
+/** `drizzleAdapter`'s `tables`, in `schema` or the search path; a factory, as Drizzle fixes a table's schema and a realm owns one (G-6). */
 export const postgresTables = (schema?: string) => {
   const table = (schema ? pgSchema(schema).table.bind(pgSchema(schema)) : pgTable) as typeof pgTable
 

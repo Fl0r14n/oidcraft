@@ -1,11 +1,6 @@
 import type { FullAdapter } from '@oidcraft/adapter'
 
-/**
- * Storage that remembers a consent only until it yields a code, so the next authorization asks again.
- * For the FAPI conformance run alone: its browser keeps one session across modules, and the module in
- * which the user refuses needs a screen to refuse on (conformance/README.md). A real deployment
- * remembers consent (FR-I4).
- */
+/** FAPI conformance run only, so its refusal module gets a consent screen (conformance/README.md); a real OP remembers (FR-I4). */
 export const forgettingConsent = <A extends FullAdapter>(adapter: A): A => {
   // The resumed authorization reads the grant its consent just wrote, so only a spent one is hidden.
   const spent = new Set<string>()

@@ -4,13 +4,11 @@ import { type Adapter, fromKv, generatedKeyStore, type KvEntry, type KvStore, ty
 // #endregion imports
 // #region conformance-import
 import { adapterConformance } from '@oidcraft/adapter/conformance'
+// #endregion conformance-import
 import { calculatePKCECodeChallenge, randomPKCECodeVerifier } from '@oidcraft/core'
 import { createProvider, type Provider } from '@oidcraft/provider'
 
-/** The browser-binding cookie the redirect to an interaction set, as the browser would send it back (FR-I2). */
 const browserOf = (response: Response) => response.headers.get('set-cookie')?.split(';')[0] ?? null
-
-// #endregion conformance-import
 
 // #region kv-store
 const mapKv = (): KvStore => {

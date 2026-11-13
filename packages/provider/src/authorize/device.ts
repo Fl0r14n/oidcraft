@@ -9,11 +9,7 @@ import { bindBrowser } from '../session/browser'
 import type { Binding } from '../token/issue'
 import { type Approval, answer, answered, DEFAULT_INTERVAL, type Flow, type Polled, redeem } from './decoupled'
 
-/**
- * Base32 without the characters a person misreads aloud or in a bad font: no 0/O, 1/I/L, U (which
- * is heard as V). RFC 8628 §6.1 asks for a user code that is easy to transcribe, and this is the
- * part that decides whether the flow works on a television.
- */
+// RFC 8628 §6.1: base32 without what is misread or misheard: no 0/O, 1/I/L, or U (heard as V).
 const ALPHABET = 'BCDFGHJKMNPQRSTVWXYZ23456789'
 const GROUPS = 2
 const GROUP_SIZE = 4
@@ -73,11 +69,7 @@ export const deviceAuthorizationEndpoint = async (
 
 export type DevicePayload = Polled & { userCode: string }
 
-/**
- * The person's answer is its own record, under the user code: the device code is stored hashed, so
- * the record a user code finds cannot be written back (NFR-S11), and a poll rewriting its own read
- * cannot undo an answer that is somewhere else (FR-C7). It must not carry `userCode`, which adapters index.
- */
+// The answer is its own record (NFR-S11), so a poll cannot undo it (FR-C7); never with `userCode`, which adapters index.
 const deviceFlow: Flow<Stored<'device_code'>, DevicePayload> = {
   kind: 'device_code',
   noun: 'device code',
@@ -111,11 +103,7 @@ const MAX_ANONYMOUS_FAILURES = 50
 /** Who is typing codes, as far as the host can tell. Only the peer address counts (FR-R4). */
 export type UserCodeContext = Pick<RequestContext, 'clientIp'>
 
-/**
- * RFC 8628 §5.1: a user code is short enough to guess, so wrong guesses are limited per peer.
- * A read-then-write count can let a burst through a few over the limit; it bounds guessing, it is
- * not an exact quota.
- */
+// RFC 8628 §5.1: wrong guesses are limited per peer, by a read-then-write count that bounds guessing, not an exact quota.
 const attemptsFor = async (config: ResolvedConfig, context: UserCodeContext) => {
   const id = context.clientIp ? `ip:${context.clientIp}` : 'anonymous'
   const limit = context.clientIp ? MAX_FAILURES : MAX_ANONYMOUS_FAILURES
@@ -165,10 +153,7 @@ export const resolveDeviceCode = async (
   return { approved, client: found.client }
 }
 
-/**
- * Approving needs a signed-in person, and a verification page has no authorization request to
- * suspend. This is the login interaction it lacks: the same screens, then back to that page (FR-C7).
- */
+/** A verification page has no authorization request to suspend, so this is the login interaction it lacks (FR-C7). */
 export type DeviceSignInContext = UserCodeContext & { cookie: string | null }
 
 export const deviceSignIn = async (config: ResolvedConfig, typed: string, { cookie, ...context }: DeviceSignInContext) => {

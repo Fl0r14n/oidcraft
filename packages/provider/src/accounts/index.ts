@@ -16,10 +16,7 @@ export type PasswordHasher = {
 export type AccountsPolicy = {
   /** NIST SP 800-63B §5.1.1.2. @default 8 */
   minPasswordLength: number
-  /**
-   * Failed passwords or codes from one address before that address is locked out of the account;
-   * without an address, before the account locks. @default 5
-   */
+  /** Failures from one address before it is locked out of the account; without an address, before the account locks. @default 5 */
   maxFailedAttempts: number
   /** Failed attempts from all addresses together before the account locks for everyone (G-9). @default 50 */
   maxFailedAttemptsPerAccount: number
@@ -69,21 +66,14 @@ const STANDARD_CLAIMS: Record<string, string[]> = {
   phone: ['phone_number', 'phone_number_verified']
 }
 
-/**
- * Who is signing in, as far as the host can tell: the peer address from the runtime's context
- * (FR-R4). With it, a guesser locks out only their own address; without it, the account (G-9).
- */
+/** The peer address from the runtime's context (FR-R4). With it a guesser locks out only their own address; else the account (G-9). */
 export type SignInContext = { clientIp?: string | undefined }
 
 type Attempts = { generation: string; lockedUntil?: number }
 
-/** One count of attempts: whose, how many before it locks, and how long one is remembered. */
 type Bucket = { scope: string; limit: number; ttl: Seconds }
 
-/**
- * Whom an address stands for: an IPv4 address itself, an IPv6 one by its /64, which one subscriber
- * is routinely given whole — counted address by address, a guesser there has 2^64 of them (G-9).
- */
+/** IPv6 counts by its /64: one subscriber is routinely given a whole one, so by address a guesser has 2^64 of them (G-9). */
 export const addressBucket = (ip: string) => {
   if (!ip.includes(':')) return ip
   const address = ip
@@ -141,10 +131,7 @@ const normalizeRecoveryCode = (code: string) => code.trim().toLowerCase().replac
 /** Long enough that a used recovery code cannot come back while it could still be on someone's paper. */
 const RECOVERY_TOMBSTONE: Seconds = 10 * 365 * 24 * 3600
 
-/**
- * Local accounts over the adapter's `credentials` store (FR-I7). The host decides which of these it
- * mounts: a deployment without sign-up simply never calls `register`.
- */
+/** Local accounts over the adapter's `credentials` store (FR-I7); a host without sign-up never calls `register`. */
 export const createAccounts = (options: AccountsOptions) => {
   const { credentials } = options.adapter
   const { adapter, hasher } = options
@@ -199,7 +186,7 @@ export const createAccounts = (options: AccountsOptions) => {
   const lockFor = async (credential: Credential, bucket: Bucket) =>
     lockedUntil(credential) ?? (await lockedAt(accountWide(credential.accountId).scope)) ?? (await lockedAt(bucket.scope))
 
-  /** A fresh generation: the slots of the last one count for nothing. Kept as long as a slot of the new one can live. */
+  /** Kept as long as a slot of the new generation can live. */
   const renew = async (bucket: Bucket, accountId: string, lockUntil?: Date) =>
     adapter.artifacts.upsert({
       id: bucket.scope,
@@ -210,10 +197,7 @@ export const createAccounts = (options: AccountsOptions) => {
       expiresAt: new Date((lockUntil?.getTime() ?? Date.now()) + bucket.ttl * 1000)
     })
 
-  /**
-   * One of the bucket's `limit` slots, claimed atomically: a read-then-write count lets a burst of
-   * parallel guesses all pass a check none of them has yet failed (G-9). Undefined when none is free.
-   */
+  /** Atomic: a read-then-write count lets parallel guesses all pass a check none of them has yet failed (G-9). */
   const claimSlot = async (bucket: Bucket) => {
     const generation = (await attemptsAt(bucket.scope))?.generation ?? '0'
     for (let slot = 0; slot < bucket.limit; slot++) {
@@ -226,10 +210,7 @@ export const createAccounts = (options: AccountsOptions) => {
   const invalid = { ok: false, reason: 'invalid' } as const
   const lockoutFromNow = () => new Date(Date.now() + policy.lockout * 1000)
 
-  /**
-   * Taken before the slow verify, so at most `limit` guesses are ever being checked at once. A
-   * locked account still pays for one hash, or a quick answer would say the username exists (FR-I7).
-   */
+  /** Before the slow verify, so at most `limit` guesses run at once; a locked account still pays one hash, or names leak (FR-I7). */
   const admit = async (credential: Credential, bucket: Bucket, password?: string) => {
     const lockedFor = await lockFor(credential, bucket)
     const slot = lockedFor ? undefined : await claimSlot(bucket)
@@ -427,10 +408,7 @@ export const createAccounts = (options: AccountsOptions) => {
     },
 
     reset: {
-      /**
-       * A single-use token for the host to deliver (FR-A1). Undefined for an unknown username: the
-       * host must answer both the same way, or the form tells anyone which accounts exist.
-       */
+      /** A single-use token for the host to deliver (FR-A1); undefined for an unknown username, which the host must answer identically. */
       async issue(username: string) {
         const credential = await credentials.findByUsername(normalizeUsername(username))
         if (!credential) return undefined

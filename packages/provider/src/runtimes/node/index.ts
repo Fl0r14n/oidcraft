@@ -4,7 +4,7 @@ import { Readable } from 'node:stream'
 import type { ClientCertificate, RequestContext } from '@oidcraft/provider'
 
 export type NodeBridgeOptions = {
-  /** Take the client IP from the right-most `X-Forwarded-For` hop. Off by default: the header is attacker-supplied unless your proxy is the only route in (FR-R4); the issuer never comes from a header (NFR-S6). */
+  /** Take the client IP from the right-most `X-Forwarded-For` hop, only when your proxy is the only route in (FR-R4, NFR-S6). */
   trustProxy?: boolean
 }
 
@@ -20,10 +20,7 @@ const socketOf = (request: IncomingMessage) => request.socket as unknown as TlsS
 /** OpenSSL prints a name one RDN per line, most general first and RFC 2253-escaped; RFC 4514 wants it reversed on one line. */
 const distinguishedName = (printed: string) => printed.split('\n').filter(Boolean).reverse().join(',')
 
-/**
- * `X509Certificate.subjectAltName` as `[type, value]` pairs. A value holding a comma is printed
- * JSON-quoted, so the text is read entry by entry rather than split.
- */
+// A value holding a comma is printed JSON-quoted, so the text is read entry by entry rather than split.
 export const subjectAltNames = (text: string | undefined) => {
   const entries: [string, string][] = []
   let at = 0
@@ -79,20 +76,14 @@ const peerCertificate = (socket: TlsSocket): ClientCertificate | undefined => {
   }
 }
 
-/**
- * The address the trusted proxy saw is the one it appended: the right-most. Everything to its left
- * arrived from the client and is whatever the client chose to write (NFR-S6).
- */
+// The trusted proxy appended the right-most hop; everything left of it is whatever the client wrote (NFR-S6).
 const forwardedIp = (request: IncomingMessage) => {
   const header = request.headers['x-forwarded-for']
   const last = (Array.isArray(header) ? header.join(',') : header)?.split(',').at(-1)?.trim()
   return last || undefined
 }
 
-/**
- * The context for one request. `trustProxy` is opt-in because `X-Forwarded-For` is attacker-supplied
- * unless a proxy you control is the only thing that can reach this process (FR-R4, NFR-S6).
- */
+/** The context for one request. `trustProxy` is opt-in: `X-Forwarded-For` is attacker-supplied (FR-R4, NFR-S6). */
 export const nodeContext =
   (options: NodeBridgeOptions = {}) =>
   (request: IncomingMessage): RequestContext => {
@@ -160,10 +151,7 @@ const derive = (password: string, nonce: Buffer, params: typeof ARGON2) =>
 
 const PHC = /^\$argon2id\$v=19\$m=(\d+),t=(\d+),p=(\d+)\$([A-Za-z0-9+/]+)\$([A-Za-z0-9+/]+)$/
 
-/**
- * argon2id through `node:crypto`, for `@oidcraft/provider/accounts` (FR-I7). PHC strings, so the
- * hashes the Bun entry's hasher writes verify here and the other way round.
- */
+/** argon2id through `node:crypto`, for `@oidcraft/provider/accounts` (FR-I7); its PHC strings verify under the Bun entry's too. */
 export const nodePasswordHasher = {
   async hash(password: string) {
     const nonce = randomBytes(16)

@@ -13,7 +13,7 @@ const write = (key: string, value: any) => {
   try {
     globalThis.localStorage?.setItem(key, JSON.stringify(value))
   } catch {
-    /* not persisted — in-memory state stands on its own */
+    /* in-memory state stands on its own */
   }
 }
 
@@ -41,8 +41,7 @@ export const createStorageStore = <T>(initialKey: string, initial: T, map?: (v: 
   return {
     store,
     get: () => store.getState().value,
-    // written before the notify, not after: a listener commonly navigates (authorize, logout), and
-    // persisting at write time makes that safe by construction rather than by unload timing
+    // written before the notify: a listener may navigate away
     set: value => {
       write(key, value)
       store.setState({ value })

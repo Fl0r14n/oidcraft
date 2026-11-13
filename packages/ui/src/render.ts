@@ -18,10 +18,7 @@ const themeStyle = (theme: Theme) => {
 
 export type RenderOptions = { brand: Brand; theme?: Theme | undefined; status?: number | undefined }
 
-/**
- * Plain server-rendered HTML with no script: every screen is a form that posts. The conformance
- * suite drives these with a browser that runs little JavaScript (NFR-C1).
- */
+/** Plain server-rendered HTML with no script, every screen a form that posts: the conformance suite's browser runs little (NFR-C1). */
 export const render = async (title: string, component: Component, props: Record<string, unknown>, options: RenderOptions) => {
   const app = createSSRApp({ render: () => h(component, props) })
   app.provide(BRAND, options.brand)

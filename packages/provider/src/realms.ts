@@ -9,7 +9,7 @@ export type RealmsConfig = {
   realmOf: (request: Request) => string | undefined
   /** The provider config for a realm that exists and is enabled; `createProvider` validates it as ever. */
   configure: (realm: Realm) => ProviderConfig | Promise<ProviderConfig>
-  /** Creates the realm's storage and its own keys — never `generatedKeyStore()`, whose RSA key is per process. Runs before the realm can be served; a throw undoes the create. */
+  /** Creates the realm's storage and keys, never `generatedKeyStore()` (per process). Runs before serving; a throw undoes the create. */
   provision?: (realm: Realm) => void | Promise<void>
   /** Drops the realm's storage. Runs after the realm stopped being served, before its record goes. */
   retire?: (realm: Realm) => void | Promise<void>
@@ -29,25 +29,18 @@ export const isRealmId = (id: string) => REALM_ID.test(id)
 
 type Built = { provider: Provider; record: string }
 
-// The whole record, not updatedAt: two writes in one millisecond, or an edit made straight in the
-// database, change what configure would build without necessarily changing the timestamp.
+// The whole record, not updatedAt: a same-millisecond write or a direct database edit need not move the timestamp.
 const fingerprint = (realm: Realm) => JSON.stringify(realm)
 type Entry = { built: Promise<Built | undefined>; checkedAt: number }
 
-/**
- * Several issuers in one process, each an ordinary `Provider` built on first use (FR-M4). A single
- * issuer never needs this: `createProvider` alone is the whole deployment.
- */
+/** Several issuers in one process, each an ordinary `Provider` built on first use (FR-M4). One issuer needs only `createProvider`. */
 export const createRealms = (options: RealmsConfig) => {
   const { store } = options
   const revalidate = (options.revalidate ?? 30) * 1000
   const cache = new Map<string, Entry>()
   const signers = new Map<string, string>()
 
-  /**
-   * A key two realms share lets a token one of them signed verify against the other's JWKS. The
-   * likeliest cause is `generatedKeyStore()`, which keeps one RSA key per process (FR-M4).
-   */
+  // A key two realms share lets one's tokens verify against the other's JWKS, as with `generatedKeyStore()` (FR-M4).
   const claimKeys = async (id: string, provider: Provider) => {
     const kids = (await provider.config.adapter.keys.active()).map(key => key.kid)
     for (const kid of kids) {
@@ -73,8 +66,7 @@ export const createRealms = (options: RealmsConfig) => {
     if (!isRealmId(id)) return undefined
     const cached = cache.get(id)
     if (cached && Date.now() - cached.checkedAt < revalidate) return (await cached.built)?.provider
-    // Concurrent requests for a cold realm share this build. An unknown or failed realm is not
-    // remembered: random names cannot fill the cache, and an outage cannot pin a realm as broken.
+    // Cold requests share one build; an unknown or failed realm is not cached, so random names and outages cannot pin it.
     const entry: Entry = { built: load(id, cached?.built), checkedAt: Date.now() }
     cache.set(id, entry)
     const settle = () => {

@@ -20,16 +20,11 @@ export type KvEntry = { key: string; value: string; ttl?: Seconds }
 /** The minimum a new backend has to implement; `fromKv` builds a full `Adapter` over it. */
 export type KvStore = EntityStore<KvEntry, [key: string]> & {
   /**
-   * Writes only when the key holds no live entry, atomically, and resolves whether it wrote. Single
-   * use is built on it, so a store that cannot do it (an eventually consistent one) cannot back a
-   * provider (FR-A3).
+   * Writes only when the key holds no live entry, atomically, and resolves whether it wrote. Single use rests on it,
+   * so an eventually consistent store cannot back a provider (FR-A3).
    */
   insert(entry: KvEntry): Promise<boolean>
-  /**
-   * Prefix scan. Required because grant revocation is a range delete, not a point delete. It should
-   * cost what it matches, not what the store holds: `fromKv` scans one record's keys on a request
-   * path, and a store that walks everything to find them makes every request that slow (NFR-P1).
-   */
+  /** Prefix scan, for range deletes like grant revocation; it must cost what it matches, not the store's size: requests use it (NFR-P1). */
   scan(prefix: string): AsyncIterable<KvEntry>
 }
 
@@ -39,7 +34,7 @@ export type FromKvOptions = {
   accounts?: AccountStore
 }
 
-/** Every account lookup misses: the store an adapter uses until the host composes its own in. */
+/** Every account lookup misses, until the host composes its own store in. */
 export const noAccounts: AccountStore = {
   async find() {
     return undefined
@@ -72,16 +67,9 @@ const collect = async <T>(kv: KvStore, prefix: string, revived: (raw: string) =>
 // An id may hold a slash — a client id is a URL — and a slash is what ends a prefix.
 const part = (id: string) => encodeURIComponent(id)
 
-/**
- * A complete `Adapter` over a `KvStore` (FR-A3), whose atomic `insert` every single-use rule rests on.
- *
- * A key-value store has no secondary index, so each one the protocol needs is a key beside the
- * record, and a lookup is a prefix scan of one record's keys. A request path never scans a whole
- * family of records (NFR-P1); a relational adapter uses real columns instead (FR-A5).
- */
+/** A full `Adapter` over a `KvStore` (FR-A3): each index is a key beside its record, so no request scans a whole family (NFR-P1, FR-A5). */
 export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
   const read = async (key: string) => (await kv.find(key))?.value
-  // The last segment of each key under a prefix: how a record's index is read back (NFR-P1).
   const under = async (prefix: string) => {
     const ids: string[] = []
     for await (const { key } of kv.scan(prefix)) ids.push(decodeURIComponent(key.slice(prefix.length)))
@@ -154,7 +142,7 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
       }
     },
 
-    // A scan of every artifact: deleting a client is rare and an operator's, so it is not worth an index key per write.
+    // Deliberately unindexed: deleting a client is rare and an operator's, not worth an index key per write.
     async revokeByClientId(clientId) {
       for await (const { key, value } of kv.scan('artifact/')) {
         if (dec<Artifact>(value)?.clientId === clientId) await kv.destroy(key)
@@ -182,15 +170,14 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
     }
   }
 
-  // Each added client is its own key: an upsert of a key nobody else writes cannot lose a race,
-  // where rewriting the session's list could (FR-C11).
+  // Each added client is its own key, so concurrent sign-ins cannot lose a race rewriting one list (FR-C11).
   const sessionClientPrefix = (id: string) => `session-client/${id}/`
   const withClients = async (session: Session) => {
     const added: string[] = []
     for await (const { key } of kv.scan(sessionClientPrefix(session.id))) added.push(key.slice(sessionClientPrefix(session.id).length))
     return { ...session, clients: [...new Set([...session.clients, ...added])] }
   }
-  // Index keys beside the session, so a lookup by account or upstream session reads those and not every session (NFR-P1).
+  // Index keys beside the session, so a lookup by account or upstream session never reads every session (NFR-P1).
   const accountSessions = (accountId: string) => `account-session/${part(accountId)}/`
   const upstreamSessions = (provider: string, upstreamSessionId: string) => `upstream-session/${part(provider)}/${part(upstreamSessionId)}/`
   const sessionIndexes = (session: Session) => [
@@ -231,7 +218,7 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
     }
   }
 
-  // The pair is a key of its own, and an account's grants a prefix: the grant lookup every authorization makes reads one key (NFR-P1).
+  // The pair is its own key, so the grant lookup every authorization makes reads one key (NFR-P1).
   const accountGrants = (accountId: string) => `grant-by/${part(accountId)}/`
   const grantIndex = (grant: Pick<Grant, 'accountId' | 'clientId'>) => `${accountGrants(grant.accountId)}${part(grant.clientId)}`
   const readGrant = async (id: string) => {
@@ -275,7 +262,7 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
       // Only its own pointer: a later grant for the same pair may have taken the key over.
       if (grant && (await read(grantIndex(grant))) === id) await kv.destroy(grantIndex(grant))
     },
-    // A scan of every grant: deleting a client is rare and an operator's.
+    // Deliberately unindexed: deleting a client is rare and an operator's.
     async destroyByClientId(clientId) {
       for await (const { value } of kv.scan('grant/')) {
         const grant = dec<Grant>(value)

@@ -1,12 +1,4 @@
-/**
- * The interaction contract: what a host replacing the reference screens reads and answers. The
- * runtime that serves it is `provider.interactions`, because it shares the root's errors and
- * session code and a second bundled copy would break `instanceof OAuthError`.
- *
- * The credential form's rules travel with the interaction contract, because a host replacing these
- * screens has to validate the same things the screens do. They are pure and carry no UI peer, which
- * is what lets this entry hold them (ARCHITECTURE.md §8.1); rendering stays the host's (FR-I1).
- */
+// Types and pure rules only (ARCHITECTURE.md §8.1): the runtime stays in the root, or `instanceof OAuthError` breaks.
 export {
   DEFAULT_MAX_LENGTH,
   type OAuthFieldError,
@@ -31,24 +23,17 @@ export type InteractionRequest = {
   loginHint: string | undefined
   acrValues: string[] | undefined
   uiLocales: string[] | undefined
-  /**
-   * Seconds, when the client capped session age. Together with `prompt` this is what an upstream
-   * leg must pass through rather than satisfy from whatever session it already holds (FR-F9).
-   */
+  /** Seconds, when the client capped session age; with `prompt`, what an upstream leg must pass through (FR-F9). */
   maxAge: number | undefined
   /** Which upstreams this client may be brokered to, when it restricts them (FR-F2). */
   upstreamProviders: string[] | undefined
-  /**
-   * Home-realm discovery's answer (FR-F4). `chosen` is set when one upstream is unambiguous;
-   * otherwise `candidates` is what the screen offers, because guessing would sign the user in
-   * somewhere they did not ask for.
-   */
+  /** Home-realm discovery's answer (FR-F4): `chosen` when one upstream is unambiguous, else `candidates` for the screen to offer. */
   upstream: { chosen: string | undefined; candidates: string[] } | undefined
   /** What the client asks to be allowed to do, for the consent screen to show (RFC 9396 §7, FR-C15). */
   authorizationDetails: InteractionAuthorizationDetail[] | undefined
   /**
-   * Where the person returns after answering. A consent screen must show its host, and say so when it
-   * is this computer (MCP 2026-07-28): a document-registered client can claim any name it likes.
+   * Where the person returns. A consent screen must show its host, and say when it is this computer:
+   * a document-registered client can claim any name it likes (MCP 2026-07-28).
    */
   redirectUri: string | undefined
   expiresAt: Date
@@ -57,21 +42,14 @@ export type InteractionRequest = {
 /** The interaction app's answer. The core re-runs the authorization request against it (FR-I2). */
 export type InteractionResult = {
   /**
-   * `authTime` is when the person authenticated, when that was not now: a brokered login passes the
-   * upstream's `auth_time`, which the ID token then reports (FR-F6). One older than the request's
-   * `max_age` allows is answered to the client as `login_required` (FR-F9).
+   * `authTime`, when the person authenticated earlier: a brokered login passes the upstream's `auth_time` (FR-F6).
+   * One older than the request's `max_age` allows answers the client `login_required` (FR-F9).
    */
   login?: { accountId: string; acr?: string; amr?: string[]; idp?: string; upstreamSessionId?: string; authTime?: Date }
-  /**
-   * `authorizationDetails` must repeat every detail the request carried: approving them is explicit,
-   * all or nothing, and covers this one authorization. Declining some is `access_denied`.
-   */
+  /** `authorizationDetails` must repeat every detail the request carried, all or nothing; declining some is `access_denied`. */
   consent?: { scopes: string[]; authorizationDetails?: InteractionAuthorizationDetail[] | undefined }
   error?: { error: 'access_denied' | 'login_required' | 'consent_required'; description?: string }
-  /**
-   * The answer to a `logout` interaction: the person confirmed. To decline, show your own page and
-   * do not complete it; the interaction expires and the session stays.
-   */
+  /** The person confirmed a `logout` interaction. To decline, do not complete it: it expires and the session stays. */
   logout?: true
 }
 

@@ -24,8 +24,6 @@ const key = optional('SERVER_TLS_KEY')
 const admin = (await import('./src/admin/index.html')).default
 const account = (await import('./src/account/index.html')).default
 
-// Bun.serve takes the core's handler directly: on this runtime there is no bridge, only the context
-// provider for what Request does not carry (ARCHITECTURE.md §3.1).
 const server = serve({
   port,
   ...(cert && key && { tls: { cert: Bun.file(cert), key: Bun.file(key), ciphers: TLS12_CIPHERS } }),

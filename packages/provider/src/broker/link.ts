@@ -12,12 +12,8 @@ export type LinkOptions = {
 }
 
 /**
- * Attaches a brokered identity to a local account (FR-F5).
- *
- * `subject` — the default — matches on `(provider, subject)` and nothing else. Matching on an email
- * address instead is account takeover the moment an upstream does not verify addresses or lets a
- * user change one, so `verified-email` additionally demands `email_verified` from the upstream, and
- * `interactive` refuses to decide and hands the question back (NFR-S8).
+ * Attaches a brokered identity to a local account (FR-F5). `subject`, the default, matches `(provider, subject)` only;
+ * `verified-email` demands `email_verified`, as an unverified address is account takeover (NFR-S8).
  */
 export const linkIdentity = async (
   adapter: BrokeringAdapter,

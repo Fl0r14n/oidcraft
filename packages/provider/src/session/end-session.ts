@@ -29,15 +29,11 @@ const clientFor = async (config: ResolvedConfig, claims: JWTPayload | undefined,
 const aboutThisSession = (claims: JWTPayload | undefined, session: Session | undefined) =>
   Boolean(claims && (!session || claims.sid === session.id))
 
-/**
- * An `id_token_hint` is only a hint until it is verified. An unverified one would let anyone name a
- * client and be redirected to that client's registered URI (OIDC RP-Initiated Logout 1.0 §2).
- */
+// Unverified, a hint would let anyone name a client and be redirected to its URI (OIDC RP-Initiated Logout 1.0 §2).
 const verifyHint = async (config: ResolvedConfig, hint: string) => {
   const jwks = createLocalJWKSet(jwksResponseBody(await config.adapter.keys.active()) as never)
   try {
-    // §2: the hint is usually an ID token that has long expired by the time the user signs out, and
-    // it only has to prove this provider issued it, so its lifetime is not checked.
+    // §2: a hint has usually expired and need only prove this provider issued it, so its lifetime is not checked.
     const { payload } = await jwtVerify(hint, jwks, { issuer: config.issuer, clockTolerance: Number.MAX_SAFE_INTEGER })
     return payload
   } catch {
@@ -69,8 +65,7 @@ export const endSessionEndpoint = async (
   if (confirmation) {
     await acceptConfirmation(config, confirmation, session)
   } else if (session && !aboutThisSession(claims, session)) {
-    // §2: without a verified hint about this session nothing proves the client sent this, and a bare
-    // link would sign anyone out who followed it, so the person is asked first.
+    // §2: without a verified hint about this session nothing proves the client sent this, so the person is asked.
     const asked = await askToConfirm(config, request, session, client, params.get('state'))
     return { response: asked, notifications: [], frontChannel: [] }
   }

@@ -1,5 +1,4 @@
 <template>
-  <!-- A native <dialog> with focus management, which is the part worth not hand-rolling. -->
   <Dialog.Root v-model="open">
     <Dialog.Content
       class="fixed inset-0 m-auto h-fit w-[min(27rem,92vw)] space-y-2 rounded-sheet border border-rule bg-sheet p-7 font-sans text-ink backdrop:bg-black/50">

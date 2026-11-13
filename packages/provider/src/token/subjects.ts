@@ -2,13 +2,7 @@ import type { Client } from '@oidcraft/adapter'
 import { base64url } from 'jose'
 import type { ResolvedConfig } from '../config'
 
-/**
- * The sector a pairwise subject is scoped to (OIDC Core §8.1).
- *
- * `sector_identifier_uri` lets several clients share one pairwise subject deliberately. Without it
- * the host of the registered redirect URIs is the sector — which is why a client with redirect URIs
- * across several hosts must declare one, or the subject it gets would depend on which URI was used.
- */
+// OIDC Core §8.1: redirect URIs on several hosts need a `sector_identifier_uri`, or the subject would depend on the URI used.
 export const sectorOf = (client: Client) => {
   if (client.sectorIdentifierUri) return new URL(client.sectorIdentifierUri).host
   const hosts = new Set(client.redirectUris.map(uri => new URL(uri).host))
@@ -19,12 +13,7 @@ export const sectorOf = (client: Client) => {
   )
 }
 
-/**
- * A subject that is stable for this client and useless to any other (FR-C18).
- *
- * The salt is what stops a colluding pair of relying parties from correlating users: without it the
- * mapping is a pure function of the account and sector, which anyone can recompute.
- */
+// FR-C18: the salt stops colluding relying parties recomputing the mapping from account and sector.
 export const pairwiseSubject = async (accountId: string, sector: string, salt: string) => {
   const encoder = new TextEncoder()
   const key = await crypto.subtle.importKey('raw', encoder.encode(salt), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])

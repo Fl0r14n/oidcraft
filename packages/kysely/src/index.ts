@@ -29,10 +29,7 @@ export type KyselyAdapterOptions = {
 
 const now = () => Date.now()
 
-/**
- * The same contract as the Drizzle adapter, on a query builder rather than an ORM (FR-A4). Both run
- * the one conformance suite, which is what makes "interchangeable" checkable rather than asserted.
- */
+/** The Drizzle adapter's contract on a query builder; both pass the one conformance suite (FR-A4). */
 export const kyselyAdapter = (options: KyselyAdapterOptions): FullAdapter => {
   const { db } = options
 
@@ -170,7 +167,6 @@ export const kyselyAdapter = (options: KyselyAdapterOptions): FullAdapter => {
       async list(cursor, limit) {
         let query = db.selectFrom('oidc_clients').selectAll().orderBy('client_id')
         if (cursor !== undefined) query = query.where('client_id', '>', cursor)
-        // One more than asked, to know whether another page follows.
         const rows = await (limit === undefined ? query : query.limit(limit + 1)).execute()
         const more = limit !== undefined && rows.length > limit
         const shown = more ? rows.slice(0, limit) : rows
@@ -215,9 +211,7 @@ export const kyselyAdapter = (options: KyselyAdapterOptions): FullAdapter => {
           .onConflict(conflict => conflict.column('id').doUpdateSet(row))
           .execute()
       },
-      // Compare-and-swap on the list just read, retried when another writer won: two clients
-      // signing in at once must both be recorded (FR-C11). A lost round means another writer won
-      // it, so each round makes progress; the bound only stops a pathological loop.
+      // Compare-and-swap, retried while another writer wins, so concurrent sign-ins are all recorded (FR-C11).
       async addClient(id, clientId) {
         for (let attempt = 0; attempt < 64; attempt++) {
           const row = await db.selectFrom('oidc_sessions').select('clients').where('id', '=', id).executeTakeFirst()

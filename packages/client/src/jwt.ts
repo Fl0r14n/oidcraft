@@ -2,11 +2,7 @@ import type { OpenIdConfig } from '@oidcraft/core'
 import { createIdTokenVerifier, type IdTokenVerifier } from '@oidcraft/core'
 import type { ConfigContext } from './config'
 
-/**
- * The verifier holds a remote JWKS, so it is rebuilt only when one of the values behind it changed —
- * rebuilding on any config change would refetch the keys every time discovery fills in an unrelated
- * endpoint. Resolved lazily on use rather than from a subscription, so nothing has to watch here.
- */
+// rebuilt only when a value behind it changes: a new verifier refetches the JWKS
 export const createJwt = ({ config, strictJwt }: Pick<ConfigContext, 'config' | 'strictJwt'>) => {
   let verify: IdTokenVerifier | undefined
   let last: string | undefined

@@ -7,7 +7,7 @@ export type { ArtifactRow, ClientRow, CredentialRow, GrantRow, IdentityRow, Real
 
 const text = (options: Partial<EntitySchemaColumnOptions> = {}): EntitySchemaColumnOptions => ({ type: 'text', ...options })
 
-/** Milliseconds since the epoch. A driver may hand a bigint back as a string, which is not a date's number. */
+/** Epoch milliseconds; a driver may hand a `bigint` back as a string, so it is read back through `Number`. */
 const millis = (options: Partial<EntitySchemaColumnOptions> = {}): EntitySchemaColumnOptions => ({
   type: 'bigint',
   transformer: { to: (value: unknown) => value, from: (value: unknown) => (value === null || value === undefined ? value : Number(value)) },
@@ -149,10 +149,7 @@ export const OIDCRAFT_ENTITIES = [
   RealmEntity
 ]
 
-/**
- * TypeORM reads a migration's order from a 13-digit timestamp at the end of its class name. These
- * are fixed and early, so they order among themselves and never depend on when a host installed them.
- */
+// TypeORM orders migrations by a 13-digit timestamp ending the class name; these are fixed and early, never install-time.
 const asTypeormMigration = (migration: Migration, index: number) => {
   const name = `Oidcraft${migration.id.replace(/^\d+_/, '').replace(/(^|_)(\w)/g, (_, __, c: string) => c.toUpperCase())}${1000000000000 + index + 1}`
   const Class = class implements MigrationInterface {

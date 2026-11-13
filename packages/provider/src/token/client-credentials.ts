@@ -4,13 +4,7 @@ import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
 import { type Binding, issueAccessToken } from './access-token'
 
-/**
- * The client acting as itself, with no user behind it (RFC 6749 §4.4).
- *
- * So: no ID token, because there is no subject to make claims about; no refresh token, because the
- * client can simply ask again with the credentials it still holds (§4.4.3); and `openid` is refused,
- * because a scope that means "tell me who the user is" is meaningless when there is no user.
- */
+// RFC 6749 §4.4: no user, so no ID token, no refresh token (§4.4.3) and no `openid`.
 export const clientCredentialsGrant = async (config: ResolvedConfig, client: Client, form: URLSearchParams, binding: Binding) => {
   if (client.tokenEndpointAuthMethod === 'none') {
     throw new OAuthError('invalid_client', {

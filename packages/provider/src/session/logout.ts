@@ -9,14 +9,7 @@ export type LogoutNotification = { clientId: string; uri: string; logoutToken: s
 /** A URL the host loads in an iframe (OIDC Front-Channel Logout 1.0 §2). */
 export type FrontChannelLogout = { clientId: string; uri: string }
 
-/**
- * The front-channel half (FR-C11). The core produces the URLs and does not render the iframes: it
- * emits no HTML (ARCHITECTURE.md §3.2), and the page they live in is the host's to style and to
- * decide the timeout of.
- *
- * `iss` and `sid` go on the URL only for a client that asked for them — §2 makes it opt-in, and
- * sending a session identifier to a client that never requested one leaks it for no purpose.
- */
+// URLs, never HTML (FR-C11); `iss` and `sid` go only to a client that asked, or the session id leaks (§2).
 export const frontChannelLogouts = async (config: ResolvedConfig, session: Session): Promise<FrontChannelLogout[]> => {
   const out: FrontChannelLogout[] = []
   for (const clientId of session.clients) {
@@ -34,12 +27,7 @@ export const frontChannelLogouts = async (config: ResolvedConfig, session: Sessi
 
 const LOGOUT_TOKEN_TTL = 120
 
-/**
- * Back-channel logout tokens for the host to deliver (OIDC Back-Channel Logout 1.0 §2.4).
- *
- * The core mints them and does not POST them: it performs no I/O (FR-A1), and delivery is a
- * fan-out with retries and timeouts that belongs to the host's job runner, not to a request.
- */
+// Minted, never POSTed: delivery is the host's (FR-A1, OIDC Back-Channel Logout 1.0 §2.4).
 export const logoutTokens = async (config: ResolvedConfig, session: Session): Promise<LogoutNotification[]> => {
   const notifications: LogoutNotification[] = []
   for (const clientId of session.clients) {

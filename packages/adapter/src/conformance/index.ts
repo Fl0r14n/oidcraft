@@ -1,6 +1,6 @@
 import type { Adapter, Artifact, Client, FullAdapter, Grant, Realm, Session } from '@oidcraft/adapter'
 
-/** The stores beyond the core seven. A check that needs one runs only when the adapter claims it. */
+/** The stores beyond the core seven; a check that needs one runs only when the adapter claims it. */
 export type OptionalStore = 'identities' | 'credentials' | 'realms'
 
 export type ConformanceOptions = {
@@ -112,9 +112,8 @@ const parallel = <T>(count: number, task: (index: number) => Promise<T>) =>
 const winners = (results: unknown[]) => results.filter(Boolean).length
 
 /**
- * The storage guarantees the protocol relies on, as checks any test runner can run: memory, Drizzle,
- * Kysely, TypeORM and Redis all pass them, which is what makes them interchangeable (FR-A4, FR-A6).
- * Each check builds a fresh adapter with `create`, so they are independent and may run in any order.
+ * The storage guarantees the protocol relies on, as checks any test runner can run; passing them makes adapters interchangeable
+ * (FR-A4, FR-A6). Each check builds a fresh adapter with `create`, so they may run in any order.
  *
  * ```ts
  * for (const check of adapterConformance(() => myAdapter(), { implements: ['identities'] })) test(check.name, check.run)
@@ -175,7 +174,7 @@ export const adapterConformance = (create: () => Adapter | Promise<Adapter>, opt
       }
     },
     {
-      // FR-T5: storage enforces expiry, so a missed prune cycle still cannot serve a dead token.
+      // FR-T5: storage enforces expiry, so a missed prune still cannot serve a dead token.
       name: 'an expired artifact is never served',
       run: async () => {
         const adapter = await full()
@@ -212,7 +211,6 @@ export const adapterConformance = (create: () => Adapter | Promise<Adapter>, opt
       }
     },
     {
-      // A device poll reads, a redemption consumes, the poll writes back what it read.
       name: 'an upsert never revives a consumed artifact',
       run: async () => {
         const adapter = await full()
@@ -234,7 +232,7 @@ export const adapterConformance = (create: () => Adapter | Promise<Adapter>, opt
       }
     },
     {
-      // The query the protocol needs most and a blob store handles worst (FR-A5).
+      // FR-A5: the query the protocol needs most.
       name: 'revokeByGrantId removes every artifact of that grant and nothing else',
       run: async () => {
         const adapter = await full()
@@ -290,7 +288,7 @@ export const adapterConformance = (create: () => Adapter | Promise<Adapter>, opt
       }
     },
     {
-      // NFR-P3: a table that only grows is an outage with a date on it. Storage with its own expiry needs no prune.
+      // NFR-P3: storage with its own expiry needs no prune.
       name: 'prune, where a store has one, removes what expired and nothing live',
       run: async () => {
         const adapter = await full()
@@ -323,7 +321,7 @@ export const adapterConformance = (create: () => Adapter | Promise<Adapter>, opt
       }
     },
     {
-      // FR-T5 again: expiry holds on every way in, not only the lookup by id.
+      // FR-T5: expiry holds on every lookup, not only by id.
       name: 'an expired record is not served by its other lookups either',
       run: async () => {
         const adapter = await full()
@@ -421,7 +419,6 @@ export const adapterConformance = (create: () => Adapter | Promise<Adapter>, opt
       }
     },
     {
-      // Two tabs consenting for the first time at once: neither fails, and one grant results.
       name: 'two first grants for one pair at once leave one grant',
       run: async () => {
         const adapter = await full()

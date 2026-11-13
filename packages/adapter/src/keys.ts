@@ -2,7 +2,7 @@ import { calculateJwkThumbprint, exportJWK, generateKeyPair } from 'jose'
 import type { ActiveKey, KeyStore } from './adapter'
 import { ConfigurationError } from './errors'
 
-/** Keys from configuration. Production supplies these; nothing is generated behind the operator's back. */
+/** Keys from configuration: the production path, where nothing is generated behind the operator's back. */
 export const staticKeyStore = (keys: ActiveKey[]): KeyStore => {
   if (!keys.length) throw new ConfigurationError(['staticKeyStore was given no keys; the provider cannot sign anything (FR-C10)'])
   for (const key of keys) {
@@ -16,10 +16,7 @@ export const staticKeyStore = (keys: ActiveKey[]): KeyStore => {
   return { active: async () => keys }
 }
 
-/**
- * A key pair generated in memory, for development and tests. Every restart produces a new one, which
- * signs everyone out — which is why this is never the production path.
- */
+/** Development and tests only: every restart generates a new key, which signs everyone out. */
 export const generateKey = async (alg = 'ES256'): Promise<ActiveKey> => {
   const { privateKey, publicKey } = await generateKeyPair(alg, { extractable: true })
   const priv = await exportJWK(privateKey)
@@ -28,7 +25,7 @@ export const generateKey = async (alg = 'ES256'): Promise<ActiveKey> => {
   return { kid, alg, privateJwk: { ...priv, kid, alg }, publicJwk: { ...pub, kid, alg, use: 'sig' } }
 }
 
-// One RSA key per process: generating one costs ~50ms, and development and tests build a store per provider.
+// One RSA key per process: generating one costs ~50ms, and tests build a store per provider.
 let generatedRsa: Promise<ActiveKey> | undefined
 
 /** `alg` signs by default; an RS256 key is added beside it, because the provider must always offer one (FR-T1). */

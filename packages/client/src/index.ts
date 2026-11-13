@@ -1,10 +1,4 @@
-/**
- * The stateful client half: storage, token lifecycle, refresh, the authorized fetch and the derived
- * profile — everything `@oidcraft/vue`, `@oidcraft/angular` and `@oidcraft/react` used to hold three copies of.
- *
- * Nothing here imports a framework, and nothing may: a binding adapts `Subscribable` from outside.
- * The protocol half is the package root, which this builds on and a server can use alone.
- */
+// The stateful client half the framework bindings share; nothing here may import a framework.
 export { type ConfigContext, createConfig } from './config'
 export { createFetch, type FetchContext } from './fetch'
 export { createFlows, type FlowsContext } from './flows'

@@ -3,11 +3,7 @@
 import type { Adapter, Provider } from '@oidcraft/provider'
 import { base64url, decodeJwt, exportJWK, generateKeyPair, SignJWT } from 'jose'
 
-/**
- * A FAPI 2.0 client beside the demo's public ones (FR-C21): it pushes its request with a client
- * assertion and a DPoP proof, and redeems the code with DPoP. A FAPI client is confidential, so it
- * lives here on the server rather than in a browser app. Its keys are this process's own.
- */
+/** A FAPI 2.0 client is confidential, so this one lives on the server, with keys of this process's own (FR-C21). */
 export const FAPI_DEMO_CLIENT_ID = 'fapi-demo'
 
 const ASSERTION_TYPE = 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer'
@@ -69,10 +65,8 @@ const post = async (provider: Provider, path: string, body: Record<string, strin
   )
 }
 
-// state → code_verifier, for the one round trip through the browser.
 const pending = new Map<string, string>()
 
-/** `/fapi-demo` starts the flow; `/fapi-demo/callback` redeems the code and shows what came back. */
 export const fapiDemoRoutes = async (provider: Provider, url: URL) => {
   const { issuer } = provider.config
   if (url.pathname === '/fapi-demo') {

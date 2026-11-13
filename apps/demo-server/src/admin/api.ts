@@ -22,10 +22,7 @@ const realmsApi = async (realms: Realms | undefined, request: Request, id: strin
   return undefined
 }
 
-/**
- * `?realm=acme` points every other endpoint at that realm's management: the admin of one realm is
- * the same admin, aimed elsewhere. Without it, the control plane's own.
- */
+/** `?realm=acme` aims every other endpoint at that realm's management; without it, at the control plane's own. */
 export const adminApi = async (
   provider: Provider,
   realms: Realms | undefined,

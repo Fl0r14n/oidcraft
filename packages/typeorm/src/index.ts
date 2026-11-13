@@ -51,11 +51,7 @@ const upsert = async <T extends object>(
   await repository.createQueryBuilder().insert().values(row).orUpdate(columns, conflict).execute()
 }
 
-/**
- * Insert-if-absent. TypeORM's `orIgnore` does not say whether it wrote, so this inserts and, on a
- * failure, answers false only when the row it collided with is really there — any other error is
- * not a lost race and is rethrown (FR-A3, NFR-S4).
- */
+/** `orIgnore` hides whether it wrote, so a failed insert is a lost race only if `collided` finds the row; else rethrown (FR-A3, NFR-S4). */
 const insertIfAbsent = async <T extends object>(repository: Repository<T>, row: T, collided: () => Promise<boolean>) => {
   try {
     await repository.insert(row as never)
@@ -66,10 +62,7 @@ const insertIfAbsent = async <T extends object>(repository: Repository<T>, row: 
   }
 }
 
-/**
- * The same contract as the Drizzle and Kysely adapters, on the host's TypeORM `DataSource` (FR-A6).
- * The queries are dialect-agnostic; the schema shipped and tested is SQLite's, as for the others.
- */
+/** The Drizzle and Kysely adapters' contract on the host's TypeORM `DataSource` (FR-A6). */
 export const typeormAdapter = (options: TypeormAdapterOptions): FullAdapter => {
   const { dataSource } = options
   const missing = OIDCRAFT_ENTITIES.filter(entity => !dataSource.hasMetadata(entity as EntitySchema))
@@ -171,7 +164,6 @@ export const typeormAdapter = (options: TypeormAdapterOptions): FullAdapter => {
       async list(cursor, limit) {
         const query = clients.createQueryBuilder('c').orderBy('c.client_id')
         if (cursor !== undefined) query.where('c.client_id > :cursor', { cursor })
-        // One more than asked, to know whether another page follows.
         if (limit !== undefined) query.limit(limit + 1)
         const rows = await query.getMany()
         const more = limit !== undefined && rows.length > limit
@@ -211,8 +203,7 @@ export const typeormAdapter = (options: TypeormAdapterOptions): FullAdapter => {
       async upsert(session) {
         await upsert(sessions, sessionRow(session), ['id'])
       },
-      // Compare-and-swap on the list just read, retried when another writer won: two clients
-      // signing in at once must both be recorded (FR-C11).
+      // Compare-and-swap, retried while another writer wins, so concurrent sign-ins are all recorded (FR-C11).
       async addClient(id, clientId) {
         for (let attempt = 0; attempt < 64; attempt++) {
           const row = await sessions.findOne({ where: { id }, select: { clients: true } })

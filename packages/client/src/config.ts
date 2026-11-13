@@ -29,8 +29,6 @@ export const createConfig = (cfg?: OAuthConfig) => {
   const isPathIgnored = (url?: string) => {
     const patterns = oauthConfig().ignorePaths ?? []
     if (!url || !patterns.length) return false
-    // both forms: a pattern is usually written against the path, and the interceptor sees whatever
-    // the caller passed, which is as often absolute as not
     const candidates = [url]
     try {
       candidates.push(new URL(url, 'http://localhost').pathname)
@@ -46,11 +44,7 @@ export const createConfig = (cfg?: OAuthConfig) => {
     }
   }
 
-  /**
-   * RFC 9700 §2.3: a bearer token goes where it is meant for — this page's origin, the provider's,
-   * and the origins the application names — never to whatever URL a call happens to be for (FR-L6).
-   * A relative URL is this page's. No URL is the caller asking for the headers themselves.
-   */
+  // RFC 9700 §2.3, FR-L6: the bearer goes only to this page's origin, the provider's and `resourceOrigins`.
   const isResourceUrl = (url?: string) => {
     if (!url || !URL.canParse(url)) return true
     const { issuerPath, issuer, userPath } = (config() ?? {}) as { issuerPath?: string; issuer?: string; userPath?: string }

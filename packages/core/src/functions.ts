@@ -19,8 +19,7 @@ const form = (fields: Record<string, string | undefined>) => {
   return body
 }
 
-/** RFC 6749 §2.3.1: the Basic variant form-urlencodes each half before the base64, which is the
- * difference between working and not for any secret containing `+`, `/`, `:` or a space. */
+// RFC 6749 §2.3.1: Basic form-urlencodes each half before base64, or a secret with `+`, `/`, `:` or a space fails.
 const credentials = (config: Credentials | undefined) => {
   const { clientId, clientSecret, tokenEndpointAuthMethod = 'client_secret_post' } = config || {}
   if (tokenEndpointAuthMethod === 'none') return { fields: { client_id: clientId }, headers: undefined }
@@ -43,8 +42,7 @@ const request = async (url: string, init?: RequestInit, fetchImpl: OAuthFetch = 
 const post = (url: string, fields: Record<string, string | undefined>, headers?: Record<string, string>) =>
   request(url, { method: 'POST', headers: { ...FORM_HEADERS, ...headers }, body: form(fields) })
 
-/** The secure check sits outside `request`'s catch on purpose, so a misconfigured scheme throws
- * rather than becoming another `undefined` the caller has to guess the cause of. */
+// assertSecure stays outside `request`'s catch, so a misconfigured scheme throws rather than becoming `undefined`.
 const authenticatedPost = (
   url: string,
   fields: Record<string, string | undefined>,
@@ -108,8 +106,7 @@ export const defaultOAuthFunctions: OAuthFunctions = {
     return (token && { ...token, type: OAuthType.RESOURCE }) || undefined
   },
 
-  // OIDC Discovery 1.0 §4.1 defines no query parameters here, and Entra answers a `client_id` with
-  // AADSTS1004008 rather than a document
+  // OIDC Discovery 1.0 §4.1 defines no query parameters; Entra answers a `client_id` with AADSTS1004008
   openIdConfiguration: async config => {
     const { issuerPath, allowInsecure } = config || {}
     if (!issuerPath) return undefined
@@ -121,7 +118,6 @@ export const defaultOAuthFunctions: OAuthFunctions = {
     const { userPath, allowInsecure } = config || {}
     if (!userPath) return undefined
     assertSecure(userPath, allowInsecure)
-    // the instance's authorized fetch by default, so the bearer is attached
     return (await request(userPath, { headers: { Accept: 'application/json' } }, oauthFetch)) || undefined
   },
 

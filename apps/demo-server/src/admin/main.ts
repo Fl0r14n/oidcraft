@@ -16,7 +16,6 @@ app.use(
 )
 app.provide(BRAND, { name: 'oidcraft admin', host: location.host })
 
-// The OP sends the browser back here with a code; exchange it before the app decides what to show.
 if (location.pathname === '/admin/callback') {
   await app.runWithContext(() => useOAuth().oauthCallback(location.href))
   history.replaceState(null, '', '/admin')

@@ -13,10 +13,7 @@ import type { Site } from './site'
 import { openStorage, storageLocation } from './storage'
 import { upstreams } from './upstreams'
 
-/**
- * Development generates a key per process, so every restart signs everyone out. Production supplies
- * OIDCRAFT_JWKS and rotates by prepending (FR-C10, NFR-S7).
- */
+// Production supplies OIDCRAFT_JWKS and rotates by prepending (FR-C10, NFR-S7).
 const keys = () => {
   const raw = optional('OIDCRAFT_JWKS')
   if (!raw) {
@@ -32,8 +29,6 @@ const storage = await openStorage({ keys: keys() })
 export const accounts = createDemoAccounts(storage, optional('OIDCRAFT_BRAND_NAME') ?? 'oidcraft')
 await seedDemoAccounts(accounts, storage)
 
-// The FAPI conformance run asks consent on every authorization, so the module in which the user refuses
-// always has a screen to refuse on, whatever session the module before it left (conformance/README.md).
 const forgetConsent = optional('OIDCRAFT_FORGET_CONSENT') === 'on'
 if (forgetConsent && storageLocation() !== 'memory') {
   // A fresh consent writes a second grant for the pair, which the SQL schemas' unique index refuses.
@@ -59,8 +54,7 @@ await seedFapiConformanceClients(adapter)
 await seedFapiDemoClient(adapter, issuer())
 await seedMcpResourceServer(adapter)
 
-// OIDCRAFT_PROFILE=fapi2 puts every client under FAPI 2.0, as its conformance plan expects (FR-C21).
-// Off, only the FAPI demo client is, beside the public ones.
+// OIDCRAFT_PROFILE=fapi2 puts every client under FAPI 2.0 for its conformance plan; off, only the FAPI demo client (FR-C21).
 const profile = optional('OIDCRAFT_PROFILE')
 
 export const provider = createProvider({
@@ -70,13 +64,12 @@ export const provider = createProvider({
   interactionUrl: `${issuer()}/interaction`,
   // Descriptors only: the admin API lists these, and an upstream's client secret is not for it.
   upstreams: upstreams.map(({ id, label, domains }) => ({ id, ...(label && { label }), ...(domains && { domains }) })),
-  // The reference deployment turns these on so the screens below have something to drive.
   features: { deviceFlow: true, pushedAuthorizationRequests: true, dpop: true, dynamicRegistration: mcpEnabled },
   // An MCP client registers itself, or names a metadata document it serves (FR-C9, FR-C20).
   ...(mcpEnabled && { resources: mcpResources(), resolveClientMetadata })
 })
 
-/** The issuer at OIDCRAFT_ISSUER. With realms on, it is the control plane the operator signs in through. */
+/** With realms on, the control plane the operator signs in through. */
 export const control: Site = { provider, accounts, screens, brokering: upstreams.length > 0 }
 
 export { adapter as controlAdapter }

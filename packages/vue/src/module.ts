@@ -37,7 +37,7 @@ export const getActiveOAuth = (): OAuth => {
 }
 
 export const createOAuth = (cfg?: OAuthConfig): OAuth => {
-  // inert until the scope is running, so the refs below exist before anything can fire into them
+  // inert until the scope runs, so the refs exist before anything fires into them
   const core = createCoreOAuth({ ...cfg, autoStart: false })
   const scope = effectScope(true)
   return scope.run(() => {
@@ -48,8 +48,6 @@ export const createOAuth = (cfg?: OAuthConfig): OAuth => {
     const user = storeRef(core.userStore, core.user)
     const state = storeRef(core.stateStore, core.state)
 
-    // one derivation for all seven, from the same pure function the other bindings use, so what Vue
-    // renders and what `core.status()` answers cannot disagree
     const derived = computed(() => tokenState(token.value))
 
     onScopeDispose(() => core.dispose())
@@ -89,31 +87,12 @@ export const createOAuth = (cfg?: OAuthConfig): OAuth => {
       autoconfigOauth: core.autoconfigOauth
     }
     return oauth
-    // a freshly created detached scope is always active, so run() cannot return undefined here
   }) as OAuth
 }
 
 /**
- * Stops the instance installed in `app`.
- *
- * `createOAuth` opens a **detached** effect scope, so the subscriptions it holds — the refresh
- * watcher, the user watchers, the cross-tab storage listener — are owned by no component and nothing
- * stops them for you. On the client that is what you want: one instance, alive as long as the page.
- *
- * Under SSR it is the opposite. One instance per request keeps requests isolated, and a render that
- * never disposes leaks that request's subscriptions and its token graph for the lifetime of the
- * process. Call this in a `finally`, so a render that throws still cleans up:
- *
- * ```ts
- * try {
- *   return await renderToString(app)
- * } finally {
- *   disposeOAuth(app)
- * }
- * ```
- *
- * This is the only reason to reach an instance through an app rather than holding what `createOAuth()`
- * returned, which is why it exists as a named operation.
+ * Stops the instance installed in `app`. Its effect scope is detached, so nothing else stops it: under SSR, call this
+ * in a `finally` after each render.
  */
 export const disposeOAuth = (app: App) => {
   app.runWithContext(() => getActiveOAuth()).dispose()

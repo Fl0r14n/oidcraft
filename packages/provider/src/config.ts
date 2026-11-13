@@ -112,9 +112,8 @@ export type ProviderConfig = {
   issuer: string
   adapter: Adapter
   /**
-   * The FAPI 2.0 Security Profile for every client (FR-C21). Off, a client opts in by its own
-   * `profile`. Either way it is one switch: the provider refuses what the profile forbids, and the
-   * refresh tokens of its clients do not rotate (FR-T3).
+   * The FAPI 2.0 Security Profile for every client (FR-C21); unset, a client opts in by its own `profile`. Either way
+   * the provider refuses what the profile forbids, and its clients' refresh tokens do not rotate (FR-T3).
    */
   profile?: 'fapi2'
 
@@ -145,11 +144,7 @@ export type ProviderConfig = {
    * know which impersonation a deployment considers legitimate (FR-C2, RFC 8693).
    */
   exchangePolicy?: ExchangePolicy
-  /**
-   * Turns a CIBA hint into an account. No default: the client never touches the user's browser, so
-   * identifying them is entirely the provider's problem and guessing would be inventing an
-   * authentication decision (FR-C17).
-   */
+  /** Turns a CIBA hint into an account. No default: guessing which hint means which account would invent an authentication (FR-C17). */
   resolveCibaUser?: (input: {
     client: Client
     hint: { kind: string; value: string }
@@ -192,17 +187,14 @@ export type ProviderConfig = {
    * Fetches the metadata document behind an `https` client_id (FR-C20), or undefined to refuse it.
    * Yours because it is outbound I/O to a URL a stranger chose (FR-A1): block private addresses,
    * cap the body at a few kilobytes, honour HTTP caching, apply any trust policy. oidcraft checks
-   * what comes back. Without it, such client ids are unknown, as they always were.
+   * what comes back. Without it, such client ids are unknown.
    */
   resolveClientMetadata?: (clientId: string) => Promise<unknown>
   /**
-   * Gates open registration — an initial access token, a software statement, a rate limit. Throwing
-   * an OAuthError refuses the registration. Without it, and with the feature on, anyone may
-   * register a client (FR-C9). Returning `{ requirePkce: false }` is the host vouching for a
-   * confidential client, the only way a dynamic one is exempted from PKCE (FR-C3).
-   *
-   * An RFC 7592 update runs it too, with `existing` set: the new metadata needs the same vetting,
-   * and its `Authorization` header carries the registration access token, not an initial one.
+   * Gates open registration: an initial access token, a software statement, a rate limit. Throwing an OAuthError
+   * refuses it; without it, and with the feature on, anyone may register (FR-C9). `{ requirePkce: false }` vouches
+   * for a confidential client, the only PKCE exemption for a dynamic one (FR-C3). An RFC 7592 update runs it too,
+   * with `existing` set and the registration access token in its `Authorization` header.
    */
   onRegister?: (
     request: Request,
@@ -285,10 +277,7 @@ const DEFAULT_CLIENT_AUTH: ClientAuthMethod[] = [
   'none'
 ]
 
-/**
- * The route a request is for. An issuer with a path (`https://x/auth`) publishes `/auth/token`; a
- * host that mounted the provider under that prefix may already have stripped it, so both resolve.
- */
+// An issuer path prefix may or may not already be stripped by the host that mounted the provider, so both resolve.
 export const routePath = (config: ResolvedConfig, pathname: string) => {
   const base = config.issuerUrl.pathname.replace(/\/$/, '')
   return base && pathname.startsWith(`${base}/`) ? pathname.slice(base.length) : pathname

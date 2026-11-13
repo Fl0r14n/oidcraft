@@ -12,10 +12,7 @@ export const publicJwk = (jwk: JWK) => {
   return out
 }
 
-/**
- * The signing key for an algorithm is the first active key that declares it; the rest only verify,
- * so rotating by prepending a key never invalidates a token already in flight (FR-C10, NFR-S7).
- */
+// The first active key per algorithm signs, so rotating by prepending never invalidates a token in flight (FR-C10, NFR-S7).
 export const signingKey = (keys: ActiveKey[], alg: string) => keys.find(key => key.alg === alg)
 
 export const signingAlgorithms = (keys: ActiveKey[]) => [...new Set(keys.map(key => key.alg))]

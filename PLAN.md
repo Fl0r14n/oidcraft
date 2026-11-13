@@ -5,7 +5,7 @@ This file is working state: tick items off and add notes as work lands.
 
 ## Status
 
-**Implemented, as of 2026-11-13**, with 1205 passing tests (194 more skip without Postgres and Redis) and `bun run verify` as the gate — everything
+**Implemented, as of 2026-11-13**, with 1206 passing tests (194 more skip without Postgres and Redis) and `bun run verify` as the gate — everything
 below, FR-T6, FR-C21 and FR-A4's Postgres included. Published as `@oidcraft/*` (the move below), with
 the docs site at https://fl0r14n.github.io/oidcraft/. Items 1–11 under _Next_ are done; item 12, the
 2026-11-12 review, is open, and until its security findings are fixed this is not a provider to put
@@ -510,10 +510,14 @@ text it is held to. In fix order.
   shapes and CIBA's request-or-answer narrow on their own fields. `./broker` and `./accounts` are
   entries of their own that reach the provider by name, so the hand-off keeps one cast and the reset
   token, with an empty payload, needs none. `resolveAccessToken` now returns the typed record
-- [ ] Device and CIBA are one state machine written twice: poll, slow-down, approve, deny. The
+- [x] Device and CIBA are one state machine written twice: poll, slow-down, approve, deny. The
   grant merge is written three times (`interactions.ts:136`, `device.ts:202`, `ciba.ts:196`), and
   `device.ts:200` rewrites `session.clients` rather than calling the atomic `addClient`
-  The grant merge is now `recordConsent` and the device approval calls `addClient`; the state machine is still twice
+  Fixed: `authorize/decoupled.ts` is the state machine — the poll clock, the answer as a record of its
+  own, single-use redemption, approval through `checkApproval` and `recordConsent` — and each flow is
+  a `Flow` naming where its request and answer live. CIBA now puts the client on the approving session
+  at approval, as the device flow did; both use `addClient`. The token endpoint's descriptions are
+  shared, so a device's say "the user declined" where they said "the request was denied"
 - [ ] Signing is written four times — ID token, JWT access token, UserInfo, logout token — each
   reading the key store again. One `signerFor(config, client, alg?)`, one key read per response
 - [ ] Duplicates: the client key set in `assertion.ts` and `request-object.ts`; the DPoP options in

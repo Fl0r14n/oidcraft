@@ -1,7 +1,8 @@
 import type { Artifact, ArtifactKind, ArtifactStore } from '@oidcraft/adapter'
 import type { AuthorizationRequest, ResponseTarget } from './authorize/authorization'
-import type { CibaAnswer, CibaPayload } from './authorize/ciba'
-import type { DeviceDecision, DevicePayload } from './authorize/device'
+import type { CibaPayload } from './authorize/ciba'
+import type { Answer } from './authorize/decoupled'
+import type { DevicePayload } from './authorize/device'
 import type { Handoff } from './broker/types'
 
 export type Confirmation = { jkt?: string; 'x5t#S256'?: string }
@@ -67,10 +68,10 @@ export type Payloads = {
   refresh_token: RefreshTokenPayload
   device_code: DevicePayload
   /** The person's answer to a device request, under its user code. */
-  user_code: DeviceDecision
+  user_code: Answer
   pushed_authorization_request: { params: string }
   /** The request, and the person's answer beside it under `<auth_req_id>:answer`. */
-  backchannel_authentication_request: CibaPayload | CibaAnswer
+  backchannel_authentication_request: CibaPayload | Answer
   registration_access_token: Empty
   authorization_details_consent: Empty
   dpop_nonce: Empty

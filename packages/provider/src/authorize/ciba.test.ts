@@ -287,6 +287,20 @@ describe('resolution', () => {
   test('an unknown request is refused', async () => {
     expect(provider.ciba.resolve('nope', { denied: true })).rejects.toThrow(/unknown or expired/)
   })
+
+  // FR-C11, as for the device flow: ending the approving session reaches the client about to hold its tokens.
+  test('approving puts the client on the session', async () => {
+    const { auth_req_id } = await (await start()).json()
+    await adapter.sessions.upsert({
+      id: 's2',
+      accountId: 'ada',
+      authTime: new Date(),
+      clients: [],
+      expiresAt: new Date(Date.now() + 60_000)
+    })
+    await provider.ciba.resolve(auth_req_id, { accountId: 'ada', sessionId: 's2', scopes: ['openid', 'profile', 'payments'] })
+    expect((await adapter.sessions.find('s2'))?.clients).toEqual(['bank'])
+  })
 })
 
 describe('discovery', () => {

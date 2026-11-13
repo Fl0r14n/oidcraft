@@ -5,9 +5,8 @@ import type { ResolvedConfig } from '../config'
 import type { ClientCertificate } from '../context'
 import { OAuthError } from '../errors'
 import { readArtifact, readByUserCode, type Stored, writeArtifact } from '../payloads'
-import { type Binding, issueTokens } from '../token/issue'
-import { checkApproval } from './approval'
-import { recordConsent } from './consent'
+import type { Binding } from '../token/issue'
+import { type Approval, answer, answered, DEFAULT_INTERVAL, type Flow, type Polled, redeem } from './decoupled'
 
 /**
  * Base32 without the characters a person misreads aloud or in a bad font: no 0/O, 1/I/L, U (which
@@ -26,8 +25,6 @@ export const userCode = () => {
 }
 
 export const normalizeUserCode = (input: string) => input.toUpperCase().replace(/[^A-Z0-9]/g, '')
-
-const DEFAULT_INTERVAL = 5
 
 export const deviceAuthorizationEndpoint = async (
   config: ResolvedConfig,
@@ -73,86 +70,37 @@ export const deviceAuthorizationEndpoint = async (
   )
 }
 
-export type DevicePayload = {
-  userCode: string
-  scopes: string[]
-  status: 'pending' | 'approved' | 'denied'
-  interval: number
-  accountId?: string
-  sessionId?: string
-  grantId?: string
-  lastPolledAt?: number
-}
-
-export type DeviceDecision = Pick<DevicePayload, 'status' | 'scopes' | 'accountId' | 'sessionId' | 'grantId'>
+export type DevicePayload = Polled & { userCode: string }
 
 /**
  * The person's answer is its own record, under the user code: the device code is stored hashed, so
  * the record a user code finds cannot be written back (NFR-S11), and a poll rewriting its own read
  * cannot undo an answer that is somewhere else (FR-C7). It must not carry `userCode`, which adapters index.
  */
-const decisionFor = async (config: ResolvedConfig, userCode: string) =>
-  (await readArtifact(config.adapter.artifacts, 'user_code', userCode))?.payload
-
-const decide = (config: ResolvedConfig, request: Stored<'device_code'>, decision: DeviceDecision) =>
-  writeArtifact(config.adapter.artifacts, {
-    id: request.payload.userCode,
-    kind: 'user_code',
-    clientId: request.clientId,
-    ...(decision.accountId && { accountId: decision.accountId }),
-    payload: decision,
-    expiresAt: request.expiresAt
-  })
-
-const payloadOf = async (config: ResolvedConfig, artifact: Stored<'device_code'>): Promise<DevicePayload> => ({
-  ...artifact.payload,
-  ...(await decisionFor(config, artifact.payload.userCode))
-})
-
-/**
- * The device polls this; a person approves it elsewhere. Slow-down is enforced here rather than
- * trusted to the device, because a device that ignores `interval` is exactly the one to rate-limit
- * (RFC 8628 §3.5).
- */
-const consumeDeviceCode = async (config: ResolvedConfig, deviceCode: string, clientId: string) => {
-  const artifact = await readArtifact(config.adapter.artifacts, 'device_code', deviceCode)
-  if (!artifact) throw new OAuthError('expired_token', { description: 'the device code is unknown or expired', spec: 'RFC 8628 §3.5' })
-  if (artifact.clientId !== clientId)
-    throw new OAuthError('invalid_grant', { description: 'this device code belongs to another client', spec: 'RFC 6749 §5.2' })
-  if (artifact.consumedAt)
-    throw new OAuthError('invalid_grant', { description: 'this device code was already redeemed', spec: 'RFC 8628 §3.5' })
-
-  const requested = artifact.payload
-  const now = Date.now()
-  const since = requested.lastPolledAt ? (now - requested.lastPolledAt) / 1000 : Number.POSITIVE_INFINITY
-
-  const slowDown = since < requested.interval
-  const polled = { ...requested, lastPolledAt: now, interval: requested.interval + (slowDown ? DEFAULT_INTERVAL : 0) }
-  await writeArtifact(config.adapter.artifacts, { ...artifact, payload: polled })
-  if (slowDown) {
-    throw new OAuthError('slow_down', { description: `poll no more often than every ${polled.interval} seconds`, spec: 'RFC 8628 §3.5' })
-  }
-
-  const payload = await payloadOf(config, artifact)
-
-  if (payload.status === 'denied') throw new OAuthError('access_denied', { description: 'the request was denied', spec: 'RFC 8628 §3.5' })
-  if (payload.status === 'pending')
-    throw new OAuthError('authorization_pending', { description: 'the user has not finished yet', spec: 'RFC 8628 §3.5' })
-
-  // Single-use: approval redeems once, however many times the device polls (NFR-S4).
-  if (!(await config.adapter.artifacts.consume('device_code', deviceCode))) {
-    throw new OAuthError('invalid_grant', { description: 'this device code was already redeemed', spec: 'RFC 8628 §3.5' })
-  }
-  await config.adapter.artifacts.destroy('device_code', deviceCode)
-  await config.adapter.artifacts.destroy('user_code', requested.userCode)
-  return { artifact, payload }
+const deviceFlow: Flow<Stored<'device_code'>, DevicePayload> = {
+  kind: 'device_code',
+  noun: 'device code',
+  spec: 'RFC 8628 §3.5',
+  async load(config, id) {
+    const request = await readArtifact(config.adapter.artifacts, 'device_code', id)
+    return request && { request, requested: request.payload }
+  },
+  keepClock: (config, request, polled) => writeArtifact(config.adapter.artifacts, { ...request, payload: polled }),
+  readAnswer: async (config, _request, requested) =>
+    (await readArtifact(config.adapter.artifacts, 'user_code', requested.userCode))?.payload,
+  writeAnswer: (config, request, requested, answer) =>
+    writeArtifact(config.adapter.artifacts, {
+      id: requested.userCode,
+      kind: 'user_code',
+      clientId: request.clientId,
+      ...(answer.accountId && { accountId: answer.accountId }),
+      payload: answer,
+      expiresAt: request.expiresAt
+    }),
+  destroyAnswer: (config, _request, requested) => config.adapter.artifacts.destroy('user_code', requested.userCode)
 }
 
-export type DeviceApproval = {
-  accountId: string
-  sessionId: string
-  scopes: string[]
-}
+export type DeviceApproval = Exclude<Approval, { denied: true }>
 
 const ATTEMPT_WINDOW_SECONDS = 600
 const MAX_FAILURES = 5
@@ -194,7 +142,7 @@ export const findByUserCode = async (config: ResolvedConfig, typed: string, cont
     await recordFailure()
     return undefined
   }
-  const payload = await payloadOf(config, artifact)
+  const payload = await answered(config, deviceFlow, artifact, artifact.payload)
   const client = await config.adapter.clients.find(artifact.clientId)
   return client ? { artifact, payload, client } : undefined
 }
@@ -212,27 +160,8 @@ export const resolveDeviceCode = async (
     throw new OAuthError('invalid_request', { description: 'that code has already been answered', status: 409, spec: 'FR-C7' })
   }
 
-  if ('denied' in outcome) {
-    await decide(config, found.artifact, { status: 'denied', scopes: found.payload.scopes })
-    return { approved: false as const, client: found.client }
-  }
-
-  const scopes = await checkApproval(config, found.payload.scopes, outcome)
-  const session = await config.adapter.sessions.find(outcome.sessionId)
-  // The device now holds tokens from this session, so ending it must reach the device too (FR-C11).
-  if (session && !session.clients.includes(found.artifact.clientId)) {
-    await config.adapter.sessions.addClient(session.id, found.artifact.clientId)
-  }
-  const grant = await recordConsent(config, outcome.accountId, found.artifact.clientId, scopes)
-
-  await decide(config, found.artifact, {
-    status: 'approved',
-    scopes,
-    accountId: outcome.accountId,
-    sessionId: outcome.sessionId,
-    grantId: grant.id
-  })
-  return { approved: true as const, client: found.client }
+  const approved = await answer(config, deviceFlow, found.artifact, found.artifact.payload, outcome)
+  return { approved, client: found.client }
 }
 
 /**
@@ -261,15 +190,5 @@ export const deviceSignIn = async (config: ResolvedConfig, typed: string, contex
 export const deviceCodeGrant = async (config: ResolvedConfig, client: Client, form: URLSearchParams, binding: Binding) => {
   const deviceCode = form.get('device_code')
   if (!deviceCode) throw new OAuthError('invalid_request', { description: 'device_code is required', spec: 'RFC 8628 §3.4' })
-
-  const { payload } = await consumeDeviceCode(config, deviceCode, client.clientId)
-  if (!payload.grantId || !payload.sessionId)
-    throw new OAuthError('invalid_grant', { description: 'this device code was never approved', spec: 'RFC 6749 §5.2' })
-
-  const grant = await config.adapter.grants.find(payload.grantId)
-  const session = await config.adapter.sessions.find(payload.sessionId)
-  if (!grant || !session)
-    throw new OAuthError('invalid_grant', { description: 'the grant or session behind this device code is gone', spec: 'RFC 6749 §5.2' })
-
-  return issueTokens(config, client, grant, session, payload.scopes, { familyId: randomString(), binding })
+  return redeem(config, deviceFlow, deviceCode, client, binding)
 }

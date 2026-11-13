@@ -5,31 +5,19 @@ import type { ResolvedConfig } from '../config'
 import type { ClientCertificate } from '../context'
 import { OAuthError } from '../errors'
 import { readArtifact, type Stored, writeArtifact } from '../payloads'
-import { type Binding, issueTokens } from '../token/issue'
-import { checkApproval } from './approval'
-import { recordConsent } from './consent'
+import type { Binding } from '../token/issue'
+import { answer, answered, DEFAULT_INTERVAL, type Flow, type Polled, redeem } from './decoupled'
 
 export const CIBA_GRANT = 'urn:openid:params:grant-type:ciba'
 
-const DEFAULT_INTERVAL = 5
-
-export type CibaPayload = {
-  scopes: string[]
-  status: 'pending' | 'approved' | 'denied'
-  interval: number
+export type CibaPayload = Polled & {
   mode: 'poll' | 'ping'
   bindingMessage?: string
   clientNotificationToken?: string
   notificationEndpoint?: string
-  accountId?: string
-  sessionId?: string
-  grantId?: string
-  lastPolledAt?: number
 }
 
 const KIND = 'backchannel_authentication_request'
-
-export type CibaAnswer = Pick<CibaPayload, 'status' | 'scopes' | 'accountId' | 'sessionId' | 'grantId'>
 
 /**
  * The person's answer is a record of its own, beside the request: a poll rewrites the request it
@@ -37,26 +25,28 @@ export type CibaAnswer = Pick<CibaPayload, 'status' | 'scopes' | 'accountId' | '
  */
 const answerId = (authReqId: string) => `${authReqId}:answer`
 
-const answer = (config: ResolvedConfig, request: Stored<typeof KIND>, payload: CibaAnswer) =>
-  writeArtifact(config.adapter.artifacts, {
-    id: answerId(request.id),
-    kind: KIND,
-    clientId: request.clientId,
-    ...(payload.accountId && { accountId: payload.accountId }),
-    payload,
-    expiresAt: request.expiresAt
-  })
-
-/** A request, never an answer: the answer's id is the request's with a suffix no presented id carries. */
-const findRequest = async (config: ResolvedConfig, authReqId: string) => {
-  const artifact = await readArtifact(config.adapter.artifacts, KIND, authReqId)
-  return artifact && 'mode' in artifact.payload ? { artifact, requested: artifact.payload } : undefined
+const cibaFlow: Flow<Stored<typeof KIND>, CibaPayload> = {
+  kind: KIND,
+  noun: 'auth_req_id',
+  spec: 'OIDC CIBA 1.0 §11',
+  /** A request, never an answer: the answer's id is the request's with a suffix no presented id carries. */
+  async load(config, id) {
+    const request = await readArtifact(config.adapter.artifacts, KIND, id)
+    return request && 'mode' in request.payload ? { request, requested: request.payload } : undefined
+  },
+  keepClock: (config, request, polled) => writeArtifact(config.adapter.artifacts, { ...request, payload: polled }),
+  readAnswer: async (config, request) => (await readArtifact(config.adapter.artifacts, KIND, answerId(request.id)))?.payload,
+  writeAnswer: (config, request, _requested, answer) =>
+    writeArtifact(config.adapter.artifacts, {
+      id: answerId(request.id),
+      kind: KIND,
+      clientId: request.clientId,
+      ...(answer.accountId && { accountId: answer.accountId }),
+      payload: answer,
+      expiresAt: request.expiresAt
+    }),
+  destroyAnswer: (config, request) => config.adapter.artifacts.destroy(KIND, answerId(request.id))
 }
-
-const payloadOf = async (config: ResolvedConfig, authReqId: string, requested: CibaPayload): Promise<CibaPayload> => ({
-  ...requested,
-  ...(await readArtifact(config.adapter.artifacts, KIND, answerId(authReqId)))?.payload
-})
 
 /**
  * Client-Initiated Backchannel Authentication.
@@ -150,43 +140,6 @@ export const backchannelAuthenticationEndpoint = async (
   )
 }
 
-/** The same slow-down discipline as the device flow: the provider enforces it (OIDC CIBA 1.0 §11). */
-const consumeAuthReqId = async (config: ResolvedConfig, authReqId: string, clientId: string) => {
-  const found = await findRequest(config, authReqId)
-  if (!found) throw new OAuthError('expired_token', { description: 'that auth_req_id is unknown or expired', spec: 'OIDC CIBA 1.0 §11' })
-  const { artifact, requested } = found
-  if (artifact.clientId !== clientId)
-    throw new OAuthError('invalid_grant', { description: 'that auth_req_id belongs to another client', spec: 'OIDC CIBA 1.0 §11' })
-  if (artifact.consumedAt)
-    throw new OAuthError('invalid_grant', { description: 'that auth_req_id was already redeemed', spec: 'OIDC CIBA 1.0 §11' })
-
-  // OIDC CIBA 1.0 §10.2: a ping client redeems with the same request a poll client makes.
-  const now = Date.now()
-  const since = requested.lastPolledAt ? (now - requested.lastPolledAt) / 1000 : Number.POSITIVE_INFINITY
-  const slowDown = since < requested.interval
-  const polled = { ...requested, lastPolledAt: now, interval: requested.interval + (slowDown ? DEFAULT_INTERVAL : 0) }
-  await writeArtifact(config.adapter.artifacts, { ...artifact, payload: polled })
-  if (slowDown) {
-    throw new OAuthError('slow_down', {
-      description: `poll no more often than every ${polled.interval} seconds`,
-      spec: 'OIDC CIBA 1.0 §11'
-    })
-  }
-
-  const payload = await payloadOf(config, authReqId, requested)
-
-  if (payload.status === 'denied') throw new OAuthError('access_denied', { description: 'the user declined', spec: 'OIDC CIBA 1.0 §11' })
-  if (payload.status === 'pending')
-    throw new OAuthError('authorization_pending', { description: 'the user has not answered yet', spec: 'OIDC CIBA 1.0 §11' })
-
-  if (!(await config.adapter.artifacts.consume(KIND, authReqId))) {
-    throw new OAuthError('invalid_grant', { description: 'that auth_req_id was already redeemed', spec: 'OIDC CIBA 1.0 §11' })
-  }
-  await config.adapter.artifacts.destroy(KIND, authReqId)
-  await config.adapter.artifacts.destroy(KIND, answerId(authReqId))
-  return { artifact, payload }
-}
-
 /**
  * A ping for the host to deliver (OIDC CIBA 1.0 §10.2): POST `{"auth_req_id": authReqId}` as JSON
  * to `uri`, with `Authorization: Bearer <clientNotificationToken>`. The core does no I/O (FR-A1).
@@ -207,46 +160,21 @@ export type CibaDecision = { accountId: string; sessionId: string; scopes: strin
 
 /** What the out-of-band channel calls once the person has answered on their own device. */
 export const resolveBackchannelRequest = async (config: ResolvedConfig, authReqId: string, outcome: CibaDecision) => {
-  const found = await findRequest(config, authReqId)
+  const found = await cibaFlow.load(config, authReqId)
   if (!found) throw new OAuthError('invalid_request', { description: 'that request is unknown or expired', status: 404, spec: 'FR-C17' })
-  const { artifact } = found
-  const payload = await payloadOf(config, authReqId, found.requested)
+  const { request, requested } = found
+  const payload = await answered(config, cibaFlow, request, requested)
   if (payload.status !== 'pending')
     throw new OAuthError('invalid_request', { description: 'that request was already answered', status: 409, spec: 'FR-C17' })
 
-  if ('denied' in outcome) {
-    await answer(config, artifact, { status: 'denied', scopes: payload.scopes })
-    // §10.2: a denial is pinged too; the client learns it from the token request that follows.
-    return { approved: false as const, ping: pingFor(artifact, payload) }
-  }
-
   // CIBA §7.1: the request named a user; an approval by anyone else is not an answer to it.
-  const scopes = await checkApproval(config, payload.scopes, outcome, artifact.accountId)
-  const grant = await recordConsent(config, outcome.accountId, artifact.clientId, scopes)
-
-  await answer(config, artifact, {
-    status: 'approved',
-    scopes,
-    accountId: outcome.accountId,
-    sessionId: outcome.sessionId,
-    grantId: grant.id
-  })
-
-  return { approved: true as const, ping: pingFor(artifact, payload) }
+  const approved = await answer(config, cibaFlow, request, requested, outcome, request.accountId)
+  // §10.2: a denial is pinged too; the client learns it from the token request that follows.
+  return { approved, ping: pingFor(request, payload) }
 }
 
 export const cibaGrant = async (config: ResolvedConfig, client: Client, form: URLSearchParams, binding: Binding) => {
   const authReqId = form.get('auth_req_id')
   if (!authReqId) throw new OAuthError('invalid_request', { description: 'auth_req_id is required', spec: 'OIDC CIBA 1.0 §10.1' })
-
-  const { payload } = await consumeAuthReqId(config, authReqId, client.clientId)
-  if (!payload.grantId || !payload.sessionId)
-    throw new OAuthError('invalid_grant', { description: 'that request was never approved', spec: 'OIDC CIBA 1.0 §11' })
-
-  const grant = await config.adapter.grants.find(payload.grantId)
-  const session = await config.adapter.sessions.find(payload.sessionId)
-  if (!grant || !session)
-    throw new OAuthError('invalid_grant', { description: 'the grant or session behind that request is gone', spec: 'OIDC CIBA 1.0 §11' })
-
-  return issueTokens(config, client, grant, session, payload.scopes, { familyId: randomString(), binding })
+  return redeem(config, cibaFlow, authReqId, client, binding)
 }

@@ -61,7 +61,8 @@ export const verifyClientAssertion = async (config: ResolvedConfig, client: Clie
   if (remaining > MAX_LIFETIME + SKEW) throw unauthorized(`a client assertion may not live longer than ${MAX_LIFETIME} seconds`)
 
   // NFR-S5: remembered for as long as the assertion verifies, or it is replayable once forgotten.
-  if (!(await config.adapter.replay.claim('client-assertion', jti, remaining + SKEW))) {
+  // Past exp by up to FAPI's tolerance it still verifies, so it is remembered for that long too.
+  if (!(await config.adapter.replay.claim('client-assertion', jti, Math.max(remaining, 0) + (fapi ? FAPI_IAT_SKEW : 0) + SKEW))) {
     throw unauthorized('this client assertion has already been used')
   }
 

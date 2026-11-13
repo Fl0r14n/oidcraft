@@ -15,19 +15,22 @@ import { assertFamilyLive, revokeFamily } from './family'
 import { type Binding, issueTokens, loadGrantAndSession, loadGrantAndSignIn } from './issue'
 
 // A replay means it leaked: revoke its family, not the grant's others (FR-T3, FR-T4, NFR-S4, RFC 9700 §4.14.2).
-const revokeOnReplay = async (config: ResolvedConfig, artifact: SingleUse, what: string) => {
+// FR-M3: reported by the side that presented the replay; the redemption it raced loses its tokens without a second report.
+const revokeOnReplay = async (config: ResolvedConfig, artifact: SingleUse, what: string, presentedBy: string | undefined) => {
   await replayed(config, artifact)
   await revokeFamily(config, artifact)
   throw new OAuthError('invalid_grant', {
     description: `this ${what} was already used; every token issued from it has been revoked`,
     spec: 'RFC 9700 §4.14.2',
-    event: {
-      action: 'token.replay',
-      clientId: artifact.clientId,
-      ...(artifact.accountId && { accountId: artifact.accountId }),
-      ...(artifact.grantId && { grantId: artifact.grantId }),
-      detail: { kind: artifact.kind, ...(artifact.familyId && { familyId: artifact.familyId }) }
-    }
+    ...(presentedBy !== undefined && {
+      event: {
+        action: 'token.replay',
+        clientId: artifact.clientId,
+        ...(artifact.accountId && { accountId: artifact.accountId }),
+        ...(artifact.grantId && { grantId: artifact.grantId }),
+        detail: { kind: artifact.kind, presentedBy, ...(artifact.familyId && { familyId: artifact.familyId }) }
+      }
+    })
   })
 }
 
@@ -40,7 +43,7 @@ const replayed = async (config: ResolvedConfig, artifact: SingleUse) =>
 
 /** NFR-S4: tokens written after a concurrent replay revoked the family must not outlive it. */
 const unlessReplayed = async <T>(config: ResolvedConfig, artifact: SingleUse, what: string, tokens: T) => {
-  if (await replayed(config, artifact)) await revokeOnReplay(config, artifact, what)
+  if (await replayed(config, artifact)) await revokeOnReplay(config, artifact, what, undefined)
   return tokens
 }
 
@@ -51,11 +54,11 @@ export const authorizationCodeGrant = async (config: ResolvedConfig, client: Cli
   const artifact = await readArtifact(config.adapter.artifacts, 'authorization_code', code)
   if (!artifact)
     throw new OAuthError('invalid_grant', { description: 'the authorization code is unknown or expired', spec: 'RFC 6749 §5.2' })
-  if (artifact.consumedAt) await revokeOnReplay(config, artifact, 'authorization code')
+  if (artifact.consumedAt) await revokeOnReplay(config, artifact, 'authorization code', client.clientId)
 
   // The code was issued to one client; another presenting it is theft, not a mistake.
   if (artifact.clientId !== client.clientId) {
-    await revokeOnReplay(config, artifact, 'authorization code presented by the wrong client')
+    await revokeOnReplay(config, artifact, 'authorization code presented by the wrong client', client.clientId)
   }
 
   const redirectUri = form.get('redirect_uri')
@@ -80,7 +83,8 @@ export const authorizationCodeGrant = async (config: ResolvedConfig, client: Cli
   await verifyChallenge(form.get('code_verifier'), artifact.payload.codeChallenge)
   const audience = audienceFor(requestedResources(config, form), artifact.payload.resources ?? [])
   // The read above can be stale by now; only the atomic consume decides who redeemed it (NFR-S4).
-  if (!(await config.adapter.artifacts.consume('authorization_code', code))) await revokeOnReplay(config, artifact, 'authorization code')
+  if (!(await config.adapter.artifacts.consume('authorization_code', code)))
+    await revokeOnReplay(config, artifact, 'authorization code', client.clientId)
 
   const { grant, session } = await loadGrantAndSession(config, artifact)
   const familyId = artifact.familyId ?? randomString()
@@ -104,8 +108,9 @@ export const refreshTokenGrant = async (config: ResolvedConfig, client: Client, 
 
   const artifact = await readArtifact(config.adapter.artifacts, 'refresh_token', presented)
   if (!artifact) throw new OAuthError('invalid_grant', { description: 'the refresh token is unknown or expired', spec: 'RFC 6749 §5.2' })
-  if (artifact.consumedAt) await revokeOnReplay(config, artifact, 'refresh token')
-  if (artifact.clientId !== client.clientId) await revokeOnReplay(config, artifact, 'refresh token presented by the wrong client')
+  if (artifact.consumedAt) await revokeOnReplay(config, artifact, 'refresh token', client.clientId)
+  if (artifact.clientId !== client.clientId)
+    await revokeOnReplay(config, artifact, 'refresh token presented by the wrong client', client.clientId)
 
   const { grant, session } = await loadGrantAndSignIn(config, artifact)
   const requested = form.get('scope')?.split(' ').filter(Boolean)
@@ -129,7 +134,7 @@ export const refreshTokenGrant = async (config: ResolvedConfig, client: Client, 
   // FR-T3: always rotate, save a FAPI client, whose token is useless without its key (FAPI 2.0 Security Profile §5.3.2.1).
   const rotate = !underFapi(config, client)
   if (rotate && !(await config.adapter.artifacts.consume('refresh_token', presented))) {
-    await revokeOnReplay(config, artifact, 'refresh token')
+    await revokeOnReplay(config, artifact, 'refresh token', client.clientId)
   }
 
   // FR-T3: a token that does not rotate still restarts its idle lifetime, within its family's and its session's.

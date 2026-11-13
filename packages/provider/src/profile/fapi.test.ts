@@ -362,3 +362,52 @@ describe('dynamic registration under a provider-wide profile', () => {
     expect((await response.json()).id_token_signed_response_alg).toBe('ES256')
   })
 })
+
+// NFR-S5: an assertion that still verifies is still remembered — under FAPI that is up to 10 s past its exp.
+test('a client assertion a few seconds past its exp is not accepted twice', async () => {
+  const now = Math.floor(Date.now() / 1000)
+  const expired = await new SignJWT({ jti: randomString() })
+    .setProtectedHeader({ alg: 'ES256' })
+    .setIssuer('bank')
+    .setSubject('bank')
+    .setAudience(ISSUER)
+    .setIssuedAt(now - 30)
+    .setExpirationTime(now - 7)
+    .sign(clientKey.privateKey)
+  const present = async () =>
+    (await post('/token', { grant_type: 'client_credentials', client_assertion_type: ASSERTION_TYPE, client_assertion: expired })).json()
+  const first = await present()
+  expect(first.error_description ?? '').not.toContain('already been used')
+  expect((await present()).error_description).toContain('already been used')
+})
+
+// An RFC 7592 update of a client the operator put under the profile names the profile's algorithm, as registration does.
+test('updating a per-client FAPI registration without an ID token algorithm keeps one the profile allows', async () => {
+  const open = build({ features: { dpop: true, pushedAuthorizationRequests: true, dynamicRegistration: true } })
+  const metadata = {
+    redirect_uris: [REDIRECT],
+    token_endpoint_auth_method: 'private_key_jwt',
+    id_token_signed_response_alg: 'ES256',
+    jwks: { keys: [{ ...(await exportJWK(clientKey.publicKey)), alg: 'ES256', use: 'sig' }] }
+  }
+  const json = (method: string, url: string, body: unknown, token?: string) =>
+    open.handle(
+      new Request(url, {
+        method,
+        headers: { 'content-type': 'application/json', ...(token && { authorization: `Bearer ${token}` }) },
+        body: JSON.stringify(body)
+      })
+    )
+  const registered = await (await json('POST', `${ISSUER}/register`, metadata)).json()
+  const stored = (await adapter.clients.find(registered.client_id)) as Client
+  await adapter.clients.upsert?.({ ...stored, profile: 'fapi2' })
+  const { id_token_signed_response_alg: _omitted, ...withoutAlg } = metadata
+  const updated = await json(
+    'PUT',
+    registered.registration_client_uri,
+    { ...withoutAlg, client_id: registered.client_id },
+    registered.registration_access_token
+  )
+  expect(updated.status).toBe(200)
+  expect((await updated.json()).id_token_signed_response_alg).toBe('ES256')
+})

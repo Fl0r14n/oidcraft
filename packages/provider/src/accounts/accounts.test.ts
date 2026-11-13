@@ -249,7 +249,11 @@ describe('password reset', () => {
     expect(await adapter.artifacts.find('refresh_token', 'offline')).toBeUndefined()
     expect(await adapter.artifacts.find('access_token', 'access')).toBeUndefined()
     expect(await adapter.artifacts.find('refresh_token', 'theirs')).toBeDefined()
-    expect(await adapter.grants.find('g1')).toBeDefined()
+    // The consent stays, under a new id: a token a racing refresh writes into g1 after the sweep finds its grant gone.
+    const kept = await adapter.grants.findByAccountAndClient('id-ada', 'rp')
+    expect(kept?.scopes).toEqual(['openid'])
+    expect(kept?.id).not.toBe('g1')
+    expect(await adapter.grants.find('g1')).toBeUndefined()
   })
 
   test('a token sets the password once and ends the sessions the old one opened', async () => {

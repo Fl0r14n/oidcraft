@@ -53,6 +53,14 @@ describe('security events reach onAudit', () => {
     expect(events[0]?.at).toBeInstanceOf(Date)
   })
 
+  test('two redemptions racing are reported once, naming who presented the replay', async () => {
+    const { location } = await loginAndConsent()
+    const code = location.searchParams.get('code') as string
+    await Promise.all([redeem(code), redeem(code)])
+    expect(events.filter(event => event.action === 'token.replay')).toHaveLength(1)
+    expect(events[0]?.detail).toMatchObject({ kind: 'authorization_code', presentedBy: 'rp' })
+  })
+
   test('a replayed refresh token is reported', async () => {
     const { location } = await loginAndConsent()
     const { refresh_token } = await (await redeem(location.searchParams.get('code') as string)).json()

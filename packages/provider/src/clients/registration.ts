@@ -8,7 +8,7 @@ import { supportedGrantTypes } from '../discovery'
 import { OAuthError } from '../errors'
 import { guarded } from '../hooks'
 import { signingAlgorithms } from '../keys/keys'
-import { defaultSigningAlg } from '../profile/fapi'
+import { defaultSigningAlg, underFapi } from '../profile/fapi'
 import { deleteClient } from './delete'
 import { secretKind, storableSecret } from './secret'
 import { clientProblems } from './validate'
@@ -206,7 +206,7 @@ const tlsClientAuthFrom = (body: Record<string, unknown>) => {
   return fields
 }
 
-const metadataFrom = (config: ResolvedConfig, body: Record<string, unknown>): Client => {
+const metadataFrom = (config: ResolvedConfig, body: Record<string, unknown>, existing?: Client): Client => {
   const applicationType = applicationTypeFrom(body.application_type)
   const redirectUris = validateRedirectUris(body.redirect_uris, applicationType === 'native')
   const method = (stringFrom(body.token_endpoint_auth_method, 'token_endpoint_auth_method') ?? 'client_secret_basic') as ClientAuthMethod
@@ -237,7 +237,7 @@ const metadataFrom = (config: ResolvedConfig, body: Record<string, unknown>): Cl
     ...subjectTypeFrom(config, body.subject_type),
     ...cibaMetadataFrom(body, grantTypes),
     // OIDC DCR 1.0 §2: RS256 when omitted, except under FAPI 2.0, which forbids it: the profile's default then (FR-T1, FR-C21).
-    ...idTokenAlgFrom(config, body.id_token_signed_response_alg),
+    ...idTokenAlgFrom(config, body.id_token_signed_response_alg, existing),
     ...(body.default_acr_values !== undefined && { defaultAcrValues: stringsFrom(body.default_acr_values, 'default_acr_values') ?? [] }),
     ...keysFrom(body),
     ...tlsClientAuthFrom(body),
@@ -329,10 +329,10 @@ const applyDecision = (client: Client, decision: { requirePkce?: boolean } | und
 }
 
 /** OIDC Dynamic Client Registration 1.0 and RFC 7592. Off unless a deployment turns it on (FR-C9). */
-const idTokenAlgFrom = (config: ResolvedConfig, value: unknown) => {
+const idTokenAlgFrom = (config: ResolvedConfig, value: unknown, existing: Client | undefined) => {
   const named = stringFrom(value, 'id_token_signed_response_alg')
   if (named !== undefined) return { idTokenSignedResponseAlg: named }
-  return config.profile === 'fapi2' ? {} : { idTokenSignedResponseAlg: 'RS256' }
+  return underFapi(config, existing) ? {} : { idTokenSignedResponseAlg: 'RS256' }
 }
 
 /** Under FAPI 2.0 the response names the algorithm it will sign with: to a DCR client an omitted one means RS256. */
@@ -388,7 +388,7 @@ export const registrationEndpoint = async (config: ResolvedConfig, request: Requ
     }),
     'the update'
   )
-  const metadata = metadataFrom(config, body)
+  const metadata = metadataFrom(config, body, client)
   // A secret survives a method change only where it is kept the same way; otherwise a new one is issued.
   const sameSecret = secretKind(metadata.tokenEndpointAuthMethod) === secretKind(client.tokenEndpointAuthMethod)
   // Identity and the token that grants access to it are the server's, not the client's to change.

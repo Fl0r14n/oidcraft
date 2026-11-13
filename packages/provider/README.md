@@ -384,7 +384,7 @@ register dynamically are served by `features: { dynamicRegistration: true }`, an
   sessions, keys and linked identities, with audit events through `onAudit`. Who may call them is
   your decision: oidcraft never decides who is an administrator.
 - **Security events.** `onAudit` also hears a replayed code or refresh token (`token.replay`, with
-  the grant whose tokens it revoked) and a failed client authentication
+  the grant whose tokens it revoked and `detail.presentedBy`, the client that presented it) and a failed client authentication
   (`client.authentication_failed`). Route them to whatever alerts you.
 
 ## What it does

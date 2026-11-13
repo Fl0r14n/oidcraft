@@ -447,8 +447,13 @@ export const createAccounts = (options: AccountsOptions) => {
         if (context.clientIp) buckets.push(ownBucket(accountId, 'password', context), ownBucket(accountId, 'code', context))
         for (const bucket of buckets) await renew(bucket, accountId)
         for (const session of await adapter.sessions.listForAccount(artifact.accountId)) await adapter.sessions.destroy(session.id)
-        // FR-T7: an offline refresh token carries its own sign-in and would outlive the sessions; the consent stays.
-        for (const grant of await adapter.grants.listForAccount(artifact.accountId)) await adapter.artifacts.revokeByGrantId(grant.id)
+        // FR-T7: an offline refresh token carries its own sign-in and would outlive the sessions. The consent stays, under a
+        // new id, so a token a racing refresh writes after the sweep names a grant that is gone (FR-T3).
+        for (const grant of await adapter.grants.listForAccount(artifact.accountId)) {
+          await adapter.grants.destroy(grant.id)
+          await adapter.artifacts.revokeByGrantId(grant.id)
+          await adapter.grants.merge({ ...grant, id: randomString() })
+        }
         return { ok: true, accountId: artifact.accountId } as const
       }
     }

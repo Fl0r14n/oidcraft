@@ -1,6 +1,6 @@
 {
   "name": "@oidcraft/typeorm",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A TypeORM storage adapter for @oidcraft/provider, over a DataSource on Postgres or SQLite.",
   "license": "MIT",
   "author": "Fl0r14n <florian.chis@gmail.com>",

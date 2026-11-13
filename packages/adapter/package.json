@@ -1,6 +1,6 @@
 {
   "name": "@oidcraft/adapter",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "The storage contract of @oidcraft/provider: the Adapter stores and the records they hold, fromKv, key stores, an in-memory adapter and the shared conformance suite.",
   "license": "MIT",
   "author": "Fl0r14n <florian.chis@gmail.com>",

@@ -1,6 +1,6 @@
 {
   "name": "@oidcraft/drizzle",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A Drizzle storage adapter for @oidcraft/provider, on Postgres or SQLite.",
   "license": "MIT",
   "author": "Fl0r14n <florian.chis@gmail.com>",

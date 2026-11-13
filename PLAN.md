@@ -644,9 +644,11 @@ changes, and most of the new tests. Nothing found blocks a release.
   (`response_mode=fragment`) stays in the address bar (`client/src/flows.ts`, `forgetCallback`)
   Fixed: the callback's parameters leave the fragment too, the app's own staying
 
-## The release of 2026-11-13's work — not started
+## The release of 2026-11-13's work — in progress
 
-Nothing since 2026-11-11 is published and no version has been bumped. Wider than the adapter and
+Versions bumped 2026-11-13: `core` 0.3.0, `client` 0.2.0, `adapter` 0.2.0, the provider 0.3.0, the four
+adapters 0.2.0, and the bindings to majors — `vue` 8.0.0, `react` 3.0.0, `angular` 10.0.0 — since each
+re-exports all of `core`, whose `completeAuthorization` changed. Wider than the adapter and
 provider release first planned, because `core` and the bindings changed too:
 
 - [ ] `@oidcraft/core` — breaking: `completeAuthorization` returns an `AuthorizationResult`

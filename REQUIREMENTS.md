@@ -210,15 +210,18 @@ and its `jti` is an identifier, never a credential: presenting the `jti` alone f
 (NFR-S11).
 
 **FR-T3** — Refresh tokens rotate on every use. Every authorization — a code redeemed, a device
-or CIBA request approved — starts a family, and every token issued from it, through every rotation,
-belongs to it. Reuse of a consumed refresh token revokes its family (RFC 9700 §4.14.2): there is
-one grant per account and client, so revoking the grant would sign the same application out on
-every other device its user has. This is not configurable. The one exception is a client under the
-FAPI 2.0 profile (FR-C21): confidential, authenticating with a key, and holding sender-constrained
-tokens, so its refresh token is useless without that key and rotation would only lose grants to a
+or CIBA request approved — starts a _family_: every token issued based on it, through every
+rotation, which is the set RFC 6749 §4.1.2 says to revoke when a code is replayed. A family is not
+the `Grant`, the consent remembered for an account and client (FR-I4), which outlives it. Reuse of
+a consumed refresh token revokes its family (RFC 9700 §4.14.2), never the `Grant`: there is one per
+account and client, so revoking it would sign the same application out on every other device its
+user has. This is not configurable. The one exception is a client under the FAPI 2.0 profile
+(FR-C21): confidential, authenticating with a key, and holding sender-constrained tokens, so its
+refresh token is useless without that key and rotation would only lose the authorization to a
 dropped response (FAPI 2.0 Security Profile §5.3.2.1). Its refresh token does not rotate, but still
 expires on the same two clocks as a rotating one (FR-T6) — each use restarts the `refreshToken` idle
-lifetime, never past the `refreshTokenFamily` absolute one — and is still revoked with its grant.
+lifetime, never past the `refreshTokenFamily` absolute one — and is still revoked with its family
+or its `Grant`.
 
 **FR-T4** — Authorization codes are single-use with the same consequence on replay: consuming a
 code twice revokes the family it started (FR-T3).
@@ -494,8 +497,8 @@ bits of entropy and compared in constant time where compared at all — except a
 (the device `user_code`, FR-C7), which follows RFC 8628 §6.1 and is protected by rate limiting and a
 short lifetime instead (RFC 8628 §5.1).
 
-**NFR-S4** — Replay of a single-use artifact revokes the token family it belongs to, never the grant,
-which other devices of the same account and client share (FR-T3, FR-T4).
+**NFR-S4** — Replay of a single-use artifact revokes the family it belongs to, never the `Grant`
+(FR-T3, FR-T4).
 
 **NFR-S5** — `jti`, DPoP proofs and upstream nonces are checked against `ReplayGuard` within their
 validity window.

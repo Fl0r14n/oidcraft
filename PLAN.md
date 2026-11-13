@@ -6,10 +6,9 @@ This file is working state: tick items off and add notes as work lands.
 ## Status
 
 **Implemented, as of 2026-11-13**, with 1243 passing tests (190 more skip without Postgres and Redis) and `bun run verify` as the gate — everything
-below, FR-T6, FR-C21 and FR-A4's Postgres included. Published as `@oidcraft/*` (the move below), with
-the docs site at https://fl0r14n.github.io/oidcraft/. Items 1–12 under _Next_ are done, the 2026-11-12
-review and `tls_client_auth` by SAN included; neither is released yet. Items 14 and 15 are open: the
-follow-ups a re-read of that work found, and the release itself.
+below, FR-T6, FR-C21 and FR-A4's Postgres included. Published as `@oidcraft/*`, the provider at 0.3.0,
+with the docs site at https://fl0r14n.github.io/oidcraft/. Every item under _Next_ is done and
+released, the 2026-11-12 review, its 2026-11-13 re-read and `tls_client_auth` by SAN included.
 
 The authorization code grant with mandatory PKCE, interaction suspend/resume, token issuance with
 rotation and replay revocation, UserInfo, revocation, introspection, logout in both directions,
@@ -373,7 +372,8 @@ What is _not_ claimed: see the status section. Implemented is not the same as ce
 12. ~~What the 2026-11-12 review found~~ — done 2026-11-13, every item below.
 13. ~~`tls_client_auth` by SAN~~ — done 2026-11-13.
 14. ~~What the 2026-11-13 re-read found~~ — done 2026-11-13.
-15. **The release** of everything since 2026-11-11, below.
+15. ~~The release~~ of everything since 2026-11-11 — done 2026-11-13.
+16. **Provider follow-ups — 2026-11-13**, below. After the release, before 1.0.
 
 ## Review — 2026-11-12
 
@@ -644,32 +644,74 @@ changes, and most of the new tests. Nothing found blocks a release.
   (`response_mode=fragment`) stays in the address bar (`client/src/flows.ts`, `forgetCallback`)
   Fixed: the callback's parameters leave the fragment too, the app's own staying
 
-## The release of 2026-11-13's work — in progress
+## The release of 2026-11-13's work — done 2026-11-13
 
 Versions bumped 2026-11-13: `core` 0.3.0, `client` 0.2.0, `adapter` 0.2.0, the provider 0.3.0, the four
 adapters 0.2.0, and the bindings to majors — `vue` 8.0.0, `react` 3.0.0, `angular` 10.0.0 — since each
 re-exports all of `core`, whose `completeAuthorization` changed. Wider than the adapter and
 provider release first planned, because `core` and the bindings changed too:
 
-- [ ] `@oidcraft/core` — breaking: `completeAuthorization` returns an `AuthorizationResult`
-- [ ] `@oidcraft/client` — refresh ahead of expiry and under a Web Lock, logout revokes, the callback
+- [x] `@oidcraft/core` — breaking: `completeAuthorization` returns an `AuthorizationResult`
+- [x] `@oidcraft/client` — refresh ahead of expiry and under a Web Lock, logout revokes, the callback
   leaves the address bar; names the new `core`
-- [ ] `@oidcraft/adapter` — breaking: `revokeByClientId`, `revokeByFamilyId`, `destroyByClientId`, the
+- [x] `@oidcraft/adapter` — breaking: `revokeByClientId`, `revokeByFamilyId`, `destroyByClientId`, the
   grant upsert resolved on its pair, `clientSecretHash`, three new artifact kinds, optional `prune`
   on sessions and replay
-- [ ] `@oidcraft/provider` — breaking: tokens and client secrets hashed at rest, token families,
+- [x] `@oidcraft/provider` — breaking: tokens and client secrets hashed at rest, token families,
   the runtime entries called without an issuer, `interactionUrl` required by type, `onError`,
   `upstreamLogout`, UserInfo refusing a token issued for a resource
-- [ ] `@oidcraft/drizzle`, `kysely`, `typeorm` — breaking: migrations `0004_indexes` and
+- [x] `@oidcraft/drizzle`, `kysely`, `typeorm` — breaking: migrations `0004_indexes` and
   `0005_families`, the new contract methods
-- [ ] `@oidcraft/redis` — breaking: the command function must pass `EVAL` through, and the entry and
+- [x] `@oidcraft/redis` — breaking: the command function must pass `EVAL` through, and the entry and
   its two index sets must be on one node
-- [ ] `@oidcraft/vue`, `react`, `angular` — name the new `client` and `core`
+- [x] `@oidcraft/vue`, `react`, `angular` — name the new `client` and `core`
 
 In that order: `core`, `client`, `adapter`, the provider, the four adapters, then the bindings, each
 a GitHub release through `publish.yml`, waiting for one publish to succeed before the next names it.
 Stored tokens, client secrets under `client_secret_basic` and `client_secret_post`, and pairwise
 subjects from before this work do not survive the upgrade; with no deployment yet, that is free.
+
+## Provider follow-ups — 2026-11-13
+
+From a read of `provider.ts`, `config.ts` and `authorize/authorization.ts`, the rest only grepped: a
+list of what was seen, not a review. None blocks the release above. Each fix starts with the
+requirement's text and a test that shows it. In order.
+
+**Before 1.0**
+
+- [x] Security events reach no hook. `onAudit` fires for management and registration writes only: a
+  detected replay revokes its family in silence (`token/family.ts:6`), and a failed client
+  authentication, a lockout and a wrong device code are as invisible. Either widen `onAudit` or add
+  a hook for these, and decide which in `REQUIREMENTS.md` first. FR-M3
+- [x] A throwing `onLogout` turns a logout that happened into a 500: the session is already ended
+  when the hook is awaited, and the notifications are lost (`provider.ts:153`). Guard it as `onError`
+  is guarded and report the failure there; `onFrontChannelLogout` the same. FR-C11, NFR-D5
+- [x] Nine endpoints read `new URLSearchParams(await request.text())`, with no content-type check and
+  no bound on the body. One `readForm(request)` for all of them; if the size cap stays the host's,
+  the README's _Before production_ says so beside the rate limiting. NFR-S12
+- [x] `ResolvedConfig` is `ProviderConfig` written out three times — the type, the resolved type and
+  the returned literal, 28 fields each (`config.ts:240-424`) — so a new hook is three edits and a
+  missed one is `undefined` without an error. Derive it: defaults for what has them, the hooks
+  carried through. NFR-D2
+
+**Smaller**
+
+- [x] `authorize` takes an optional `client`, and without one `suspend` drops that client's
+  `upstreamProviders` restriction (`authorize/authorization.ts:285,354`). Its one caller passes it;
+  make it required. FR-F4
+- [x] `grant as Grant` (`authorize/authorization.ts:335`) holds only because `openid` is always
+  requested, so a missing grant always has scopes outstanding. A check in place of the cast
+- [x] `config.ts:359` tests `clients.upsert` and tells the host to implement "create"
+- [x] Two doc comments stacked on `Provider.handle`, the first attached to nothing (`provider.ts:60`)
+- [x] The route table adapts `(config, request, context, caller)` to each endpoint's own argument
+  order (`provider.ts:190-218`). Endpoints that take the `Handler` shape make it a line per route
+- [x] `gaps.test.ts` (890 lines) and `flow.test.ts` (748) are named for when they were written. Move
+  each case beside the module it tests
+
+Released 2026-11-13 from release tags through `publish.yml`, each with provenance and each waiting on
+the one before: `core` 0.3.0, `client` 0.2.0, `adapter` 0.2.0, the provider 0.3.0, `drizzle`, `kysely`,
+`typeorm` and `redis` 0.2.0, `vue` 8.0.0, `react` 3.0.0, `angular` 10.0.0. A fresh install from npm
+loads every entry and serves discovery.
 
 ## Server review — 2026-10-10
 

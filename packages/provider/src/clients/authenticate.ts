@@ -4,6 +4,7 @@ import { decodeJwt } from 'jose'
 import { matchesRegisteredCertificate, matchesSubjectDn } from '../binding/mtls'
 import type { ResolvedConfig } from '../config'
 import type { ClientCertificate } from '../context'
+import type { Caller } from '../cors'
 import { OAuthError } from '../errors'
 import { assertFapiClient } from '../profile/fapi'
 import { ASSERTION_TYPE, verifyClientAssertion } from './assertion'
@@ -51,7 +52,8 @@ export const authenticateClient = async (
   config: ResolvedConfig,
   form: URLSearchParams,
   headers: Headers,
-  certificate?: ClientCertificate | undefined
+  certificate?: ClientCertificate | undefined,
+  caller: Caller = {}
 ): Promise<AuthenticatedClient> => {
   const authorization = headers.get('authorization')
   const basic = authorization?.toLowerCase().startsWith('basic ') ? fromBasic(authorization) : undefined
@@ -70,6 +72,7 @@ export const authenticateClient = async (
 
   const client = await config.adapter.clients.find(clientId)
   if (!client) throw unauthorized(`unknown client ${clientId}`)
+  caller.client = client
 
   const method = client.tokenEndpointAuthMethod
   if (!config.clientAuthMethods.includes(method)) {

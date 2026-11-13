@@ -17,7 +17,7 @@ import { withClientMetadata } from './clients/metadata-document'
 import { registrationEndpoint } from './clients/registration'
 import { type ProviderConfig, type ResolvedConfig, resolveConfig, routePath } from './config'
 import type { RequestContext } from './context'
-import { preflight, withCors } from './cors'
+import { type Caller, preflight, withCors } from './cors'
 import { discoveryEndpoint } from './discovery'
 import { errorResponse, OAuthError } from './errors'
 import { jwksEndpoint } from './keys/jwks'
@@ -61,7 +61,7 @@ export type Provider = {
   handle(request: Request, context?: Partial<RequestContext>): Promise<Response>
 }
 
-type Handler = (config: ResolvedConfig, request: Request, context: RequestContext) => Promise<Response>
+type Handler = (config: ResolvedConfig, request: Request, context: RequestContext, caller: Caller) => Promise<Response>
 
 const seeOther = (url: string, setCookie?: string) =>
   new Response(null, {
@@ -188,13 +188,15 @@ const routeTable = (config: ResolvedConfig) => {
   add(config.routes.oauthMetadata, [GET], async cfg => discoveryEndpoint(cfg))
   add(config.routes.jwks, [GET], async cfg => jwksEndpoint(cfg))
   add(config.routes.authorization, [GET, 'POST'], authorizationHandler)
-  add(config.routes.token, ['POST'], async (cfg, req, ctx) => tokenEndpoint(cfg, req, ctx.clientCertificate))
-  add(config.routes.userinfo, [GET, 'POST'], async (cfg, req, ctx) => userinfoEndpoint(cfg, req, ctx.clientCertificate))
+  add(config.routes.token, ['POST'], async (cfg, req, ctx, caller) => tokenEndpoint(cfg, req, ctx.clientCertificate, caller))
+  add(config.routes.userinfo, [GET, 'POST'], async (cfg, req, ctx, caller) => userinfoEndpoint(cfg, req, ctx.clientCertificate, caller))
   add(config.routes.endSession, [GET, 'POST'], endSessionHandler)
   if (config.features.revocation)
-    add(config.routes.revocation, ['POST'], async (cfg, req, ctx) => revocationEndpoint(cfg, req, ctx.clientCertificate))
+    add(config.routes.revocation, ['POST'], async (cfg, req, ctx, caller) => revocationEndpoint(cfg, req, ctx.clientCertificate, caller))
   if (config.features.introspection)
-    add(config.routes.introspection, ['POST'], async (cfg, req, ctx) => introspectionEndpoint(cfg, req, ctx.clientCertificate))
+    add(config.routes.introspection, ['POST'], async (cfg, req, ctx, caller) =>
+      introspectionEndpoint(cfg, req, ctx.clientCertificate, caller)
+    )
   if (config.features.dynamicRegistration) {
     add(config.routes.registration, ['POST', GET, 'PUT', 'DELETE'], async (cfg, req) => registrationEndpoint(cfg, req))
   }
@@ -216,7 +218,13 @@ const routeTable = (config: ResolvedConfig) => {
 
 type Route = { methods: string[]; handle: Handler }
 
-const dispatch = async (config: ResolvedConfig, route: Route, request: Request, context: Partial<RequestContext> | undefined) => {
+const dispatch = async (
+  config: ResolvedConfig,
+  route: Route,
+  request: Request,
+  context: Partial<RequestContext> | undefined,
+  caller: Caller
+) => {
   try {
     if (!route.methods.includes(request.method)) {
       throw new OAuthError('invalid_request', {
@@ -226,7 +234,7 @@ const dispatch = async (config: ResolvedConfig, route: Route, request: Request, 
       })
     }
     // The issuer is configuration and is never taken from a header (NFR-S6).
-    return await route.handle(withKeysOnce(config), request, { ...context, issuer: config.issuer })
+    return await route.handle(withKeysOnce(config), request, { ...context, issuer: config.issuer }, caller)
   } catch (error) {
     // NFR-D5: only what was not meant. A hook that fails must not turn the answer into something else.
     if (!(error instanceof OAuthError) || error.status >= 500) {
@@ -267,9 +275,8 @@ export const createProvider = (config: ProviderConfig): Provider => {
         const answer = preflight(resolved, path, request, route.methods)
         if (answer) return answer
       }
-      // The handler reads the body; deciding CORS afterwards needs its own copy (cors.ts).
-      const original = request.headers.has('origin') ? request.clone() : request
-      return withCors(resolved, path, original, await dispatch(resolved, route, request, context))
+      const caller: Caller = {}
+      return withCors(resolved, path, request, await dispatch(resolved, route, request, context, caller), caller)
     }
   }
 }

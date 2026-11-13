@@ -3,6 +3,7 @@ import { CompactEncrypt, importJWK, type JWK } from 'jose'
 import { proofOptions, verifyDpopProof } from '../binding/dpop'
 import type { ResolvedConfig } from '../config'
 import type { ClientCertificate } from '../context'
+import type { Caller } from '../cors'
 import { OAuthError } from '../errors'
 import { signerFor } from '../keys/signer'
 import { resolveAccessToken } from '../token/access-token'
@@ -56,13 +57,20 @@ const asJwt = async (config: ResolvedConfig, client: Client, subject: string, cl
 }
 
 /** Claims are resolved now, through the adapter — never served from a copy cached at login (FR-C5). */
-export const userinfoEndpoint = async (config: ResolvedConfig, request: Request, clientCertificate?: ClientCertificate | undefined) => {
+export const userinfoEndpoint = async (
+  config: ResolvedConfig,
+  request: Request,
+  clientCertificate?: ClientCertificate | undefined,
+  caller: Caller = {}
+) => {
   const form = request.method === 'POST' ? new URLSearchParams(await request.text()) : undefined
   const presented = presentedToken(request, form)
   if (!presented) throw unauthorized('no access token was presented', 'Bearer', 'invalid_request')
 
   const artifact = await resolveAccessToken(config, presented.token)
   if (!artifact || artifact.consumedAt) throw unauthorized('the access token is unknown or expired')
+  const client = await config.adapter.clients.find(artifact.clientId)
+  if (client) caller.client = client
   if (!artifact.accountId) throw unauthorized('this access token identifies no end user')
   // FR-C5: a token for a resource is that resource's. Served here, the resource server holding it could read the profile.
   if (artifact.payload.aud !== undefined || artifact.payload.resource !== undefined) {
@@ -76,9 +84,8 @@ export const userinfoEndpoint = async (config: ResolvedConfig, request: Request,
     if (presented.scheme !== 'dpop') {
       throw unauthorized('this access token is DPoP-bound and must be presented with the DPoP scheme', 'DPoP')
     }
-    const owner = await config.adapter.clients.find(artifact.clientId)
     await verifyDpopProof(config, request, {
-      ...proofOptions(config, request, artifact.clientId, owner),
+      ...proofOptions(config, request, artifact.clientId, client),
       accessToken: presented.token,
       expectedJkt: confirmation.jkt
     })
@@ -99,7 +106,6 @@ export const userinfoEndpoint = async (config: ResolvedConfig, request: Request,
   // OIDC Core §5.3.2: the same sub the ID token carried, or the client cannot match them up.
   const subject = artifact.payload.subject ?? artifact.accountId
 
-  const client = await config.adapter.clients.find(artifact.clientId)
   if (client?.userinfoSignedResponseAlg || client?.userinfoEncryptedResponseAlg) {
     return new Response(await asJwt(config, client, subject, claims ?? {}), {
       headers: { 'content-type': 'application/jwt', 'cache-control': 'no-store' }

@@ -593,6 +593,24 @@ describe('CORS', () => {
     expect(theirs.headers.get('vary')).toContain('origin')
   })
 
+  test('the client the handler authenticated decides, without a second lookup', async () => {
+    await adapter.clients.upsert?.(client())
+    let lookups = 0
+    const counted = {
+      ...adapter,
+      clients: {
+        ...adapter.clients,
+        find: (clientId: string) => {
+          lookups++
+          return adapter.clients.find(clientId)
+        }
+      }
+    }
+    const response = await token(build({ adapter: counted }), RP)
+    expect(response.headers.get('access-control-allow-origin')).toBe(RP)
+    expect(lookups).toBe(1)
+  })
+
   test('UserInfo identifies the client by its access token', async () => {
     await adapter.clients.upsert?.(client())
     const provider = build()

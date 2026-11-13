@@ -5,7 +5,7 @@ This file is working state: tick items off and add notes as work lands.
 
 ## Status
 
-**Implemented, as of 2026-11-13**, with 1207 passing tests (194 more skip without Postgres and Redis) and `bun run verify` as the gate — everything
+**Implemented, as of 2026-11-13**, with 1208 passing tests (194 more skip without Postgres and Redis) and `bun run verify` as the gate — everything
 below, FR-T6, FR-C21 and FR-A4's Postgres included. Published as `@oidcraft/*` (the move below), with
 the docs site at https://fl0r14n.github.io/oidcraft/. Items 1–11 under _Next_ are done; item 12, the
 2026-11-12 review, is open, and until its security findings are fixed this is not a provider to put
@@ -529,8 +529,11 @@ text it is held to. In fix order.
   Fixed: `clientKeySet`, `proofOptions`, one `MTLS_METHODS`, `noAccounts` exported by `@oidcraft/adapter`,
   and `@oidcraft/sql/rows` for Kysely and TypeORM, whose rows are the same shape. Drizzle's are not —
   JSON and timestamp columns — so it keeps its own mapping
-- [ ] CORS works out the client again after the handler did, cloning the body twice and reading the
+- [x] CORS works out the client again after the handler did, cloning the body twice and reading the
   client store, and at UserInfo the artifact, a second time. The handler returns the client it resolved
+  Fixed, not by a return value, which an error thrown after authentication would lose: `dispatch`
+  hands each request a `Caller` that client authentication fills the moment it finds the client, and
+  UserInfo from the token's client, which it now reads once
 - [ ] `RequestContext` carries an `issuer` that `dispatch` overwrites, so every runtime entry's
   `issuer` argument does nothing, and a `clientIp` `handle` never reads while the device rate limit
   takes it separately

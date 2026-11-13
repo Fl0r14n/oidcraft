@@ -5,6 +5,7 @@ import { proofOptions, verifyDpopProof } from '../binding/dpop'
 import { authenticateClient } from '../clients/authenticate'
 import type { ResolvedConfig } from '../config'
 import type { ClientCertificate } from '../context'
+import type { Caller } from '../cors'
 import { OAuthError } from '../errors'
 import { underFapi } from '../profile/fapi'
 import { clientCredentialsGrant } from './client-credentials'
@@ -27,9 +28,14 @@ const bindingFor = async (config: ResolvedConfig, client: Client, request: Reque
   return (await verifyDpopProof(config, request, proofOptions(config, request, client.clientId, client))).jkt
 }
 
-export const tokenEndpoint = async (config: ResolvedConfig, request: Request, certificate?: ClientCertificate | undefined) => {
+export const tokenEndpoint = async (
+  config: ResolvedConfig,
+  request: Request,
+  certificate?: ClientCertificate | undefined,
+  caller: Caller = {}
+) => {
   const form = new URLSearchParams(await request.text())
-  const { client } = await authenticateClient(config, form, request.headers, certificate)
+  const { client } = await authenticateClient(config, form, request.headers, certificate, caller)
 
   const grantType = form.get('grant_type')
   if (!grantType) throw new OAuthError('invalid_request', { description: 'grant_type is required', spec: 'RFC 6749 §5.2' })

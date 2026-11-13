@@ -27,6 +27,29 @@ const verifierFor = (config?: Partial<OpenIdConfig>, verifyIdToken?: IdTokenVeri
     allowInsecure: (config as OpenIdConfig)?.allowInsecure
   })
 
+/** Which check a callback failed: what it says is not to be believed (FR-L2). */
+export type CallbackCheck = 'state' | 'issuer' | 'nonce' | 'id_token'
+
+/**
+ * How a callback ended, told apart without reading message text (FR-L2): `refused` when the provider
+ * said no, at the redirect or the token endpoint; `invalid` when a check here failed; `unreachable`
+ * when the token endpoint did not answer.
+ */
+export type AuthorizationResult =
+  | { ok: true; token: OAuthToken }
+  | { ok: false; reason: 'refused'; error: string; errorDescription?: string }
+  | { ok: false; reason: 'invalid'; check: CallbackCheck; message: string }
+  | { ok: false; reason: 'unreachable' }
+
+const invalid = (check: CallbackCheck, message: string): AuthorizationResult => ({ ok: false, reason: 'invalid', check, message })
+
+const refused = (answer: { error?: string; error_description?: string }): AuthorizationResult => ({
+  ok: false,
+  reason: 'refused',
+  error: answer.error as string,
+  ...(answer.error_description && { errorDescription: answer.error_description })
+})
+
 /** RFC 6749 §10.12. Only checked against a state we hold, so a callback arriving without a prior
  * `beginAuthorization` — a deep link, a resumed session — is left to the caller as before. */
 const checkState = (parameters: Record<string, string>, handoff?: Partial<AuthorizationHandoff>) => {
@@ -34,7 +57,7 @@ const checkState = (parameters: Record<string, string>, handoff?: Partial<Author
   // some providers drop state from the error response; the error is more useful than a state complaint,
   // and a forged *success* still has to match
   if (parameters.error && !parameters.state) return undefined
-  return parameters.state === handoff.state ? undefined : { error: 'Invalid state' }
+  return parameters.state === handoff.state ? undefined : invalid('state', 'Invalid state')
 }
 
 /**
@@ -53,18 +76,16 @@ const checkIssuer = (parameters: Record<string, string>, config?: Partial<OpenId
   if (!parameters.iss) {
     // as with state: on an error response the error itself is the more useful answer
     if (parameters.error || !issuerParameter) return undefined
-    return { error: 'Missing issuer' }
+    return invalid('issuer', 'Missing issuer')
   }
-  return sameIssuer(parameters.iss, expected) ? undefined : { error: 'Invalid issuer' }
+  return sameIssuer(parameters.iss, expected) ? undefined : invalid('issuer', 'Invalid issuer')
 }
 
-const checkNonce = async (token: OAuthToken, handoff: Partial<AuthorizationHandoff> | undefined, verify: IdTokenVerifier) => {
-  if (token.error) return token
+const checkIdToken = async (token: OAuthToken, handoff: Partial<AuthorizationHandoff> | undefined, verify: IdTokenVerifier) => {
   const claims = await verify(token.id_token)
-  if (claims?.error || claims?.nonce !== handoff?.nonce) {
-    return { error: (claims?.error as string) || 'Invalid nonce' }
-  }
-  return token
+  if (claims?.error) return invalid('id_token', (claims.error as string) || 'Invalid token')
+  if (claims?.nonce !== handoff?.nonce) return invalid('nonce', 'Invalid nonce')
+  return { ok: true, token } as const
 }
 
 /** Starts an authorization request without performing it: returns the URL to send the user to and the
@@ -83,24 +104,22 @@ export const completeAuthorization = async (
   currentUrl: RedirectSource | undefined,
   handoff?: Partial<AuthorizationHandoff>,
   { functions, verifyIdToken }: AuthorizationOptions = {}
-): Promise<OAuthToken | undefined> => {
+): Promise<AuthorizationResult | undefined> => {
   const { flow, parameters } = parseRedirectParameters(currentUrl)
   if (flow === 'none') return undefined
 
-  const invalidState = checkState(parameters, handoff)
-  if (invalidState) return invalidState
-
-  const invalidIssuer = checkIssuer(parameters, config)
-  if (invalidIssuer) return invalidIssuer
+  const failed = checkState(parameters, handoff) ?? checkIssuer(parameters, config)
+  if (failed) return failed
+  if (parameters.error) return refused(parameters)
 
   const verify = verifierFor(config, verifyIdToken)
-  if (flow === 'implicit') {
-    return { ...(await checkNonce(parameters, handoff, verify)), type: OAuthType.IMPLICIT }
-  }
+  if (flow === 'implicit') return checkIdToken({ ...parameters, type: OAuthType.IMPLICIT }, handoff, verify)
 
   // the handoff carries redirect_uri and code_verifier, the redirect carries the code — the token
   // endpoint needs both, and the type is set by `authorize`, so it stays unset here
-  const requested = { ...handoff, ...parameters }
-  const exchanged = await resolveOAuthFunctions(functions).authorize(requested, config)
-  return (exchanged && (await checkNonce(exchanged, handoff, verify))) || requested
+  const exchanged = await resolveOAuthFunctions(functions).authorize({ ...handoff, ...parameters }, config)
+  if (exchanged?.error) return refused(exchanged)
+  // `authorize` hands back what it was given when there was no answer to take its place.
+  if (!exchanged?.access_token) return { ok: false, reason: 'unreachable' }
+  return checkIdToken(exchanged, handoff, verify)
 }

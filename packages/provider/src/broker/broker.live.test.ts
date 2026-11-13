@@ -356,7 +356,7 @@ describe('an upstream that fails produces an OAuth error', () => {
     const callback = await authenticateUpstream(url)
     callback.searchParams.set('iss', 'https://evil.example')
 
-    expect(broker.complete(callback, cookieOf(setCookie))).rejects.toThrow(/different authorization server/)
+    expect(broker.complete(callback, cookieOf(setCookie))).rejects.toThrow(/did not name the authorization server/)
   })
 
   test('the upstream’s own refusal reaches the downstream client as access_denied', async () => {

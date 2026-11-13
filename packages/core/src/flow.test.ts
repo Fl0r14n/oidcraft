@@ -49,7 +49,7 @@ describe('completeAuthorization', () => {
       expect.objectContaining({ code: 'c1', code_verifier: 'v1', redirect_uri: 'https://app.com/cb' }),
       config
     )
-    expect(token).toMatchObject({ access_token: 'at' })
+    expect(token).toMatchObject({ ok: true, token: { access_token: 'at' } })
   })
 
   it('refuses a state that is not the one it issued', async () => {
@@ -62,7 +62,7 @@ describe('completeAuthorization', () => {
       { functions: { authorize } }
     )
 
-    expect(token).toEqual({ error: 'Invalid state' })
+    expect(token).toEqual({ ok: false, reason: 'invalid', check: 'state', message: 'Invalid state' })
     // the point of checking first: a forged callback must not burn a code at the token endpoint
     expect(authorize).not.toHaveBeenCalled()
   })
@@ -80,7 +80,7 @@ describe('completeAuthorization', () => {
       }
     )
 
-    expect(token).toMatchObject({ access_token: 'at' })
+    expect(token).toMatchObject({ ok: true, token: { access_token: 'at' } })
   })
 
   it('passes an error response through when the provider dropped the state from it', async () => {
@@ -93,23 +93,23 @@ describe('completeAuthorization', () => {
       }
     )
 
-    expect(token).toMatchObject({ error: 'access_denied' })
+    expect(token).toEqual({ ok: false, reason: 'refused', error: 'access_denied' })
   })
 
   it('still refuses a forged error that carries the wrong state', async () => {
     const token = await completeAuthorization(config, 'https://app.com/cb?error=access_denied&state=forged', { state: 's1' })
 
-    expect(token).toEqual({ error: 'Invalid state' })
+    expect(token).toEqual({ ok: false, reason: 'invalid', check: 'state', message: 'Invalid state' })
   })
 
   it('checks the nonce against the handoff on the implicit response', async () => {
     const source = 'https://app.com/cb#access_token=at&id_token=header.payload.sig'
 
     const ok = await completeAuthorization(config, source, { nonce: 'n1' }, { verifyIdToken: claims({ nonce: 'n1' }) })
-    expect(ok).toMatchObject({ access_token: 'at', type: OAuthType.IMPLICIT })
+    expect(ok).toMatchObject({ ok: true, token: { access_token: 'at', type: OAuthType.IMPLICIT } })
 
     const bad = await completeAuthorization(config, source, { nonce: 'n1' }, { verifyIdToken: claims({ nonce: 'other' }) })
-    expect(bad).toMatchObject({ error: 'Invalid nonce', type: OAuthType.IMPLICIT })
+    expect(bad).toEqual({ ok: false, reason: 'invalid', check: 'nonce', message: 'Invalid nonce' })
   })
 
   it('reports a rejected id token rather than the nonce it could not read', async () => {
@@ -122,10 +122,11 @@ describe('completeAuthorization', () => {
       }
     )
 
-    expect(token).toMatchObject({ error: 'Invalid token' })
+    expect(token).toEqual({ ok: false, reason: 'invalid', check: 'id_token', message: 'Invalid token' })
   })
 
-  it('keeps what the redirect carried when the exchange yields nothing', async () => {
+  // FR-L2: a token endpoint that did not answer is not a failed check, and must not read as one.
+  it('reports a token endpoint that did not answer as unreachable', async () => {
     const token = await completeAuthorization(
       config,
       'https://app.com/cb?code=c1',
@@ -135,7 +136,20 @@ describe('completeAuthorization', () => {
       }
     )
 
-    expect(token).toMatchObject({ code: 'c1', redirect_uri: 'https://app.com/cb' })
+    expect(token).toEqual({ ok: false, reason: 'unreachable' })
+  })
+
+  it('reports a refusal at the token endpoint as the provider’s own answer', async () => {
+    const token = await completeAuthorization(
+      config,
+      'https://app.com/cb?code=c1',
+      {},
+      {
+        functions: { authorize: async () => ({ error: 'invalid_grant', error_description: 'code expired' }) }
+      }
+    )
+
+    expect(token).toEqual({ ok: false, reason: 'refused', error: 'invalid_grant', errorDescription: 'code expired' })
   })
 
   it('keeps two callbacks apart — the handoff is an argument, not a lookup', async () => {
@@ -163,8 +177,8 @@ describe('completeAuthorization', () => {
       )
     ])
 
-    expect(one).toMatchObject({ access_token: 'at-v1' })
-    expect(two).toMatchObject({ access_token: 'at-v2' })
+    expect(one).toMatchObject({ ok: true, token: { access_token: 'at-v1' } })
+    expect(two).toMatchObject({ ok: true, token: { access_token: 'at-v2' } })
   })
 })
 
@@ -213,7 +227,7 @@ describe('completeAuthorization against a multi-tenant provider', () => {
       }
     )
 
-    expect(token).toMatchObject({ access_token: 'at' })
+    expect(token).toMatchObject({ ok: true, token: { access_token: 'at' } })
   })
 
   it('still rejects a token from a tenant the issuer template cannot produce', async () => {
@@ -236,7 +250,7 @@ describe('completeAuthorization against a multi-tenant provider', () => {
       }
     )
 
-    expect(token).toEqual({ error: 'Invalid token' })
+    expect(token).toEqual({ ok: false, reason: 'invalid', check: 'id_token', message: 'Invalid token' })
   })
 })
 
@@ -255,7 +269,7 @@ describe('completeAuthorization: the iss on the authorization response', () => {
       functions: { authorize },
       verifyIdToken: claims({})
     })
-    expect(result?.access_token).toBe('a')
+    expect(result).toMatchObject({ ok: true, token: { access_token: 'a' } })
   })
 
   it('refuses a code that came back from somewhere else, before exchanging it', async () => {
@@ -263,7 +277,7 @@ describe('completeAuthorization: the iss on the authorization response', () => {
     const result = await complete(issued, 'https://app.com/cb?code=c&state=s&iss=https%3A%2F%2Fevil.com', handoff, {
       functions: { authorize: exchange }
     })
-    expect(result).toEqual({ error: 'Invalid issuer' })
+    expect(result).toEqual({ ok: false, reason: 'invalid', check: 'issuer', message: 'Invalid issuer' })
     expect(exchange).not.toHaveBeenCalled()
   })
 
@@ -272,7 +286,7 @@ describe('completeAuthorization: the iss on the authorization response', () => {
       functions: { authorize },
       verifyIdToken: claims({})
     })
-    expect(result?.access_token).toBe('a')
+    expect(result).toMatchObject({ ok: true, token: { access_token: 'a' } })
   })
 
   it('lets a provider that never promised iss omit it', async () => {
@@ -280,7 +294,7 @@ describe('completeAuthorization: the iss on the authorization response', () => {
       functions: { authorize },
       verifyIdToken: claims({})
     })
-    expect(result?.access_token).toBe('a')
+    expect(result).toMatchObject({ ok: true, token: { access_token: 'a' } })
   })
 
   // A provider that advertises the parameter has promised to send it, so silence is a failure.
@@ -288,18 +302,18 @@ describe('completeAuthorization: the iss on the authorization response', () => {
     const result = await complete({ ...issued, issuerParameter: true }, 'https://app.com/cb?code=c&state=s', handoff, {
       functions: { authorize }
     })
-    expect(result).toEqual({ error: 'Missing issuer' })
+    expect(result).toEqual({ ok: false, reason: 'invalid', check: 'issuer', message: 'Missing issuer' })
   })
 
   it('still prefers reporting the provider’s own error over a missing iss', async () => {
     const result = await complete({ ...issued, issuerParameter: true }, 'https://app.com/cb?error=access_denied&state=s', handoff, {
       functions: { authorize: async token => token }
     })
-    expect(result?.error).toBe('access_denied')
+    expect(result).toMatchObject({ ok: false, reason: 'refused', error: 'access_denied' })
   })
 
   it('checks the implicit flow too', async () => {
     const result = await complete(issued, { hash: '#access_token=a&state=s&iss=https%3A%2F%2Fevil.com' }, handoff)
-    expect(result).toEqual({ error: 'Invalid issuer' })
+    expect(result).toEqual({ ok: false, reason: 'invalid', check: 'issuer', message: 'Invalid issuer' })
   })
 })

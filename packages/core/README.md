@@ -32,8 +32,15 @@ const { url, handoff } = await beginAuthorization(config, {
 })
 
 // on the callback, with the handoff you kept
-const token = await completeAuthorization(config, window.location, handoff)
+const result = await completeAuthorization(config, window.location, handoff)
+if (result?.ok) useTokens(result.token)
 ```
+
+A callback that did not end in a token says which way it went, without a message to match:
+`refused` is the provider's own answer, with its `error`; `invalid` names the check that failed —
+`state`, `issuer`, `nonce` or `id_token` — and nothing from that callback is to be believed;
+`unreachable` is a token endpoint that did not answer, worth trying again. `undefined` means the URL
+was not a callback at all.
 
 `handoff` carries the `state`, `nonce` and PKCE verifier and nothing else. It is passed back in
 rather than looked up, which is what makes `completeAuthorization` safe to run concurrently — a

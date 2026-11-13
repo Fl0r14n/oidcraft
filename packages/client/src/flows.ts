@@ -7,12 +7,27 @@ import type {
   ResourceOwnerConfig,
   ResourceOwnerParameters
 } from '@oidcraft/core'
-import { beginAuthorization, completeAuthorization, parseRedirectParameters } from '@oidcraft/core'
+import {
+  type AuthorizationResult,
+  beginAuthorization,
+  completeAuthorization,
+  type OAuthToken,
+  parseRedirectParameters
+} from '@oidcraft/core'
 import type { ConfigContext } from './config'
 import type { Jwt } from './jwt'
 import { createStore } from './store'
 import type { TokenContext } from './token'
 import type { RedirectOptions } from './types'
+
+/** A callback that ended without a token becomes the token state, so the app renders why from where it reads the token (FR-L6). */
+const failureState = (failure: Exclude<AuthorizationResult, { ok: true }>): OAuthToken => {
+  if (failure.reason === 'refused') {
+    return { error: failure.error, ...(failure.errorDescription && { error_description: failure.errorDescription }) }
+  }
+  if (failure.reason === 'invalid') return { error: failure.message }
+  return { error: 'temporarily_unavailable', error_description: 'the token endpoint did not answer' }
+}
 
 export const createFlows = (
   { config }: Pick<ConfigContext, 'config'>,
@@ -90,7 +105,7 @@ export const createFlows = (
     // PKCE and the RFC 9207 `iss` are all checked inside completeAuthorization.
     const result = await completeAuthorization(config(), source as never, token(), { functions, verifyIdToken: jwt })
     if (result) {
-      setToken(result)
+      setToken(result.ok ? result.token : failureState(result))
     }
   }
 

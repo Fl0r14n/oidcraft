@@ -580,9 +580,12 @@ new requirements ask that the code does not yet do:
   rotating provider, this one included, and revokes the grant. `navigator.locks` around the refresh,
   re-reading storage inside the lock. FR-L5
   Fixed: `navigator.locks` named after the storage key, and `storage.reload()` inside it
-- [ ] Failures are strings on a token-shaped object, and a request that failed is `undefined`; the
+- [x] Failures are strings on a token-shaped object, and a request that failed is `undefined`; the
   broker tells them apart by matching `'Invalid nonce'` and by a missing ID token
   (`broker/broker.ts:47`). A typed result from `completeAuthorization`. FR-L2
+  Fixed: `AuthorizationResult`, `ok` with the token or `refused`, `invalid` with the `CallbackCheck`, or
+  `unreachable`, which had read as "Invalid nonce". The client keeps the strings it rendered from; the
+  broker maps each case without matching text
 - [ ] Smaller: a token is refreshed only after it has expired, so the request at the boundary fails;
   `logout` with a redirect does not revoke the refresh token; the callback leaves the code in the
   address bar

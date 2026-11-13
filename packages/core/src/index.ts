@@ -1,6 +1,12 @@
 export { authorizationUrl } from './authorization'
 export { applyDiscovery, createDiscovery, IssuerMismatchError, needsDiscovery } from './discovery'
-export { type AuthorizationOptions, beginAuthorization, completeAuthorization } from './flow'
+export {
+  type AuthorizationOptions,
+  type AuthorizationResult,
+  beginAuthorization,
+  type CallbackCheck,
+  completeAuthorization
+} from './flow'
 export {
   DEFAULT_MAX_LENGTH,
   type OAuthFieldError,

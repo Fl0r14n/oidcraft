@@ -1,6 +1,8 @@
 import {
+  type AuthorizationResult,
   applyDiscovery,
   beginAuthorization,
+  type CallbackCheck,
   completeAuthorization,
   constantTimeEquals,
   createDiscovery,
@@ -55,51 +57,41 @@ export type BrokerConfig = {
 const DEFAULT_HANDOFF_TTL = 600
 const DEFAULT_LOGOUT_HINT_TTL = 1_209_600
 
-/** The errors the RP core reports by name. Everything else on `error` came from the upstream itself. */
-const CORE_ERRORS: Record<string, { code: 'server_error' | 'access_denied'; description: string; spec: string }> = {
-  'Invalid state': {
-    code: 'access_denied',
-    description: 'the upstream callback did not match the handoff that started it',
-    spec: 'RFC 6749 §10.12'
-  },
-  'Invalid issuer': {
-    code: 'access_denied',
-    description: 'the upstream callback was issued by a different authorization server than the one asked',
+/** What each check the RP core makes means for the downstream client (FR-L2). */
+const CHECKS: Record<CallbackCheck, { description: string; spec: string }> = {
+  state: { description: 'the upstream callback did not match the handoff that started it', spec: 'RFC 6749 §10.12' },
+  issuer: {
+    description: 'the upstream callback did not name the authorization server it was sent to',
     spec: 'RFC 9207 §2.4'
   },
-  'Missing issuer': {
-    code: 'access_denied',
-    description: 'the upstream advertises the iss parameter but did not send it',
-    spec: 'RFC 9207 §2.4'
-  },
-  'Invalid nonce': { code: 'access_denied', description: 'the upstream ID token did not carry the nonce it was asked for', spec: 'FR-F3' },
-  'Invalid token': { code: 'access_denied', description: 'the upstream ID token failed verification', spec: 'OIDC Core §3.1.3.7' }
+  nonce: { description: 'the upstream ID token did not carry the nonce it was asked for', spec: 'FR-F3' },
+  id_token: { description: 'the upstream ID token failed verification', spec: 'OIDC Core §3.1.3.7' }
 }
 
 /**
  * FR-F11: a failed upstream leg leaves the downstream client with a well-formed OAuth error rather
- * than a stack trace or a silent `undefined`. The RP core reports a failure by returning a token
- * carrying `error` and no credential, so the cause has to be read back out of that here.
+ * than a stack trace or a silent `undefined`.
  */
-const upstreamFailure = (provider: string, token: OAuthToken | undefined) => {
-  if (!token) {
+const upstreamFailure = (provider: string, result: AuthorizationResult | undefined) => {
+  if (!result) {
     return new OAuthError('server_error', {
       description: `the callback from ${provider} carried neither a code nor an error`,
       spec: 'FR-F11'
     })
   }
-  const error = typeof token.error === 'string' ? token.error : undefined
-  if (!error) return undefined
-  // A token endpoint that does not answer leaves the core checking a nonce against a response that
-  // never arrived, which it cannot tell apart from a wrong one. This can: a real nonce mismatch comes
-  // with an ID token to have mismatched.
-  if (error === 'Invalid nonce' && !token.id_token && !token.access_token) {
+  if (result.ok) return undefined
+  if (result.reason === 'unreachable') {
     return new OAuthError('temporarily_unavailable', { description: `${provider} did not answer the token request`, spec: 'FR-F11' })
   }
-  const known = CORE_ERRORS[error]
-  if (known) return new OAuthError(known.code, { description: `${provider}: ${known.description}`, spec: known.spec })
-  const described = typeof token.error_description === 'string' ? `: ${token.error_description}` : ''
-  return new OAuthError('access_denied', { description: `${provider} refused the request with ${error}${described}`, spec: 'FR-F11' })
+  if (result.reason === 'invalid') {
+    const { description, spec } = CHECKS[result.check]
+    return new OAuthError('access_denied', { description: `${provider}: ${description}`, spec })
+  }
+  const described = result.errorDescription ? `: ${result.errorDescription}` : ''
+  return new OAuthError('access_denied', {
+    description: `${provider} refused the request with ${result.error}${described}`,
+    spec: 'FR-F11'
+  })
 }
 
 /**
@@ -311,15 +303,16 @@ export const createBroker = (config: BrokerConfig) => {
       const resolved = await configurationFor(provider)
       const verify = verifierFor(provider, resolved)
 
-      const token = await completeAuthorization(
+      const result = await completeAuthorization(
         resolved,
         currentUrl,
         { redirect_uri: config.callbackUri, state: handoff.state, nonce: handoff.nonce, code_verifier: handoff.codeVerifier },
         { verifyIdToken: verify }
       )
 
-      const failure = upstreamFailure(provider.id, token)
-      if (failure) throw failure
+      const failure = upstreamFailure(provider.id, result)
+      if (failure || !result?.ok) throw failure
+      const { token } = result
 
       // Verified already, as part of the nonce check; this re-reads the claims, which costs one
       // signature check and no network because jose caches the key set on the verifier.

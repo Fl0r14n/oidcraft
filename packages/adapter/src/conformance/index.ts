@@ -183,7 +183,7 @@ export const adapterConformance = (create: () => Adapter | Promise<Adapter>, opt
       }
     },
     {
-      // FR-T4: consuming marks it; replaying a consumed code is what revokes the grant.
+      // FR-T4: consuming marks it; replaying a consumed code is what revokes the family.
       name: 'consume marks the artifact without destroying it',
       run: async () => {
         const adapter = await full()

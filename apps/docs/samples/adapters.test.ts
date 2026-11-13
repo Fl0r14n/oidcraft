@@ -182,7 +182,7 @@ describe('an insert that reads and then writes', () => {
     expect(results.filter(Boolean)).toHaveLength(8)
   })
 
-  // The second redemption is a replay and revokes the grant (FR-T4), so the first is refused too when the replay got there first.
+  // The second redemption is a replay and revokes the family (FR-T4), so the first is refused too when the replay got there first.
   test('where the atomic one lets at most one redemption of a code win', async () => {
     const { code, verifier } = await signIn(provider)
     const statuses = (await Promise.all([redeem(provider, code, verifier), redeem(provider, code, verifier)])).map(r => r.status)

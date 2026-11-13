@@ -30,7 +30,7 @@ const REPLAY_WINDOW = 60
 const replayed = async (config: ResolvedConfig, artifact: SingleUse) =>
   !(await config.adapter.replay.claim('redeemed', await storedId(`${artifact.kind}:${artifact.id}`), REPLAY_WINDOW))
 
-/** NFR-S4: tokens written after a concurrent replay revoked the grant must not outlive it. */
+/** NFR-S4: tokens written after a concurrent replay revoked the family must not outlive it. */
 const unlessReplayed = async <T>(config: ResolvedConfig, artifact: SingleUse, what: string, tokens: T) => {
   if (await replayed(config, artifact)) await revokeOnReplay(config, artifact, what)
   return tokens

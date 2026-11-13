@@ -494,7 +494,8 @@ bits of entropy and compared in constant time where compared at all — except a
 (the device `user_code`, FR-C7), which follows RFC 8628 §6.1 and is protected by rate limiting and a
 short lifetime instead (RFC 8628 §5.1).
 
-**NFR-S4** — Replay of a single-use artifact revokes its grant (FR-T3, FR-T4).
+**NFR-S4** — Replay of a single-use artifact revokes the token family it belongs to, never the grant,
+which other devices of the same account and client share (FR-T3, FR-T4).
 
 **NFR-S5** — `jti`, DPoP proofs and upstream nonces are checked against `ReplayGuard` within their
 validity window.

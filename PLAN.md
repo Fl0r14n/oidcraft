@@ -44,9 +44,6 @@ in the `claims` parameter (FR-C22) refuses a login that reports less, but nothin
 - **JAR by reference** (`request_uri` pointing at the client's own server) — resolving it means the
   core fetching a URL the client chose, which is outbound I/O it does not do (FR-A1). A host that
   needs it resolves and pushes the result. See `REQUIREMENTS.md` FR-C12.
-- **Kysely on MySQL** — removed from FR-A4. MySQL has no `on conflict … do update` and no
-  `returning`, which the Kysely adapter uses for every upsert and insert-if-absent, so it needs its
-  own code paths, and promising a database nothing tests is a claim rather than a feature.
 - **Editing upstream providers from the admin UI** — an issuer and client credentials are deployment
   configuration, not runtime state. The admin shows what is configured.
 - **CIBA push mode**, **OpenID Federation 1.0** trust chains (`G-1`, unless a deployment needs it),
@@ -104,6 +101,27 @@ CBOR; attestation `none`; `acr` `mfa` with `amr` `hwk`, `user`. In order:
 Later, not now: accounts with no password (`passwordHash` is required today), attestation for
 enterprise, the admin removing a person's passkeys. A realm on its own subdomain has its own passkeys,
 as the relying-party ID is the issuer's host.
+
+## Planned: MySQL and MariaDB
+
+Wanted, not decided against: with Drizzle, Kysely and TypeORM all on Postgres and SQLite only, no
+MySQL deployment can use oidcraft today. FR-A4 gains the dialect when it lands, not before. What
+differs, from the code as it stands:
+
+- **Atomicity holds, by other means.** No `RETURNING` on MySQL (MariaDB has it for `INSERT` and
+  `DELETE`, not `UPDATE`), so a consume, a claim and a merge read the affected-row count of their
+  conditional `UPDATE`; insert-if-absent is `INSERT … ON DUPLICATE KEY UPDATE id = id`, whose count
+  says which won, never `INSERT IGNORE`, which swallows every other error too.
+- **Collation is a security setting.** MySQL's default collations compare case-insensitively, and
+  every id here is a case-sensitive hash or random string. Key columns are `utf8mb4_bin`, or a
+  lookup finds a token it should not. Keys are `VARCHAR`, since a `TEXT` primary key needs a prefix.
+- **Prune is simpler there.** MySQL refuses a `LIMIT` in an `IN` subquery on the table being
+  deleted from, but has `DELETE … WHERE expires_at <= ? LIMIT n` of its own.
+- **`MYSQL_MIGRATIONS`**, a third list in `@oidcraft/sql` with the same ids as the other two.
+
+In order: Kysely first (one dialect switch, `@oidcraft/sql/rows` reused), then TypeORM, then Drizzle,
+whose `mysql-core` tables are a third definition. CI gains MySQL 8.4 and MariaDB 11 service
+containers, and every adapter runs the shared suite against both, as against Postgres.
 
 ## Still open on the client libraries
 

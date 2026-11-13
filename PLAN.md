@@ -373,7 +373,88 @@ What is _not_ claimed: see the status section. Implemented is not the same as ce
 13. ~~`tls_client_auth` by SAN~~ — done 2026-11-13.
 14. ~~What the 2026-11-13 re-read found~~ — done 2026-11-13.
 15. ~~The release~~ of everything since 2026-11-11 — done 2026-11-13.
+16. **What the 2026-11-13 review after the release found** — below, security first, then a patch release.
 16. **Provider follow-ups — 2026-11-13**, below. After the release, before 1.0.
+
+## Review — 2026-11-13, after the release
+
+Four readers in parallel, none told what the code was meant to do: the provider core; the broker and
+local accounts; storage, TypeORM and `@oidcraft/ui` (unread until now); the client libraries. Each
+finding below was traced in the code before it was written here; "probe" means a reader reproduced it
+with a throwaway test. Several predate this week's work and shipped in 0.3.0. In fix order.
+
+**Security — first, and a patch release after**
+
+- [ ] The ID token's `sid` is `session.id`, which is the session cookie's value and what `readSession`
+  looks up (`token/id-token.ts:54`, `session/session.ts:14,42`): any client the person signs in to can
+  set that cookie and be them at the provider. The cookie carries a random secret; the session is
+  stored under its SHA-256, which is the public `sid`. NFR-S11. Probe
+- [ ] `@oidcraft/core` checks `state` only when it holds one (`flow.ts:56`), and a redirect's
+  parameters override the stored handoff (`flow.ts:120`, `{ ...handoff, ...parameters }`): an
+  unsolicited `#access_token=…` becomes the session, and `?code=&code_verifier=&redirect_uri=` signs
+  the person in as the attacker. Refuse a callback without a pending handoff; take `code_verifier`
+  and `redirect_uri` from the handoff only. FR-L2, RFC 9700 §4.7. Probe
+- [ ] With no `jwksUri` the ID token is decoded, not verified (`core/src/jwt.ts:62`): statically
+  configured endpoints, or an implicit callback after a reload. Refuse rather than decode. FR-L2. Probe
+- [ ] Login CSRF at the provider: an interaction is completed by its id alone, so a page can post the
+  attacker's own credentials to the attacker's interaction from the victim's browser and set the
+  victim's session (`authorize/interactions.ts`, `@oidcraft/ui` forms). Bind an interaction to the
+  browser that started it, as the broker's handoff is (FR-F3); the device approval form likewise.
+  FR-I2, FR-C7
+- [ ] Concurrent wrong passwords get past both lockouts: the lock is checked before the slow verify
+  and the counters are read-then-write (`accounts/index.ts` `count`, `fail`). Probe: 157 of 200
+  parallel guesses checked. Count before verifying, atomically (`replay.claim` slots or an atomic
+  increment). G-9, FR-I7
+- [ ] A correct password resets the counter TOTP failures share, so a known password gives unlimited
+  second-factor guesses in rounds of four. Count second-factor failures apart. FR-I7. Probe
+- [ ] A locked known username answers without hashing, an unknown one pays the decoy: a timing oracle.
+  Spend the decoy when locked. FR-I7. Probe
+- [ ] Recovery codes are an unsalted SHA-256 of 50 bits, crackable from a dump. HMAC them under the
+  accounts `secretKey`. FR-I7
+- [ ] PAR stores the pushing client's `client_secret` and `client_assertion` in the request artifact,
+  then in the interaction (`authorize/par.ts`, `applyRequestObject` returning the form). Drop client
+  authentication parameters before storing. NFR-S11
+- [ ] An RFC 7592 PUT rebuilds the client from metadata alone and drops what the operator set:
+  `profile`, `requirePushedAuthorizationRequests`, `dpopBoundAccessTokens`, `upstreamProviders`,
+  `accessTokenFormat` and the rest (`clients/registration.ts`). Carry forward every field
+  registration does not parse. FR-C9, FR-C21. Probe
+- [ ] After logout a session-bound refresh token still introspects `active` and is accepted as a
+  token-exchange subject (`resource/introspection.ts`, `token/exchange.ts`); only the refresh grant
+  checks the session. FR-T6, FR-T7
+- [ ] The client's authorized `fetch` and the axios interceptors send the bearer token to any origin,
+  and store any 401 body whole as the token state, from any origin. Limit both to the configured
+  resource origins; keep only `error` and `error_description`. RFC 9700 §2.3, FR-L6
+- [ ] A refresh response without `expires_in` is dropped (`client/src/token.ts` `setExpires`), so a
+  rotated refresh token is lost and the old one replayed, which ends the session. FR-L5. Probe
+- [ ] A brokered session's `auth_time` is set locally: the login result carries none, so `max_age`
+  is never enforced against the upstream's answer. FR-F6, FR-F9
+
+**Correctness**
+
+- [ ] `upstreamLogout` throwing loses the back-channel notifications of a session already destroyed;
+  a malformed stored `frontchannelLogoutUri` blocks logout with a 500; `id_token_hint`'s `typ` is
+  not checked
+- [ ] Revocation racing a refresh: the FAPI rewrite can resurrect a revoked token, a rotated one can
+  land in a family just revoked; `fromKv.consume` is read-then-insert
+- [ ] `authorization_details=[null]` is a 500; device and CIBA requests do not check the client's
+  `grant_types`; a JAR-by-value request resumed after an interaction travels as plain parameters
+- [ ] Accounts: a reset leaves `sign_in_attempts` locks; `fail` and `succeed` write back a credential
+  read before the verify, so a racing reset or TOTP change can be undone
+- [ ] Client: the refresh drops `id_token`; redirect classification matches `?barcode=`; `unreachable`
+  is inferred from an echo; the handoff shares the token slot, so a login in one tab ends the others;
+  a URL passed to `oauthCallback` is not cleaned; a non-redirecting logout and the refresh lock have
+  no timeout; a storage key changed mid-refresh; an expired ID token becomes a truthy profile;
+  `logoutPath` skips `assertSecure`; React's error hook reads `errorDescription` only
+- [ ] Storage: TypeORM's entities say `bigint` where the SQLite migrations say `integer`, so its schema
+  builder rebuilds every table; the SQL adapters ignore `Grant.expiresAt`; artifact prune can delete a
+  row rewritten since its select; the conformance suite never prunes artifacts and cannot tell a
+  merging grant upsert from a replacing one
+
+**Small**
+
+- [ ] The broker's binding cookie can be planted from a sibling subdomain; NAT64 addresses share a
+  /64; `@oidcraft/ui` asset paths are fixed at `/assets`; TypeORM deletes trust the host's
+  undefined-where setting; `fromKv` identity keys are not encoded
 
 ## Review — 2026-11-12
 

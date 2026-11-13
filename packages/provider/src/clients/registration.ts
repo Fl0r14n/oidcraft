@@ -260,6 +260,19 @@ const metadataFrom = (config: ResolvedConfig, body: Record<string, unknown>): Cl
 }
 
 /**
+ * What registration reads from metadata, and so what an update replaces or, left out, removes
+ * (RFC 7592 §2.2). The rest of a stored client is the operator's: an update keeps it (FR-C9, FR-C21).
+ */
+const REGISTERED = new Set<string>([
+  ...['clientName', 'applicationType', 'redirectUris', 'postLogoutRedirectUris', 'grantTypes', 'responseTypes', 'scopes'],
+  ...['tokenEndpointAuthMethod', 'clientSecret', 'clientSecretHash', 'sectorIdentifierUri', 'subjectType', 'requirePkce'],
+  ...['backchannelTokenDeliveryMode', 'backchannelClientNotificationEndpoint', 'idTokenSignedResponseAlg', 'jwks', 'jwksUri'],
+  ...['backchannelLogoutUri', ...Object.values(TLS_CLIENT_AUTH_METADATA)]
+])
+
+const operatorFields = (client: Client) => Object.fromEntries(Object.entries(client).filter(([name]) => !REGISTERED.has(name)))
+
+/**
  * The registration access token and a hashed client secret are stored as digests, so a response
  * carries one only when the caller holds it or it was just issued (NFR-S11).
  */
@@ -380,6 +393,7 @@ export const registrationEndpoint = async (config: ResolvedConfig, request: Requ
   // Identity and the token that grants access to it are the server's, not the client's to change.
   const { client: updated, issued } = await storableSecret(
     {
+      ...operatorFields(client),
       ...metadata,
       clientId: client.clientId,
       ...(sameSecret && client.clientSecret && { clientSecret: client.clientSecret }),

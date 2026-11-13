@@ -416,7 +416,7 @@ with a throwaway test. Several predate this week's work and shipped in 0.3.0. In
 - [x] PAR stores the pushing client's `client_secret` and `client_assertion` in the request artifact,
   then in the interaction (`authorize/par.ts`, `applyRequestObject` returning the form). Drop client
   authentication parameters before storing. NFR-S11
-- [ ] An RFC 7592 PUT rebuilds the client from metadata alone and drops what the operator set:
+- [x] An RFC 7592 PUT rebuilds the client from metadata alone and drops what the operator set:
   `profile`, `requirePushedAuthorizationRequests`, `dpopBoundAccessTokens`, `upstreamProviders`,
   `accessTokenFormat` and the rest (`clients/registration.ts`). Carry forward every field
   registration does not parse. FR-C9, FR-C21. Probe

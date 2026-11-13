@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
 import { memoryAdapter } from '@oidcraft/adapter/memory'
 import { OAuthError } from '../errors'
-import type { Adapter, AuditEvent } from '../index'
+import type { Adapter, AuditEvent, Client } from '../index'
 import { createProvider, type Provider } from '../provider'
 
 const ISSUER = 'https://op.example.com'
@@ -500,6 +500,29 @@ describe('registration management (RFC 7592)', () => {
     })
     expect(response.status).toBe(200)
     expect((await adapter.clients.find(client.client_id))?.redirectUris).toEqual(['https://rp.example.com/other'])
+  })
+
+  // FR-C9, FR-C21: the operator's settings are not metadata, so new metadata does not wipe them.
+  test('an update keeps what the operator set, and drops registered metadata it leaves out', async () => {
+    const client = await registered()
+    const stored = (await adapter.clients.find(client.client_id)) as Client
+    const operator = {
+      requirePushedAuthorizationRequests: true,
+      dpopBoundAccessTokens: true,
+      upstreamProviders: ['corp'],
+      accessTokenFormat: 'jwt' as const,
+      frontchannelLogoutUri: 'https://rp.example.com/fc'
+    }
+    await adapter.clients.upsert?.({ ...stored, ...operator, backchannelLogoutUri: 'https://rp.example.com/bc' })
+
+    const response = await call('PUT', client.client_id, client.registration_access_token, {
+      ...valid,
+      redirect_uris: ['https://rp.example.com/other']
+    })
+    expect(response.status).toBe(200)
+    const updated = await adapter.clients.find(client.client_id)
+    expect(updated).toMatchObject({ ...operator, redirectUris: ['https://rp.example.com/other'] })
+    expect(updated?.backchannelLogoutUri).toBeUndefined()
   })
 
   // Identity and the token guarding it are the server's to set, not the client's to choose.

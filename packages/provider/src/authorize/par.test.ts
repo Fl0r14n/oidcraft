@@ -216,6 +216,18 @@ describe('request objects (JAR)', () => {
       .setExpirationTime('5m')
       .sign(key.privateKey)
 
+  // RFC 9101: what the client signed must not cross the front channel editable when an interaction resumes it.
+  test('a signed request resumes after an interaction by reference, not as plain parameters', async () => {
+    const off = createProvider({ issuer: ISSUER, adapter, interactionUrl: `${ISSUER}/interaction` })
+    const request = await objectFor({ ...requestParams({ client_id: 'signer' }) })
+    const started = await off.handle(new Request(`${ISSUER}/authorize?${new URLSearchParams({ client_id: 'signer', request })}`))
+    const id = (started.headers.get('location') as string).split('/').pop() as string
+    const { redirectTo } = await off.interactions.complete(id, { login: { accountId: 'ada' } }, browserOf(started))
+    expect([...new URL(redirectTo).searchParams.keys()].sort()).toEqual(['client_id', 'request_uri'])
+    const resumed = await off.handle(new Request(redirectTo))
+    expect(resumed.headers.get('location')).toContain(`${ISSUER}/interaction/`)
+  })
+
   test('a signed request object supplies the parameters', async () => {
     const request = await objectFor({ ...requestParams({ client_id: 'signer' }) })
     const response = await authorize({ client_id: 'signer', request })

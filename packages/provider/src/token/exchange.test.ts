@@ -309,6 +309,16 @@ describe('rich authorization requests', () => {
       expect(new URL(final.headers.get('location') as string).searchParams.get('code')).toBeTruthy()
     })
 
+    // RFC 9396 §2: a stranger's JSON; a detail that is not an object is refused, not a 500.
+    test('a detail that is not an object is invalid_authorization_details', async () => {
+      const provider = build({ authorizationDetailTypes: ['payment'] })
+      for (const details of ['[null]', '[1]', '["payment"]']) {
+        const response = await provider.handle(new Request(authorizeUrl({ authorization_details: details })))
+        expect(response.status).toBe(303)
+        expect(new URL(response.headers.get('location') as string).searchParams.get('error')).toBe('invalid_authorization_details')
+      }
+    })
+
     test('a remembered grant for the scopes does not cover the details', async () => {
       const provider = build({ authorizationDetailTypes: ['payment'] })
       await tokensFor(provider, { scope: 'openid profile orders' })

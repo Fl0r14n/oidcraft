@@ -122,7 +122,8 @@ const authorizationHandler: Handler = async (config, request) => {
   try {
     validated = {
       ...validateAuthorizationRequest(config, client, redirectUri, params),
-      ...(raw.has('request_uri') && { pushed: true as const })
+      // RFC 9101: a signed request resumes by reference too, or its parameters cross the front channel editable.
+      ...((raw.has('request_uri') || raw.has('request')) && { pushed: true as const })
     }
   } catch (error) {
     if (!(error instanceof OAuthError)) throw error
@@ -163,10 +164,13 @@ const endSessionHandler: Handler = async (config, request) => {
 const resolveParameters = async (config: ResolvedConfig, raw: URLSearchParams) => {
   const requestUri = raw.get('request_uri')
   if (requestUri) {
-    if (!config.features.pushedAuthorizationRequests) {
+    if (config.features.pushedAuthorizationRequests) return resolvePushedRequest(config, requestUri, raw.get('client_id'))
+    // PAR off, the only reference is the one that resumes a signed request after an interaction; anything else is unsupported.
+    const resumed = await resolvePushedRequest(config, requestUri, raw.get('client_id')).catch(() => undefined)
+    if (!resumed) {
       throw new OAuthError('request_uri_not_supported', { description: 'request_uri is not supported here', spec: 'OIDC Core §3.1.2.6' })
     }
-    return resolvePushedRequest(config, requestUri, raw.get('client_id'))
+    return resumed
   }
 
   if (raw.has('request')) {

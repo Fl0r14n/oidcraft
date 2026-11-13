@@ -72,6 +72,12 @@ beforeEach(async () => {
 const start = (over: Record<string, string> = {}, as = 'bank') =>
   post('/backchannel', { scope: 'openid profile payments', login_hint: 'ada@example.test', ...over }, { authorization: basic(as) })
 
+// OIDC CIBA 1.0 §13: a client not registered for the grant is refused before anyone is asked.
+test('a client not registered for the CIBA grant is refused', async () => {
+  await adapter.clients.upsert?.(client({ grantTypes: ['authorization_code'] }))
+  expect((await (await start()).json()).error).toBe('unauthorized_client')
+})
+
 const pollFor = (authReqId: string, as = 'bank') =>
   post('/token', { grant_type: 'urn:openid:params:grant-type:ciba', auth_req_id: authReqId }, { authorization: basic(as) })
 

@@ -53,6 +53,12 @@ export const backchannelAuthenticationEndpoint = async (
 ) => {
   const form = new URLSearchParams(await request.text())
   const { client } = await authenticateClient(config, form, request.headers, certificate)
+  if (!client.grantTypes.includes(CIBA_GRANT)) {
+    throw new OAuthError('unauthorized_client', {
+      description: `client ${client.clientId} is not registered for the CIBA grant`,
+      spec: 'OIDC CIBA 1.0 §13'
+    })
+  }
 
   if (!config.resolveCibaUser) {
     throw new OAuthError('unsupported_grant_type', {

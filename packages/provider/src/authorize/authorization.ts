@@ -185,7 +185,7 @@ const parseAuthorizationDetails = (config: ResolvedConfig, raw: string | null) =
     })
   }
   for (const detail of parsed) {
-    const type = (detail as { type?: unknown }).type
+    const type = typeof detail === 'object' && detail !== null ? (detail as { type?: unknown }).type : undefined
     if (typeof type !== 'string') {
       throw new OAuthError('invalid_authorization_details', {
         description: 'every authorization detail needs a string type',

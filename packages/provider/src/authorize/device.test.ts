@@ -64,6 +64,12 @@ const start = async (scope = 'openid profile offline_access') =>
 const poll = (deviceCode: string) =>
   post('/token', { grant_type: 'urn:ietf:params:oauth:grant-type:device_code', device_code: deviceCode }, { authorization: basic() })
 
+// RFC 8628 §3.1: a client not registered for the grant gets no code to show.
+test('a client not registered for the device grant is refused', async () => {
+  await adapter.clients.upsert?.(client({ grantTypes: ['authorization_code'] }))
+  expect((await start()).error).toBe('unauthorized_client')
+})
+
 describe('user codes', () => {
   // RFC 8628 §6.1: this decides whether the flow works when read off a television.
   test('avoid the characters a person misreads', () => {

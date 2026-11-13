@@ -84,7 +84,7 @@ release above. In fix order.
   not checked
 - [x] Revocation racing a refresh: the FAPI rewrite can resurrect a revoked token, a rotated one can
   land in a family just revoked; `fromKv.consume` is read-then-insert
-- [ ] `authorization_details=[null]` is a 500; device and CIBA requests do not check the client's
+- [x] `authorization_details=[null]` is a 500; device and CIBA requests do not check the client's
   `grant_types`; a JAR-by-value request resumed after an interaction travels as plain parameters
 - [ ] Accounts: a password reset leaves `sign_in_attempts` locks in place
 - [ ] Client: redirect classification matches `?barcode=`; `unreachable` is inferred from an echo;

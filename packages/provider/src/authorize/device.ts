@@ -23,6 +23,8 @@ export const userCode = () => {
 
 export const normalizeUserCode = (input: string) => input.toUpperCase().replace(/[^A-Z0-9]/g, '')
 
+export const DEVICE_GRANT = 'urn:ietf:params:oauth:grant-type:device_code'
+
 export const deviceAuthorizationEndpoint = async (
   config: ResolvedConfig,
   request: Request,
@@ -30,6 +32,12 @@ export const deviceAuthorizationEndpoint = async (
 ) => {
   const form = new URLSearchParams(await request.text())
   const { client } = await authenticateClient(config, form, request.headers, certificate)
+  if (!client.grantTypes.includes(DEVICE_GRANT)) {
+    throw new OAuthError('unauthorized_client', {
+      description: `client ${client.clientId} is not registered for the device grant`,
+      spec: 'RFC 8628 §3.1'
+    })
+  }
 
   const scopes = (form.get('scope') ?? 'openid').split(' ').filter(Boolean)
   const unallowed = scopes.filter(scope => !client.scopes.includes(scope))

@@ -267,11 +267,11 @@ export const createAccounts = (options: AccountsOptions) => {
       const credential = await credentials.find(accountId)
       return credential ? { accountId, claims: credential.claims } : undefined
     },
-    async claims(accountId, requested) {
+    async claims(accountId, requested, named) {
       const credential = await credentials.find(accountId)
       if (!credential) return undefined
       const all: Record<string, unknown> = { preferred_username: credential.username, ...credential.claims }
-      const released = new Set(requested.flatMap(scope => scopes[scope] ?? []))
+      const released = new Set([...requested.flatMap(scope => scopes[scope] ?? []), ...named])
       return Object.fromEntries(Object.entries(all).filter(([name]) => released.has(name)))
     }
   }

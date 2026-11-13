@@ -1,5 +1,6 @@
 import type { Client, Grant, Session } from '@oidcraft/adapter'
 import { randomString } from '@oidcraft/core'
+import type { RequestedClaims } from '../authorize/claims'
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
 import { type SignIn, type Stored, writeArtifact } from '../payloads'
@@ -25,7 +26,8 @@ export const issueTokens = async (
     keepRefreshToken,
     familyExpiresAt,
     audience,
-    resources = []
+    resources = [],
+    claims
   }: {
     /** FR-T3: the authorization these tokens descend from, carried through every rotation. */
     familyId: string
@@ -44,6 +46,8 @@ export const issueTokens = async (
     audience?: string | undefined
     /** The resources the authorization covered, so a refresh can name only those. */
     resources?: string[]
+    /** Asked for by name and consented to (FR-C22). */
+    claims?: RequestedClaims | undefined
   }
 ) => {
   // FR-C11: logout notifies the session's clients, so each one signed in is listed; addClient never revives an ended session.
@@ -61,7 +65,8 @@ export const issueTokens = async (
     sessionId: session.id,
     subject,
     authorizationDetails,
-    audience
+    audience,
+    claims: claims?.userinfo
   })
   const accessToken = access.token
 
@@ -92,16 +97,21 @@ export const issueTokens = async (
         ...(offline ? { signIn: snapshotOf(session) } : { sessionBound: true }),
         familyExpiresAt: familyEnd,
         ...(resources.length && { resources }),
-        ...(refreshCnf && { cnf: refreshCnf })
+        ...(refreshCnf && { cnf: refreshCnf }),
+        ...(claims && { claims })
       },
       expiresAt: new Date(Math.min(now + config.ttl.refreshToken, familyEnd, sessionEnd) * 1000)
     })
   }
 
   // No ID token without openid (OIDC Core §3.1.2.1); one for a resource carries the scope claims UserInfo cannot release (§5.4, FR-C5).
-  const claims = scopes.includes('openid') && audience ? await config.adapter.accounts.claims(session.accountId, scopes, []) : undefined
+  const named = claims?.idToken ?? []
+  const released =
+    scopes.includes('openid') && (audience || named.length)
+      ? await config.adapter.accounts.claims(session.accountId, audience ? scopes : [], named)
+      : undefined
   const idToken = scopes.includes('openid')
-    ? await mintIdToken(config, { client, session, subject, nonce, accessToken, claims })
+    ? await mintIdToken(config, { client, session, subject, nonce, accessToken, claims: released })
     : undefined
 
   return {

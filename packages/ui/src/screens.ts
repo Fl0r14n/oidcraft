@@ -190,7 +190,7 @@ export const createScreens = ({ brand, theme, urls: overrides }: ScreensOptions)
         action: urls.interaction(view.id, 'consent'),
         title: `Allow ${nameOf(view)} to use your account?`,
         intro: `It is asking to:`,
-        scopes: view.scopes.map(describe),
+        scopes: [...view.scopes.map(describe), ...view.claims.map(claim => `See your ${claim.replaceAll('_', ' ')}`)],
         details: (view.authorizationDetails ?? []).map(detail => JSON.stringify(detail, null, 2)),
         ...destinationOf(view)
       }),

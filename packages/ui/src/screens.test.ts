@@ -5,7 +5,14 @@ import { createScreens } from './screens'
 
 const screens = createScreens({ brand: { name: 'Acme', host: 'id.acme.test' } })
 
-const view = { id: 'i1', kind: 'login', clientId: '<script>', scopes: ['openid', 'email'], prompt: [] } as unknown as InteractionRequest
+const view = {
+  id: 'i1',
+  kind: 'login',
+  clientId: '<script>',
+  scopes: ['openid', 'email'],
+  claims: [],
+  prompt: []
+} as unknown as InteractionRequest
 
 const firstButton = (html: string) => html.match(/<button[^>]*>/)?.[0] ?? ''
 
@@ -46,6 +53,11 @@ describe('the conformance browser contract', () => {
     expect(local).toContain('localhost:3000')
     expect(local).toContain('on this computer')
     expect(local).toContain('app.example.com')
+  })
+
+  // FR-C22: a claim asked for by name is consented to by name, so the person must see it.
+  test('consent names each claim asked for beyond the scopes', async () => {
+    expect(await (await screens.consent({ ...view, claims: ['family_name'] })).text()).toContain('See your family name')
   })
 
   test('consent has an allow button', async () => {

@@ -282,7 +282,6 @@ the clause behind the refusal.
 
 - **No `nonce` and no PKCE from a confidential client:** refused (FR-C3, NFR-S1).
 - **Unsigned (`alg: none`) request objects:** refused (FR-C12).
-- **The `claims` request parameter:** not supported. OIDC Core leaves it optional.
 - **JAR by reference** (a `request_uri` pointing at the client's own server): not implemented and
   never will be in the core. Resolving it means fetching a URL the client chose (FR-C12).
 - **Implicit and hybrid flows:** not implemented, so oidcraft is not a Dynamic OpenID Provider

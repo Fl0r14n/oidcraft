@@ -16,6 +16,7 @@ import {
   useFlow,
   verifier
 } from '../test-flow'
+import { detailsConsentId } from './authorization'
 
 useFlow()
 
@@ -167,5 +168,12 @@ describe('authorization endpoint', () => {
     const again = await go(authorizeUrl(), cookie)
     const location = new URL(again.headers.get('location') as string)
     expect(location.searchParams.get('code')).toBeTruthy()
+  })
+})
+
+describe('a derived identifier has one input it can come from', () => {
+  test('a newline moving between the account and the client changes the details-consent id', async () => {
+    const details = [{ type: 'payment' }]
+    expect(await detailsConsentId('a\nb', 'c', details)).not.toBe(await detailsConsentId('a', 'b\nc', details))
   })
 })

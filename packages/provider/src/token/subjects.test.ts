@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { decodeJwt } from 'jose'
 import type { Provider } from '../provider'
 import { adapter, basic, build, client, endSession, ISSUER, tokensFor, useFlow } from '../test-flow'
+import { pairwiseSubject } from './subjects'
 
 useFlow()
 
@@ -42,5 +43,16 @@ describe('FR-C18: a pairwise subject never leaks the account id', () => {
     const issued = await tokensFor(provider)
     await endSession(provider, issued.secret, issued.id_token)
     expect(decodeJwt(tokens[0]?.logoutToken as string).sub).toBe(decodeJwt(issued.id_token).sub as string)
+  })
+})
+
+describe('FR-C18: a derived identifier has one input it can come from', () => {
+  test('a dot moving between the sector and the account changes the pairwise subject', async () => {
+    expect(await pairwiseSubject('c', 'a.b', 'salt')).not.toBe(await pairwiseSubject('b.c', 'a', 'salt'))
+  })
+
+  test('the salt changes it, and the same inputs repeat it', async () => {
+    expect(await pairwiseSubject('ada', 'rp.example.com', 'one')).not.toBe(await pairwiseSubject('ada', 'rp.example.com', 'two'))
+    expect(await pairwiseSubject('ada', 'rp.example.com', 'one')).toBe(await pairwiseSubject('ada', 'rp.example.com', 'one'))
   })
 })

@@ -6,7 +6,7 @@ was done.
 
 ## Status
 
-**Implemented, as of 2026-11-13**, with 1324 passing tests (215 more skip without Postgres and
+**Implemented, as of 2026-11-13**, with 1341 passing tests (215 more skip without Postgres and
 Redis) and `bun run verify` as the gate: every functional requirement in `REQUIREMENTS.md`, FR-T6,
 FR-C21 and FR-A4's Postgres included. `metadata.test.ts` exercises every advertised discovery value
 rather than reading it. Published as `@oidcraft/*` — `core` 0.4.0, `client` 0.3.0, the provider
@@ -21,7 +21,7 @@ unreleased.
 
 The authorization code grant with mandatory PKCE, interaction suspend/resume, token issuance with
 rotation and replay revocation, UserInfo, revocation, introspection, logout in both directions,
-DPoP with nonces, PAR, JAR by value, dynamic client registration with RFC 7592 management, the
+DPoP with nonces, PAR, JAR by value, the `claims` parameter, dynamic client registration with RFC 7592 management, the
 device grant, CIBA in poll and ping, token exchange, RAR, step-up, pairwise subjects, identity
 brokering with home-realm discovery chosen by the provider, five storage adapters (memory, Drizzle,
 Kysely, TypeORM, Redis) passing one conformance suite, four runtime context providers, a management
@@ -32,15 +32,15 @@ API and an admin UI.
 **The OpenID Foundation suite's `basic`, `config` and FAPI 2.0 plans gate CI** (NFR-C1), with the
 refusals `conformance/README.md` lists. That is a passing run, not certification: three `basic`
 modules and five FAPI ones end in REVIEW, which a person signs off with screenshots only when
-certifying.
+certifying. Each was pre-checked from its page source on 2026-11-13 and shows the page its module
+asks for.
 
 **No deployment has run this in production**, against a real relying party that was not also written
 here, or under any load. Implemented is not certified: no `FR-*` has been checked by anything but
 its author and its tests.
 
-**The `claims` request parameter is not implemented**, so the `acr` a login reports stays the host's
-word: the host is the authenticator, and an essential `acr` would be enforceable only through
-`claims`.
+**The `acr` a login reports is the host's word.** The host is the authenticator: an essential `acr`
+in the `claims` parameter (FR-C22) refuses a login that reports less, but nothing checks the report.
 
 ### Decided against, rather than pending
 
@@ -74,6 +74,10 @@ word: the host is the authenticator, and an essential `acr` would be enforceable
    0.5.0 (the `token` check), `client` 0.4.0 (the handoff in `sessionStorage`), the provider 0.5.0
    and the bindings. The provider follow-ups below ride in the provider's 0.5.0: `onAudit` now hears
    replays and failed client authentications, and a body that is not form-encoded is a 415.
+   So does the `claims` parameter (FR-C22): `InteractionRequest.claims` is new, and a consent answer
+   to a request naming claims must repeat them in `consent.claims` — a host's own consent screen
+   needs that one line, as `apps/demo-server`'s did. `@oidcraft/ui`'s consent screen lists them.
+   `adapter`'s `AccountStore.claims` documents its third argument, which the stores now honour.
 
 ## Review — 2026-11-13, after the release
 

@@ -135,7 +135,9 @@ if (result.ok && !result.secondFactor) {
 ```
 
 If you already have users somewhere else, skip this entry and pass your own `accounts`: two
-functions, `find(accountId)` and `claims(accountId, scopes)`, as in the smallest provider above.
+functions, `find(accountId)` and `claims(accountId, scopes, claims)`, as in the smallest provider
+above. The third argument names claims the person consented to one by one, through the `claims`
+request parameter; release those too.
 
 ## Sign in with Google or Microsoft
 
@@ -381,7 +383,8 @@ register dynamically are served by `features: { dynamicRegistration: true }`, an
 
 The authorization code grant with mandatory PKCE · consent remembered per application · refresh
 tokens that rotate, with a replayed one revoking its family · UserInfo · revocation and introspection ·
-RP-initiated, back-channel and front-channel logout · DPoP with nonces · PAR and JAR · dynamic client
+RP-initiated, back-channel and front-channel logout · DPoP with nonces · PAR and JAR · the `claims`
+parameter · dynamic client
 registration · the device grant · CIBA · token exchange · rich authorization requests · step-up ·
 pairwise subjects · brokering with home-realm discovery · a management API.
 

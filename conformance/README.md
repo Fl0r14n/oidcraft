@@ -1,7 +1,7 @@
 # Conformance
 
 `NFR-C1` requires the OpenID Foundation conformance suite to run in CI for the `basic` and `config`
-OP profiles. **Both are green locally (last 2026-10-13), and the `conformance` job in
+OP profiles. **Both are green locally (last 2026-11-13), and the `conformance` job in
 `.github/workflows/ci.yml` runs them against every push, pinned to the suite's `SUITE_VERSION`.**
 
 `dynamic` is not a target. It tests a Dynamic OpenID Provider (OIDC Core §15.2), which must offer
@@ -68,7 +68,6 @@ so the run still exits 0; anything failing that is **not** here is a bug.
 | ---------------------------------------------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------ | --------------------------------- |
 | `oidcc-ensure-request-without-nonce-succeeds-for-code-flow`                        | failure | sends neither PKCE nor a `nonce`; a confidential client may skip PKCE only with a `nonce`              | FR-C3, NFR-S1, OAuth 2.1 §7.5.1.1 |
 | `oidcc-ensure-request-with-acr-values-succeeds`                                    | warning | the demo login can only do a password and reports `acr=pwd` rather than claim a level it did not reach | FR-F6                             |
-| `oidcc-claims-essential`                                                           | warning | the `claims` request parameter is not supported, which OIDC Core leaves optional                       | —                                 |
 | `oidcc-scope-address`, `-phone`, `-all`                                            | skipped | the demo serves no `address` or `phone` scope                                                          | —                                 |
 | `oidcc-unsigned-request-object-…`, `oidcc-ensure-request-object-with-redirect-uri` | skipped | an unsigned (`alg: none`) request object is refused                                                    | FR-C12                            |
 
@@ -77,11 +76,16 @@ screenshot": `oidcc-prompt-login` and `oidcc-max-age-1` (the second login page) 
 `oidcc-ensure-registered-redirect-uri` (the error page). `plan.json` takes those screenshots
 automatically; certification still means someone reviews them.
 
+Pre-checked 2026-11-13 from the page source the suite stores, for whoever certifies: each REVIEW page,
+in this plan and the FAPI one, is the page its module asks for — the login form for the two second
+logins, and the error page naming the refused `redirect_uri` or `request_uri` for the rest. Uploading
+the screenshots and signing off stays a person's job.
+
 ## FAPI 2.0
 
 `fapi2-security-profile-final-test-plan` with `openid_connect`, `private_key_jwt`, `dpop` and
-`plain_fapi` (FR-C21) runs as the second entry of the same CI job. **Green locally, 2026-10-30:** 53
-modules, no failures, no warnings. It runs against the demo with the whole provider under the profile:
+`plain_fapi` (FR-C21) runs as the second entry of the same CI job. **Green locally, 2026-11-13:** 53
+modules, no failures, one expected warning. It runs against the demo with the whole provider under the profile:
 
 ```sh
 OIDCRAFT_PROFILE=fapi2       # every client under FAPI 2.0; seeds fapi-plan.json's two clients
@@ -113,8 +117,11 @@ second time before sign-in completed. That last one is FAPI 2.0 §5.3.2.2 Note 3
 that a `request_uri` stay usable until authorization completes. oidcraft spends it on the first visit,
 as RFC 9126 §7.3 asks; the suite records the choice as a review, not a failure.
 
-`fapi2-security-profile-final-test-claims-parameter-identity-claims` is skipped
-(`expected-skips-fapi.json`): the `claims` parameter is not supported, as in the basic plan.
+`fapi2-security-profile-final-test-claims-parameter-identity-claims` runs: it asks for every claim in
+`claims_supported` by name, for the ID token and UserInfo, and the conformance user holds them all
+(FR-C22). It ends in one expected warning (`expected-failures-fapi.json`): the ID token carries `sid`,
+which Back-Channel Logout 1.0 §2.1 requires of an OP advertising `backchannel_logout_session_supported`
+(FR-C11), and which the suite's list of ID token claims does not include.
 
 ## What runs today instead
 

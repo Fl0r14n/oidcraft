@@ -29,8 +29,6 @@ The honest answer comes first.
 - **You need implicit or hybrid flows.** `oidc-provider` supports them, with `code id_token` and
   `id_token` among its default `responseTypes`. oidcraft implements only `code`, so it is not a
   Dynamic OpenID Provider (FR-C1).
-- **You need the `claims` request parameter.** `oidc-provider` has it, off by default, as
-  `features.claimsParameter`. oidcraft does not support it.
 - **You need FAPI 1.0 Advanced, JARM, FAPI 2.0 Message Signing or FAPI-CIBA.** `oidc-provider` lists
   all four as implemented, with FAPI-CIBA marked experimental. oidcraft implements the FAPI 2.0
   Security Profile only (FR-C21), with no JARM and no Message Signing.

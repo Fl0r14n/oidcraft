@@ -196,6 +196,18 @@ cannot meet it (NFR-D2), a client that cannot meet it is refused at registration
 discovery advertises only what it allows. Its conformance plan gates CI (NFR-C1). Message Signing
 is a separate profile and not part of this.
 
+**FR-C22 — The `claims` request parameter** (OIDC Core §5.5), by value, in a request object and
+pushed. A claim named for `userinfo` is released at UserInfo and one named for `id_token` in the
+ID token, beyond what the scopes release, and only once the person consented to it: individually
+requested claims are consented as scopes are, all or nothing, and remembered in the grant (FR-I4),
+so `prompt=none` without that consent is `consent_required`. A claim the configuration's `claims`
+does not list is ignored, as is a protocol claim except these two. An essential `acr` with
+`value` or `values` is a requirement on the login, as `acr_values` is (FR-C16), and a login that
+does not meet it is a failed authentication, answered `access_denied` (§5.5.1.1). An `id_token`
+`sub` with a `value` is answered only for that subject: another session is asked to sign in again,
+and a login as anyone else is refused. A requested claim the account does not have is left out,
+essential or not, as §5.5 requires.
+
 ## 4. Tokens — `FR-T*`
 
 **FR-T1** — ID tokens are always JWS; `none` never. An `RS256` key is mandatory in every key set

@@ -19,6 +19,8 @@ export type InteractionRequest = {
   kind: InteractionKind
   clientId: string
   scopes: string[]
+  /** Claims the client asks for by name beyond what its scopes release; consent names each one (FR-C22). */
+  claims: string[]
   prompt: string[]
   loginHint: string | undefined
   acrValues: string[] | undefined
@@ -46,8 +48,11 @@ export type InteractionResult = {
    * One older than the request's `max_age` allows answers the client `login_required` (FR-F9).
    */
   login?: { accountId: string; acr?: string; amr?: string[]; idp?: string; upstreamSessionId?: string; authTime?: Date }
-  /** `authorizationDetails` must repeat every detail the request carried, all or nothing; declining some is `access_denied`. */
-  consent?: { scopes: string[]; authorizationDetails?: InteractionAuthorizationDetail[] | undefined }
+  /**
+   * `claims` and `authorizationDetails` must repeat every one the request carried, all or nothing, as `scopes` must;
+   * declining some is `access_denied`.
+   */
+  consent?: { scopes: string[]; claims?: string[] | undefined; authorizationDetails?: InteractionAuthorizationDetail[] | undefined }
   error?: { error: 'access_denied' | 'login_required' | 'consent_required'; description?: string }
   /** The person confirmed a `logout` interaction. To decline, do not complete it: it expires and the session stays. */
   logout?: true

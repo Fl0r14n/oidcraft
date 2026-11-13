@@ -9,6 +9,7 @@ import { readArtifact, type Stored, writeArtifact } from '../payloads'
 
 type SingleUse = Stored<'authorization_code' | 'refresh_token'>
 
+import { stillConsented } from '../authorize/claims'
 import { underFapi } from '../profile/fapi'
 import { assertFamilyLive, revokeFamily } from './family'
 import { type Binding, issueTokens, loadGrantAndSession, loadGrantAndSignIn } from './issue'
@@ -90,7 +91,8 @@ export const authorizationCodeGrant = async (config: ResolvedConfig, client: Cli
     authorizationDetails: artifact.payload.authorizationDetails,
     sessionBound: true,
     audience,
-    resources: artifact.payload.resources ?? []
+    resources: artifact.payload.resources ?? [],
+    claims: artifact.payload.claims
   })
   await assertFamilyLive(config, familyId, grant.id)
   return unlessReplayed(config, artifact, 'authorization code', tokens)
@@ -148,7 +150,8 @@ export const refreshTokenGrant = async (config: ResolvedConfig, client: Client, 
     ...(!rotate && { keepRefreshToken: presented }),
     familyExpiresAt: artifact.payload.familyExpiresAt,
     audience,
-    resources: artifact.payload.resources ?? []
+    resources: artifact.payload.resources ?? [],
+    claims: stillConsented(config, grant, artifact.payload.claims)
   })
   // RFC 9700 §4.14.2: a revocation that raced this refresh, the FAPI rewrite included, is not undone by it.
   await assertFamilyLive(config, familyId, grant.id)

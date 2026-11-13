@@ -30,6 +30,8 @@ export type AccessTokenRequest = {
   actor?: { client_id: string } | undefined
   resource?: string | undefined
   audience?: string | undefined
+  /** Names released at UserInfo beyond the scopes (FR-C22). */
+  claims?: string[] | undefined
 }
 
 // The one place an access token is made (FR-T2); the stored record is the authority, which keeps a JWT revocable.
@@ -56,7 +58,8 @@ export const issueAccessToken = async (config: ResolvedConfig, request: AccessTo
       ...(request.resource && { resource: request.resource }),
       ...(request.audience && { aud: request.audience }),
       ...(cnf && { cnf }),
-      ...(jwt && { format: 'jwt' as const })
+      ...(jwt && { format: 'jwt' as const }),
+      ...(request.claims?.length && { claims: request.claims })
     },
     expiresAt
   })

@@ -33,8 +33,9 @@ const accounts = {
   async find(accountId: string) {
     return accountId === 'ghost' ? undefined : { accountId, claims: {} }
   },
-  async claims(_accountId: string, scopes: string[]) {
-    return scopes.includes('profile') ? { name: 'Ada Lovelace', email: 'ada@example.com' } : {}
+  async claims(_accountId: string, scopes: string[], named: string[]) {
+    const all = { name: 'Ada Lovelace', email: 'ada@example.com' }
+    return Object.fromEntries(Object.entries(all).filter(([name]) => scopes.includes('profile') || named.includes(name)))
   }
 }
 

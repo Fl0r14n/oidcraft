@@ -1,1 +1,11 @@
-[]
+[
+  {
+    "test-name": "fapi2-security-profile-final-test-claims-parameter-identity-claims",
+    "variant": "*",
+    "configuration-filename": "*",
+    "current-block": "",
+    "condition": "CheckForUnexpectedClaimsInIdToken",
+    "expected-result": "warning",
+    "comment": "sid, which Back-Channel Logout 1.0 §2.1 puts in every ID token of an OP advertising backchannel_logout_session_supported; the suite's list of ID token claims does not know it (FR-C11)"
+  }
+]

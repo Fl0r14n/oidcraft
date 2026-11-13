@@ -16,14 +16,5 @@
     "condition": "ValidateIdTokenACRClaimAgainstAcrValuesRequest",
     "expected-result": "warning",
     "comment": "the demo login can only do a password, and reports acr=pwd rather than claim a level it did not reach (FR-F6)"
-  },
-  {
-    "test-name": "oidcc-claims-essential",
-    "variant": "*",
-    "configuration-filename": "*",
-    "current-block": "",
-    "condition": "EnsureUserInfoContainsName",
-    "expected-result": "warning",
-    "comment": "the claims request parameter is not supported (claims_parameter_supported: false); OIDC Core makes it optional"
   }
 ]

@@ -1,6 +1,7 @@
 import type { Artifact, ArtifactKind, ArtifactStore } from '@oidcraft/adapter'
 import type { AuthorizationRequest, ResponseTarget } from './authorize/authorization'
 import type { CibaPayload } from './authorize/ciba'
+import type { RequestedClaims } from './authorize/claims'
 import type { Answer } from './authorize/decoupled'
 import type { DevicePayload } from './authorize/device'
 import type { Handoff } from './broker/types'
@@ -19,6 +20,7 @@ export type CodePayload = {
   authorizationDetails?: unknown[]
   resources?: string[]
   dpopJkt?: string
+  claims?: RequestedClaims
 }
 
 export type AccessTokenPayload = {
@@ -32,6 +34,8 @@ export type AccessTokenPayload = {
   aud?: string
   cnf?: Confirmation
   format?: 'jwt'
+  /** Released at UserInfo beyond the scopes, as consented (FR-C22). */
+  claims?: string[]
 }
 
 export type RefreshTokenPayload = {
@@ -44,6 +48,7 @@ export type RefreshTokenPayload = {
   familyExpiresAt: number
   resources?: string[]
   cnf?: Confirmation
+  claims?: RequestedClaims
 }
 
 export type DeviceLogin = { userCode: string; scopes: string[] }

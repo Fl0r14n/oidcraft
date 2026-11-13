@@ -1,3 +1,4 @@
+import { configuredClaims } from './authorize/claims'
 import { MTLS_METHODS, type ResolvedConfig } from './config'
 import { CLIENT_SECRET_ALGS, CLIENT_SIGNING_ALGS } from './keys/algorithms'
 import { signingAlgorithms } from './keys/keys'
@@ -81,13 +82,13 @@ export const metadata = (config: ResolvedConfig, signing: string[]) => {
     request_uri_parameter_supported: false,
     require_request_uri_registration: false,
     request_object_signing_alg_values_supported: clientAlgs,
-    claims_parameter_supported: false,
+    claims_parameter_supported: true,
     frontchannel_logout_supported: true,
     backchannel_logout_supported: true
   }
 }
 
-const claimsFrom = (config: ResolvedConfig) => [...new Set(Object.values(config.claims).flat())]
+const claimsFrom = (config: ResolvedConfig) => [...configuredClaims(config)]
 
 export const discoveryEndpoint = async (config: ResolvedConfig) => {
   const keys = await config.adapter.keys.active()

@@ -1,4 +1,6 @@
 import { describe, expect, test } from 'bun:test'
+import { decodeProtectedHeader } from 'jose'
+import type { LogoutNotification } from '../index'
 import { adapter, build, client, endSession, ISSUER, tokensFor, useFlow } from '../test-flow'
 
 useFlow()
@@ -110,5 +112,26 @@ describe('a failing logout hook', () => {
     const issued = await tokensFor(provider)
     expect((await endSession(provider, issued.secret, issued.id_token)).status).toBeLessThan(400)
     expect(errors).toEqual([new Error('no iframes today')])
+  })
+})
+
+describe('FR-C11: a logout token is signed as the client asked its ID tokens to be', () => {
+  test("the client's id_token_signed_response_alg, not the provider's first key", async () => {
+    let delivered: LogoutNotification[] = []
+    await adapter.clients.upsert?.(client({ idTokenSignedResponseAlg: 'RS256', backchannelLogoutUri: 'https://rp.example.com/out' }))
+    const provider = build({
+      onLogout: (notifications: LogoutNotification[]) => {
+        delivered = notifications
+      }
+    })
+    await adapter.sessions.upsert({
+      id: 's1',
+      accountId: 'ada',
+      authTime: new Date(),
+      clients: ['rp'],
+      expiresAt: new Date(Date.now() + 60_000)
+    })
+    await provider.management.sessions.destroy('s1')
+    expect(decodeProtectedHeader(delivered[0]?.logoutToken as string).alg).toBe('RS256')
   })
 })

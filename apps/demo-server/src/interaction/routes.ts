@@ -57,7 +57,7 @@ const build = (site: Site) => {
           const { redirectTo, setCookie } = await provider.interactions.complete(
             id,
             {
-              consent: { scopes: view.scopes, authorizationDetails: view.authorizationDetails }
+              consent: { scopes: view.scopes, claims: view.claims, authorizationDetails: view.authorizationDetails }
             },
             request.headers.get('cookie')
           )
@@ -172,7 +172,7 @@ const build = (site: Site) => {
       if (request.method === 'POST' && action === 'consent') {
         const outcome =
           (await form(request)).get('decision') === 'allow'
-            ? { consent: { scopes: view.scopes, authorizationDetails: view.authorizationDetails } }
+            ? { consent: { scopes: view.scopes, claims: view.claims, authorizationDetails: view.authorizationDetails } }
             : { error: { error: 'access_denied' as const, description: 'the user declined' } }
         const { redirectTo, setCookie } = await provider.interactions.complete(id, outcome, request.headers.get('cookie'))
         return seeOther(redirectTo, setCookie)

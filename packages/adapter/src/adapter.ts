@@ -82,7 +82,10 @@ export type GrantStore = EntityStore<Grant> & {
 
 export type AccountStore = {
   find(accountId: string): Promise<Account | undefined>
-  /** Claims are resolved per request so a userinfo call never serves a stale copy (FR-C5). */
+  /**
+   * Claims are resolved per request so a userinfo call never serves a stale copy (FR-C5): what `scopes` release, and
+   * besides them each claim in `claims`, which the person consented to by name through the `claims` parameter (FR-C22).
+   */
   claims(accountId: string, scopes: string[], claims: string[]): Promise<Record<string, unknown> | undefined>
 }
 

@@ -102,3 +102,17 @@ describe('FR-C5: signed and encrypted UserInfo', () => {
     expect(response.headers.get('content-type')).toContain('application/json')
   })
 })
+
+describe('UserInfo answers a bad token as RFC 6750 names it', () => {
+  test('invalid_token in the body as in the challenge', async () => {
+    const response = await build().handle(new Request(`${ISSUER}/userinfo`, { headers: { authorization: 'Bearer nope' } }))
+    expect(response.status).toBe(401)
+    expect(response.headers.get('www-authenticate')).toContain('error="invalid_token"')
+    expect((await response.json()).error).toBe('invalid_token')
+  })
+
+  test('no token at all is invalid_request', async () => {
+    const response = await build().handle(new Request(`${ISSUER}/userinfo`))
+    expect((await response.json()).error).toBe('invalid_request')
+  })
+})

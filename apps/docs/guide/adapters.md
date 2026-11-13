@@ -197,7 +197,8 @@ trusts the answer rather than re-checking it.
 **`accounts`**
 
 - `find(accountId)` and `claims(accountId, scopes, claims)`. Claims are resolved on every request,
-  never cached at sign-in (FR-C5).
+  never cached at sign-in (FR-C5). Release what the scopes release, and each claim named in
+  `claims` as well: those are the ones the person consented to by name (FR-C22).
 
 **`keys`**
 

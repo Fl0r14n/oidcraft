@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { base64url, decodeJwt, decodeProtectedHeader, exportJWK, generateKeyPair } from 'jose'
 import { adapter, basic, build, client, ISSUER, tokensFor, useFlow } from '../test-flow'
+import { mintIdToken } from './id-token'
 
 useFlow()
 
@@ -42,5 +43,20 @@ describe('ID token details', () => {
     ).json()
     expect(refreshed.access_token).toBeTruthy()
     expect(refreshed.id_token).toBeUndefined()
+  })
+})
+
+describe('claims an ID token carries', () => {
+  test('cannot restate how the person signed in', async () => {
+    const provider = build()
+    const session = { id: 's1', accountId: 'ada', authTime: new Date(), clients: [], expiresAt: new Date(Date.now() + 60_000) }
+    const token = await mintIdToken(provider.config, {
+      client: client(),
+      session,
+      claims: { name: 'Ada', acr: 'gold', amr: ['hwk'], sub: 'someone-else', nonce: 'forged', at_hash: 'forged' }
+    })
+    const claims = decodeJwt(token)
+    expect(claims).toMatchObject({ name: 'Ada', sub: 'ada' })
+    for (const name of ['acr', 'amr', 'nonce', 'at_hash']) expect(claims[name]).toBeUndefined()
   })
 })

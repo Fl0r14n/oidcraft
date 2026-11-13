@@ -5,7 +5,9 @@ import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
 import { readArtifact, type Stored, writeArtifact } from '../payloads'
 import { isFresh } from '../session/session'
+import { subjectFor } from '../token/subjects'
 import { selectUpstream } from '../upstreams/selection'
+import { type ClaimsRequest, heldClaims, individuallyRequested, parseClaimsRequest, type RequestedClaims } from './claims'
 import { assertChallenge } from './pkce'
 import { requestedResources } from './resources'
 
@@ -29,6 +31,8 @@ export type AuthorizationRequest = {
   resources: string[]
   /** RFC 9449 §10: the DPoP key the code is for; only a proof made with it may redeem the code. */
   dpopJkt: string | undefined
+  /** OIDC Core §5.5: claims asked for by name, and what the login must satisfy (FR-C22). */
+  claims: ClaimsRequest | undefined
   /** The request as it arrived. Resuming replays this, never a rebuild from the fields above, which would drop what they omit. */
   raw: string
   /** Arrived by pushed reference, so it resumes by one: its parameters never cross the front channel (RFC 9126). */
@@ -155,6 +159,7 @@ export const validateAuthorizationRequest = (
     authorizationDetails: parseAuthorizationDetails(config, params.get('authorization_details')),
     resources: requestedResources(config, params),
     dpopJkt: config.features.dpop ? dpopJktOf(params.get('dpop_jkt')) : undefined,
+    claims: parseClaimsRequest(config, params.get('claims')),
     raw: params.toString()
   }
 }
@@ -251,6 +256,27 @@ export const detailsConsentId = async (accountId: string, clientId: string, deta
 const missingScopes = (request: AuthorizationRequest, grant: Grant | undefined) =>
   request.scopes.filter(scope => !grant?.scopes.includes(scope))
 
+const missingClaims = (config: ResolvedConfig, request: AuthorizationRequest, grant: Grant | undefined) => {
+  const held = heldClaims(config, grant)
+  return individuallyRequested(config, request.scopes, request.claims).filter(name => !held.has(name))
+}
+
+/** Every acr the login is asked for, by `acr_values` or by the `claims` parameter, for the screens and the upstream (FR-C22). */
+export const requestedAcrValues = (request: Pick<AuthorizationRequest, 'acrValues' | 'claims'>) => {
+  const values = [...new Set([...(request.acrValues ?? []), ...(request.claims?.acr?.values ?? [])])]
+  return values.length ? values : undefined
+}
+
+/** §5.5.1.1: an essential acr is a requirement on the login, which only an acr among its values meets. */
+export const essentialAcrUnmet = (request: Pick<AuthorizationRequest, 'claims'>, acr: string | undefined) => {
+  const required = request.claims?.acr
+  return Boolean(required?.essential && (!acr || !required.values.includes(acr)))
+}
+
+/** §5.5.1: a request naming its subject is answered for that person or no one. */
+export const subjectMismatch = async (config: ResolvedConfig, client: Client, request: AuthorizationRequest, accountId: string) =>
+  request.claims?.sub !== undefined && (await subjectFor(config, client, accountId)) !== request.claims.sub
+
 export type AuthorizationOutcome =
   | { kind: 'response'; values: Record<string, string> }
   | { kind: 'interaction'; id: string; reason: 'login' | 'consent' }
@@ -264,14 +290,17 @@ export const authorize = async (
   browser: string
 ): Promise<AuthorizationOutcome> => {
   // RFC 9470: an unmet acr means re-authenticating, never a token that quietly falls short.
-  const acrUnmet = Boolean(request.acrValues?.length && (!session?.acr || !request.acrValues.includes(session.acr)))
+  const acrUnmet =
+    Boolean(request.acrValues?.length && (!session?.acr || !request.acrValues.includes(session.acr))) ||
+    essentialAcrUnmet(request, session?.acr)
   // FR-I5: select_account asks which identity to use, so it goes to the login screen even with a session.
   const needsLogin =
     !session ||
     request.prompt.includes('login') ||
     request.prompt.includes('select_account') ||
     !isFresh(session, request.maxAge) ||
-    acrUnmet
+    acrUnmet ||
+    (await subjectMismatch(config, client, request, session.accountId))
 
   if (needsLogin) {
     if (request.prompt.includes('none')) {
@@ -281,7 +310,7 @@ export const authorize = async (
   }
 
   const grant = await config.adapter.grants.findByAccountAndClient(session.accountId, request.clientId)
-  const outstanding = missingScopes(request, grant)
+  const outstanding = [...missingScopes(request, grant), ...missingClaims(config, request, grant)]
   const detailsConsent = request.authorizationDetails
     ? await detailsConsentId(session.accountId, request.clientId, request.authorizationDetails)
     : undefined
@@ -327,7 +356,7 @@ const suspend = async (
     kind === 'login' && config.upstreams.length
       ? selectUpstream(config.upstreams, {
           loginHint: request.loginHint,
-          acrValues: request.acrValues,
+          acrValues: requestedAcrValues(request),
           allowed: client.upstreamProviders
         })
       : undefined
@@ -351,8 +380,12 @@ const suspend = async (
   return id
 }
 
+const released = (claims: ClaimsRequest | undefined): RequestedClaims | undefined =>
+  claims && (claims.userinfo.length || claims.idToken.length) ? { userinfo: claims.userinfo, idToken: claims.idToken } : undefined
+
 const issueCode = async (config: ResolvedConfig, request: AuthorizationRequest, session: Session, grant: Grant) => {
   const code = randomString()
+  const claims = released(request.claims)
   await writeArtifact(config.adapter.artifacts, {
     id: code,
     kind: 'authorization_code',
@@ -368,7 +401,8 @@ const issueCode = async (config: ResolvedConfig, request: AuthorizationRequest, 
       ...(request.nonce && { nonce: request.nonce }),
       ...(request.authorizationDetails && { authorizationDetails: request.authorizationDetails }),
       ...(request.resources.length && { resources: request.resources }),
-      ...(request.dpopJkt && { dpopJkt: request.dpopJkt })
+      ...(request.dpopJkt && { dpopJkt: request.dpopJkt }),
+      ...(claims && { claims })
     },
     expiresAt: new Date(Date.now() + config.ttl.authorizationCode * 1000)
   })

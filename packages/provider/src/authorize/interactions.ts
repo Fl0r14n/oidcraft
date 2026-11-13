@@ -5,7 +5,15 @@ import type { InteractionCompletion, InteractionRequest, InteractionResult } fro
 import { type DeviceLogin, type InteractionPayload, readArtifact, writeArtifact } from '../payloads'
 import { assertSameBrowser } from '../session/browser'
 import { startSession } from '../session/session'
-import { type AuthorizationRequest, detailsConsentId, type ResponseTarget } from './authorization'
+import {
+  type AuthorizationRequest,
+  detailsConsentId,
+  essentialAcrUnmet,
+  type ResponseTarget,
+  requestedAcrValues,
+  subjectMismatch
+} from './authorization'
+import { heldClaims, individuallyRequested } from './claims'
 import { recordConsent } from './consent'
 import { pushParameters } from './par'
 
@@ -38,9 +46,10 @@ export const interactions = (config: ResolvedConfig) => ({
       kind,
       clientId: request.clientId,
       scopes: request.scopes,
+      claims: individuallyRequested(config, request.scopes, request.claims),
       prompt: request.prompt,
       loginHint: request.loginHint,
-      acrValues: request.acrValues,
+      acrValues: requestedAcrValues(request),
       uiLocales: request.uiLocales,
       maxAge: request.maxAge,
       upstreamProviders: client?.upstreamProviders,
@@ -64,7 +73,7 @@ export const interactions = (config: ResolvedConfig) => ({
     // FR-F9: max_age went upstream with the login, so an auth_time older than it says it was not honoured.
     const outcome: InteractionResult = staleLogin(config, artifact.expiresAt, request.maxAge, given.login?.authTime)
       ? { error: { error: 'login_required', description: 'the sign-in is older than max_age allows' } }
-      : given
+      : ((await refusedLogin(config, request, given.login)) ?? given)
     if (outcome.consent) {
       const consented = outcome.consent.scopes
       const unasked = consented.filter(scope => !request.scopes.includes(scope))
@@ -85,6 +94,23 @@ export const interactions = (config: ResolvedConfig) => ({
         throw new OAuthError('invalid_request', {
           description: `consent must approve every requested scope, or answer access_denied; it leaves out ${declined.join(', ')}`,
           spec: 'FR-I4'
+        })
+      }
+      const asked = individuallyRequested(config, request.scopes, request.claims)
+      const named = outcome.consent.claims ?? []
+      const unaskedClaims = named.filter(name => !asked.includes(name))
+      if (unaskedClaims.length) {
+        throw new OAuthError('invalid_request', {
+          description: `consent grants the claims ${unaskedClaims.join(', ')}, which this request did not ask for`,
+          spec: 'FR-C22'
+        })
+      }
+      const holding = heldClaims(config, held)
+      const declinedClaims = asked.filter(name => !named.includes(name) && !holding.has(name))
+      if (declinedClaims.length) {
+        throw new OAuthError('invalid_request', {
+          description: `consent must approve every requested claim, or answer access_denied; it leaves out ${declinedClaims.join(', ')}`,
+          spec: 'FR-C22'
         })
       }
     }
@@ -134,7 +160,7 @@ export const interactions = (config: ResolvedConfig) => ({
     }
 
     if (outcome.consent && accountId) {
-      await recordConsent(config, accountId, request.clientId, outcome.consent.scopes)
+      await recordConsent(config, accountId, request.clientId, outcome.consent.scopes, outcome.consent.claims)
 
       if (requestedDetails) {
         await writeArtifact(config.adapter.artifacts, {
@@ -160,6 +186,7 @@ const logoutView = (id: string, clientId: string, expiresAt: Date): InteractionR
   kind: 'logout',
   clientId,
   scopes: [],
+  claims: [],
   prompt: [],
   loginHint: undefined,
   acrValues: undefined,
@@ -175,7 +202,8 @@ const logoutView = (id: string, clientId: string, expiresAt: Date): InteractionR
 const deviceView = (id: string, clientId: string, device: DeviceLogin, expiresAt: Date): InteractionRequest => ({
   ...logoutView(id, clientId, expiresAt),
   kind: 'login',
-  scopes: device.scopes
+  scopes: device.scopes,
+  claims: []
 })
 
 /** Signed in, the person goes back to the code they typed; approving it is still a separate step (FR-C7). */
@@ -221,6 +249,23 @@ const confirmLogout = async (
   url.searchParams.set('logout', id)
   if (payload.state !== undefined) url.searchParams.set('state', payload.state)
   return { redirectTo: url.toString(), setCookie: undefined }
+}
+
+/** FR-C22: a login that misses an essential acr failed (§5.5.1.1), and one as someone other than the requested sub is no answer (§5.5.1). */
+const refusedLogin = async (
+  config: ResolvedConfig,
+  request: AuthorizationRequest,
+  login: InteractionResult['login']
+): Promise<InteractionResult | undefined> => {
+  if (!login) return undefined
+  if (essentialAcrUnmet(request, login.acr)) {
+    return { error: { error: 'access_denied', description: 'the sign-in did not reach the acr the client requires' } }
+  }
+  const client = request.claims?.sub === undefined ? undefined : await config.adapter.clients.find(request.clientId)
+  if (client && (await subjectMismatch(config, client, request, login.accountId))) {
+    return { error: { error: 'access_denied', description: 'the person who signed in is not the one the client asked for' } }
+  }
+  return undefined
 }
 
 const AUTH_TIME_SKEW = 30

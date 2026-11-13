@@ -44,7 +44,9 @@ export const accountStore = (adapter: Adapter, accounts: Accounts): AccountStore
     return Object.fromEntries(
       Object.entries(linked.claims).filter(
         ([name]) =>
-          (scopes.includes('profile') && PROFILE.includes(name)) || (scopes.includes('email') && ['email', 'email_verified'].includes(name))
+          claims.includes(name) ||
+          (scopes.includes('profile') && PROFILE.includes(name)) ||
+          (scopes.includes('email') && ['email', 'email_verified'].includes(name))
       )
     )
   }

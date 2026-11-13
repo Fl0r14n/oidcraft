@@ -312,6 +312,22 @@ export const adapterConformance = (create: () => Adapter | Promise<Adapter>, opt
       }
     },
     {
+      // NFR-P3: what a sweep removes is what was expired when it deleted, not when it looked.
+      name: 'artifact prune removes what expired and nothing live',
+      run: async () => {
+        const adapter = await full()
+        await adapter.artifacts.upsert(artifact({ id: 'dead1', expiresAt: past() }))
+        await adapter.artifacts.upsert(artifact({ id: 'dead2', expiresAt: past() }))
+        await adapter.artifacts.upsert(artifact({ id: 'live' }))
+        if (adapter.artifacts.prune) {
+          same(await adapter.artifacts.prune(new Date(), 1), 1, 'expired artifacts removed within the limit')
+          same(await adapter.artifacts.prune(new Date(), 10), 1, 'the expired artifact the limit left')
+          same(await adapter.artifacts.prune(new Date(), 10), 0, 'nothing left to remove')
+        }
+        same((await adapter.artifacts.find('authorization_code', 'live'))?.id, 'live', 'the live artifact')
+      }
+    },
+    {
       name: 'a device code is reachable by its user code',
       run: async () => {
         const adapter = await full()
@@ -416,6 +432,35 @@ export const adapterConformance = (create: () => Adapter | Promise<Adapter>, opt
         same(found?.createdAt.getTime(), 1_000, 'the first createdAt')
         same(await adapter.grants.find('g2'), undefined, 'a second grant')
         same((await adapter.grants.listForAccount('u1')).length, 1, "u1's grants")
+      }
+    },
+    {
+      // FR-I4: a consent narrowed and written again stays narrowed; a store that merged would widen it back.
+      name: 'a grant written again under its own id replaces what it held',
+      run: async () => {
+        const adapter = await full()
+        await adapter.grants.upsert(grant({ scopes: ['openid', 'profile'], resources: { a: ['x'] } }))
+        await adapter.grants.upsert(grant({ scopes: ['openid'], resources: {} }))
+        const found = await adapter.grants.find('g1')
+        same(found?.scopes, ['openid'], 'the narrowed scopes')
+        same(found?.resources, {}, 'the narrowed resources')
+      }
+    },
+    {
+      // FR-T5: a grant may expire, and storage enforces it as it does an artifact's expiry.
+      name: 'an expired grant is not served',
+      run: async () => {
+        const adapter = await full()
+        await adapter.grants.upsert(grant({ expiresAt: past() }))
+        same(await adapter.grants.find('g1'), undefined, 'an expired grant by id')
+        same(await adapter.grants.findByAccountAndClient('u1', 'c1'), undefined, 'an expired grant by its pair')
+        same(await adapter.grants.listForAccount('u1'), [], "u1's grants")
+        await adapter.grants.upsert(grant({ id: 'g2', scopes: ['openid', 'email'], expiresAt: soon() }))
+        same(
+          (await adapter.grants.findByAccountAndClient('u1', 'c1'))?.scopes,
+          ['openid', 'email'],
+          'a live grant written over the expired one'
+        )
       }
     },
     {

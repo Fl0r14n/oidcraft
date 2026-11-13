@@ -24,7 +24,7 @@ in [ARCHITECTURE.md §4](/reference/architecture#_4-the-adapter-layer).
 | `@oidcraft/redis`           | any Redis client, through one `send(command, args)` function | `SET NX`                             |
 | `@oidcraft/drizzle`         | Drizzle v1 (`drizzle-orm@>=1.0.0-rc.5`), SQLite or Postgres  | `UPDATE … WHERE consumed_at IS NULL` |
 | `@oidcraft/kysely`          | Kysely, SQLite or Postgres                                   | `UPDATE … WHERE consumed_at IS NULL` |
-| `@oidcraft/typeorm`         | an initialized TypeORM `DataSource` with `OIDCRAFT_ENTITIES` | `UPDATE … WHERE consumed_at IS NULL` |
+| `@oidcraft/typeorm`         | an initialized TypeORM `DataSource` with `OIDCRAFT_SQLITE_ENTITIES` or `OIDCRAFT_POSTGRES_ENTITIES` | `UPDATE … WHERE consumed_at IS NULL` |
 
 How to pick:
 

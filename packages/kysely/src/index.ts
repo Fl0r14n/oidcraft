@@ -17,7 +17,7 @@ import {
   toRealm,
   toSession
 } from '@oidcraft/sql/rows'
-import type { Kysely } from 'kysely'
+import type { ExpressionBuilder, Kysely } from 'kysely'
 import type { OidcraftDatabase } from './schema'
 
 export type KyselyAdapterOptions = {
@@ -28,6 +28,10 @@ export type KyselyAdapterOptions = {
 }
 
 const now = () => Date.now()
+
+// FR-T5: a grant may carry an expiry, which the query enforces as it does an artifact's.
+const grantLive = (eb: ExpressionBuilder<OidcraftDatabase, 'oidc_grants'>) =>
+  eb.or([eb('expires_at', 'is', null), eb('expires_at', '>', now())])
 
 /** The Drizzle adapter's contract on a query builder; both pass the one conformance suite (FR-A4). */
 export const kyselyAdapter = (options: KyselyAdapterOptions): FullAdapter => {
@@ -102,7 +106,15 @@ export const kyselyAdapter = (options: KyselyAdapterOptions): FullAdapter => {
         .where('expires_at', '<=', before.getTime())
         .limit(limit)
         .execute()
-      for (const row of doomed) await artifacts.destroy(row.kind as ArtifactKind, row.id)
+      // Expired still, at the delete: a row rewritten since the select is live again (NFR-P3).
+      for (const row of doomed) {
+        await db
+          .deleteFrom('oidc_artifacts')
+          .where('kind', '=', row.kind)
+          .where('id', '=', row.id)
+          .where('expires_at', '<=', before.getTime())
+          .execute()
+      }
       return doomed.length
     }
   }
@@ -236,7 +248,7 @@ export const kyselyAdapter = (options: KyselyAdapterOptions): FullAdapter => {
 
     grants: {
       async find(id) {
-        const row = await db.selectFrom('oidc_grants').selectAll().where('id', '=', id).executeTakeFirst()
+        const row = await db.selectFrom('oidc_grants').selectAll().where('id', '=', id).where(grantLive).executeTakeFirst()
         return row ? toGrant(row) : undefined
       },
       async findByAccountAndClient(accountId, clientId) {
@@ -245,11 +257,12 @@ export const kyselyAdapter = (options: KyselyAdapterOptions): FullAdapter => {
           .selectAll()
           .where('account_id', '=', accountId)
           .where('client_id', '=', clientId)
+          .where(grantLive)
           .executeTakeFirst()
         return row ? toGrant(row) : undefined
       },
       async listForAccount(accountId) {
-        return (await db.selectFrom('oidc_grants').selectAll().where('account_id', '=', accountId).execute()).map(toGrant)
+        return (await db.selectFrom('oidc_grants').selectAll().where('account_id', '=', accountId).where(grantLive).execute()).map(toGrant)
       },
       async upsert(grant) {
         const row = grantRow(grant)

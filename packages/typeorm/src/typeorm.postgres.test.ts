@@ -3,7 +3,7 @@ import { generatedKeyStore } from '@oidcraft/adapter'
 import { adapterConformance } from '@oidcraft/adapter/conformance'
 import { dropSchemas, emptySchema, POSTGRES_URL } from '@oidcraft/sql/testing'
 import { DataSource } from 'typeorm'
-import { OIDCRAFT_ENTITIES, TYPEORM_POSTGRES_MIGRATIONS, typeormAdapter } from './index'
+import { OIDCRAFT_POSTGRES_ENTITIES, TYPEORM_POSTGRES_MIGRATIONS, typeormAdapter } from './index'
 
 const accounts = {
   async find(accountId: string) {
@@ -23,7 +23,7 @@ const fresh = async () => {
     type: 'postgres',
     url: POSTGRES_URL as string,
     schema,
-    entities: OIDCRAFT_ENTITIES,
+    entities: OIDCRAFT_POSTGRES_ENTITIES,
     migrations: TYPEORM_POSTGRES_MIGRATIONS,
     extra: { max: 2, options: `-c search_path=${schema}` }
   })
@@ -43,6 +43,23 @@ describe.skipIf(!POSTGRES_URL)('typeorm adapter on Postgres', () => {
   for (const check of adapterConformance(async () => (await fresh()).adapter, { implements: ['identities', 'credentials', 'realms'] })) {
     test(`typeorm/postgres: ${check.name}`, check.run)
   }
+
+  // FR-A4: an entity's column type that disagrees with the migration's makes TypeORM's schema builder rebuild the table.
+  test('every entity column has the type the migrations gave it', async () => {
+    const { dataSource } = await fresh()
+    const runner = dataSource.createQueryRunner()
+    const differ: string[] = []
+    for (const entity of dataSource.entityMetadatas) {
+      const table = await runner.getTable(entity.tableName)
+      for (const column of entity.columns) {
+        const made = table?.findColumnByName(column.databaseName)?.type
+        const declared = dataSource.driver.normalizeType(column)
+        if (made !== declared) differ.push(`${entity.tableName}.${column.databaseName}: ${made} != ${declared}`)
+      }
+    }
+    await runner.release()
+    expect(differ).toEqual([])
+  })
 
   test('the shipped migrations run through TypeORM, in order, once', async () => {
     const { dataSource } = await fresh()

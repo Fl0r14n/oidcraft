@@ -67,7 +67,11 @@ word: the host is the authenticator, and an essential `acr` would be enforceable
 
 ## Next, in this order
 
-1. **The correctness and small findings of the review after the release** — below.
+1. **The correctness and small findings of the review after the release** — below. Correctness done
+   2026-11-13 on `main`, unreleased; its release needs `adapter` 0.2.1 (the `revoked_family` kind,
+   the suite's new checks), `drizzle` and `kysely` 0.2.1, `typeorm` 0.3.0 (`OIDCRAFT_ENTITIES` split
+   by dialect), `core` 0.5.0 (the `token` check), `client` 0.4.0 (the handoff in `sessionStorage`),
+   the provider 0.5.0 and the bindings.
 2. **Provider follow-ups**, below. Before 1.0.
 
 ## Review — 2026-11-13, after the release
@@ -92,10 +96,14 @@ release above. In fix order.
   `oauthCallback` is not cleaned; a non-redirecting logout and the refresh lock have no timeout; a
   storage key changed mid-refresh; an expired ID token becomes a truthy profile; `logoutPath` skips
   `assertSecure`; React's error hook reads `errorDescription` only
-- [ ] Storage: TypeORM's entities say `bigint` where the SQLite migrations say `integer`, so its schema
+- [x] Storage: TypeORM's entities say `bigint` where the SQLite migrations say `integer`, so its schema
   builder rebuilds every table; the SQL adapters ignore `Grant.expiresAt`; artifact prune can delete a
   row rewritten since its select; the conformance suite never prunes artifacts and cannot tell a
   merging grant upsert from a replacing one
+
+- [ ] SQLite's migrations declare primary keys without `not null`, which SQLite then allows null in,
+  so TypeORM's schema builder still finds every SQLite table to rebuild (its types agree since
+  `OIDCRAFT_SQLITE_ENTITIES`). A migration rebuilding them with `not null`, shared by every SQL adapter.
 
 **Small**
 

@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { generatedKeyStore } from '@oidcraft/adapter'
 import { adapterConformance } from '@oidcraft/adapter/conformance'
 import { DataSource } from 'typeorm'
-import { OIDCRAFT_ENTITIES, TYPEORM_SQLITE_MIGRATIONS, typeormAdapter } from './index'
+import { OIDCRAFT_SQLITE_ENTITIES, TYPEORM_SQLITE_MIGRATIONS, typeormAdapter } from './index'
 
 const accounts = {
   async find(accountId: string) {
@@ -14,7 +14,7 @@ const accounts = {
 }
 
 const fresh = async () => {
-  const dataSource = new DataSource({ type: 'sqljs', entities: OIDCRAFT_ENTITIES, migrations: TYPEORM_SQLITE_MIGRATIONS })
+  const dataSource = new DataSource({ type: 'sqljs', entities: OIDCRAFT_SQLITE_ENTITIES, migrations: TYPEORM_SQLITE_MIGRATIONS })
   await dataSource.initialize()
   await dataSource.runMigrations()
   return { dataSource, adapter: typeormAdapter({ dataSource, keys: await generatedKeyStore(), accounts }) }
@@ -34,6 +34,24 @@ describe('typeorm adapter', () => {
     expect(await dataSource.runMigrations()).toEqual([])
   })
 
+  // FR-A4: entities that disagree with the migrations make TypeORM's schema builder rebuild every table.
+  // FR-A4: an entity's column type that disagrees with the migration's makes TypeORM's schema builder rebuild the table.
+  test('every entity column has the type the migrations gave it', async () => {
+    const { dataSource } = await fresh()
+    const runner = dataSource.createQueryRunner()
+    const differ: string[] = []
+    for (const entity of dataSource.entityMetadatas) {
+      const table = await runner.getTable(entity.tableName)
+      for (const column of entity.columns) {
+        const made = table?.findColumnByName(column.databaseName)?.type
+        const declared = dataSource.driver.normalizeType(column)
+        if (made !== declared) differ.push(`${entity.tableName}.${column.databaseName}: ${made} != ${declared}`)
+      }
+    }
+    await runner.release()
+    expect(differ).toEqual([])
+  })
+
   test('revocation uses the grant index rather than scanning', async () => {
     const { dataSource } = await fresh()
     const plan: { detail: string }[] = await dataSource.query("explain query plan delete from oidc_artifacts where grant_id = 'g1'")
@@ -43,6 +61,6 @@ describe('typeorm adapter', () => {
   test('a DataSource without the entities is refused at construction', async () => {
     const bare = new DataSource({ type: 'sqljs', entities: [] })
     await bare.initialize()
-    expect(() => typeormAdapter({ dataSource: bare, keys: { active: async () => [] } as never })).toThrow(/OIDCRAFT_ENTITIES/)
+    expect(() => typeormAdapter({ dataSource: bare, keys: { active: async () => [] } as never })).toThrow(/OIDCRAFT_SQLITE_ENTITIES/)
   })
 })

@@ -1,5 +1,6 @@
 import type { AccountStore, Artifact, ArtifactKind, Credential, FullAdapter, KeyStore, LinkedIdentity, Realm } from '@oidcraft/adapter'
 import { noAccounts } from '@oidcraft/adapter'
+import type { ArtifactRow, ClientRow, CredentialRow, GrantRow, IdentityRow, RealmRow, ReplayRow, SessionRow } from '@oidcraft/sql/rows'
 import {
   artifactRow,
   clientRow,
@@ -18,21 +19,11 @@ import {
   toRealm,
   toSession
 } from '@oidcraft/sql/rows'
-import { type DataSource, type EntitySchema, QueryFailedError, type Repository } from 'typeorm'
-import {
-  ArtifactEntity,
-  ClientEntity,
-  CredentialEntity,
-  GrantEntity,
-  IdentityEntity,
-  OIDCRAFT_ENTITIES,
-  RealmEntity,
-  ReplayEntity,
-  SessionEntity
-} from './schema'
+import { type DataSource, type FindOptionsWhere, IsNull, MoreThan, QueryFailedError, type Repository } from 'typeorm'
+import { OIDCRAFT_TABLES } from './schema'
 
 export type TypeormAdapterOptions = {
-  /** Initialized, with `OIDCRAFT_ENTITIES` among its entities and the migrations already run. */
+  /** Initialized, with `OIDCRAFT_SQLITE_ENTITIES` or `OIDCRAFT_POSTGRES_ENTITIES` among its entities and the migrations already run. */
   dataSource: DataSource
   keys: KeyStore
   /** Omitted, every account lookup misses: the host composes one in later, as `@oidcraft/provider/accounts` does. */
@@ -40,6 +31,12 @@ export type TypeormAdapterOptions = {
 }
 
 const now = () => Date.now()
+
+// FR-T5: a grant may carry an expiry, which the query enforces as it does an artifact's.
+const grantLive = (where: FindOptionsWhere<GrantRow>) => [
+  { ...where, expires_at: IsNull() },
+  { ...where, expires_at: MoreThan(now()) }
+]
 
 const upsert = async <T extends object>(
   repository: Repository<T>,
@@ -65,20 +62,20 @@ const insertIfAbsent = async <T extends object>(repository: Repository<T>, row: 
 /** The Drizzle and Kysely adapters' contract on the host's TypeORM `DataSource` (FR-A6). */
 export const typeormAdapter = (options: TypeormAdapterOptions): FullAdapter => {
   const { dataSource } = options
-  const missing = OIDCRAFT_ENTITIES.filter(entity => !dataSource.hasMetadata(entity as EntitySchema))
+  const missing = OIDCRAFT_TABLES.filter(table => !dataSource.hasMetadata(table))
   if (missing.length) {
     throw new Error(
-      `the DataSource does not know ${missing.map(entity => entity.options.name).join(', ')}: add OIDCRAFT_ENTITIES to its entities`
+      `the DataSource does not know ${missing.join(', ')}: add OIDCRAFT_SQLITE_ENTITIES or OIDCRAFT_POSTGRES_ENTITIES to its entities`
     )
   }
-  const clients = dataSource.getRepository(ClientEntity)
-  const artifactRows = dataSource.getRepository(ArtifactEntity)
-  const sessions = dataSource.getRepository(SessionEntity)
-  const grants = dataSource.getRepository(GrantEntity)
-  const identities = dataSource.getRepository(IdentityEntity)
-  const replay = dataSource.getRepository(ReplayEntity)
-  const credentials = dataSource.getRepository(CredentialEntity)
-  const realms = dataSource.getRepository(RealmEntity)
+  const clients = dataSource.getRepository<ClientRow>('oidc_clients')
+  const artifactRows = dataSource.getRepository<ArtifactRow>('oidc_artifacts')
+  const sessions = dataSource.getRepository<SessionRow>('oidc_sessions')
+  const grants = dataSource.getRepository<GrantRow>('oidc_grants')
+  const identities = dataSource.getRepository<IdentityRow>('oidc_identities')
+  const replay = dataSource.getRepository<ReplayRow>('oidc_replay')
+  const credentials = dataSource.getRepository<CredentialRow>('oidc_credentials')
+  const realms = dataSource.getRepository<RealmRow>('oidc_realms')
 
   const artifacts = {
     async upsert(artifact: Artifact) {
@@ -143,7 +140,14 @@ export const typeormAdapter = (options: TypeormAdapterOptions): FullAdapter => {
         .where('a.expires_at <= :before', { before: before.getTime() })
         .limit(limit)
         .getMany()
-      for (const row of doomed) await artifacts.destroy(row.kind as ArtifactKind, row.id)
+      // Expired still, at the delete: a row rewritten since the select is live again (NFR-P3).
+      for (const row of doomed) {
+        await artifactRows
+          .createQueryBuilder()
+          .delete()
+          .where('kind = :kind and id = :id and expires_at <= :before', { kind: row.kind, id: row.id, before: before.getTime() })
+          .execute()
+      }
       return doomed.length
     }
   }
@@ -243,15 +247,15 @@ export const typeormAdapter = (options: TypeormAdapterOptions): FullAdapter => {
 
     grants: {
       async find(id) {
-        const row = await grants.findOneBy({ id })
+        const row = await grants.findOneBy(grantLive({ id }))
         return row ? toGrant(row) : undefined
       },
       async findByAccountAndClient(accountId, clientId) {
-        const row = await grants.findOneBy({ account_id: accountId, client_id: clientId })
+        const row = await grants.findOneBy(grantLive({ account_id: accountId, client_id: clientId }))
         return row ? toGrant(row) : undefined
       },
       async listForAccount(accountId) {
-        return (await grants.findBy({ account_id: accountId })).map(toGrant)
+        return (await grants.findBy(grantLive({ account_id: accountId }))).map(toGrant)
       },
       async upsert(grant) {
         await upsert(grants, grantRow(grant), ['account_id', 'client_id'], ['scopes', 'claims', 'resources', 'expires_at'])

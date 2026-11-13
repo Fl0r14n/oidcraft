@@ -12,7 +12,7 @@ import type {
   Session
 } from '@oidcraft/adapter'
 import { noAccounts } from '@oidcraft/adapter'
-import { type AnyRelations, and, eq, gt, isNull, lte } from 'drizzle-orm'
+import { type AnyRelations, and, eq, gt, isNull, lte, or } from 'drizzle-orm'
 import type { PgQueryResultHKT } from 'drizzle-orm/pg-core'
 import type { PgAsyncDatabase } from 'drizzle-orm/pg-core/async'
 import type { SQLiteAsyncDatabase } from 'drizzle-orm/sqlite-core'
@@ -40,6 +40,8 @@ export const drizzleAdapter = (options: DrizzleAdapterOptions): FullAdapter => {
   // Typed as SQLite's: every query here is one both dialects accept, over the same columns and JS values (FR-A4).
   const db = options.db as DrizzleDatabase
   const { clients, artifacts, sessions, grants, identities, replay, credentials, realms } = (options.tables ?? schema) as typeof schema
+  // FR-T5: a grant may carry an expiry, which the query enforces as it does an artifact's.
+  const grantLive = () => or(isNull(grants.expiresAt), gt(grants.expiresAt, now()))
 
   const toArtifact = (row: typeof artifacts.$inferSelect): Artifact => ({
     id: row.id,
@@ -173,7 +175,10 @@ export const drizzleAdapter = (options: DrizzleAdapterOptions): FullAdapter => {
           .from(artifacts)
           .where(lte(artifacts.expiresAt, before))
           .limit(limit)
-        for (const row of doomed) await db.delete(artifacts).where(and(eq(artifacts.kind, row.kind), eq(artifacts.id, row.id)))
+        // Expired still, at the delete: a row rewritten since the select is live again (NFR-P3).
+        for (const row of doomed) {
+          await db.delete(artifacts).where(and(eq(artifacts.kind, row.kind), eq(artifacts.id, row.id), lte(artifacts.expiresAt, before)))
+        }
         return doomed.length
       }
     },
@@ -243,19 +248,28 @@ export const drizzleAdapter = (options: DrizzleAdapterOptions): FullAdapter => {
 
     grants: {
       async find(id) {
-        const [row] = await db.select().from(grants).where(eq(grants.id, id)).limit(1)
+        const [row] = await db
+          .select()
+          .from(grants)
+          .where(and(eq(grants.id, id), grantLive()))
+          .limit(1)
         return row ? toGrant(row) : undefined
       },
       async findByAccountAndClient(accountId, clientId) {
         const [row] = await db
           .select()
           .from(grants)
-          .where(and(eq(grants.accountId, accountId), eq(grants.clientId, clientId)))
+          .where(and(eq(grants.accountId, accountId), eq(grants.clientId, clientId), grantLive()))
           .limit(1)
         return row ? toGrant(row) : undefined
       },
       async listForAccount(accountId) {
-        return (await db.select().from(grants).where(eq(grants.accountId, accountId))).map(toGrant)
+        return (
+          await db
+            .select()
+            .from(grants)
+            .where(and(eq(grants.accountId, accountId), grantLive()))
+        ).map(toGrant)
       },
       async upsert(grant) {
         const row = {

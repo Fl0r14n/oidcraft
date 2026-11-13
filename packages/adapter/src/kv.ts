@@ -225,7 +225,9 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
   const grantIndex = (grant: Pick<Grant, 'accountId' | 'clientId'>) => `${accountGrants(grant.accountId)}${part(grant.clientId)}`
   const readGrant = async (id: string) => {
     const grant = dec<Grant>(await read(`grant/${id}`))
-    return grant && revive(grant, ['createdAt', 'expiresAt'])
+    const live = grant && revive(grant, ['createdAt', 'expiresAt'])
+    // FR-T5: a TTL rounds up to a second, so the expiry is checked as an artifact's is.
+    return live && (!live.expiresAt || live.expiresAt.getTime() > Date.now()) ? live : undefined
   }
 
   const grants: GrantStore = {

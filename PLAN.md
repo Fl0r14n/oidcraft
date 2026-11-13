@@ -522,10 +522,13 @@ text it is held to. In fix order.
   reading the key store again. One `signerFor(config, client, alg?)`, one key read per response
   Fixed: `keys/signer.ts`. The one key read is a memo of `keys.active()` that `dispatch` gives each
   request, so it holds nothing across requests (FR-A1) and covers every path, verification included
-- [ ] Duplicates: the client key set in `assertion.ts` and `request-object.ts`; the DPoP options in
+- [x] Duplicates: the client key set in `assertion.ts` and `request-object.ts`; the DPoP options in
   the token endpoint, PAR and UserInfo; `MTLS_METHODS` in `config.ts` and `discovery.ts`;
   `noAccounts` in each adapter; about 150 lines of row mapping in each SQL adapter, which belong in
   `@oidcraft/sql`
+  Fixed: `clientKeySet`, `proofOptions`, one `MTLS_METHODS`, `noAccounts` exported by `@oidcraft/adapter`,
+  and `@oidcraft/sql/rows` for Kysely and TypeORM, whose rows are the same shape. Drizzle's are not —
+  JSON and timestamp columns — so it keeps its own mapping
 - [ ] CORS works out the client again after the handler did, cloning the body twice and reading the
   client store, and at UserInfo the artifact, a second time. The handler returns the client it resolved
 - [ ] `RequestContext` carries an `issuer` that `dispatch` overwrites, so every runtime entry's

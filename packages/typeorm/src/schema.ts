@@ -1,78 +1,9 @@
 import { POSTGRES_MIGRATIONS } from '@oidcraft/sql/postgres'
+import type { ArtifactRow, ClientRow, CredentialRow, GrantRow, IdentityRow, RealmRow, ReplayRow, SessionRow } from '@oidcraft/sql/rows'
 import { type Migration, SQLITE_MIGRATIONS } from '@oidcraft/sql/sqlite'
 import { EntitySchema, type EntitySchemaColumnOptions, type MigrationInterface, type QueryRunner } from 'typeorm'
 
-export type ClientRow = { client_id: string; data: string; created_at: number; updated_at: number }
-
-export type ArtifactRow = {
-  kind: string
-  id: string
-  client_id: string
-  account_id: string | null
-  grant_id: string | null
-  family_id: string | null
-  user_code: string | null
-  payload: string
-  consumed_at: number | null
-  expires_at: number
-}
-
-export type SessionRow = {
-  id: string
-  account_id: string
-  auth_time: number
-  acr: string | null
-  amr: string | null
-  idp: string | null
-  upstream_session_id: string | null
-  clients: string
-  expires_at: number
-}
-
-export type GrantRow = {
-  id: string
-  account_id: string
-  client_id: string
-  scopes: string
-  claims: string
-  resources: string
-  created_at: number
-  expires_at: number | null
-}
-
-export type IdentityRow = {
-  provider: string
-  subject: string
-  account_id: string
-  email: string | null
-  claims: string
-  linked_at: number
-}
-
-export type RealmRow = {
-  id: string
-  display_name: string | null
-  enabled: number
-  settings: string
-  created_at: number
-  updated_at: number
-}
-
-export type ReplayRow = { namespace: string; value: string; expires_at: number }
-
-export type CredentialRow = {
-  account_id: string
-  username: string
-  password_hash: string
-  claims: string
-  totp_secret: string | null
-  totp_confirmed_at: number | null
-  recovery_codes: string | null
-  failed_attempts: number
-  locked_until: number | null
-  created_at: number
-  updated_at: number
-}
+export type { ArtifactRow, ClientRow, CredentialRow, GrantRow, IdentityRow, RealmRow, ReplayRow, SessionRow }
 
 const text = (options: Partial<EntitySchemaColumnOptions> = {}): EntitySchemaColumnOptions => ({ type: 'text', ...options })
 

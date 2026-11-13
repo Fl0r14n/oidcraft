@@ -1,19 +1,24 @@
-import type {
-  AccountStore,
-  Artifact,
-  ArtifactKind,
-  Client,
-  Credential,
-  FullAdapter,
-  Grant,
-  KeyStore,
-  LinkedIdentity,
-  Realm,
-  Session
-} from '@oidcraft/adapter'
+import type { AccountStore, Artifact, ArtifactKind, Credential, FullAdapter, KeyStore, LinkedIdentity, Realm } from '@oidcraft/adapter'
 import { noAccounts } from '@oidcraft/adapter'
-import type { Kysely, Selectable } from 'kysely'
-import type { ArtifactsTable, CredentialsTable, GrantsTable, IdentitiesTable, OidcraftDatabase, RealmsTable, SessionsTable } from './schema'
+import {
+  artifactRow,
+  clientRow,
+  credentialRow,
+  grantRow,
+  identityRow,
+  json,
+  realmRow,
+  sessionRow,
+  toArtifact,
+  toClient,
+  toCredential,
+  toGrant,
+  toIdentity,
+  toRealm,
+  toSession
+} from '@oidcraft/sql/rows'
+import type { Kysely } from 'kysely'
+import type { OidcraftDatabase } from './schema'
 
 export type KyselyAdapterOptions = {
   db: Kysely<OidcraftDatabase>
@@ -23,101 +28,6 @@ export type KyselyAdapterOptions = {
 }
 
 const now = () => Date.now()
-// Postgres returns int8 as a string, which `new Date` would read as a date string, not milliseconds.
-const at = (millis: number | string) => new Date(Number(millis))
-const json = (value: unknown) => JSON.stringify(value)
-const parse = <T>(value: string) => JSON.parse(value) as T
-
-const toArtifact = (row: Selectable<ArtifactsTable>): Artifact => ({
-  id: row.id,
-  kind: row.kind as ArtifactKind,
-  clientId: row.client_id,
-  ...(row.account_id && { accountId: row.account_id }),
-  ...(row.grant_id && { grantId: row.grant_id }),
-  ...(row.family_id && { familyId: row.family_id }),
-  payload: parse<Record<string, unknown>>(row.payload),
-  ...(row.consumed_at && { consumedAt: at(row.consumed_at) }),
-  expiresAt: at(row.expires_at)
-})
-
-const toSession = (row: Selectable<SessionsTable>): Session => ({
-  id: row.id,
-  accountId: row.account_id,
-  authTime: at(row.auth_time),
-  ...(row.acr && { acr: row.acr }),
-  ...(row.amr ? { amr: parse<string[]>(row.amr) } : {}),
-  ...(row.idp && { idp: row.idp }),
-  ...(row.upstream_session_id && { upstreamSessionId: row.upstream_session_id }),
-  clients: parse<string[]>(row.clients),
-  expiresAt: at(row.expires_at)
-})
-
-const toGrant = (row: Selectable<GrantsTable>): Grant => ({
-  id: row.id,
-  accountId: row.account_id,
-  clientId: row.client_id,
-  scopes: parse<string[]>(row.scopes),
-  claims: parse<string[]>(row.claims),
-  resources: parse<Record<string, string[]>>(row.resources),
-  createdAt: at(row.created_at),
-  ...(row.expires_at && { expiresAt: at(row.expires_at) })
-})
-
-const credentialRow = (credential: Credential) => ({
-  account_id: credential.accountId,
-  username: credential.username,
-  password_hash: credential.passwordHash,
-  claims: json(credential.claims),
-  totp_secret: credential.totp?.secret ?? null,
-  totp_confirmed_at: credential.totp?.confirmedAt?.getTime() ?? null,
-  recovery_codes: credential.recoveryCodes ? json(credential.recoveryCodes) : null,
-  failed_attempts: credential.failedAttempts,
-  locked_until: credential.lockedUntil?.getTime() ?? null,
-  created_at: credential.createdAt.getTime(),
-  updated_at: credential.updatedAt.getTime()
-})
-
-const toCredential = (row: Selectable<CredentialsTable>): Credential => ({
-  accountId: row.account_id,
-  username: row.username,
-  passwordHash: row.password_hash,
-  claims: parse<Record<string, unknown>>(row.claims),
-  ...(row.totp_secret && {
-    totp: { secret: row.totp_secret, ...(row.totp_confirmed_at && { confirmedAt: at(row.totp_confirmed_at) }) }
-  }),
-  ...(row.recovery_codes ? { recoveryCodes: parse<string[]>(row.recovery_codes) } : {}),
-  failedAttempts: row.failed_attempts,
-  ...(row.locked_until && { lockedUntil: at(row.locked_until) }),
-  createdAt: at(row.created_at),
-  updatedAt: at(row.updated_at)
-})
-
-const realmRow = (realm: Realm) => ({
-  id: realm.id,
-  display_name: realm.displayName ?? null,
-  enabled: realm.enabled ? 1 : 0,
-  settings: json(realm.settings),
-  created_at: realm.createdAt.getTime(),
-  updated_at: realm.updatedAt.getTime()
-})
-
-const toRealm = (row: Selectable<RealmsTable>): Realm => ({
-  id: row.id,
-  ...(row.display_name && { displayName: row.display_name }),
-  enabled: Boolean(row.enabled),
-  settings: parse<Record<string, unknown>>(row.settings),
-  createdAt: at(row.created_at),
-  updatedAt: at(row.updated_at)
-})
-
-const toIdentity = (row: Selectable<IdentitiesTable>): LinkedIdentity => ({
-  accountId: row.account_id,
-  provider: row.provider,
-  subject: row.subject,
-  ...(row.email && { email: row.email }),
-  claims: parse<Record<string, unknown>>(row.claims),
-  linkedAt: at(row.linked_at)
-})
 
 /**
  * The same contract as the Drizzle adapter, on a query builder rather than an ORM (FR-A4). Both run
@@ -128,18 +38,7 @@ export const kyselyAdapter = (options: KyselyAdapterOptions): FullAdapter => {
 
   const artifacts = {
     async upsert(artifact: Artifact) {
-      const row = {
-        kind: artifact.kind,
-        id: artifact.id,
-        client_id: artifact.clientId,
-        account_id: artifact.accountId ?? null,
-        grant_id: artifact.grantId ?? null,
-        family_id: artifact.familyId ?? null,
-        user_code: (artifact.payload.userCode as string | undefined) ?? null,
-        payload: json(artifact.payload),
-        consumed_at: artifact.consumedAt ? artifact.consumedAt.getTime() : null,
-        expires_at: artifact.expiresAt.getTime()
-      }
+      const row = artifactRow(artifact)
       await db
         .insertInto('oidc_artifacts')
         .values(row)
@@ -254,14 +153,14 @@ export const kyselyAdapter = (options: KyselyAdapterOptions): FullAdapter => {
       async find(clientId) {
         const row = await db.selectFrom('oidc_clients').selectAll().where('client_id', '=', clientId).executeTakeFirst()
         if (!row) return undefined
-        return { ...parse<Client>(row.data), createdAt: at(row.created_at), updatedAt: at(row.updated_at) }
+        return toClient(row)
       },
       async upsert(client) {
-        const data = json(client)
-        const updated_at = client.updatedAt.getTime()
+        const row = clientRow(client)
+        const { data, updated_at } = row
         await db
           .insertInto('oidc_clients')
-          .values({ client_id: client.clientId, data, created_at: client.createdAt.getTime(), updated_at })
+          .values(row)
           .onConflict(conflict => conflict.column('client_id').doUpdateSet({ data, updated_at }))
           .execute()
       },
@@ -276,7 +175,7 @@ export const kyselyAdapter = (options: KyselyAdapterOptions): FullAdapter => {
         const more = limit !== undefined && rows.length > limit
         const shown = more ? rows.slice(0, limit) : rows
         return {
-          clients: shown.map(row => ({ ...parse<Client>(row.data), createdAt: at(row.created_at), updatedAt: at(row.updated_at) })),
+          clients: shown.map(toClient),
           ...(more && { cursor: shown.at(-1)?.client_id as string })
         }
       }
@@ -309,17 +208,7 @@ export const kyselyAdapter = (options: KyselyAdapterOptions): FullAdapter => {
         return rows.map(toSession)
       },
       async upsert(session) {
-        const row = {
-          id: session.id,
-          account_id: session.accountId,
-          auth_time: session.authTime.getTime(),
-          acr: session.acr ?? null,
-          amr: session.amr ? json(session.amr) : null,
-          idp: session.idp ?? null,
-          upstream_session_id: session.upstreamSessionId ?? null,
-          clients: json(session.clients),
-          expires_at: session.expiresAt.getTime()
-        }
+        const row = sessionRow(session)
         await db
           .insertInto('oidc_sessions')
           .values(row)
@@ -369,16 +258,7 @@ export const kyselyAdapter = (options: KyselyAdapterOptions): FullAdapter => {
         return (await db.selectFrom('oidc_grants').selectAll().where('account_id', '=', accountId).execute()).map(toGrant)
       },
       async upsert(grant) {
-        const row = {
-          id: grant.id,
-          account_id: grant.accountId,
-          client_id: grant.clientId,
-          scopes: json(grant.scopes),
-          claims: json(grant.claims),
-          resources: json(grant.resources),
-          created_at: grant.createdAt.getTime(),
-          expires_at: grant.expiresAt ? grant.expiresAt.getTime() : null
-        }
+        const row = grantRow(grant)
         await db
           .insertInto('oidc_grants')
           .values(row)
@@ -493,14 +373,7 @@ export const kyselyAdapter = (options: KyselyAdapterOptions): FullAdapter => {
         return (await db.selectFrom('oidc_identities').selectAll().where('account_id', '=', accountId).execute()).map(toIdentity)
       },
       async upsert(identity: LinkedIdentity) {
-        const row = {
-          provider: identity.provider,
-          subject: identity.subject,
-          account_id: identity.accountId,
-          email: identity.email ?? null,
-          claims: json(identity.claims),
-          linked_at: identity.linkedAt.getTime()
-        }
+        const row = identityRow(identity)
         await db
           .insertInto('oidc_identities')
           .values(row)

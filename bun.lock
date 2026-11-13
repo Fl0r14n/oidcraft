@@ -222,6 +222,7 @@
       "name": "@oidcraft/sql",
       "version": "0.0.0",
       "devDependencies": {
+        "@oidcraft/adapter": "workspace:*",
         "@types/pg": "^8.23.1",
         "pg": "^8.23.1",
       },

@@ -14,6 +14,10 @@
       "types": "./dist/postgres.d.mts",
       "import": "./dist/postgres.mjs"
     },
+    "./rows": {
+      "types": "./dist/rows.d.mts",
+      "import": "./dist/rows.mjs"
+    },
     "./testing": "./testing/postgres.ts",
     "./package.json": "./package.json"
   },
@@ -22,6 +26,7 @@
     "typecheck": "bun check"
   },
   "devDependencies": {
+    "@oidcraft/adapter": "workspace:*",
     "@types/pg": "^8.23.1",
     "pg": "^8.23.1"
   }

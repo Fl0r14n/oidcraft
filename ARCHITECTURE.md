@@ -182,7 +182,9 @@ registration field. Scope is the exception: core keeps `scope` as the string the
 pass, the provider side keeps `scopes` as the list it stores and compares.
 
 The SQL schema the three SQL adapters share is not contract — nothing but those three reads it — so
-it is `@oidcraft/sql`, private, and each compiles in its own copy. It has a build of its own so they
+it is `@oidcraft/sql`, private, and each compiles in its own copy. So is the row mapping Kysely and
+TypeORM share, JSON as text and times as epoch milliseconds (`@oidcraft/sql/rows`); Drizzle declares
+its columns as JSON and timestamps, and maps them itself. It has a build of its own so they
 bundle its `dist`, not its sources: a declaration build reaching a sibling's sources writes stray
 `.d.ts` files beside them. An adapter importing it by name instead fails `verify-entries.ts`, since
 it is only a `devDependency`. One package rather than one per dialect, because every SQL adapter

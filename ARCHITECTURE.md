@@ -315,6 +315,11 @@ first, and one atomic claim.
 returns `FullAdapter`, which satisfies each. `createProvider` takes a plain `Adapter` and refuses
 `upstreams` without the brokering stores at construction (NFR-D2).
 
+**A consent is a merge, never a write over another (FR-I4).** `grants.merge` adds scopes and claims
+to the one grant of an account and client, or starts it, and treats an expired grant as gone, so its
+tokens are not revived under a new consent. The SQL adapters compare-and-swap on the stored columns;
+`fromKv` serializes consents to one pair behind a lock taken with its atomic `insert`.
+
 **A revocation is not undone by a request already past its checks (FR-T3, FR-T7).** Revoking a
 family writes a `revoked_family` artifact before it sweeps the family's rows, and revoking a grant
 destroys the `Grant` before it sweeps its tokens. Every write into a family reads both after writing

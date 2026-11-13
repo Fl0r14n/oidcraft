@@ -1,5 +1,5 @@
 import type { AccountStore, Artifact, ArtifactKind, Credential, FullAdapter, KeyStore, LinkedIdentity, Realm } from '@oidcraft/adapter'
-import { noAccounts } from '@oidcraft/adapter'
+import { grantExpired, MERGE_ROUNDS, mergedGrant, noAccounts } from '@oidcraft/adapter'
 import {
   artifactRow,
   clientRow,
@@ -270,6 +270,43 @@ export const kyselyAdapter = (options: KyselyAdapterOptions): FullAdapter => {
               .doUpdateSet({ scopes: row.scopes, claims: row.claims, resources: row.resources, expires_at: row.expires_at })
           )
           .execute()
+      },
+      // FR-I4: compare-and-swap on the stored text, so a consent landing between the read and the write is never overwritten.
+      async merge(grant) {
+        for (let round = 0; round < MERGE_ROUNDS; round++) {
+          const row = await db
+            .selectFrom('oidc_grants')
+            .selectAll()
+            .where('account_id', '=', grant.accountId)
+            .where('client_id', '=', grant.clientId)
+            .executeTakeFirst()
+          if (!row) {
+            const won = await db
+              .insertInto('oidc_grants')
+              .values(grantRow(grant))
+              .onConflict(conflict => conflict.doNothing())
+              .returning('id')
+              .executeTakeFirst()
+            if (won) return grant
+            continue
+          }
+          const held = toGrant(row)
+          if (grantExpired(held)) {
+            await db.deleteFrom('oidc_grants').where('id', '=', held.id).where('expires_at', '<=', Date.now()).execute()
+            continue
+          }
+          const merged = grantRow(mergedGrant(held, grant))
+          const swapped = await db
+            .updateTable('oidc_grants')
+            .set({ scopes: merged.scopes, claims: merged.claims, resources: merged.resources })
+            .where('id', '=', row.id)
+            .where('scopes', '=', row.scopes)
+            .where('claims', '=', row.claims)
+            .where('resources', '=', row.resources)
+            .executeTakeFirst()
+          if (Number(swapped.numUpdatedRows) === 1) return mergedGrant(held, grant)
+        }
+        throw new Error(`the grant for ${grant.accountId} and ${grant.clientId} kept changing under the merge`)
       },
       async destroy(id) {
         await db.deleteFrom('oidc_grants').where('id', '=', id).execute()

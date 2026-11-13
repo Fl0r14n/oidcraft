@@ -1,5 +1,5 @@
 import type { AccountStore, Artifact, ArtifactKind, Credential, FullAdapter, KeyStore, LinkedIdentity, Realm } from '@oidcraft/adapter'
-import { noAccounts } from '@oidcraft/adapter'
+import { grantExpired, MERGE_ROUNDS, mergedGrant, noAccounts } from '@oidcraft/adapter'
 import type { ArtifactRow, ClientRow, CredentialRow, GrantRow, IdentityRow, RealmRow, ReplayRow, SessionRow } from '@oidcraft/sql/rows'
 import {
   artifactRow,
@@ -258,6 +258,36 @@ export const typeormAdapter = (options: TypeormAdapterOptions): FullAdapter => {
       },
       async upsert(grant) {
         await upsert(grants, grantRow(grant), ['account_id', 'client_id'], ['scopes', 'claims', 'resources', 'expires_at'])
+      },
+      // FR-I4: compare-and-swap on the stored text, so a consent landing between the read and the write is never overwritten.
+      async merge(grant) {
+        for (let round = 0; round < MERGE_ROUNDS; round++) {
+          const row = await grants.findOneBy(by({ account_id: grant.accountId, client_id: grant.clientId }))
+          if (!row) {
+            const pair = by({ account_id: grant.accountId, client_id: grant.clientId })
+            if (await insertIfAbsent(grants, grantRow(grant), async () => grants.existsBy(pair))) return grant
+            continue
+          }
+          const held = toGrant(row)
+          if (grantExpired(held)) {
+            await grants.createQueryBuilder().delete().where('id = :id and expires_at <= :now', { id: row.id, now: Date.now() }).execute()
+            continue
+          }
+          const merged = grantRow(mergedGrant(held, grant))
+          const swapped = await grants
+            .createQueryBuilder()
+            .update()
+            .set({ scopes: merged.scopes, claims: merged.claims, resources: merged.resources })
+            .where('id = :id and scopes = :scopes and claims = :claims and resources = :resources', {
+              id: row.id,
+              scopes: row.scopes,
+              claims: row.claims,
+              resources: row.resources
+            })
+            .execute()
+          if (swapped.affected === 1) return mergedGrant(held, grant)
+        }
+        throw new Error(`the grant for ${grant.accountId} and ${grant.clientId} kept changing under the merge`)
       },
       async destroy(id) {
         await grants.delete(by({ id }))

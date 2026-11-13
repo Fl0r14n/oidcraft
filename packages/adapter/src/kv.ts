@@ -12,6 +12,7 @@ import type {
   RealmStore,
   ReplayGuard
 } from './adapter'
+import { mergedGrant } from './grants'
 import { page } from './page'
 import type { Artifact, Client, Credential, Grant, LinkedIdentity, Realm, Seconds, Session } from './types'
 
@@ -63,6 +64,10 @@ const collect = async <T>(kv: KvStore, prefix: string, revived: (raw: string) =>
   for await (const { value } of kv.scan(prefix)) out.push(revived(value))
   return out
 }
+
+const LOCK_TTL: Seconds = 5
+const LOCK_RETRY_MS = 25
+const LOCK_WAITS = (LOCK_TTL * 1000) / LOCK_RETRY_MS + 1
 
 // An id may hold a slash — a client id is a URL — and a slash is what ends a prefix.
 const part = (id: string) => encodeURIComponent(id)
@@ -259,6 +264,29 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
         : { ...grant, id }
       await kv.upsert({ key: `grant/${id}`, value: enc(stored), ...ttl })
       await kv.upsert({ key: grantIndex(grant), value: id, ...ttl })
+    },
+    // FR-I4: a store with no compare-and-swap serializes consents to one pair by an atomic insert, released when done.
+    async merge(grant) {
+      const lock = `grant-lock/${part(grant.accountId)}/${part(grant.clientId)}`
+      for (let wait = 0; wait < LOCK_WAITS; wait++) {
+        if (await kv.insert({ key: lock, value: '', ttl: LOCK_TTL })) {
+          try {
+            const id = await read(grantIndex(grant))
+            const held = id === undefined ? undefined : await readGrant(id)
+            if (id !== undefined && !held) {
+              await kv.destroy(`grant/${id}`)
+              await kv.destroy(grantIndex(grant))
+            }
+            const stored = held ? mergedGrant(held, grant) : grant
+            await grants.upsert(stored)
+            return stored
+          } finally {
+            await kv.destroy(lock)
+          }
+        }
+        await new Promise(resolve => setTimeout(resolve, LOCK_RETRY_MS))
+      }
+      throw new Error(`the grant for ${grant.accountId} and ${grant.clientId} stayed locked`)
     },
     async destroy(id) {
       const grant = await readGrant(id)

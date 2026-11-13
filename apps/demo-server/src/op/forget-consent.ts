@@ -15,11 +15,11 @@ export const forgettingConsent = <A extends FullAdapter>(adapter: A): A => {
     },
     grants: {
       ...adapter.grants,
-      // A consent is written into the pair's one grant (FR-I4), which makes a spent grant current again.
-      async upsert(grant) {
-        await adapter.grants.upsert(grant)
-        const stored = await adapter.grants.findByAccountAndClient(grant.accountId, grant.clientId)
-        if (stored) spent.delete(stored.id)
+      // A consent is merged into the pair's one grant (FR-I4), which makes a spent grant current again.
+      async merge(grant) {
+        const stored = await adapter.grants.merge(grant)
+        spent.delete(stored.id)
+        return stored
       },
       async findByAccountAndClient(accountId, clientId) {
         const grant = await adapter.grants.findByAccountAndClient(accountId, clientId)

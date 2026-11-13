@@ -78,6 +78,12 @@ export type GrantStore = EntityStore<Grant> & {
   listForAccount(accountId: string): Promise<Grant[]>
   /** Deleting a client withdraws every consent given to it (FR-T7). */
   destroyByClientId(clientId: string): Promise<void>
+  /**
+   * A consent: adds the grant's scopes, claims and resources to the live grant of its account and client,
+   * or stores it when there is none, atomically however many land at once; an expired one is replaced,
+   * under the new id. Returns what is stored (FR-I4).
+   */
+  merge(grant: Grant): Promise<Grant>
 }
 
 export type AccountStore = {

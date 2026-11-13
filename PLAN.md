@@ -54,10 +54,6 @@ in the `claims` parameter (FR-C22) refuses a login that reports less, but nothin
 - **A stateless DPoP nonce** — a nonce demand is a storage write a public client can trigger, but
   every proof already costs one for its `jti`, nonce rows live five minutes and are pruned, and a
   stateless nonce would put a new secret in the configuration of a feature off by default.
-- **Merging scopes in the SQL adapters' grant upsert** — merging JSON text is not portable across
-  SQLite and Postgres, so they replace on the `(account_id, client_id)` conflict. `recordConsent`
-  reads back and writes again; a first consent landing after the other's read-back still loses its
-  scopes, and the person is asked once more (FR-I4).
 - **Renaming the demo's `/federation/callback`** — it is the redirect URI registered with Google
   (`.env.example`), and renaming a URL people have registered breaks their sign-in for a word.
 

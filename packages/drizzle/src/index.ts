@@ -11,7 +11,7 @@ import type {
   Realm,
   Session
 } from '@oidcraft/adapter'
-import { noAccounts } from '@oidcraft/adapter'
+import { grantExpired, MERGE_ROUNDS, mergedGrant, noAccounts } from '@oidcraft/adapter'
 import { type AnyRelations, and, eq, gt, inArray, isNull, lte, or, sql } from 'drizzle-orm'
 import type { PgQueryResultHKT } from 'drizzle-orm/pg-core'
 import type { PgAsyncDatabase } from 'drizzle-orm/pg-core/async'
@@ -65,6 +65,17 @@ export const drizzleAdapter = (options: DrizzleAdapterOptions): FullAdapter => {
     ...(row.upstreamSessionId && { upstreamSessionId: row.upstreamSessionId }),
     clients: row.clients as string[],
     expiresAt: row.expiresAt
+  })
+
+  const grantRow = (grant: Grant) => ({
+    id: grant.id,
+    accountId: grant.accountId,
+    clientId: grant.clientId,
+    scopes: grant.scopes,
+    claims: grant.claims,
+    resources: grant.resources,
+    createdAt: grant.createdAt,
+    expiresAt: grant.expiresAt ?? null
   })
 
   const toGrant = (row: typeof grants.$inferSelect): Grant => ({
@@ -276,21 +287,42 @@ export const drizzleAdapter = (options: DrizzleAdapterOptions): FullAdapter => {
         ).map(toGrant)
       },
       async upsert(grant) {
-        const row = {
-          id: grant.id,
-          accountId: grant.accountId,
-          clientId: grant.clientId,
-          scopes: grant.scopes,
-          claims: grant.claims,
-          resources: grant.resources,
-          createdAt: grant.createdAt,
-          expiresAt: grant.expiresAt ?? null
-        }
+        const row = grantRow(grant)
         const { id: _id, createdAt: _createdAt, ...changed } = row
         await db
           .insert(grants)
           .values(row)
           .onConflictDoUpdate({ target: [grants.accountId, grants.clientId], set: changed })
+      },
+      // FR-I4: compare-and-swap on what was read, so a consent landing between the read and the write is never overwritten.
+      async merge(grant) {
+        for (let round = 0; round < MERGE_ROUNDS; round++) {
+          const [row] = await db
+            .select()
+            .from(grants)
+            .where(and(eq(grants.accountId, grant.accountId), eq(grants.clientId, grant.clientId)))
+            .limit(1)
+          if (!row) {
+            const won = await db.insert(grants).values(grantRow(grant)).onConflictDoNothing().returning({ id: grants.id })
+            if (won.length) return grant
+            continue
+          }
+          const held = toGrant(row)
+          if (grantExpired(held)) {
+            await db.delete(grants).where(and(eq(grants.id, held.id), lte(grants.expiresAt, now())))
+            continue
+          }
+          const merged = mergedGrant(held, grant)
+          const swapped = await db
+            .update(grants)
+            .set({ scopes: merged.scopes, claims: merged.claims, resources: merged.resources })
+            .where(
+              and(eq(grants.id, held.id), eq(grants.scopes, row.scopes), eq(grants.claims, row.claims), eq(grants.resources, row.resources))
+            )
+            .returning({ id: grants.id })
+          if (swapped.length) return merged
+        }
+        throw new Error(`the grant for ${grant.accountId} and ${grant.clientId} kept changing under the merge`)
       },
       async destroy(id) {
         await db.delete(grants).where(eq(grants.id, id))

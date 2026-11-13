@@ -474,6 +474,37 @@ export const adapterConformance = (create: () => Adapter | Promise<Adapter>, opt
       }
     },
     {
+      // FR-I4: every consent to one pair lands, however many arrive at once; a replacing write would lose all but one.
+      name: 'consents merged into one grant at once all land',
+      run: async () => {
+        const adapter = await full()
+        await adapter.grants.merge(grant({ createdAt: new Date(1_000) }))
+        const scopes = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
+        await Promise.all(
+          scopes.map((scope, i) => adapter.grants.merge(grant({ id: `m${i}`, scopes: [scope], claims: [`claim-${scope}`] })))
+        )
+        const found = await adapter.grants.findByAccountAndClient('u1', 'c1')
+        same(found?.id, 'g1', 'the first grant, kept')
+        same(found?.createdAt.getTime(), 1_000, 'its createdAt')
+        same(found?.scopes.toSorted(), ['openid', ...scopes].toSorted(), 'every scope consented to')
+        same(found?.claims.toSorted(), scopes.map(scope => `claim-${scope}`).toSorted(), 'every claim consented to')
+        same((await adapter.grants.listForAccount('u1')).length, 1, "u1's grants")
+      }
+    },
+    {
+      // FR-T5: tokens name their grant by id, so a consent after expiry must not bring the old id, and its tokens, back.
+      name: 'a consent after a grant expired starts a new grant',
+      run: async () => {
+        const adapter = await full()
+        await adapter.grants.upsert(grant({ expiresAt: past() }))
+        const merged = await adapter.grants.merge(grant({ id: 'g2', scopes: ['openid', 'email'] }))
+        same(merged.id, 'g2', 'the merge result')
+        same((await adapter.grants.findByAccountAndClient('u1', 'c1'))?.id, 'g2', 'the grant by its pair')
+        same((await adapter.grants.findByAccountAndClient('u1', 'c1'))?.scopes, ['openid', 'email'], 'only the new consent')
+        same(await adapter.grants.find('g1'), undefined, 'the expired grant')
+      }
+    },
+    {
       name: 'a grant is reachable by account and client',
       run: async () => {
         const adapter = await full()

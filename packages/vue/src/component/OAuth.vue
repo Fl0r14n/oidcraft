@@ -115,23 +115,13 @@ import {
   VSpacer,
   VTextField
 } from 'vuetify/components'
+import type { OAuthProps } from './props'
 
 const length = 128
 const { t } = useLocale()
 const { login, logout, isAuthorized } = useOAuth()
 const user = useOAuthUser()
-// repeated from ./props: @vue/compiler-sfc cannot resolve an imported type under Bun
-const props = defineProps<{
-  username?: string
-  password?: string
-  accessType?: 'online' | 'offline'
-  prompt?: 'none' | 'consent' | 'login' | 'select_account'
-  redirectUri?: string
-  responseType?: string
-  state?: string
-  extras?: Record<string, string | undefined>
-  logoutRedirectUri?: string
-}>()
+const props = defineProps<OAuthProps>()
 const menu = shallowRef(false)
 
 const { view, username, password, dismissError, togglePasswordVisible, submit } = useOAuthForm({

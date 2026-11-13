@@ -1,3 +1,4 @@
+import { existsSync, readFileSync, realpathSync } from 'node:fs'
 import { defineConfig } from 'tsdown'
 import vue from 'unplugin-vue/rolldown'
 
@@ -28,7 +29,8 @@ export default defineConfig([
     outDir: 'dist',
     format: 'esm',
     deps: { neverBundle: ['jose', '@oidcraft/core', '@oidcraft/client', '@oidcraft/vue', 'vue', 'vuetify', /^vuetify\//, '@mdi/js'] },
-    plugins: [vue()],
+    // TypeScript 7 has no `ts.sys`, which is how @vue/compiler-sfc would otherwise read the props type the SFC imports.
+    plugins: [vue({ script: { fs: { fileExists: existsSync, readFile: file => readFileSync(file, 'utf8'), realpath: realpathSync } } })],
     css: { fileName: 'component.css' },
     dts: true,
     clean: false

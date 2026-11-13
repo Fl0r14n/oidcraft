@@ -1,6 +1,7 @@
 import type { AuthorizationCodeParameters, ResourceOwnerParameters } from '@oidcraft/core'
 
-// Repeated in the SFC's `defineProps`, which cannot import a type under Bun; the assignments below fail the typecheck on drift.
+// Written out, not derived: @vue/compiler-sfc resolves the SFC's import of it without TypeScript, so it cannot follow a package import.
+// The assignments below fail the typecheck on drift from the protocol.
 export type OAuthProps = {
   username?: string
   password?: string

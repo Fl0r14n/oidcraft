@@ -149,26 +149,33 @@ shows it. In order.
 
 ## Still open on the client libraries
 
-- **`@vue/compiler-sfc` cannot resolve an imported type under Bun** ("No fs option provided to
-  compileScript in non-Node environment"), so the login component's props are written out literally
-  in the SFC and pinned to the protocol by two assignments in `component/props.ts`. Not a version
-  problem: `unplugin-vue` 8.0.0 is the latest there is, and it fails the same way.
-- **The declaration build cannot use the Vue language plugin**, because `rolldown-plugin-dts` refuses
-  TypeScript 7 for SFCs. The entry is typed through an ambient `*.vue` shim and a cast instead, which
-  is why `component/index.ts` casts through `unknown` — `vue-tsgo` and the dts build genuinely see
-  that module differently.
+- **The login component's props type is written out, not derived from the protocol.** The SFC imports
+  it from `component/props.ts`, which `@vue/compiler-sfc` reads through the `fs` that
+  `packages/vue/tsdown.config.ts` hands it, because TypeScript 7 has no `ts.sys` for it to use. Bun was
+  never the cause. Without TypeScript's resolver it follows a relative import but not a package one,
+  so `props.ts` cannot be `Partial<ResourceOwnerParameters & …>` from `@oidcraft/core`; two
+  assignments there fail the typecheck on drift instead.
+- **The declaration build sees the SFC through an ambient `*.vue` shim and a cast**
+  (`component/index.ts`). `rolldown-plugin-dts` builds Vue declarations through Volar, which only its
+  `tsc` generator accepts, and that needs TypeScript's JavaScript API, which TypeScript 7 does not
+  ship. Checked 2026-11-13 against 0.30.2: its `oxc` generator refuses Volar too.
 - If `@vue/compiler-sfc` ever stops resolving what it does now, `@oidcraft/vue/component` meets the
   question `@oidcraft/angular`'s component did (below): that entry already needed both workarounds
   above to ship at all.
-- The old ngx-oauth sample committed a live Google OAuth client id and secret (`app.config.ts`). It
-  was not carried over, but it is still in that repository's history and is worth rotating.
 
 ## Waiting on upstream
 
-**Bun, checked 2026-11-11.** Nothing tracks exposing the client certificate to a `Bun.serve` handler:
+**TypeScript 7.1, in beta (`7.1.0-beta`).** `rolldown-plugin-dts` 0.30.x warns that its `tsgo`
+generator on TypeScript 7.0 "will be removed in the next minor", which would fail every package's
+declaration build here, not only Vue's. The lockfile holds 0.30.1 and CI installs frozen, but the root
+`package.json` asks for `tsdown@latest`, so the next lockfile refresh can bring it in. Move to 7.1 when
+it is stable, before taking `rolldown-plugin-dts` 0.31; 7.1 is also what the plugin names for custom
+languages, so the shim above is worth retrying then.
+
+**Bun, checked 2026-11-13.** Nothing tracks exposing the client certificate to a `Bun.serve` handler:
 no issue, no PR. The only movement is on `node:https`: oven-sh/bun#16834 (its `req.socket` is not a
-`TLSSocket`) has a fix open, oven-sh/bun#37255, which adds `getPeerCertificate()` to it — open,
-unreviewed and in conflict with `main`. If it lands, mTLS works on Bun through `./runtimes/node`'s
+`TLSSocket`) has a fix open, oven-sh/bun#37255, which adds `getPeerCertificate()` to it — still open
+and unmerged, last touched 2026-11-06. If it lands, mTLS works on Bun through `./runtimes/node`'s
 `toNodeHandler` on a `node:https` server, not through `Bun.serve`, and G-8's re-verification is the
 first thing to repeat.
 

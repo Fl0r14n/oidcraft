@@ -19,6 +19,8 @@ export type UpstreamProvider = ClientCredentials & {
   claimMapper?: ClaimMapper
   /** Keep the upstream tokens for downstream API calls. Off by default — it is a credential store (NFR-S9). */
   retainTokens?: boolean
+  /** Sign the browser out here too when it signs out of a session this upstream authenticated (FR-F8). */
+  propagateLogout?: boolean
   linkPolicy?: LinkPolicy
 }
 

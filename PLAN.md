@@ -554,8 +554,12 @@ text it is held to. In fix order.
 
 **Required and not built**
 
-- [ ] FR-F8: RP-initiated logout does not propagate upward; nothing in the broker builds the
+- [x] FR-F8: RP-initiated logout does not propagate upward; nothing in the broker builds the
   upstream's end-session request
+  Fixed: `ProviderConfig.upstreamLogout`, which end-session calls for a brokered session once it has
+  ended it, and the broker's `logoutUrl` and `completeLogout` behind it, opted into per upstream by
+  `propagateLogout`. The upstream ID token is kept as the hint, decided 2026-11-13 and written into
+  FR-F8 and FR-F10, since without one most upstreams, this one included, do not redirect back
 - [ ] NFR-S12: the README does not yet say which limiting is the host's
 - [ ] `G-9`: failed sign-ins counted per account and address — five lock that address out of that
   account — with a ceiling of about fifty per account across all addresses. `authenticate` and
@@ -851,6 +855,10 @@ first thing to repeat.
 ## Decisions waiting on an answer
 
 None.
+
+Decided 2026-11-13: **FR-R4** the public origin is configuration, not part of `RequestContext` ·
+**FR-F8, FR-F10** an upstream that propagates logout has its ID token kept as that logout's hint,
+spent by it or expiring with the sessions it could end; access and refresh tokens stay unretained.
 
 Decided 2026-11-12, with the review: **FR-C8** revoking a refresh token revokes its grant's tokens and
 keeps the consent; only `grants.revoke` removes consent · **FR-T3** a FAPI client's refresh token

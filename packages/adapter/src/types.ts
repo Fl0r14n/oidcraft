@@ -101,6 +101,8 @@ export type Grant = Entity &
 export type ArtifactKind =
   | 'interaction'
   | 'broker_handoff'
+  | 'broker_logout'
+  | 'upstream_id_token'
   | 'authorization_code'
   | 'access_token'
   | 'refresh_token'

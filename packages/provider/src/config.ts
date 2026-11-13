@@ -1,4 +1,4 @@
-import type { Adapter, Client, ClientAuthMethod, Seconds } from '@oidcraft/adapter'
+import type { Adapter, Client, ClientAuthMethod, Seconds, Session } from '@oidcraft/adapter'
 import { ConfigurationError } from '@oidcraft/adapter'
 import { fapiProviderProblems } from './profile/fapi'
 import type { ExchangePolicy } from './token/exchange'
@@ -173,6 +173,13 @@ export type ProviderConfig = {
    * The core will not fetch it: that is outbound I/O to a URL the client chose (FR-A1, FR-R4).
    */
   resolveClientJwks?: (client: Client) => Promise<{ keys: unknown[] }>
+
+  /**
+   * RP-initiated logout of a brokered session, continued at its upstream (FR-F8): given the session
+   * just ended and where the browser would go next, the URL to send it to instead, or undefined to
+   * stop here. `createBroker`'s `logoutUrl` is one. The core makes no request of its own (FR-A1).
+   */
+  upstreamLogout?: (session: Session, then: string | undefined) => Promise<string | undefined>
   /**
    * Fetches the JSON behind a registering client's `sector_identifier_uri`, which registration must
    * check against its redirect URIs (OIDC DCR 1.0 §5). Without it, such a registration is refused:
@@ -244,6 +251,7 @@ export type ResolvedConfig = {
   onLogout: ProviderConfig['onLogout']
   onFrontChannelLogout: ProviderConfig['onFrontChannelLogout']
   resolveClientJwks: ProviderConfig['resolveClientJwks']
+  upstreamLogout: ProviderConfig['upstreamLogout']
   resolveSectorIdentifier: ProviderConfig['resolveSectorIdentifier']
   resolveClientMetadata: ProviderConfig['resolveClientMetadata']
   onRegister: ProviderConfig['onRegister']
@@ -397,6 +405,7 @@ export const resolveConfig = (config: ProviderConfig): ResolvedConfig => {
     onLogout: config.onLogout,
     onFrontChannelLogout: config.onFrontChannelLogout,
     resolveClientJwks: config.resolveClientJwks,
+    upstreamLogout: config.upstreamLogout,
     resolveSectorIdentifier: config.resolveSectorIdentifier,
     resolveClientMetadata: config.resolveClientMetadata,
     onRegister: config.onRegister,

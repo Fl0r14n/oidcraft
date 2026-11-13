@@ -35,6 +35,7 @@ const server = Bun.serve({
 })
 const ISSUER = `http://127.0.0.1:${server.port}`
 const CALLBACK = 'http://127.0.0.1:9999/federation/callback'
+const LOGGED_OUT = 'http://127.0.0.1:9999/federation/logged-out'
 
 const upstream = createProvider({ issuer: ISSUER, adapter: upstreamAdapter, interactionUrl: `${ISSUER}/interaction` })
 
@@ -42,6 +43,7 @@ await upstreamAdapter.clients.upsert?.({
   clientId: 'broker',
   clientSecretHash: await hashClientSecret('a-long-enough-upstream-secret'),
   redirectUris: [CALLBACK],
+  postLogoutRedirectUris: [LOGGED_OUT],
   grantTypes: ['authorization_code'],
   responseTypes: ['code'],
   scopes: ['openid', 'email', 'profile'],
@@ -68,13 +70,19 @@ const broker = createBroker({
  * Drives whatever the upstream asks for, rather than assuming a fixed number of legs: consent is
  * remembered (FR-I4), so a second sign-in for the same account and client skips it entirely.
  */
+/** The upstream session cookie the last sign-in left in the browser. */
+let upstreamCookie = ''
+
 const authenticateUpstream = async (authorizationUrl: string) => {
   let response = await upstream.handle(new Request(authorizationUrl))
   let cookie = ''
 
   for (let leg = 0; leg < 4; leg++) {
     const location = new URL(response.headers.get('location') as string)
-    if (!location.pathname.startsWith('/interaction/')) return location
+    if (!location.pathname.startsWith('/interaction/')) {
+      upstreamCookie = cookie
+      return location
+    }
 
     const id = location.pathname.split('/').pop() as string
     const view = await upstream.interactions.find(id)
@@ -239,6 +247,86 @@ describe('brokering to a live upstream', () => {
  * FR-F11. The relying-party core reports a failure by returning a token that carries `error` and no
  * credential; what the downstream client must never see is that shape, a stack trace, or silence.
  */
+// FR-F8: RP-initiated logout of a brokered session continues at the upstream, and comes back.
+describe('logout propagated to the upstream', () => {
+  const propagating = createBroker({
+    adapter: downstream,
+    callbackUri: CALLBACK,
+    postLogoutRedirectUri: LOGGED_OUT,
+    allowInsecure: true,
+    providers: [
+      {
+        id: 'self',
+        issuer: ISSUER,
+        clientId: 'broker',
+        clientSecret: 'a-long-enough-upstream-secret',
+        scopes: ['openid', 'email'],
+        propagateLogout: true
+      }
+    ]
+  })
+
+  const signedIn = async (with_: typeof broker) => {
+    const { url, setCookie } = await with_.start('downstream-interaction-logout', 'self')
+    const { identity } = await with_.complete(await authenticateUpstream(url), cookieOf(setCookie))
+    const session = {
+      id: 'downstream-session',
+      accountId: 'local-ada',
+      authTime: new Date(),
+      idp: 'self',
+      ...(identity.upstreamSessionId && { upstreamSessionId: identity.upstreamSessionId }),
+      clients: [],
+      expiresAt: new Date(Date.now() + 60_000)
+    }
+    return { identity, session }
+  }
+
+  test('signs the upstream session out with its ID token as the hint, and returns to where the downstream was going', async () => {
+    const { identity, session } = await signedIn(propagating)
+    expect(identity.upstreamSessionId).toBeString()
+    const then = 'https://rp.example.com/bye?state=downstream-state'
+
+    const url = new URL((await propagating.logoutUrl(session, then)) as string)
+    expect(`${url.origin}${url.pathname}`).toBe(`${ISSUER}/session/end`)
+    expect(url.searchParams.get('id_token_hint')).toBeString()
+    expect(url.searchParams.get('post_logout_redirect_uri')).toBe(LOGGED_OUT)
+    // The downstream target never travels through the upstream.
+    expect(url.toString()).not.toContain('rp.example.com')
+
+    const answered = await upstream.handle(new Request(url, { headers: { cookie: upstreamCookie } }))
+    expect(answered.status).toBe(303)
+    const back = new URL(answered.headers.get('location') as string)
+    expect(`${back.origin}${back.pathname}`).toBe(LOGGED_OUT)
+    expect(await upstreamAdapter.sessions.find(identity.upstreamSessionId as string)).toBeUndefined()
+
+    expect(await propagating.completeLogout(back)).toBe(then)
+    expect(propagating.completeLogout(back)).rejects.toThrow(/already completed/)
+    // The hint is spent with the logout.
+    expect(await propagating.logoutUrl(session, then).then(again => new URL(again as string).searchParams.get('id_token_hint'))).toBeNull()
+  })
+
+  test('a provider that does not propagate logout keeps no hint and builds no request', async () => {
+    const { identity, session } = await signedIn(broker)
+    expect(await broker.logoutUrl(session, undefined)).toBeUndefined()
+    expect(await downstream.artifacts.find('upstream_id_token', `self:${identity.upstreamSessionId}`)).toBeUndefined()
+  })
+
+  test('a return the broker did not send is refused', async () => {
+    expect(propagating.completeLogout(new URL(`${LOGGED_OUT}?state=never-issued`))).rejects.toThrow(/did not start here/)
+    expect(propagating.completeLogout(new URL(LOGGED_OUT))).rejects.toThrow(/did not start here/)
+  })
+
+  test('propagating logout without a place to come back to is refused at construction', () => {
+    expect(() =>
+      createBroker({
+        adapter: downstream,
+        callbackUri: CALLBACK,
+        providers: [{ id: 'self', issuer: ISSUER, clientId: 'broker', scopes: ['openid'], propagateLogout: true }]
+      })
+    ).toThrow(/postLogoutRedirectUri/)
+  })
+})
+
 describe('an upstream that fails produces an OAuth error', () => {
   test('a provider configured without openid is refused at construction, not at the callback', () => {
     expect(() =>

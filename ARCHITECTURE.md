@@ -475,7 +475,10 @@ Four things reach into the protocol core and cannot be bolted on from outside:
   _upstream_ authentication. A local session cannot satisfy them on its own (FR-F9).
 - **Logout.** An upstream back-channel logout must terminate the local sessions it produced, which
   triggers this OP's back-channel logout to its own clients. Hence
-  `SessionStore.findByUpstreamSession` (FR-F8).
+  `SessionStore.findByUpstreamSession` (FR-F8). The other direction is a hook: end-session hands a
+  brokered session and its destination to `ProviderConfig.upstreamLogout`, and the broker's
+  `logoutUrl` answers with the upstream's end-session request, keeping the destination for
+  `completeLogout` and naming the upstream ID token it kept at sign-in as the hint.
 - **Home-realm discovery.** Choosing the upstream from `login_hint`, `acr_values` or the client's
   allowed list happens inside the authorization endpoint's policy step (FR-F4).
 
@@ -500,7 +503,8 @@ of the existing account, then link — is the honest answer for a consumer-facin
 
 Keeping an upstream's access token so downstream code can call that upstream's API makes the
 deployment a credential store for another system. Off by default, opt-in per provider, encrypted
-at rest, never handed to a downstream client without an explicit API call (FR-F10, NFR-S9).
+at rest, never handed to a downstream client without an explicit API call (FR-F10, NFR-S9). An
+upstream ID token is kept only as a logout hint, for a provider that propagates logout (FR-F8).
 
 ## 6. Interaction
 

@@ -12,10 +12,11 @@ import {
   randomString,
   sha256
 } from '@oidcraft/core'
-import type { BrokeringAdapter } from '@oidcraft/provider'
+import type { BrokeringAdapter, Session } from '@oidcraft/provider'
 import { OAuthError, type SelectionHints, selectUpstream } from '@oidcraft/provider'
 import { base64url } from 'jose'
 import { pickClaims } from './claims'
+import { logoutHintId } from './logout'
 import type { BrokerCallback, BrokeredIdentity, Handoff, UpstreamProvider } from './types'
 
 /**
@@ -35,6 +36,16 @@ export type BrokerConfig = {
   providers: UpstreamProvider[]
   /** Where the upstream sends the browser back. Must be registered with every upstream. */
   callbackUri: string
+  /**
+   * Where an upstream sends the browser back after signing it out (FR-F8). Registered with every
+   * upstream that has `propagateLogout`; the host's route there calls `completeLogout`.
+   */
+  postLogoutRedirectUri?: string
+  /**
+   * Seconds an upstream ID token is kept as its logout's hint: as long as the local sessions it may
+   * end, so `ttl.session` of the provider. Fourteen days by default.
+   */
+  logoutHintTtl?: number
   /** Seconds a handoff stays usable. Short on purpose: it is a single-use one-way ticket (FR-F3). */
   handoffTtl?: number
   /** Development only: lets discovery and the token exchange run over http. */
@@ -42,6 +53,7 @@ export type BrokerConfig = {
 }
 
 const DEFAULT_HANDOFF_TTL = 600
+const DEFAULT_LOGOUT_HINT_TTL = 1_209_600
 
 /** The errors the RP core reports by name. Everything else on `error` came from the upstream itself. */
 const CORE_ERRORS: Record<string, { code: 'server_error' | 'access_denied'; description: string; spec: string }> = {
@@ -125,6 +137,12 @@ export const createBroker = (config: BrokerConfig) => {
   // configured without `openid` could never produce a brokered identity. Failing here rather than at
   // the callback (NFR-D2).
   for (const provider of config.providers) {
+    if (provider.propagateLogout && !config.postLogoutRedirectUri) {
+      throw new OAuthError('server_error', {
+        description: `upstream ${provider.id} propagates logout, but the broker has no postLogoutRedirectUri for it to return to`,
+        spec: 'FR-F8'
+      })
+    }
     if (!provider.scopes.includes('openid')) {
       throw new OAuthError('server_error', {
         description: `upstream ${provider.id} is configured without the openid scope, so it will never return an ID token to broker`,
@@ -309,6 +327,18 @@ export const createBroker = (config: BrokerConfig) => {
       if (!claims.sub)
         throw new OAuthError('server_error', { description: `the ID token from ${provider.id} carried no subject`, spec: 'FR-F7' })
 
+      // FR-F8: the upstream returns the browser after its logout only to a client its hint names, and
+      // the hint is this ID token. Kept for that alone, and only where logout propagates (FR-F10).
+      if (provider.propagateLogout && typeof claims.sid === 'string' && token?.id_token) {
+        await config.adapter.artifacts.upsert({
+          id: logoutHintId(provider.id, claims.sid),
+          kind: 'upstream_id_token',
+          clientId: provider.id,
+          payload: { idToken: token.id_token },
+          expiresAt: new Date(Date.now() + (config.logoutHintTtl ?? DEFAULT_LOGOUT_HINT_TTL) * 1000)
+        })
+      }
+
       const mapper = provider.claimMapper ?? pickClaims()
       const mapped = mapper({ ...(await userInfoOf(resolved, token, claims.sub as string)), ...claims } as Record<string, unknown>)
       const email = typeof mapped.email === 'string' ? mapped.email : undefined
@@ -335,6 +365,50 @@ export const createBroker = (config: BrokerConfig) => {
       }
 
       return { interactionId: handoff.interactionId, identity, setCookie: cookieFor(handoff.state, '', 0) }
+    },
+
+    /**
+     * The upstream's end-session request for a brokered session the provider has just ended, for
+     * `ProviderConfig.upstreamLogout` (OIDC RP-Initiated Logout 1.0 §2, FR-F8). Undefined when its
+     * upstream does not propagate logout or advertises no `end_session_endpoint`. The upstream ID
+     * token kept at sign-in is the hint, spent here; `then` waits under the state rather than
+     * travelling through the upstream, so the round trip cannot become an open redirect.
+     */
+    async logoutUrl(session: Session, then: string | undefined) {
+      const provider = session.idp ? providerById(session.idp) : undefined
+      if (!provider?.propagateLogout || !config.postLogoutRedirectUri) return undefined
+      const resolved = await configurationFor(provider)
+      if (!resolved.logoutPath) return undefined
+
+      const state = randomString()
+      await config.adapter.artifacts.upsert({
+        id: state,
+        kind: 'broker_logout',
+        clientId: provider.id,
+        payload: then === undefined ? {} : { destination: then },
+        expiresAt: new Date(Date.now() + (config.handoffTtl ?? DEFAULT_HANDOFF_TTL) * 1000)
+      })
+      const hintId = session.upstreamSessionId ? logoutHintId(provider.id, session.upstreamSessionId) : undefined
+      const hint = hintId ? await config.adapter.artifacts.find('upstream_id_token', hintId) : undefined
+      if (hintId) await config.adapter.artifacts.destroy('upstream_id_token', hintId)
+
+      const url = new URL(resolved.logoutPath)
+      if (hint) url.searchParams.set('id_token_hint', (hint.payload as { idToken: string }).idToken)
+      url.searchParams.set('client_id', provider.clientId)
+      url.searchParams.set('post_logout_redirect_uri', config.postLogoutRedirectUri)
+      url.searchParams.set('state', state)
+      return url.toString()
+    },
+
+    /** Where the browser goes now the upstream has signed it out too: the URL `logoutUrl` was given, once. */
+    async completeLogout(currentUrl: URL) {
+      const state = currentUrl.searchParams.get('state')
+      const stored = state ? await config.adapter.artifacts.find('broker_logout', state) : undefined
+      if (!state || !stored || !(await config.adapter.artifacts.consume('broker_logout', state))) {
+        throw new Error('this logout did not start here, or it was already completed')
+      }
+      await config.adapter.artifacts.destroy('broker_logout', state)
+      return (stored.payload as { destination?: string }).destination
     }
   }
 }

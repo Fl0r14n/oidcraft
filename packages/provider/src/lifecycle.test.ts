@@ -229,6 +229,51 @@ describe('end session', () => {
     expect(location.searchParams.get('state')).toBe('s1')
   })
 
+  // FR-F8: the host continues a brokered session's logout at its upstream; the core only hands over.
+  describe('upstreamLogout', () => {
+    const hooked = () => {
+      const calls: { sessionId: string; destination: string | undefined }[] = []
+      provider = createProvider({
+        issuer: ISSUER,
+        adapter,
+        interactionUrl: `${ISSUER}/interaction`,
+        upstreamLogout: async (session, then) => {
+          calls.push({ sessionId: session.id, destination: then })
+          return 'https://upstream.example.com/logout?state=u1'
+        }
+      })
+      return calls
+    }
+    const endWithRedirect = (issued: { id_token: string; cookie: string }) =>
+      provider.handle(
+        new Request(
+          `${ISSUER}/session/end?id_token_hint=${issued.id_token}&post_logout_redirect_uri=https%3A%2F%2Frp.example.com%2Fbye&state=s1`,
+          { headers: { cookie: issued.cookie } }
+        )
+      )
+
+    test('sends a brokered session to the upstream, handing over where it was going', async () => {
+      const calls = hooked()
+      const issued = await tokens()
+      const [session] = await adapter.sessions.listForAccount('ada')
+      await adapter.sessions.upsert({ ...(session as NonNullable<typeof session>), idp: 'upstream' })
+
+      const response = await endWithRedirect(issued)
+      expect(response.status).toBe(303)
+      expect(response.headers.get('location')).toBe('https://upstream.example.com/logout?state=u1')
+      expect(calls).toEqual([{ sessionId: session?.id as string, destination: 'https://rp.example.com/bye?state=s1' }])
+      // The local session ended first, whatever the upstream does next.
+      expect(await adapter.sessions.listForAccount('ada')).toEqual([])
+    })
+
+    test('leaves a local session alone', async () => {
+      const calls = hooked()
+      const response = await endWithRedirect(await tokens())
+      expect(new URL(response.headers.get('location') as string).origin).toBe('https://rp.example.com')
+      expect(calls).toEqual([])
+    })
+  })
+
   test('an unregistered post_logout_redirect_uri is refused', async () => {
     const issued = await tokens()
     const url = `${ISSUER}/session/end?id_token_hint=${issued.id_token}&post_logout_redirect_uri=https%3A%2F%2Fevil.example.net%2F`

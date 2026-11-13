@@ -319,7 +319,10 @@ mapper saying so. `sub` is never taken from anywhere but the upstream `sub`.
 
 **FR-F8 — Logout propagates in both directions.** An upstream back-channel logout terminates the
 local sessions it produced, which in turn triggers this OP's own back-channel logout to its
-clients. RP-initiated logout optionally propagates upward.
+clients. RP-initiated logout optionally propagates upward, per upstream: once the local session
+has ended, the browser goes on to the upstream's end-session endpoint with the upstream's ID token
+as its hint, and comes back to where the downstream logout was going. That destination waits here,
+never travelling through the upstream.
 
 **FR-F9 — Re-authentication passes through.** `prompt=login`, `max_age` and a raised `acr_values`
 force a fresh upstream authentication rather than being satisfied by the local session.
@@ -327,7 +330,10 @@ force a fresh upstream authentication rather than being satisfied by the local s
 **FR-F10 — Upstream tokens are not retained by default.** Retaining them turns the deployment into
 a credential store for another system, so it is opted into per provider. The library then hands
 them to the host with the brokered identity and keeps none itself: it has no store for them, and
-no endpoint or claim that returns them to a downstream client (NFR-S9).
+no endpoint or claim that returns them to a downstream client (NFR-S9). The one thing it keeps is
+an upstream's ID token, for a provider that propagates logout, as that logout's hint (FR-F8): an
+assertion of who signed in, not a credential for the upstream's APIs, spent by the logout or
+expiring with the sessions it could end.
 
 **FR-F11 — An upstream failure is an OAuth error, not a stack trace.** A dead or misbehaving
 upstream produces a well-formed error response to the downstream client and a logged diagnostic.

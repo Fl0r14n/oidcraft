@@ -82,15 +82,17 @@ export const endSessionEndpoint = async (
     'set-cookie': clearCookie(sessionCookie(config), { secure: config.issuerUrl.protocol === 'https:' })
   })
 
-  if (!target) {
+  const state = params.get('state')
+  const then = target === undefined ? undefined : withState(target, state)
+  // FR-F8: a brokered session is signed out upstream too, when the host continues it there.
+  const upstream = session?.idp && config.upstreamLogout ? await config.upstreamLogout(session, then) : undefined
+  const location = upstream ?? then
+
+  if (!location) {
     headers.set('content-type', 'text/plain; charset=utf-8')
     return { response: new Response('You are signed out.', { status: 200, headers }), notifications, frontChannel }
   }
-
-  const state = params.get('state')
-  const redirect = new URL(target)
-  if (state !== null) redirect.searchParams.set('state', state)
-  headers.set('location', redirect.toString())
+  headers.set('location', location)
   return { response: new Response(null, { status: 303, headers }), notifications, frontChannel }
 }
 
@@ -118,6 +120,12 @@ const acceptConfirmation = async (config: ResolvedConfig, id: string, session: S
     })
   }
   await config.adapter.artifacts.destroy('interaction', id)
+}
+
+const withState = (target: string, state: string | null) => {
+  const redirect = new URL(target)
+  if (state !== null) redirect.searchParams.set('state', state)
+  return redirect.toString()
 }
 
 const resolveTarget = (client: Client | undefined, requested: string | null, verifiedHint: boolean) => {

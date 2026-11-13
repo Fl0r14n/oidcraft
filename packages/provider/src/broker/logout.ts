@@ -5,6 +5,9 @@ import type { UpstreamProvider } from './types'
 /** How old a logout token may be, and so how long its jti is remembered. */
 const LOGOUT_TOKEN_MAX_AGE = 300
 
+/** Where the upstream ID token a logout will name is kept: by the upstream session it signed in (FR-F8). */
+export const logoutHintId = (providerId: string, upstreamSessionId: string) => `${providerId}:${upstreamSessionId}`
+
 export type UpstreamLogout = {
   provider: string
   /** Sessions this OP issued off the back of the upstream one that just ended. */
@@ -52,6 +55,9 @@ export const upstreamLogout = async (
   if (!(await adapter.replay.claim(`upstream-logout:${provider.id}`, payload.jti as string, LOGOUT_TOKEN_MAX_AGE))) {
     throw new Error('this logout token was already used')
   }
+
+  // The upstream ended that session itself; there is nothing left to sign out of there.
+  if (sid) await adapter.artifacts.destroy('upstream_id_token', logoutHintId(provider.id, sid))
 
   const sessions = sid
     ? await adapter.sessions.findByUpstreamSession(provider.id, sid)

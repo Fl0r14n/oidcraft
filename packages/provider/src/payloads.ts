@@ -63,6 +63,10 @@ type Empty = Record<string, never>
 export type Payloads = {
   interaction: InteractionPayload
   broker_handoff: Omit<Handoff, 'expiresAt'>
+  /** Where the browser goes once the upstream has signed it out too (FR-F8). */
+  broker_logout: { destination?: string }
+  /** An upstream ID token kept as the `id_token_hint` of its logout, for a provider that propagates it (FR-F8). */
+  upstream_id_token: { idToken: string }
   authorization_code: CodePayload
   access_token: AccessTokenPayload
   refresh_token: RefreshTokenPayload

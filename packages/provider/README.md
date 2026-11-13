@@ -174,7 +174,12 @@ const linked = await linkIdentity(storage, back.identity, {
 })
 if ('accountId' in linked) {
   await provider.interactions.complete(back.interactionId, {
-    login: { accountId: linked.accountId, idp: back.identity.provider }
+    login: {
+      accountId: linked.accountId,
+      idp: back.identity.provider,
+      // what an upstream back-channel logout names, and what its own logout is found by
+      upstreamSessionId: back.identity.upstreamSessionId
+    }
   })
 }
 ```
@@ -186,6 +191,22 @@ login hint where one is known.
 An upstream identity is linked to a local account by `(provider, subject)` and nothing else. Linking
 by email address is not the default, because an upstream that does not verify addresses would let
 anyone take over the local account with that address.
+
+Signing out of your application can sign the person out upstream too. Set `propagateLogout: true` on
+the upstream, give the broker a `postLogoutRedirectUri` registered there, and hand the provider the
+broker's `logoutUrl`:
+
+```ts
+const broker = createBroker({ ..., postLogoutRedirectUri: 'https://auth.example.com/broker/logged-out' })
+const provider = createProvider({ ..., upstreamLogout: (session, then) => broker.logoutUrl(session, then) })
+
+// GET /broker/logged-out: the upstream is done, so carry on to where the logout was going
+const then = await broker.completeLogout(new URL(request.url))
+return then ? Response.redirect(then, 303) : new Response('You are signed out.')
+```
+
+The broker keeps that upstream's ID token from sign-in as the hint, which most upstreams need before
+they send the browser back. Google offers no end-session endpoint, so for it there is nothing to do.
 
 ## Storage
 

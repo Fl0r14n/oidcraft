@@ -22,45 +22,32 @@ How oidcraft is built. `REQUIREMENTS.md` says what it must do; every section her
 ### 1.1 No bundler, no build step — with one measured exception
 
 `bun index.html` **is** the client: Bun's dev server bundles the Vue SFCs, compiles Tailwind, inlines
-`OIDCRAFT_PUBLIC_*` and serves the page with HMR. The server app runs from source, because Bun
-executes TypeScript. No `Bun.build` script, no `dist/`, and nothing to keep in sync between a dev
-path and a build path.
+`OIDCRAFT_PUBLIC_*` and serves the page with HMR. The server app runs from source. No `Bun.build`
+script, no `dist/`, nothing to keep in sync between a dev path and a build path.
 
-`apps/demo-react` differs in one way and states its reason: it demonstrates SSR, because
-`useSyncExternalStore`'s server snapshot is exactly the thing a relying-party binding gets wrong, and
-Bun's HTML imports serve a page as static HTML with nowhere to put server-rendered markup. So its
-`index.ts` is a `Bun.serve` host that imports `entry-server.tsx` directly and bundles
-`entry-client.tsx` with `Bun.build` at startup. Still no bundler beyond Bun and no `dist/`. The price
-is Fast Refresh: `bun --watch` restarts the host on a change and the page reloads itself, losing
-component state. It reads the same root `.env` and `OIDCRAFT_PUBLIC_*` names as everything else
-(§9.1); the `Bun.build` call substitutes them as whole `process.env.X` literals, every name defined
-even when unset, so §9.1's rule against `import.meta.env` holds there too.
+`apps/demo-react` is the exception, because it demonstrates SSR — `useSyncExternalStore`'s server
+snapshot is what a relying-party binding gets wrong — and Bun's HTML imports have nowhere to put
+server-rendered markup. Its `index.ts` is a `Bun.serve` host that imports `entry-server.tsx` and
+bundles `entry-client.tsx` with `Bun.build` at startup; still no `dist/`. The price is Fast Refresh:
+`bun --watch` restarts the host and the page reloads. Its `Bun.build` substitutes `OIDCRAFT_PUBLIC_*`
+as whole `process.env.X` literals, every name defined even when unset, so §9.1 holds there too.
 
-Two sharp edges, both measured here rather than assumed:
+Two sharp edges:
 
-- **Plugins come from the bunfig next to the served entrypoint**, via `[serve.static]` — not the
-  root one. Each app carries its own `bunfig.toml`. Deleting it does not error; it silently serves
-  a `.vue` import as a path string and renders a blank page.
-- **No `@/` path alias in the apps.** `tsconfig.json` `paths` resolve under `bun build` but not
-  under the dev server, which resolves the specifier relative to the importing file and fails with
-  `ENOENT … /src/@/App.vue`. App-internal imports are relative. Measured 2026-09-12 against Bun
-  1.4.0; recheck before reintroducing the alias.
+- **Plugins come from the bunfig next to the served entrypoint**, via `[serve.static]`, not the
+  root one (§9.3). Without it a `.vue` import is served as a path string and the page is blank.
+- **No `@/` path alias in the apps.** `paths` resolve under `bun build` but not under the dev
+  server, which fails with `ENOENT … /src/@/App.vue`. App-internal imports are relative.
 
-If a real production bundle is ever wanted — minified, content-hashed, served by something other
-than Bun — note that `bun build` **the CLI** takes no plugins, so it would have to be a `build.ts`
-calling `Bun.build` directly. Nothing needs that today. The docs site is the one app with a real
-build, and the one with Vite, for reasons of its own (§8.5).
+The docs site is the one app with a real build, and the one with Vite (§8.5).
 
 ### 1.2 TypeScript 7 and Vue
 
-`vue-tsc` still requires `typescript/lib/tsc` and does not run against TypeScript 7, so any package
-containing `.vue` files type-checks with `vue-tsgo` instead. Every package's `typecheck` is `bun check`,
-which reports TypeScript 7's errors from the same `tsconfig.json` and writes nothing — and which runs
-a package's own `check` script instead when it has one. That is where `vue-tsgo` lives: `bun check`
-skips `.vue` files, so an SFC package without a `check` script would pass with its components unchecked. Not `tsgo` —
-that is the older `@typescript/native-preview` binary, still on a `7.0.0-dev` tag. The `typescript`
-package stays: tsdown emits the declarations with it, and `bun check` emits none. The Angular demo's
-`check` is `tsc` from TypeScript 6, which its compiler needs (§8.4).
+`vue-tsc` does not run on TypeScript 7, so a package with `.vue` files type-checks with `vue-tsgo`.
+Every `typecheck` is `bun check`, which runs a package's own `check` script when it has one — and
+that is where `vue-tsgo` lives, because `bun check` skips `.vue` files. Not `tsgo`, the older
+`@typescript/native-preview` binary. The `typescript` package stays for tsdown's declaration emit.
+The Angular demo's `check` is TypeScript 6's `tsc`, which its compiler needs (§8.4).
 
 ## 2. Workspace
 
@@ -83,15 +70,15 @@ packages/drizzle/           @oidcraft/drizzle   Postgres, SQLite
 packages/kysely/            @oidcraft/kysely    Postgres, SQLite
 packages/typeorm/           @oidcraft/typeorm   a TypeORM DataSource; Postgres, SQLite
 packages/redis/             @oidcraft/redis     any Redis client, through one command function
-packages/provider/            @oidcraft/provider    the provider, eight entries
-  src/index.ts              .                     the OP. fetch in, fetch out, no I/O
-  src/broker/               ./broker              the relying-party leg — upstream brokering
-  src/interaction/          ./interaction         login/consent policy types
-  src/accounts/             ./accounts            local accounts: passwords, TOTP, recovery codes, reset (FR-I7)
-  src/runtimes/node/        ./runtimes/node       node:http bridge + request context
-  src/runtimes/bun/         ./runtimes/bun        request context for Bun.serve
-  src/runtimes/deno/        ./runtimes/deno       request context for Deno.serve
-  src/runtimes/workerd/     ./runtimes/workerd    request context for Cloudflare Workers
+packages/provider/          @oidcraft/provider  the provider, eight entries
+  src/index.ts              .                   the OP. fetch in, fetch out, no I/O
+  src/broker/               ./broker            the relying-party leg — upstream brokering
+  src/interaction/          ./interaction       login/consent policy types
+  src/accounts/             ./accounts          local accounts: passwords, TOTP, recovery codes, reset (FR-I7)
+  src/runtimes/node/        ./runtimes/node     node:http bridge + request context
+  src/runtimes/bun/         ./runtimes/bun      request context for Bun.serve
+  src/runtimes/deno/        ./runtimes/deno     request context for Deno.serve
+  src/runtimes/workerd/     ./runtimes/workerd  request context for Cloudflare Workers
 apps/
   demo-server               the reference OP: mounts the core, the login screens and the admin UI
   demo-vue                  demo relying party: Vue 3 + @oidcraft/vue
@@ -104,24 +91,23 @@ Inside the root entry, code is grouped by feature, not by HTTP route: a folder h
 endpoint, the grant the token endpoint dispatches to, and the host-facing functions together.
 
 ```
-src/authorize/    authorization, PAR, request objects, PKCE, interactions, step-up, the grants
-                  consent produces, and the two flows that start without a redirect: device and CIBA
+src/authorize/    authorization, PAR, request objects, PKCE, the claims parameter, interactions,
+                  consent, and the two flows that start without a redirect: device and CIBA
 src/token/        the token endpoint as a dispatcher, the code and refresh grants, client
                   credentials, token exchange, and minting: ID token, JWT access token, subjects
 src/binding/      sender-constrained tokens — DPoP (RFC 9449) and mTLS (RFC 8705)
 src/clients/      client authentication, JWT client assertions, dynamic registration
 src/session/      the OP session cookie, RP-initiated logout, logout notifications
-src/resource/     what a resource server calls: UserInfo, introspection, revocation
+src/resource/     what a resource server calls: UserInfo, introspection, revocation, step-up
 src/keys/         the key store and the JWKS endpoint
 src/upstreams/    upstream selection (FR-F4) and the linked identities — the root's side of
                   brokering; the relying-party leg is the `./broker` entry
 ```
 
-The management API (FR-M1) follows the same split: each folder's `management.ts` holds its
-operator functions, and the root `management.ts` only assembles them into `provider.management`.
-
-None of these folders has an `index.ts`: `exports.test.ts` treats a directory with one as a
-published entry, so an import names the file it means.
+Each folder's `management.ts` holds its operator functions (FR-M1); the root `management.ts` only
+assembles them into `provider.management`. None of these folders has an `index.ts`:
+`exports.test.ts` treats a directory with one as a published entry. Tests sit beside the module
+they test, over one harness, `src/test-flow.ts`.
 
 ### 2.1 Eleven published packages, one scope
 
@@ -142,9 +128,9 @@ Everything published is under the `@oidcraft` npm org, and each package is named
 | `@oidcraft/angular`  | `packages/angular`  | Angular binding over `@oidcraft/client`                                                  |
 
 `@oidcraft/ui` and `@oidcraft/sql` are the two private packages, consumed from source: the screens by
-`apps/demo-server` (§8.1), the SQL schema by the SQL adapters. The
-three bindings continue packages published under older names — `vue-oidc`, `react-oauth-oidc`,
-`ngx-oauth` — and their version numbers continue those.
+`apps/demo-server` (§8.1), the SQL schema by the SQL adapters. The three bindings continue packages
+published under older names — `vue-oidc`, `react-oauth-oidc`, `ngx-oauth` — and their version
+numbers continue those.
 
 **The adapters are packages, on a contract package, never on the provider.** The provider and an
 adapter do not depend on each other; the host installs both and hands one to the other:
@@ -160,91 +146,60 @@ adapter do not depend on each other; the host installs both and hands one to the
 @oidcraft/redis        peer on @oidcraft/adapter
 ```
 
-That is the client side's shape (`core` underneath, each binding on it, none on each other), and it
-is what lets a provider release ship without an adapter release. The provider takes the contract as
-an ordinary dependency and an adapter takes it as a **peer**, so a contract mismatch is an install
-warning rather than a type error in the host. An adapter peering on the provider instead would be
-the version matrix Auth.js lives with — `@oidcraft/provider@0.5` against an adapter built for `0.3`
-— once per adapter. One `@oidcraft/adapters` package with subpaths would keep the coupling and lose
-the decoupling; on npm, `@oidcraft/adapter/drizzle` can only ever be a subpath, never a package.
+So a provider release ships without an adapter release, and a contract mismatch is an install
+warning rather than a type error in the host. An adapter peering on the provider would instead be a
+version matrix per adapter.
 
-`@oidcraft/adapter` carries behaviour, not only types: `fromKv`, the memory adapter and the suite.
-The key stores (`staticKeyStore`, `generateKey`, `generatedKeyStore`) live there too, because they
-implement the contract's `KeyStore` and the memory adapter generates one when given none, and so
-does `ConfigurationError`, which they throw; the provider re-exports that one, since it throws it
-as well. What stays in the provider of the keys is what the protocol does with them: choosing the
-signing key, the JWKS body.
+`@oidcraft/adapter` carries behaviour, not only types: `fromKv`, the memory adapter, the suite, the
+key stores (`staticKeyStore`, `generateKey`, `generatedKeyStore`) and the `ConfigurationError` they
+throw, which the provider re-exports. What the protocol does with keys — choosing the signing key,
+the JWKS body — stays in the provider.
 
-A client's identity is declared once, in `@oidcraft/core`: `ClientCredentials` (`clientId`,
-`clientSecret`) and `ClientAuthMethod`, the RFC 7591 registry, with `TokenAuthMethod` the subset a
-client can send. Core's client configs, the broker's `UpstreamProvider` and the adapter's `Client`
-record each build on them, and all three name the method `tokenEndpointAuthMethod`, after the
-registration field. Scope is the exception: core keeps `scope` as the string the bindings' users
-pass, the provider side keeps `scopes` as the list it stores and compares.
+A client's identity is declared once, in `@oidcraft/core`: `ClientCredentials` and
+`ClientAuthMethod`, the RFC 7591 registry, with `TokenAuthMethod` the subset a client can send.
+Core's client configs, the broker's `UpstreamProvider` and the adapter's `Client` each build on them,
+all naming the method `tokenEndpointAuthMethod`. Scope is the exception: core keeps `scope` as the
+string the bindings' users pass, the provider keeps `scopes` as the list it stores and compares.
 
-The SQL schema the three SQL adapters share is not contract — nothing but those three reads it — so
-it is `@oidcraft/sql`, private, and each compiles in its own copy. So is the row mapping Kysely and
-TypeORM share, JSON as text and times as epoch milliseconds (`@oidcraft/sql/rows`); Drizzle declares
-its columns as JSON and timestamps, and maps them itself. It has a build of its own so they
-bundle its `dist`, not its sources: a declaration build reaching a sibling's sources writes stray
-`.d.ts` files beside them. An adapter importing it by name instead fails `verify-entries.ts`, since
-it is only a `devDependency`. One package rather than one per dialect, because every SQL adapter
-serves both and the two lists must keep the same ids (§4.2).
+The SQL schema is not contract — only the three SQL adapters read it — so it is `@oidcraft/sql`,
+private, and each compiles in its own copy, as it does the row mapping Kysely and TypeORM share
+(`@oidcraft/sql/rows`: JSON as text, times as epoch milliseconds). It has a build of its own so they
+bundle its `dist`, not its sources, whose declaration build would write stray `.d.ts` files beside
+them; importing it by name fails `verify-entries.ts`, since it is only a `devDependency`. One package
+rather than one per dialect, because both lists must keep the same ids (§4.2).
 
-The runtimes stay provider subpaths: `bun`, `deno` and `workerd` are a few dozen lines each, too
-thin to be packages, and each needs the provider's own types.
+The runtimes stay provider subpaths: each is a few dozen lines and needs the provider's own types.
+The cost of the split is a release order and, per new package, a manual first publish (§11).
 
-The cost is a release order — `adapter` before the provider and the adapters — and for each new
-package a manual first publish and an `npm trust github` run behind a browser OTP (§11).
-
-**Core and client are split by consumer.** `@oidcraft/core` has two kinds of consumer that share
-nothing else:
-
-- `@oidcraft/provider/broker`, because brokering _is_ being a relying party at the upstream (§5);
-- the framework bindings — `@oidcraft/vue`, `@oidcraft/react`, `@oidcraft/angular` — whose users have
-  no OP at all.
-
-Only the second kind wants `@oidcraft/client`, and a server that accidentally reached `localStorage`
-would be a bug rather than a nuisance. The server never depends on it, and `verify-entries.ts` fails
-its build if an entry imports it (§2.2), which makes that impossible rather than merely discouraged.
+**Core and client are split by consumer.** `@oidcraft/core` serves `@oidcraft/provider/broker`,
+because brokering _is_ being a relying party at the upstream (§5), and the framework bindings,
+whose users have no OP at all. Only the bindings want `@oidcraft/client`; a server reaching
+`localStorage` would be a bug, so `verify-entries.ts` fails the build of any server entry importing
+it (§2.2).
 
 **They are dependencies, not compiled in.** One release of `@oidcraft/core` fixes the provider and
 all three bindings; an application using a binding and the broker installs one copy of the protocol;
-and a framework without a binding here — Svelte, Solid, plain JS — builds on `@oidcraft/client`
-directly. The price is that their exports are semver contracts, and that a binding's release is
-ordered after the `core` and `client` versions it names. NFR-D4 counts third-party dependencies and
-stays true: `dist/broker.mjs` imports `@oidcraft/provider`, `@oidcraft/adapter`, `@oidcraft/core` and
-`jose`, and nothing else.
-
-`@oidcraft/client` keeps `@oidcraft/core` external like everyone else. Bundling it would put a second
-copy of every protocol type in its declarations, and a binding that imported `OAuthFunctions` from
-one and was handed the other fails its own dts emit with "cannot be named".
-
-An entry inside `@oidcraft/provider` could not have done the same job: a Vue application would be
-installing an OpenID Provider to get a login button.
-
-The provider uses what it needs of `@oidcraft/core` too — `sha256`, `randomString`,
-`constantTimeEquals` — so each primitive exists once, and the server has no `random.ts` of its own.
-Encoding is `jose`'s `base64url`, which both halves already depend on. That is the provider
-depending on the protocol, never the reverse.
-
-A package boundary does not stop a bundle from importing what it should not, or from compiling a
-sibling in. `verify-entries.ts` does that (§2.2).
+and a framework without a binding builds on `@oidcraft/client` directly. The price is that their
+exports are semver contracts, released before what names them. NFR-D4 stays true: `dist/broker.mjs`
+imports `@oidcraft/provider`, `@oidcraft/adapter`, `@oidcraft/core` and `jose`, and nothing else.
+`@oidcraft/client` keeps `@oidcraft/core` external too: a second copy of the protocol types in its
+declarations makes a binding's dts emit fail with "cannot be named". The provider uses core's
+`sha256`, `randomString` and `constantTimeEquals` rather than its own; encoding is `jose`'s
+`base64url`.
 
 ### 2.2 Entry invariants
 
-Each optional peer is confined to the one entry that owns it; that is what keeps it optional rather
-than a tax on every consumer. Nothing but `verify-entries.ts` (below) enforces it, and every way of breaking it
-fails silently — a leaked peer surfaces only as a resolution error in a consumer who never installed
-it, and a core type inlined into an entry compiles fine while shipping a second copy that drifts.
-In the provider the same holds for the storage libraries, which belong to the adapter packages: one
-imported there would make every host install it.
+Each optional peer is confined to the one entry that owns it, which is what keeps it optional. Only
+`verify-entries.ts` enforces this, and every way of breaking it fails silently otherwise: a leaked
+peer is a resolution error in a consumer who never installed it, and a core type inlined into an
+entry compiles fine while shipping a second copy that drifts. In the provider the same holds for the
+storage libraries, which belong to the adapter packages.
 
-The same goes for workspace packages. Every package a bundle imports must be declared in its
-`package.json`: a workspace package imported but undeclared resolves on this machine and nowhere
-else. And the shared ones must stay imported — `@oidcraft/core` by `./broker` and by each binding's
-`./core`, `@oidcraft/client` by the React and Angular `./core`, `@oidcraft/adapter` by the provider
-and by every adapter — because a copy compiled in is one a release of it no longer fixes.
+Every package a bundle imports must be declared in its `package.json`: a workspace package imported
+but undeclared resolves here and nowhere else. And the shared ones must stay imported —
+`@oidcraft/core` by `./broker` and by each binding's `./core`, `@oidcraft/client` by the React and
+Angular `./core`, `@oidcraft/adapter` by the provider and by every adapter — because a copy compiled
+in is one a release of it no longer fixes.
 
 Each package's `verify-entries.ts` runs after its `build`. The provider's asserts, per entry: no
 storage library, in either the JS or the `.d.mts`; no undeclared import; no `@oidcraft/client`; no
@@ -252,8 +207,8 @@ storage library, in either the JS or the `.d.mts`; no undeclared import; no `@oi
 entry has runtime code — that it imports the root by package name rather than inlining a second
 copy of the core. `@oidcraft/adapter`'s and each adapter's assert no undeclared import, no runtime
 builtin or global, `@oidcraft/adapter` and the database library imported by name, and a suite that
-imports no test runner. Entries that are still types-only compile to `export {};`, so their runtime checks are reported
-as pending rather than passing quietly.
+imports no test runner. Entries that are still types-only compile to `export {};`, so their runtime
+checks are reported as pending rather than passing quietly.
 
 ## 3. The core
 
@@ -263,29 +218,24 @@ The root entry exposes one function of `(Request, RequestContext) => Promise<Res
 whole surface. Of the context it reads the client certificate; the client IP is the host's, for the
 limits it applies (NFR-S12).
 
-> **workerd** is Cloudflare's open-source JS/Wasm runtime — the engine behind Cloudflare Workers.
-> It is named throughout because it is the strictest non-Node target: no filesystem, no `node:net`,
-> no process outliving a request, no timers between requests. FR-R1, FR-R2, FR-A1 and NFR-P3 are
-> effectively its constraints, and it is where a violation of them fails loudly instead of working
-> until the second process starts. "workerd-shaped" covers the same family — Deno Deploy, Vercel
-> Edge, Netlify Edge, Fastly Compute — which share roughly the WinterTC Minimum Common API.
+> **workerd**, the engine behind Cloudflare Workers, is named throughout as the strictest non-Node
+> target: no filesystem, no `node:net`, no process outliving a request, no timers between requests.
+> FR-R1, FR-R2, FR-A1 and NFR-P3 are effectively its constraints, shared by Deno Deploy, Vercel Edge,
+> Netlify Edge and Fastly Compute.
 
-**Only Node needs an HTTP bridge.** `node:http` speaks `IncomingMessage`/`ServerResponse`; Bun, Deno
-and workerd hand over a `Request` and take a `Response`, so the handler mounts into their servers
-directly.
+**Only Node needs an HTTP bridge.** Bun, Deno and workerd hand over a `Request` and take a
+`Response`, so the handler mounts into their servers directly.
 
-**Every runtime needs a context provider**, though — the part that is easy to get wrong. Nothing in
-`RequestContext` is carried by `Request`, and each runtime exposes it differently:
-`server.requestIP(request)` on Bun, `info.remoteAddr` on Deno, `req.socket` on Node, `request.cf`
-plus `CF-Connecting-IP` on workerd. Hence one small entry per runtime under `@oidcraft/provider/runtimes/*`,
-grouped the way the adapters are and for the same reason — each is one interchangeable
-implementation of a single seam. Each touches only its own globals and holds no protocol logic
-(FR-R3). `verify-entries.ts` fails the build if `node:`, `Bun.` or `Deno.` appears outside the entry
-that owns it (§2.2).
+**Every runtime needs a context provider.** Nothing in `RequestContext` is carried by `Request`,
+and each runtime exposes it differently: `server.requestIP(request)` on Bun, `info.remoteAddr` on
+Deno, `req.socket` on Node, `request.cf` plus `CF-Connecting-IP` on workerd. Hence one small entry
+per runtime under `@oidcraft/provider/runtimes/*`, each touching only its own globals and holding no
+protocol logic (FR-R3); `verify-entries.ts` fails the build if `node:`, `Bun.` or `Deno.` appears
+outside the entry that owns it (§2.2).
 
-One consequence is worth stating plainly: **mTLS client authentication is unavailable on Bun**.
-`Bun.serve` can request a client certificate but exposes no way to read it, so `tls_client_auth`
-and certificate-bound tokens are disabled there rather than silently advertised (`G-8`, FR-R5).
+**mTLS client authentication is unavailable on Bun.** `Bun.serve` can request a client certificate
+but exposes no way to read it, so `tls_client_auth` and certificate-bound tokens are refused at
+construction there rather than advertised (`G-8`, FR-R5).
 
 ```
 Request
@@ -301,117 +251,110 @@ Request
 verified client certificate for mTLS and the client IP (FR-R4). The issuer is not in it: it is
 configuration, never derived from a request (NFR-S6).
 
+Where a request ends, an unexpected failure goes to `onError` and is answered `server_error`
+(NFR-D5), and a refusal that answers an attack carries an audit event to `onAudit` (FR-M3). Host
+hooks called after something already happened — logout delivery, an audit after a registration —
+are guarded the same way: a failure is reported, never answered (`src/hooks.ts`).
+
 **CORS is decided by the registration, not by configuration.** Discovery and the key set are
 readable from any origin. A preflight on the token, UserInfo, revocation or introspection endpoint
 is answered for any origin, since it only permits what a form post from there could already send;
 the real response is readable only from the origin of one of the calling client's registered
-redirect URIs. The client is the one the request authenticates as, or, at UserInfo, the one its
-access token was issued to. No cookie is ever sent cross-origin.
+redirect URIs — the client the request authenticates as, or at UserInfo the one its access token was
+issued to. No cookie is ever sent cross-origin.
 
 ### 3.2 What the core does not do
 
 No HTML beyond the `form_post` response page. Two cookies, both host-only, `HttpOnly`,
 `SameSite=Lax`, and `Secure` on an https issuer: the session cookie, `oidcraft.sid`, which carries a
 secret whose hash is the session's id and `sid` (NFR-S11), and `oidcraft.browser` (`__Host-` prefixed
-on https), which binds an interaction to the browser it was started in (FR-I2). No
-timers, no background sweeps, no connection pool, no process-level cache that survives a request
-(FR-A1, NFR-P3). Two processes behind a load balancer behave identically to one, which is the
-property that makes horizontal scaling and serverless hosting the same thing.
+on https), which binds an interaction to the browser it was started in (FR-I2). No timers, no
+background sweeps, no connection pool, no process-level cache that survives a request (FR-A1,
+NFR-P3), so two processes behind a load balancer behave as one. No cap on a request body's size:
+that is the host's, in front of the provider (NFR-S12).
 
 ### 3.3 The FAPI 2.0 profile
 
 `src/profile/fapi.ts` is the whole of FR-C21: the algorithms and authentication methods it allows,
 what a provider and a client must be, and `underFapi(config, client)`, which every enforcement
-point asks. `profile: 'fapi2'` sets it for the provider or for one client; there is no other way in,
-and nothing in it is a separate setting. It is checked three times, because each catches what the
-others cannot: at construction for a provider-wide profile (NFR-D2), at registration and in the
+point asks. `profile: 'fapi2'` sets it for the provider or for one client; there is no other way in.
+It is checked at construction for a provider-wide profile (NFR-D2), at registration and in the
 management API for a client, and on every request, since a client can reach storage by neither.
 
-Signing keys are only readable asynchronously, so a provider whose key set holds no PS256, ES256 or
-EdDSA key is refused at its first signature rather than at construction. A provider-wide profile
-narrows discovery; a per-client one cannot, since discovery speaks for every client. Its refresh
-tokens are the one place rotation is skipped (FR-T3).
+Signing keys are only readable asynchronously, so a key set without a PS256, ES256 or EdDSA key is
+refused at its first signature rather than at construction. A provider-wide profile narrows
+discovery; a per-client one cannot, since discovery speaks for every client. Its refresh tokens are
+the one place rotation is skipped (FR-T3).
 
 ## 4. The adapter layer
 
-`packages/adapter/src/adapter.ts` is the contract, published as `@oidcraft/adapter` (§2.1). Storage is **a set of narrow capability stores**,
-not one table keyed by a model-name string:
+`packages/adapter/src/adapter.ts` is the contract, published as `@oidcraft/adapter` (§2.1). Storage
+is **a set of narrow capability stores**, not one table keyed by a model-name string:
 
 | Store                 | Holds                                                                                                         |
 | --------------------- | ------------------------------------------------------------------------------------------------------------- |
 | `ClientStore`         | Registered clients. `create`/`update`/`destroy` are optional — omitting them disables DCR at runtime (FR-C9). |
 | `ArtifactStore`       | Codes, access and refresh tokens, device codes, PAR and CIBA requests. Revoked by grant, family and client.   |
 | `SessionStore`        | The end-user's authenticated session at the OP, including its upstream provenance (FR-F6).                    |
-| `GrantStore`          | Durable consent: what an account allowed a client. Survives token revocation (FR-I4), not its client (FR-T7). |
+| `GrantStore`          | Durable consent to scopes and named claims. Survives token revocation (FR-I4), not its client (FR-T7).        |
 | `AccountStore`        | The host's users. Claims are resolved per request, never cached at login (FR-C5).                             |
 | `KeyStore`            | Signing keys, newest first (FR-C10).                                                                          |
-| `ReplayGuard`         | One-shot values: `jti`, DPoP proofs, upstream nonces (NFR-S5).                                                |
+| `ReplayGuard`         | One-shot values (NFR-S5).                                                                                     |
 | `LinkedIdentityStore` | `(provider, subject) → account` links. Optional; only brokering deployments need it.                          |
 
 The record-holding stores — clients, artifacts, sessions, grants, identities — share one shape,
 `EntityStore<T, Id>`: `find`, `upsert` and `destroy`, with a composite key passed as arguments
-(`artifacts.find(kind, id)`). Each adds only the lookups the protocol needs indexed, and those
-extras are the point of the split. Client writes are optional, so a fixed client list is a valid
-deployment. `AccountStore`, `KeyStore` and `ReplayGuard` are not record stores and keep their own
-shapes: the host's users read-only, signing keys newest first, and one atomic claim.
+(`artifacts.find(kind, id)`). Each adds only the lookups the protocol needs indexed. `AccountStore`,
+`KeyStore` and `ReplayGuard` keep their own shapes: the host's users read-only, signing keys newest
+first, and one atomic claim.
 
-`Adapter` is what a custom adapter implements: the seven stores above that every provider reads,
-with `identities`, `credentials` and `realms` optional. An entry point that needs one of those says
-so in its type rather than at runtime — `createBroker` and `linkIdentity` take a `BrokeringAdapter`
-(`identities` and `sessions.findByUpstreamSession` present), `createAccounts` a
-`CredentialsAdapter`, and `RealmsAdapter` names a realm control plane's. Every first-party adapter
-returns `FullAdapter`, all three at once, so it satisfies each of them. `createProvider` takes a
-plain `Adapter` and refuses `upstreams` without the brokering stores when it is constructed
-(NFR-D2), since one union per optional feature would make its config type unreadable.
+`Adapter` is what a custom adapter implements: the seven stores every provider reads, with
+`identities`, `credentials` and `realms` optional. An entry point that needs one says so in its type
+— `createBroker` and `linkIdentity` take a `BrokeringAdapter`, `createAccounts` a
+`CredentialsAdapter`, a realm control plane a `RealmsAdapter` — and every first-party adapter
+returns `FullAdapter`, which satisfies each. `createProvider` takes a plain `Adapter` and refuses
+`upstreams` without the brokering stores at construction (NFR-D2).
 
 **A revocation is not undone by a request already past its checks (FR-T3, FR-T7).** Revoking a
 family writes a `revoked_family` artifact before it sweeps the family's rows, and revoking a grant
-destroys the `Grant` before it sweeps its tokens. Every write into a family — a code redeemed, a
-refresh, a device or CIBA redemption — reads both after writing and sweeps again if either says
-revoked. Either the writer sees the mark, or the sweep, which follows the mark, sees the write; no
-store needs a transaction for it.
+destroys the `Grant` before it sweeps its tokens. Every write into a family reads both after writing
+and sweeps again if either says revoked: either the writer sees the mark, or the sweep, which follows
+the mark, sees the write. No store needs a transaction for it.
 
 **No bearer credential reaches an adapter as itself (NFR-S11).** `createProvider` wraps the
-`ArtifactStore` it is given (`src/artifacts.ts`), so a code, an access or refresh token, a device
-code, a pushed-request reference or an interaction id is stored under the SHA-256 of its value, and
-a copy of the database redeems nothing. It is one wrapper in the provider rather than a rule for
-five adapters to remember, and an adapter cannot tell the difference: an id is an id. Unsalted,
-because each value is 288 random bits. A record found by its value comes back carrying that value;
-one found another way — a device request by its user code — carries the stored id and is never
-written back, which is why the person's answer to a device request is a record of its own, under the
-user code. A registration access token is hashed the same way on the client record, so a response
-carries it only when the caller just presented it. A JWT access token's `jti` is the value its
-record is stored under a hash of: the JWT finds the record once its signature verifies, and the
-`jti` presented bare finds nothing (FR-T2).
+`ArtifactStore` it is given (`src/artifacts.ts`), so each bearer artifact is stored under the
+SHA-256 of its value and a copy of the database redeems nothing — one wrapper in the provider rather
+than a rule for five adapters to remember. Unsalted, because each value is 288 random bits. A record
+found by its value comes back carrying that value; one found another way — a device request by its
+user code — carries the stored id and is never written back, which is why the answer to a device
+request is a record of its own. A registration access token is hashed the same way on the client
+record. A JWT access token's `jti` is what its record is stored under a hash of: the JWT finds the
+record once its signature verifies, the `jti` presented bare finds nothing (FR-T2).
 
-A client secret is the one bearer value a host writes itself, seeding a client through its adapter,
-so it is a field rather than a wrapper: `Client.clientSecretHash`, made by `hashClientSecret`, is
-what `client_secret_basic` and `client_secret_post` compare against, and `clientSecret` is only
-ever `client_secret_jwt`'s HMAC key. Registration and the management API store whichever the method
-needs and return a generated secret once; a hashed one cannot be shown again, only rotated
-(`management.clients.rotateSecret`). A secret survives a change of method only between methods
-that keep it the same way. A host-chosen secret is hashed as given, unsalted, so it is only as
-strong as the host made it.
+A client secret is the one bearer value a host writes itself, so it is a field rather than a
+wrapper: `Client.clientSecretHash`, made by `hashClientSecret`, is what `client_secret_basic` and
+`client_secret_post` compare against, and `clientSecret` is only ever `client_secret_jwt`'s HMAC key.
+Registration and the management API return a generated secret once; a hashed one can only be rotated
+(`management.clients.rotateSecret`). A host-chosen secret is hashed as given, unsalted, so it is only
+as strong as the host made it.
 
-The Drizzle adapter is the demonstration: `explain query plan` in its test suite asserts that
-revoking by grant and looking up a device's user code both hit an index rather than scanning, which
-is exactly what the blob shape below cannot do.
+The Drizzle adapter's tests assert with `explain query plan` that revoking by grant and looking up a
+user code hit an index rather than scanning — what the blob shape below cannot do.
 
 ### 4.1 Why not `oidc-provider`'s shape
 
-`oidc-provider`'s adapter is a single class instantiated per model name, with
-`upsert`/`find`/`findByUid`/`findByUserCode`/`consume`/`destroy`/`revokeByGrantId` and an untyped
-`AdapterPayload` for every one of them. It works, and every implementation of it in the wild ends
-up as one table of `(kind, id, payload jsonb)` — which means the queries the protocol actually
-needs (revoke by grant, find by user code, expire a range) run against JSON extraction instead of
-an index, and the payload's type is `any` at every call site.
+`oidc-provider`'s adapter is a single class instantiated per model name, with an untyped
+`AdapterPayload` for every method. Every implementation of it ends up as one table of
+`(kind, id, payload jsonb)`, so the queries the protocol needs (revoke by grant, find by user code,
+expire a range) run against JSON extraction instead of an index, and the payload is `any` at every
+call site.
 
-Splitting by capability makes each method's payload a real type, lets a relational adapter use
-real columns and indexes (FR-A5), and lets a deployment implement only what it uses. `KvStore`
-(FR-A3) keeps the simple case simple: it is an `EntityStore` of `{ key, value, ttl }` entries plus
-`scan` and `insert`, and `fromKv` derives the rest. `insert` carries the only hard requirement — it
-must be atomic — because every single-use rule (a code, a refresh token, a `jti`) is that one
-write. Redis `SET NX`, a Durable Object or a single-process `Map` qualify; Workers KV does not.
+Splitting by capability makes each payload a real type, lets a relational adapter use real columns
+and indexes (FR-A5), and lets a deployment implement only what it uses. `KvStore` (FR-A3) keeps the
+simple case simple: an `EntityStore` of `{ key, value, ttl }` entries plus `scan` and `insert`, from
+which `fromKv` derives the rest. `insert` carries the only hard requirement — it must be atomic —
+because every single-use rule is that one write. Redis `SET NX`, a Durable Object or a single-process
+`Map` qualify; Workers KV does not.
 
 `consume` and `claim` are atomic in every adapter for the same reason: each returns whether _this_
 caller won, and the protocol trusts that answer rather than an earlier read. The SQL adapters use a
@@ -421,39 +364,32 @@ cannot revive a consumed code. The shared conformance suite races eight callers 
 
 ### 4.2 Schema ownership
 
-An adapter ships migrations the host runs. The library never creates or alters a table at boot —
-a library that migrates a production database on import is a library that migrates it during a
-rolling deploy, from several processes at once.
+An adapter ships migrations the host runs. The library never creates or alters a table at boot: one
+that migrates on import migrates during a rolling deploy, from several processes at once.
 
-That is `SQLITE_MIGRATIONS` and `POSTGRES_MIGRATIONS`, from the private `@oidcraft/sql` (§2.1),
-exported by `@oidcraft/drizzle`, `@oidcraft/kysely` and `@oidcraft/typeorm` because all three query the same tables: ordered
-`{ id, statements }` records with the same ids in both, data rather than a runner, so the host
-applies them with whatever tool it already uses. TypeORM gets them as migration classes too. Every
-adapter's tests build their database from them, so the shipped schema is the tested one — Postgres
-in CI's service container, and through `compose.yml` locally; without `POSTGRES_URL` those suites
-skip, as Redis's do. `apps/demo-server` applies them at boot, which is safe there only because it is
-one process.
+`SQLITE_MIGRATIONS` and `POSTGRES_MIGRATIONS` come from the private `@oidcraft/sql` (§2.1) and are
+exported by `@oidcraft/drizzle`, `@oidcraft/kysely` and `@oidcraft/typeorm`, which query the same
+tables: ordered `{ id, statements }` records with the same ids in both, data rather than a runner, so
+the host applies them with its own tool. TypeORM gets them as migration classes too. Every adapter's
+tests build their database from them, so the shipped schema is the tested one — Postgres in CI's
+service container and through `compose.yml` locally; without `POSTGRES_URL` those suites skip, as
+Redis's do. `apps/demo-server` applies them at boot, safe only because it is one process.
 
 The Postgres tables keep milliseconds in `bigint` and JSON in `text`, so every adapter reads and
-writes what it does on SQLite. Both `pg` and Bun.sql return `bigint` as a string, so the adapters
-convert with `Number()` rather than trust the column type. Drizzle fixes a table's schema when the
-table is defined, so its Postgres tables come from `postgresTables(schema?)`, and one adapter body
-serves both dialects. Table names are unqualified everywhere else, so a host picks the schema with
-the search path or Kysely's `withSchema`.
+writes what it does on SQLite; `pg` and Bun.sql return `bigint` as a string, so the adapters convert
+with `Number()`. Drizzle fixes a table's schema when the table is defined, so its Postgres tables come
+from `postgresTables(schema?)`. Table names are unqualified everywhere else, so a host picks the
+schema with the search path or Kysely's `withSchema`.
 
 ## 5. Identity brokering
 
 ### 5.1 Two things named federation
 
-**Identity brokering** is what oidcraft implements (FR-F*): it is the OP its clients see, and at
-the same time a relying party at one or more upstream OPs. Downstream clients never learn an
-upstream exists. The relying-party leg is `@oidcraft/core` — the same code a browser application
-would use against this OP, pointed the other way (§2.1).
-
-**OpenID Federation 1.0** — entity statements, trust chains, trust anchors, automatic registration
-across a multilateral trust fabric — is a different protocol solving a different problem
-(who may talk to whom, across organisations that never bilaterally registered). It is deferred
-(`G-1`) and nothing in the core should assume it away.
+**Identity brokering** is what oidcraft implements (FR-F*): it is the OP its clients see, and a
+relying party at one or more upstream OPs. Downstream clients never learn an upstream exists. The
+relying-party leg is `@oidcraft/core` — the code a browser application would use against this OP,
+pointed the other way (§2.1). **OpenID Federation 1.0** is a different protocol, deferred (`G-1`), and
+nothing in the core should assume it away.
 
 ### 5.2 The two legs
 
@@ -470,10 +406,10 @@ across a multilateral trust fabric — is a different protocol solving a differe
   client ◀──────code──────────────────┘  the downstream interaction resumes
 ```
 
-The handoff (`src/broker/types.ts`) carries `state`, `nonce`, the PKCE verifier and **the id of
-the downstream interaction it resumes**. That last field is what makes this a suspend/resume of one
-authorization request rather than two unrelated flows stapled together — and it is why the handoff
-must be single-use, expiring and bound to the browser that started it (FR-F3).
+The handoff (`src/broker/types.ts`) carries `state`, `nonce`, the PKCE verifier and **the id of the
+downstream interaction it resumes**, which makes this one suspended authorization request rather
+than two flows stapled together — and is why the handoff must be single-use, expiring and bound to
+the browser that started it (FR-F3).
 
 ### 5.3 Why brokering lives in the core, not in the app
 
@@ -482,284 +418,240 @@ Four things reach into the protocol core and cannot be bolted on from outside:
 - **Session provenance.** `idp`, `acr`, `amr` and `auth_time` in a brokered ID token are the
   upstream's answers, so `SessionStore` must carry them (FR-F6).
 - **Re-authentication.** `prompt=login`, `max_age` and a raised `acr_values` have to force a fresh
-  _upstream_ authentication. A local session cannot satisfy them on its own (FR-F9).
-- **Logout.** An upstream back-channel logout must terminate the local sessions it produced, which
-  triggers this OP's back-channel logout to its own clients. Hence
-  `SessionStore.findByUpstreamSession` (FR-F8). The other direction is a hook: end-session hands a
-  brokered session and its destination to `ProviderConfig.upstreamLogout`, and the broker's
-  `logoutUrl` answers with the upstream's end-session request, keeping the destination for
-  `completeLogout` and naming the upstream ID token it kept at sign-in as the hint.
+  _upstream_ authentication (FR-F9).
+- **Logout.** An upstream back-channel logout must end the local sessions it produced, and so this
+  OP's back-channel logout to its clients: `SessionStore.findByUpstreamSession` (FR-F8). The other
+  direction is a hook: end-session hands a brokered session and its destination to
+  `ProviderConfig.upstreamLogout`, and the broker's `logoutUrl` answers with the upstream's
+  end-session request, keeping the destination for `completeLogout` and the upstream ID token it kept
+  at sign-in as the hint.
 - **Home-realm discovery.** Choosing the upstream from `login_hint`, `acr_values` or the client's
   allowed list happens inside the authorization endpoint's policy step (FR-F4).
 
-A deployment that keeps brokering in the application layer gets the happy path and none of these.
-
 ### 5.4 Pure-proxy mode
 
-With no local credentials at all, oidcraft is a protocol-normalising proxy: one issuer, one set of
-client registrations, one token format, several upstreams behind it. `sub` is then derived from
-`(provider, subject)` and is stable per account — never passed through from an upstream, whose
-`sub` is only unique within that upstream.
+With no local credentials, oidcraft is a protocol-normalising proxy: one issuer, one set of client
+registrations, one token format, several upstreams behind it. `sub` is then derived from
+`(provider, subject)` and stable per account — never the upstream's, which is only unique within
+that upstream.
 
 ### 5.5 The linking hazard
 
 Matching a brokered identity to a local account by email address is account takeover the moment an
 upstream does not verify addresses, or lets a user change one. The default is `(provider, subject)`
-and nothing else (FR-F5, NFR-S8). `verified-email` exists, requires `email_verified` from the
-upstream, and is still a deliberate decision an operator has to make. `interactive` — prove control
-of the existing account, then link — is the honest answer for a consumer-facing deployment.
+and nothing else (FR-F5, NFR-S8). `verified-email` requires `email_verified` from the upstream and is
+still a deliberate operator decision; `interactive` — prove control of the existing account, then
+link — is the honest answer for a consumer-facing deployment.
 
 ### 5.6 Upstream tokens
 
-Keeping an upstream's access token so downstream code can call that upstream's API makes the
-deployment a credential store for another system. Off by default and opt-in per provider; then
-handed to the host only, with the brokered identity. The library stores none and returns none to a
-downstream client; a host that keeps them encrypts them (FR-F10, NFR-S9). An
-upstream ID token is kept only as a logout hint, for a provider that propagates logout (FR-F8).
+Off by default and opt-in per provider; then handed to the host only, with the brokered identity.
+The library stores none and returns none to a downstream client (FR-F10, NFR-S9). An upstream ID
+token is kept only as a logout hint, for a provider that propagates logout (FR-F8).
 
 ## 6. Interaction
 
 The authorization endpoint decides what it can and, when it cannot finish, emits an
 `InteractionRequest` and redirects (FR-I1). The interaction app — any HTTP app on the issuer's
-host, including the reference one — answers with an `InteractionResult`, and the core re-evaluates
-the original request against it, free to demand another interaction (FR-I2). The answer comes with
-the request's `cookie` header, because an interaction is bound to the browser the redirect set the
-`oidcraft.browser` cookie in; an id alone completes nothing.
+host — answers with an `InteractionResult`, and the core re-evaluates the original request against
+it, free to demand another interaction (FR-I2). The answer comes with the request's `cookie` header,
+because an interaction is bound to the browser the redirect set the `oidcraft.browser` cookie in; an
+id alone completes nothing.
 
-This is `oidc-provider`'s model, and it is the right one: it keeps HTML out of the protocol core
-and lets a host replace the screens entirely. The difference is that oidcraft ships the screens
-(FR-I3) and the consent-memory model (FR-I4) instead of leaving both as an exercise.
+This is `oidc-provider`'s model: it keeps HTML out of the protocol core and lets a host replace the
+screens entirely. oidcraft also ships the screens (FR-I3) and the consent-memory model (FR-I4),
+which remembers scopes and claims consented to by name (FR-C22).
 
 ### 6.1 Local accounts
 
-`@oidcraft/provider/accounts` (FR-I7) is a set of functions, not a screen or a route: the interaction app
-calls `authenticate`, then `verifySecondFactor` when the result says one is enrolled, and only then
-completes the interaction. It is composed in after the adapter exists —
+`@oidcraft/provider/accounts` (FR-I7) is a set of functions, not a screen or a route: the interaction
+app calls `authenticate`, then `verifySecondFactor` when the result says one is enrolled, and only
+then completes the interaction. It is composed in after the adapter exists —
 `createProvider({ adapter: { ...adapter, accounts: accounts.store } })` — which is why every adapter
-now takes `accounts` as optional.
+takes `accounts` as optional.
 
-It stores through the adapter's `credentials` store and borrows two guarantees that already exist
-rather than adding new ones: a TOTP step and a recovery code are made single-use by `ReplayGuard`
-(namespaces `totp` and `recovery`), and a reset token by the `password_reset` artifact's atomic
-`consume`. A username is unique through `CredentialStore.create`, which is atomic in every adapter
-for the same reason `insert` is. Attempts are counted by claiming numbered slots from `ReplayGuard`
-(namespace `sign_in`), the one atomic counter every adapter already has: an attempt claims a slot of
-its address's bucket, or the account's without an address, _before_ the slow verify, so however many
-arrive at once no more than the limit are ever checked; a failure also claims one of the account-wide
-bucket's (`G-9`). A second factor has a bucket of its own, so a known password does not reset it. The
-`sign_in_attempts` artifact holds only each bucket's generation, which a good sign-in renews, and its
-lock. A read-modify-write count let a burst of parallel guesses all pass a check none had yet failed.
+It stores through the adapter's `credentials` store and adds no guarantee of its own: a TOTP step and
+a recovery code are single-use through `ReplayGuard` (namespaces `totp` and `recovery`), a reset
+token through the `password_reset` artifact's atomic `consume`, and a username is unique through
+`CredentialStore.create`, atomic in every adapter. Attempts are counted by claiming numbered slots
+from `ReplayGuard` (namespace `sign_in`), the one atomic counter every adapter has: an attempt claims
+a slot of its address's bucket, or the account's without an address, _before_ the slow verify, so
+however many arrive at once no more than the limit are checked; a failure also claims one of the
+account-wide bucket's (`G-9`). A second factor has a bucket of its own. The `sign_in_attempts`
+artifact holds only each bucket's generation, which a good sign-in renews, and its lock.
 
-Hashing is injected. The entry ships no hasher of its own, because the fast ones are runtime
-globals: `bunPasswordHasher` lives in `./runtimes/bun` and `nodePasswordHasher` in
-`./runtimes/node`, both writing PHC argon2id strings the other verifies. A Deno or workerd host
-passes its own.
+Hashing is injected, because the fast hashers are runtime globals: `bunPasswordHasher` lives in
+`./runtimes/bun` and `nodePasswordHasher` in `./runtimes/node`, both writing PHC argon2id strings the
+other verifies. A Deno or workerd host passes its own.
 
 ## 7. Administration
 
 The root entry exposes the management surface as functions on the provider, `provider.management`,
 over clients, grants, sessions, keys and upstreams (FR-M1); none of it is a route. **The library
 never decides who is an administrator** — the host calls these from handlers behind its own
-authentication, and the reference app does so behind its own admin session.
-Writes, replays and failed client authentications emit audit events the host routes somewhere; the
-library persists none of them (FR-M3).
+authentication. Writes, replays and failed client authentications emit audit events the host routes
+somewhere; the library persists none of them (FR-M3).
 
 ### 7.1 Realms
 
 A realm is a provider. `createRealms({ store, realmOf, configure, provision, retire })`, exported
 from the root beside `createProvider`, keeps a cache of providers keyed by realm id and builds each
-from its record on first use (FR-M4). There is no realm mode in the core and no switch: a deployment
-with one issuer never calls it, and a bundler drops it from that deployment's build.
+from its record on first use (FR-M4). There is no realm mode in the core: a deployment with one
+issuer never calls it.
 
-- **The host owns the URL scheme.** `realmOf` reads a subdomain, a path prefix or a custom domain;
-  the library imposes no `/realms/` path. What it returns is only a selection: ids are DNS labels,
-  and an unknown or disabled realm resolves to `undefined` without `configure` running, so a forged
-  `Host` header cannot mint an issuer (NFR-S6).
+- **The host owns the URL scheme.** `realmOf` reads a subdomain, a path prefix or a custom domain.
+  What it returns is only a selection: ids are DNS labels, and an unknown or disabled realm resolves
+  to `undefined` without `configure` running, so a forged `Host` header cannot mint an issuer
+  (NFR-S6).
 - **Storage is per realm.** `configure` hands each provider its own adapter — a SQLite file, a
-  Postgres schema in one database (`postgresTables(realm.id)`, `db.withSchema(realm.id)`, or the
-  search path), a Redis prefix. Each adapter's Postgres suite checks that two schemas share nothing. The `oidc_realms` table (migration `0003`) is only the registry,
-  in the control plane's storage; no other table gains a realm column (`G-6`).
+  Postgres schema (`postgresTables(realm.id)`, `db.withSchema(realm.id)`, or the search path), a
+  Redis prefix. Each adapter's Postgres suite checks that two schemas share nothing. The
+  `oidc_realms` table (migration `0003`) is only the registry, in the control plane's storage; no
+  other table gains a realm column (`G-6`).
 - **Keys are per realm, and checked.** A key two realms share would let one realm's token verify
-  against the other's JWKS. `generatedKeyStore()` keeps one RSA key per process — fresh keys per store
-  would take the test suite from about 1 s to 26 s — so building a realm whose key ids collide with
-  another realm's throws instead of serving it.
+  against the other's JWKS. `generatedKeyStore()` keeps one RSA key per process, so building a realm
+  whose key ids collide with another's throws instead of serving it.
 - **Lifecycle order.** Create inserts the record disabled, runs `provision`, then enables it, so a
   half-built realm is never served and a failed `provision` frees the id. Remove disables first,
-  then runs `retire`, then deletes the record, so a failed `retire` leaves a realm nobody is served.
+  then runs `retire`, then deletes the record.
 - **Several processes.** `forget` clears one process's cache. Every process re-reads a cached
   realm's record after `revalidate` seconds (default 30) and rebuilds when anything in it changed —
-  the whole record, not `updatedAt`, which the library sets on every write but a same-millisecond write
-  or a hand edit in the database need not change. No trigger: five adapters, two without any.
+  the whole record, not `updatedAt`, which a same-millisecond write or a hand edit need not change.
 - **The control plane is a plain provider.** The operator signs in through a `createProvider`
-  issuer, not through a realm, and the realm management functions sit behind the host's own
-  authorization like the rest of FR-M1.
+  issuer, and the realm management functions sit behind the host's own authorization (FR-M1).
 
 ## 8. Apps
 
 ### 8.1 `apps/demo-server` — the reference OP
 
 One `Bun.serve` process mounting the core's fetch handler, the reference interaction screens and the
-admin UI. It is the deployment the conformance suite runs against (NFR-C1), which is the reason it
-exists: a reference that is never executed is a reference that is wrong.
+admin UI. It is the deployment the conformance suite runs against (NFR-C1): a reference that is
+never executed is a reference that is wrong.
 
-**One component set, rendered two ways.** `packages/ui` (`@oidcraft/ui`) holds the design, the
-Vue components and the interaction screens, and both surfaces build on it. It is private and has
-no build: the app imports its source. `@oidcraft/provider/interaction` ships rules and no markup, so no
-consumer of the library inherits a UI dependency from it (FR-I3).
+**One component set, rendered two ways.** `packages/ui` (`@oidcraft/ui`) holds the design, the Vue
+components and the interaction screens. It is private and has no build: the app imports its source.
+`@oidcraft/provider/interaction` ships rules and no markup, so no consumer of the library inherits a
+UI dependency (FR-I3).
 
 **The design is a handful of CSS variables** (`--oc-accent`, `--oc-accent-ink`, `--oc-radius`,
 `--oc-font`) that Tailwind's theme reads. `createScreens({ brand, theme, urls })` takes them per
-issuer, along with the brand's name and host and where each form posts, so nothing about one
-deployment is baked into the build — the one thing several issuers in a process would need of the
-screens (G-6). A theme value that could close its `<style>` element is dropped. The typeface is
-served from the OP's own origin: a sign-in page that loads fonts from a third party tells it who
-signed in where.
+issuer, with the brand's name and host and where each form posts, so nothing about one deployment is
+baked in (G-6). A theme value that could close its `<style>` element is dropped. The typeface is
+served from the OP's own origin: a sign-in page loading fonts from a third party tells it who signed
+in where.
 
 The **interaction screens** are rendered on the server with `renderToString` and ship no script:
 each is a form that posts. The conformance suite drives them with a browser that runs little
 JavaScript, and `packages/ui/src/screens.test.ts` pins the ids and texts its plan clicks on
-(NFR-C1). There is no HTML entrypoint for Bun to bundle their styles from, so `assets.ts` builds
-the stylesheet once at startup, and `assets` serves it and its fonts by file name under whatever
-route mounts it — `/assets/*` in the demo, `urls.stylesheet` for another. The stylesheet names the
-fonts relatively, so they follow it.
+(NFR-C1). `assets.ts` builds the stylesheet once at startup, and `assets` serves it and its fonts by
+file name under whatever route mounts it — `/assets/*` in the demo, `urls.stylesheet` for another.
 
-The **admin UI** (`src/admin`) is a client-rendered app on the same components. Its table and
-dialog are `@oidcraft/ui`'s `UiDataTable` and `UiDialog`, which wrap `@vuetify/v0` — headless, so
-Tailwind still does the styling. v0 is behaviour that runs in the browser, so the script-free
-interaction screens never use it.
+The **admin UI** (`src/admin`) is a client-rendered app on the same components. Its table and dialog
+are `@oidcraft/ui`'s `UiDataTable` and `UiDialog`, which wrap the headless `@vuetify/v0`; the
+script-free interaction screens never use it.
 
 **The admin and account apps are clients of this OP.** Each signs in with `@oidcraft/vue` as its own
 public client (`oidcraft-admin`, `oidcraft-account`), and each API introspects the bearer token
-in-process as the resource server `oidcraft-api`: live, and issued to that app's client. The admin
-API also requires an account in `OIDCRAFT_ADMINS`, the decision FR-M1 leaves to the host; the
-account API acts only on the token's own subject, so no path carries an account id to swap. The
-interaction routes answer consent for these first-party clients themselves.
+in-process as the resource server `oidcraft-api`. The admin API also requires an account in
+`OIDCRAFT_ADMINS`, the decision FR-M1 leaves to the host; the account API acts only on the token's
+own subject. The interaction routes answer consent for these first-party clients themselves.
 
-**Sign-in is `@oidcraft/provider/accounts` (FR-I7).** A correct password for an account with TOTP sets a
-signed, five-minute cookie bound to the interaction, and only the code step that reads it can
-finish that sign-in. `acr` is `mfa` after a second factor and `pwd` otherwise, with RFC 8176 `amr`
-values. `prompt=select_account` lists the accounts this browser signed in with, from another
-signed cookie, and picking one only fills in the password form. A reset link is printed to the
-console where a deployment would email it.
+**Sign-in is `@oidcraft/provider/accounts` (FR-I7).** A correct password for an account with TOTP
+sets a signed, five-minute cookie bound to the interaction, which only the code step can finish.
+`acr` is `mfa` after a second factor and `pwd` otherwise, with RFC 8176 `amr` values.
+`prompt=select_account` lists the accounts this browser signed in with, from another signed cookie.
+A reset link is printed to the console where a deployment would email it.
 
-`bundles.test.ts` bundles both browser apps the way `Bun.serve` does on first request: a syntax only
-the type checker accepts, such as a generic arrow function in an SFC, otherwise fails first in a browser.
+`bundles.test.ts` bundles both browser apps the way `Bun.serve` does on first request, so a syntax
+only the type checker accepts fails there rather than in a browser. `src/op` is the provider's
+wiring — configuration, seed data, upstreams — and renders nothing.
 
-`src/op` is the provider's wiring — configuration, seed data, upstreams — and renders nothing.
+**Realms are opt-in (`OIDCRAFT_REALMS=on`, FR-M4).** On, `OIDCRAFT_ISSUER` is the control plane — the
+operator's admin and account apps, and the only site that brokers upstream — and each realm is a
+subdomain of it, `acme.localhost:3001`, loopback on any machine (RFC 6761). The routes are built per
+_site_ (a provider, its accounts and its branded screens). `provision` gives a realm its own SQLite
+file and key pair under `data/realms/` and registers the demo relying party; `retire` deletes them.
+With `OIDCRAFT_DB=postgres://…` a realm is the schema `realm_<id>` beside the control plane's
+`public` (G-6). The admin's realm panel creates, disables and deletes realms, and `?realm=` aims every
+other admin call at one realm.
 
-**Realms are opt-in (`OIDCRAFT_REALMS=on`, FR-M4).** Off, the demo is one issuer and nothing below
-runs. On, `OIDCRAFT_ISSUER` is the control plane — the operator's admin and account apps, and the
-only site that brokers upstream — and each realm is a subdomain of it, `acme.localhost:3001`, which
-`*.localhost` makes loopback on any machine (RFC 6761). The routes are built per _site_ (a provider,
-its accounts and its branded screens), so the same interaction, device and reset code serves every
-realm. `provision` gives a realm its own SQLite file and key pair under `data/realms/` and
-registers the demo relying party, so a new realm can be signed in to at once; `retire` deletes them.
-With `OIDCRAFT_DB=postgres://…` the control plane is the database's `public` schema and a realm is
-`realm_<id>` beside it, migrated at `provision` and dropped at `retire` — one database, one pool,
-storage still per realm (G-6).
-The admin's realm panel creates, disables and deletes realms, and `?realm=` aims every other admin
-call at one realm's management, so the panels for clients, accounts and keys are the same code. The
-admin and account apps themselves are the control plane's only.
-
-**FAPI 2.0 is mixed by default (FR-C21).** With an https issuer, `src/fapi/demo.ts` seeds
-`fapi-demo` under the profile beside the public clients and plays its part on the server, since a
-FAPI client is confidential: `/fapi-demo` pushes the request with a client assertion and a DPoP
-proof, and its callback redeems the code with DPoP and calls UserInfo. Its keys are the process's
-own, re-registered at each start. With an http issuer it is not seeded, as FAPI refuses an http
-redirect for a web client. `OIDCRAFT_PROFILE=fapi2` puts the whole provider under the profile for
-the FAPI conformance plan, which refuses the public admin and account apps.
+**FAPI 2.0 is mixed by default (FR-C21).** With an https issuer, `src/fapi/demo.ts` seeds `fapi-demo`
+under the profile beside the public clients and plays its part on the server, since a FAPI client is
+confidential: `/fapi-demo` pushes the request with a client assertion and a DPoP proof, and its
+callback redeems the code with DPoP and calls UserInfo. With an http issuer it is not seeded.
+`OIDCRAFT_PROFILE=fapi2` puts the whole provider under the profile for the FAPI conformance plan.
 
 **MCP is opt-in (`OIDCRAFT_MCP=on`, FR-C19, FR-C20).** `src/mcp/server.ts` serves an MCP server at
-`/mcp` with one tool, `whoami`, through the official SDK's web-standard transport, stateless. A request
-without a token gets the RFC 9728 401 that points at its resource metadata. A token must be one this OP
-issued for `/mcp`, which the MCP server checks by introspecting in-process as the resource's named
-server — never as a `resourceServer` client, which could see more. It also turns on registration and a
-metadata-document resolver, so an MCP client can register either way. Checked with OpenCode, which
-uses the metadata document.
+`/mcp` with one tool, `whoami`, through the official SDK's web-standard transport, stateless. A
+request without a token gets the RFC 9728 401 pointing at its resource metadata; a token must be one
+this OP issued for `/mcp`, checked by introspecting in-process as the resource's named server. It
+also turns on registration and a metadata-document resolver, so an MCP client can register either
+way.
 
 ### 8.2 `apps/demo-vue` — the demo relying party
 
-Vue 3 + `@oidcraft/vue`, ported from that library's own sample app, and now resolving it from the
-workspace rather than from npm. That trade is deliberate: before `@oidcraft/vue` published from here,
-npm was the more honest dependency — it proved the OP against an independently released client. From
-here on the same file proves something else, that the binding in `packages/vue` actually works, and
-nothing else in the repository does.
-
-Run with `bun index.html` and nothing else (§1.1). It uses `@oidcraft/vue`'s composables (`useOAuth`,
-`useOAuthUser`) rather than its Vuetify component, so the demo carries no UI framework at all — a
-login button and a claims list do not need one. `BUN_PORT` sets the port.
+Vue 3 + `@oidcraft/vue`, resolved from the workspace, so it proves that the binding in
+`packages/vue` works. Run with `bun index.html` (§1.1). It uses the composables (`useOAuth`,
+`useOAuthUser`) rather than the Vuetify component, so the demo carries no UI framework. `BUN_PORT`
+sets the port.
 
 ### 8.3 `apps/demo-react` — the second relying party
 
-React 19 + `@oidcraft/react`, ported from that library's own sample. It exists for the half of the
-binding the Vue demo cannot reach: server rendering, where `useSyncExternalStore` must hand React a
-snapshot that matches the client's first paint, and where one instance per request is the difference
-between isolation and one user seeing another's token.
+React 19 + `@oidcraft/react`. It exists for the half of the binding the Vue demo cannot reach:
+server rendering, where `useSyncExternalStore` must hand React a snapshot matching the client's first
+paint, and where one instance per request is the difference between isolation and one user seeing
+another's token.
 
 ### 8.4 `apps/demo-angular` — the toolchain island
 
-Angular 22 + `@oidcraft/angular`, and **the one thing here that is not in the bun workspace**. Two facts force
-that, and they conflict with each other:
+Angular 22 + `@oidcraft/angular`, and **the one thing here that is not in the bun workspace**,
+forced by two facts that conflict inside one install:
 
-- `@angular/compiler-cli` requires `typescript >=6.0 <6.1`. This workspace is on 7, and there is no
-  overlap, so the compiler must resolve a TypeScript nothing else here can see.
-- Angular requires exactly **one** copy of `@angular/core` across an app and every library linked into
-  it. Two copies fail as `Property '_desc' is protected but type 'InjectionToken<T>' is not a class
-  derived from 'InjectionToken<T>'`, which is a sentence worth recognising on sight.
+- `@angular/compiler-cli` requires `typescript >=6.0 <6.1`, and this workspace is on 7.
+- Angular requires exactly **one** copy of `@angular/core` across an app and every library linked
+  into it. Two fail as `Property '_desc' is protected but type 'InjectionToken<T>' is not a class
+  derived from 'InjectionToken<T>'`.
 
-Inside one `bun install` those cannot both hold: bun hoists `@angular/compiler-cli` to the root, where
-it finds TypeScript 7. So the app has its own `bun install` containing **only** the compiler toolchain
-— `@angular/build`, `@angular/cli`, `@angular/compiler-cli` and TypeScript 6 — while every runtime
-package, `@angular/core` included, resolves upward to the workspace root. One copy of Angular, a
-compiler that cannot see TypeScript 7, and a `tsconfig.json` that does not extend the base because
+bun hoists `@angular/compiler-cli` to the root, where it finds TypeScript 7. So the app has its own
+`bun install` with **only** the compiler toolchain — `@angular/build`, `@angular/cli`,
+`@angular/compiler-cli` and TypeScript 6 — while every runtime package, `@angular/core` included,
+resolves upward to the root. Its `tsconfig.json` does not extend the base, because
 `erasableSyntaxOnly` forbids the decorators a component needs.
 
-The exclusion is only half honoured. `bun install` respects it — `bun.lock` has no entry for this
-app — so its TypeScript 6 never reaches the root. `bun run --filter='*'` does **not**: it globs
-directories rather than reading the `workspaces` list, and so reaches every script this app defines.
+`bun install` honours the exclusion; `bun run --filter='*'` does not — it globs directories and
+reaches every script this app defines. So its real build is named `bundle`: as `build` it ran in
+the root's parallel build beside `packages/angular`, whose tsdown `clean` empties the `dist/` the
+Angular compiler reads, with no dependency edge to order them, and failed about one run in three.
+`typecheck` keeps the plain name, because it runs after the build. `verify` covers its types; the
+Angular compiler's template checking is `bun run build:angular`.
 
-That is why its real build is named `bundle` rather than `build`. As `build` it ran in the root's
-_parallel_ build alongside `packages/angular`, whose tsdown config cleans `dist/` before rewriting
-it — and the Angular compiler reads that same `dist/` for its `@oidcraft/angular` types. Bun has no
-dependency edge to order them, because the app is not a workspace member, so the root build failed
-roughly one run in three. Measured, not theorised.
+`packages/angular` contains no decorators, so it builds with tsdown on TypeScript 7 and depends on
+none of this; the app is written against the `OAUTH` token (PLAN.md records why no component ships).
 
-`typecheck` keeps the plain name, because the typecheck step runs after the build has finished and
-the race is gone by then. So `verify` does cover this app's types; what it does not run is the
-Angular compiler's template checking, which is `bun run build:angular`.
-
-`packages/angular` still deliberately contains no decorators, so that package builds with tsdown on
-TypeScript 7 like everything else and does not depend on any of this.
-
-It is written against the `OAUTH` token rather than `@oidcraft/angular/component`, which v9 does not ship.
-
-`build` in every workspace app is a typecheck, kept under that name so `bun run build` at the root
-still checks everything without running three bundlers. `bundle` is the real build where there is one.
+`build` in every workspace app is a typecheck, so `bun run build` at the root checks everything
+without running three bundlers. `bundle` is the real build where there is one.
 
 ### 8.5 `apps/docs` — the documentation site, and the one Vite
 
-VitePress, which brings Vite with it, and so the one deliberate break from §1.1. The reason is the
-job: a docs site needs search, an outline per page, dark mode and a static build for GitHub Pages,
-and Bun's bundler serves pages rather than generating a site. Vite stays contained in this app — no
-other package or app imports it — and VitePress itself is a Vue app, so it adds no framework.
+VitePress, which brings Vite, and so the one deliberate break from §1.1: a docs site needs search,
+an outline per page, dark mode and a static build for GitHub Pages, and Bun's bundler serves pages
+rather than generating a site. Vite stays contained in this app, and VitePress is a Vue app, so it
+adds no framework.
 
 It renders the existing files rather than forking them: a page is an `@include` of
 `REQUIREMENTS.md`, `ARCHITECTURE.md`, `PLAN.md` or a package README, or a page of its own that cites
-them. Every code sample is one the suite ran. A README sample is pinned by a test, as
-`minimal.test.ts` pins the provider's; any other sample is a region of a test in `apps/docs/samples/`,
-pulled in with `<<< @/samples/<file>.test.ts#<region>`, so `bun test` runs exactly what a page shows.
-The configuration and error references are generated from `packages/provider/src` at build time, by
-data loaders parsing it through `typescript/unstable/async` — unstable by name, so a TypeScript bump
-can break them, loudly rather than with a wrong page.
+them. Every code sample is one the suite ran: a README sample is pinned by a test, as
+`minimal.test.ts` pins the provider's, and any other is a region of a test in `apps/docs/samples/`,
+pulled in with `<<< @/samples/<file>.test.ts#<region>`. The configuration and error references are
+generated from `packages/provider/src` at build time through `typescript/unstable/async` — unstable
+by name, so a TypeScript bump can break them, loudly rather than with a wrong page.
 
-The requirement ids are its spine. A markdown-it plugin (`.vitepress/requirements.ts`) anchors every
-id `REQUIREMENTS.md` defines, links every mention of one on any page to that anchor, and links each
-definition to `reference/ids`, which lists the source files and tests citing the id, read from the
-tree at build time.
+A markdown-it plugin (`.vitepress/requirements.ts`) anchors every id `REQUIREMENTS.md` defines,
+links every mention of one on any page to that anchor, and links each definition to `reference/ids`,
+which lists the source files and tests citing it.
 
-`build` is a typecheck, like every app's; `bundle` is the real build, which CI runs and deploys to
-GitHub Pages (`.github/workflows/docs.yml`) on every push to `main`. The site tracks `main`: there are
-no versioned docs before 1.0.
+`bundle` is the real build, which `.github/workflows/docs.yml` deploys to GitHub Pages on every push
+to `main`. The site tracks `main`: there are no versioned docs before 1.0.
 
 ## 9. Conventions
 
@@ -768,7 +660,7 @@ no versioned docs before 1.0.
 **Server-only code reads `Bun.env.X`. Only code the browser can reach reads `process.env.X`.**
 They are the same object at runtime, so this is purely a safety boundary. Client builds inline
 `OIDCRAFT_PUBLIC_*` and nothing else (`env: 'OIDCRAFT_PUBLIC_*'` in `build.ts` and in each app's
-`[serve.static]`), so a server module that leaks into the client graph fails the build instead of
+`[serve.static]`), so a server module leaking into the client graph fails the build instead of
 baking a secret into a public file.
 
 **Never `import.meta.env`**, and never a destructure or an indexed read — Bun aliases
@@ -796,36 +688,29 @@ silently when missing (§1.1).
 ## 10. Testing
 
 The gate is `.github/workflows/ci.yml` on every push and pull request: `biome ci`, then `build`
-(which runs `verify-entries`), then `typecheck`, then `bun test`. Build precedes typecheck because
-the apps resolve `@oidcraft/provider` through its exports map into `dist/`, which does not exist on a fresh
-clone.
+(which runs `verify-entries`), then `typecheck`, then `bun test` — locally, `bun run verify`. Build
+precedes typecheck because the apps resolve `@oidcraft/provider` through its exports map into
+`dist/`, which a fresh clone lacks.
 
 - **Adapter conformance** — `adapterConformance(create, { implements })`, the published
-  `@oidcraft/adapter/conformance` entry, is one suite every adapter runs, covering the queries the protocol
-  actually needs: expiry enforced by storage, `kind` as part of an artifact's identity,
-  `revokeByGrantId` and `revokeByFamilyId` removing that grant or family and nothing else, lookup by user code and by upstream
-  session, and the replay guard admitting a value once. An adapter that passes it is
-  interchangeable with the others (FR-A4). It returns plain `{ name, run }` checks that throw rather
-  than registering tests, so a third-party adapter runs it under whatever runner it uses (FR-A6);
-  `verify-entries.ts` fails the build if the entry imports one. The first-party suites run it the way
-  a third-party adapter is told to, one `test(check.name, check.run)` per check. Checks for
-  `identities`, `credentials` and `realms` run only for the stores `implements` names.
-
+  `@oidcraft/adapter/conformance` entry, is one suite every adapter runs, covering the queries the
+  protocol needs: expiry enforced by storage, `kind` as part of an artifact's identity, revocation
+  by grant and by family removing that and nothing else, lookup by user code and by upstream
+  session, prune, and the replay guard admitting a value once. An adapter that passes it is
+  interchangeable with the others (FR-A4). It returns plain `{ name, run }` checks that throw, so a
+  third-party adapter runs it under any runner (FR-A6); checks for `identities`, `credentials` and
+  `realms` run only for the stores `implements` names.
 - **Unit** — `bun test` per package. Every `FR-C*` gets a test that exercises the wire format, not
   just the function behind it (NFR-C3).
-- **Protocol conformance** — the OpenID Foundation suite for the `basic` and `config` OP profiles
-  (NFR-C1), and the FAPI 2.0 Security Profile plan. They gate CI: the `conformance` job in `ci.yml`.
-  `conformance/` holds the plan configuration, the refusals with the clause behind each, and the
-  runner; the runner exits non-zero when the suite is absent, so it can never be mistaken for a
-  passing gate.
-
-- **Metadata conformance** — what runs on every push: `metadata.test.ts` checks the discovery
-  document against OIDC Discovery 1.0 §3 and RFC 8414 §2 and cross-checks it against behaviour —
-  every advertised endpoint answers, every advertised algorithm has a key, a disabled feature is
-  neither advertised nor routed. It catches metadata drifting from behaviour, which is the failure
-  the real suite finds most. It is not certification and must not be described as such.
-- **Brokering** — a second oidcraft instance is the upstream in tests. Brokering to ourselves
-  exercises both legs without depending on Google being up.
+- **Protocol conformance** — the OpenID Foundation suite's `basic`, `config` and FAPI 2.0 plans gate
+  CI (NFR-C1), as the `conformance` job in `ci.yml`. `conformance/README.md` holds how to run it and
+  each refusal with its clause.
+- **Metadata conformance** — `metadata.test.ts` checks the discovery document against OIDC
+  Discovery 1.0 §3 and RFC 8414 §2 and against behaviour: every advertised endpoint answers, every
+  advertised algorithm has a key, a disabled feature is neither advertised nor routed. It is not
+  certification.
+- **Brokering** — a second oidcraft instance is the upstream in tests, so both legs run without
+  depending on Google being up.
 
 ## 11. Publishing
 
@@ -845,9 +730,5 @@ adapter a `@oidcraft/adapter` one; those must be on npm before it is.
 
 **The first publish of each package is manual**, with a login or token: npm's trusted-publisher
 configuration only exists once a version has been published, so OIDC cannot bootstrap a new package
-(npm/cli#8544). Configure `npm trust github` after that first release.
-
-Scoped names also skip npm's similarity check on new unscoped names, which runs server-side on the
-`PUT` where neither `npm view` nor `npm publish --dry-run` sees it. The unscoped `oidcraft@0.0.1`,
-published 2026-09-12, was a name reservation and is not the provider; it points at
-`@oidcraft/provider` (PLAN.md).
+(npm/cli#8544). Configure `npm trust github` after that first release. Scoped names skip npm's
+server-side similarity check on new unscoped names; the old unscoped names are in PLAN.md.

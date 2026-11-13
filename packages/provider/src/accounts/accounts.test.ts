@@ -76,6 +76,39 @@ describe('passwords', () => {
     expect(await accounts.authenticate('ada', 'correct horse')).toMatchObject({ ok: false, reason: 'locked' })
   })
 
+  // G-9: someone guessing locks out their own address, not the account's owner.
+  describe('with the peer address', () => {
+    const at = (clientIp: string) => ({ clientIp })
+
+    test('five failures lock that address out, and the owner elsewhere still signs in', async () => {
+      const { accounts } = await setup()
+      await accounts.register({ username: 'ada', password: 'correct horse' })
+      for (let i = 0; i < 4; i++)
+        expect(await accounts.authenticate('ada', 'nope nope', at('203.0.113.6'))).toEqual({ ok: false, reason: 'invalid' })
+      expect(await accounts.authenticate('ada', 'nope nope', at('203.0.113.6'))).toMatchObject({ ok: false, reason: 'locked' })
+      expect(await accounts.authenticate('ada', 'correct horse', at('203.0.113.6'))).toMatchObject({ ok: false, reason: 'locked' })
+      expect(await accounts.authenticate('ada', 'correct horse', at('198.51.100.1'))).toMatchObject({ ok: true })
+    })
+
+    test('a guess spread over many addresses still locks the account for everyone', async () => {
+      const { accounts } = await setup()
+      await accounts.register({ username: 'ada', password: 'correct horse' })
+      for (let address = 0; address < 25; address++) {
+        for (let i = 0; i < 2; i++) await accounts.authenticate('ada', 'nope nope', at(`192.0.2.${address}`))
+      }
+      expect(await accounts.authenticate('ada', 'correct horse', at('198.51.100.1'))).toMatchObject({ ok: false, reason: 'locked' })
+    })
+
+    test('signing in clears that address’s count', async () => {
+      const { accounts, adapter } = await setup()
+      await accounts.register({ username: 'ada', password: 'correct horse' })
+      for (let i = 0; i < 4; i++) await accounts.authenticate('ada', 'nope nope', at('203.0.113.6'))
+      expect(await accounts.authenticate('ada', 'correct horse', at('203.0.113.6'))).toMatchObject({ ok: true })
+      expect(await adapter.artifacts.find('sign_in_attempts', 'id-ada:203.0.113.6')).toBeUndefined()
+      expect(await accounts.authenticate('ada', 'nope nope', at('203.0.113.6'))).toEqual({ ok: false, reason: 'invalid' })
+    })
+  })
+
   test('released claims follow the scopes, and preferred_username is the username', async () => {
     const { accounts } = await setup()
     await accounts.register({ username: 'ada', password: 'correct horse', claims: { name: 'Ada', email: 'ada@example.test', secret: 'x' } })

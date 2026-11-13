@@ -42,7 +42,7 @@ const build = (site: Site) => {
     return seeOther(redirectTo, setCookie, pendingSecondFactor.clear(), await knownAccounts.add(request, accountId))
   }
 
-  const interactionRoutes = async (request: Request, url: URL) => {
+  const interactionRoutes = async (request: Request, url: URL, clientIp: string | undefined) => {
     const [, , id, action] = url.pathname.split('/')
     if (!id) return undefined
 
@@ -97,13 +97,13 @@ const build = (site: Site) => {
           // re-rendered with what was typed: losing it and saying nothing is how the old branch failed
           return loginScreen(view, { attempt: { username, errors }, status: 400 })
         }
-        const result = await accounts.authenticate(username, password)
+        const result = await accounts.authenticate(username, password, { clientIp })
         if (!result.ok) {
-          const notice = result.reason === 'locked' ? lockedNotice(result.until) : 'That username and password do not match.'
+          // G-9: a lock answered differently from a wrong password would confirm the username exists.
           return loginScreen(view, {
             attempt: { username, errors: { username: undefined, password: undefined } },
-            notice,
-            status: result.reason === 'locked' ? 429 : 401
+            notice: 'That username and password do not match.',
+            status: 401
           })
         }
         if (result.secondFactor) {
@@ -117,7 +117,7 @@ const build = (site: Site) => {
         if (!accountId) return loginScreen(view, { notice: 'Sign in with your password first.' })
         const recovery = action === 'recovery'
         if (request.method === 'GET') return screens.otp(view, { recovery })
-        const result = await accounts.verifySecondFactor(accountId, (await form(request)).get('code') ?? '')
+        const result = await accounts.verifySecondFactor(accountId, (await form(request)).get('code') ?? '', { clientIp })
         if (result.ok) return finish(request, id, accountId, result.method === 'otp' ? ['pwd', 'otp', 'mfa'] : ['pwd', 'mfa'])
         if (result.reason === 'locked') return loginScreen(view, { notice: lockedNotice(result.until), status: 429 })
         return screens.otp(view, { recovery, error: 'That code is not right, or it was already used.', status: 401 })

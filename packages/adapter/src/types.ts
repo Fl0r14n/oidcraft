@@ -115,6 +115,7 @@ export type ArtifactKind =
   | 'dpop_nonce'
   | 'authorization_response'
   | 'user_code_attempts'
+  | 'sign_in_attempts'
   | 'password_reset'
 
 export type Artifact = Entity &

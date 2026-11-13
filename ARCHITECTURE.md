@@ -529,8 +529,10 @@ It stores through the adapter's `credentials` store and borrows two guarantees t
 rather than adding new ones: a TOTP step and a recovery code are made single-use by `ReplayGuard`
 (namespaces `totp` and `recovery`), and a reset token by the `password_reset` artifact's atomic
 `consume`. A username is unique through `CredentialStore.create`, which is atomic in every adapter
-for the same reason `insert` is. The failed-attempt counter is a plain read-modify-write: two
-racing failures can count as one, which loosens the lockout by one attempt and nothing more.
+for the same reason `insert` is. Failures are counted on the credential for the account, and in a
+`sign_in_attempts` artifact for an account and an address, which locks only that address (`G-9`).
+Both counters are plain read-modify-writes: two racing failures can count as one, which loosens the
+lockout by one attempt and nothing more.
 
 Hashing is injected. The entry ships no hasher of its own, because the fast ones are runtime
 globals: `bunPasswordHasher` lives in `./runtimes/bun` and `nodePasswordHasher` in

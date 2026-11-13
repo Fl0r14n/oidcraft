@@ -290,7 +290,11 @@ store. A host with its own user store skips it, and nothing in the provider assu
 
 The hasher is injected: `bunPasswordHasher` from `@oidcraft/provider/runtimes/bun`,
 `nodePasswordHasher` from `@oidcraft/provider/runtimes/node`, or your own. Failed passwords and
-codes lock the account — 5 attempts and 900 seconds by default, set by `policy` (FR-I7). The provider guide's
+codes are counted per account and peer address: pass `{ clientIp }` from the runtime's context to
+`authenticate` and `verifySecondFactor`, and five failures lock that address out of that account
+for 900 seconds, while fifty from all addresses together lock the account for everyone. Without an
+address, five lock the account. All of it is set by `policy` (FR-I7, `G-9`). Answer a locked account
+on the password screen as you answer a wrong password, or the difference confirms the username exists. The provider guide's
 [Local accounts](/guide/provider#local-accounts) has the setup.
 
 ## Checklist

@@ -16,8 +16,13 @@ export type PasswordHasher = {
 export type AccountsPolicy = {
   /** NIST SP 800-63B §5.1.1.2. @default 8 */
   minPasswordLength: number
-  /** Failed passwords or codes before the account locks. @default 5 */
+  /**
+   * Failed passwords or codes from one address before that address is locked out of the account;
+   * without an address, before the account locks. @default 5
+   */
   maxFailedAttempts: number
+  /** Failed attempts from all addresses together before the account locks for everyone (G-9). @default 50 */
+  maxFailedAttemptsPerAccount: number
   /** @default 900 */
   lockout: Seconds
   /** How long a reset token lives. @default 1800 */
@@ -61,6 +66,14 @@ const STANDARD_CLAIMS: Record<string, string[]> = {
   address: ['address'],
   phone: ['phone_number', 'phone_number_verified']
 }
+
+/**
+ * Who is signing in, as far as the host can tell: the peer address from the runtime's context
+ * (FR-R4). With it, a guesser locks out only their own address; without it, the account (G-9).
+ */
+export type SignInContext = { clientIp?: string | undefined }
+
+type Attempts = { failures: number; lockedUntil?: number }
 
 export type AuthenticationResult =
   | { ok: true; accountId: string; secondFactor: boolean }
@@ -109,6 +122,7 @@ export const createAccounts = (options: AccountsOptions) => {
   const policy: AccountsPolicy = {
     minPasswordLength: 8,
     maxFailedAttempts: 5,
+    maxFailedAttemptsPerAccount: 50,
     lockout: 900,
     resetTtl: 1800,
     recoveryCodes: 10,
@@ -133,21 +147,56 @@ export const createAccounts = (options: AccountsOptions) => {
   const lockedUntil = (credential: Credential) =>
     credential.lockedUntil && credential.lockedUntil.getTime() > Date.now() ? credential.lockedUntil : undefined
 
-  const fail = async (credential: Credential) => {
-    const failedAttempts = credential.failedAttempts + 1
-    const locking = failedAttempts >= policy.maxFailedAttempts
-    const { lockedUntil: _, ...rest } = credential
-    const until = new Date(Date.now() + policy.lockout * 1000)
-    await credentials.upsert({
-      ...rest,
-      failedAttempts: locking ? 0 : failedAttempts,
-      ...(locking && { lockedUntil: until }),
-      updatedAt: new Date()
-    })
-    return locking ? ({ ok: false, reason: 'locked', until } as const) : ({ ok: false, reason: 'invalid' } as const)
+  const attemptsId = (accountId: string, clientIp: string) => `${accountId}:${clientIp}`
+  const attemptsAt = async (accountId: string, clientIp: string) =>
+    (await adapter.artifacts.find('sign_in_attempts', attemptsId(accountId, clientIp)))?.payload as Attempts | undefined
+
+  /** Locked for everyone, or for this address alone (G-9). */
+  const lockFor = async (credential: Credential, context: SignInContext) => {
+    const account = lockedUntil(credential)
+    if (account || !context.clientIp) return account
+    const until = (await attemptsAt(credential.accountId, context.clientIp))?.lockedUntil
+    return until && until > Date.now() ? new Date(until) : undefined
   }
 
-  const succeed = async (credential: Credential) => {
+  const locked = (until: Date) => ({ ok: false, reason: 'locked', until }) as const
+  const invalid = { ok: false, reason: 'invalid' } as const
+
+  const fail = async (credential: Credential, context: SignInContext) => {
+    const until = new Date(Date.now() + policy.lockout * 1000)
+    const accountLimit = context.clientIp ? policy.maxFailedAttemptsPerAccount : policy.maxFailedAttempts
+    const failedAttempts = credential.failedAttempts + 1
+    const lockingAccount = failedAttempts >= accountLimit
+    const { lockedUntil: _, ...rest } = credential
+    await credentials.upsert({
+      ...rest,
+      failedAttempts: lockingAccount ? 0 : failedAttempts,
+      ...(lockingAccount && { lockedUntil: until }),
+      updatedAt: new Date()
+    })
+    if (lockingAccount) return locked(until)
+    if (!context.clientIp) return invalid
+
+    const failures = ((await attemptsAt(credential.accountId, context.clientIp))?.failures ?? 0) + 1
+    const lockingAddress = failures >= policy.maxFailedAttempts
+    const attempts: Attempts = lockingAddress ? { failures: 0, lockedUntil: until.getTime() } : { failures }
+    await adapter.artifacts.upsert({
+      id: attemptsId(credential.accountId, context.clientIp),
+      kind: 'sign_in_attempts',
+      clientId: '',
+      accountId: credential.accountId,
+      payload: attempts,
+      expiresAt: until
+    })
+    return lockingAddress ? locked(until) : invalid
+  }
+
+  const clearAddress = async (accountId: string, context: SignInContext) => {
+    if (context.clientIp) await adapter.artifacts.destroy('sign_in_attempts', attemptsId(accountId, context.clientIp))
+  }
+
+  const succeed = async (credential: Credential, context: SignInContext) => {
+    await clearAddress(credential.accountId, context)
     if (credential.failedAttempts === 0 && !credential.lockedUntil) return
     const { lockedUntil: _, ...rest } = credential
     await credentials.upsert({ ...rest, failedAttempts: 0, updatedAt: new Date() })
@@ -206,29 +255,29 @@ export const createAccounts = (options: AccountsOptions) => {
       return created ? { ok: true, accountId } : { ok: false, reason: 'taken' }
     },
 
-    async authenticate(username: string, password: string): Promise<AuthenticationResult> {
+    async authenticate(username: string, password: string, context: SignInContext = {}): Promise<AuthenticationResult> {
       const credential = await credentials.findByUsername(normalizeUsername(username))
       if (!credential) {
         await spendDecoy(password)
-        return { ok: false, reason: 'invalid' }
+        return invalid
       }
-      const until = lockedUntil(credential)
-      if (until) return { ok: false, reason: 'locked', until }
-      if (!(await hasher.verify(password, credential.passwordHash))) return fail(credential)
-      await succeed(credential)
+      const until = await lockFor(credential, context)
+      if (until) return locked(until)
+      if (!(await hasher.verify(password, credential.passwordHash))) return fail(credential, context)
+      await succeed(credential, context)
       return { ok: true, accountId: credential.accountId, secondFactor: Boolean(credential.totp?.confirmedAt) }
     },
 
     /** A TOTP code or a recovery code, each accepted once (NFR-S5). Failures count towards the lockout. */
-    async verifySecondFactor(accountId: string, code: string): Promise<SecondFactorResult> {
+    async verifySecondFactor(accountId: string, code: string, context: SignInContext = {}): Promise<SecondFactorResult> {
       const credential = await credentials.find(accountId)
-      if (!credential?.totp?.confirmedAt) return { ok: false, reason: 'invalid' }
-      const until = lockedUntil(credential)
-      if (until) return { ok: false, reason: 'locked', until }
+      if (!credential?.totp?.confirmedAt) return invalid
+      const until = await lockFor(credential, context)
+      if (until) return locked(until)
 
       const counter = await matchingCounter(await open(await key, accountId, credential.totp.secret), code.replace(/\s/g, ''))
       if (counter !== undefined && (await adapter.replay.claim('totp', `${accountId}:${counter}`, 3 * TOTP_PERIOD))) {
-        await succeed(credential)
+        await succeed(credential, context)
         return { ok: true, method: 'otp' }
       }
 
@@ -244,10 +293,11 @@ export const createAccounts = (options: AccountsOptions) => {
           failedAttempts: 0,
           updatedAt: new Date()
         })
+        await clearAddress(accountId, context)
         return { ok: true, method: 'recovery' }
       }
 
-      return fail(credential)
+      return fail(credential, context)
     },
 
     setPassword,

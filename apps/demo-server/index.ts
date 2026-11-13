@@ -49,7 +49,7 @@ const server = serve({
     const routes = routesFor(site)
     const context = bunContext(server)(request)
     if (url.pathname.startsWith('/interaction/')) {
-      const response = await routes.interactionRoutes(request, url)
+      const response = await routes.interactionRoutes(request, url, context.clientIp)
       if (response) return response
     }
     if (url.pathname === '/reset') return routes.resetRoutes(request, url)

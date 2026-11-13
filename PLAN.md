@@ -562,10 +562,13 @@ text it is held to. In fix order.
   FR-F8 and FR-F10, since without one most upstreams, this one included, do not redirect back
 - [x] NFR-S12: the README does not yet say which limiting is the host's
   Fixed: under _Before production_
-- [ ] `G-9`: failed sign-ins counted per account and address — five lock that address out of that
+- [x] `G-9`: failed sign-ins counted per account and address — five lock that address out of that
   account — with a ceiling of about fifty per account across all addresses. `authenticate` and
   `verifySecondFactor` take an optional `clientIp`; without one, today's per-account lock. The
   reference screen answers a locked account as it answers a wrong password. FR-I7
+  Fixed: a `sign_in_attempts` artifact per account and address, the credential's own counter as the
+  per-account ceiling (`maxFailedAttemptsPerAccount`), and `SignInContext` on both calls. The demo's
+  login screen answers a lock as a wrong password; its second-factor screen, past the password, still says locked
 
 **Client libraries** (FR-L\*, new)
 

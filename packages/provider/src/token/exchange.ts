@@ -1,4 +1,4 @@
-import type { Artifact, ArtifactKind, Client } from '@oidcraft/adapter'
+import type { Artifact, Client } from '@oidcraft/adapter'
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
 import { type Binding, findPresented, issueAccessToken } from './access-token'
@@ -12,7 +12,10 @@ const REFRESH_TOKEN_TYPE = 'urn:ietf:params:oauth:token-type:refresh_token'
 /** What this exchange issues. An ID token is not stored, so it can be neither issued nor accepted here. */
 export const SUPPORTED_TOKEN_TYPES = [ACCESS_TOKEN_TYPE]
 
-const KIND_OF: Record<string, ArtifactKind> = { [ACCESS_TOKEN_TYPE]: 'access_token', [REFRESH_TOKEN_TYPE]: 'refresh_token' }
+const KIND_OF: Record<string, 'access_token' | 'refresh_token'> = {
+  [ACCESS_TOKEN_TYPE]: 'access_token',
+  [REFRESH_TOKEN_TYPE]: 'refresh_token'
+}
 
 export type ExchangeDecision = {
   /** The account the new token speaks for. Impersonation keeps it; delegation may not. */
@@ -106,7 +109,7 @@ export const tokenExchange = async (config: ResolvedConfig, client: Client, form
   if (!decision) throw new OAuthError('invalid_target', { description: 'this exchange was refused', spec: 'RFC 8693 §2.2.2' })
 
   // RFC 8693 §2.1: a widening beyond what the subject token held is an escalation, not an exchange.
-  const held = (subject.payload.scopes as string[] | undefined) ?? []
+  const held = subject.payload.scopes
   const widened = decision.scopes.filter((scope: string) => !held.includes(scope))
   if (widened.length) {
     throw new OAuthError('invalid_scope', {
@@ -122,7 +125,7 @@ export const exchangeGrant = async (config: ResolvedConfig, client: Client, form
   const { decision, subject } = await tokenExchange(config, client, form)
 
   // A sender-constrained token is only usable by its holder; exchanging it must not launder that away.
-  const bound = subject.payload.cnf as { jkt?: string; 'x5t#S256'?: string } | undefined
+  const bound = subject.payload.cnf
   if ((bound?.jkt && bound.jkt !== binding.jkt) || (bound?.['x5t#S256'] && bound['x5t#S256'] !== binding.x5t)) {
     throw new OAuthError('invalid_request', {
       description: 'the subject_token is bound to a key or certificate this request did not prove',
@@ -137,7 +140,7 @@ export const exchangeGrant = async (config: ResolvedConfig, client: Client, form
     accountId: decision.accountId,
     grantId: subject.grantId,
     familyId: subject.familyId,
-    sessionId: subject.payload.sessionId as string | undefined,
+    sessionId: subject.payload.sessionId,
     subject: await subjectFor(config, client, decision.accountId),
     // An exchanged token never outlives the one it was exchanged for.
     expiresAt: new Date(Math.min(Date.now() + config.ttl.accessToken * 1000, subject.expiresAt.getTime())),

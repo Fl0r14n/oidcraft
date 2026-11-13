@@ -4,6 +4,7 @@ import { authenticateClient } from '../clients/authenticate'
 import { publicUrl, type ResolvedConfig } from '../config'
 import type { ClientCertificate } from '../context'
 import { OAuthError } from '../errors'
+import { readArtifact, writeArtifact } from '../payloads'
 import { FAPI_ALGS, FAPI_IAT_SKEW, underFapi } from '../profile/fapi'
 import { parseAuthorizationRequest, validateAuthorizationRequest } from './authorization'
 import { applyRequestObject } from './request-object'
@@ -13,7 +14,7 @@ export const REQUEST_URI_PREFIX = 'urn:ietf:params:oauth:request_uri:'
 /** Stores already-validated parameters behind a single-use reference (RFC 9126 §2.2). */
 export const pushParameters = async (config: ResolvedConfig, clientId: string, params: URLSearchParams) => {
   const id = randomString()
-  await config.adapter.artifacts.upsert({
+  await writeArtifact(config.adapter.artifacts, {
     id,
     kind: 'pushed_authorization_request',
     clientId,
@@ -82,7 +83,7 @@ export const resolvePushedRequest = async (config: ResolvedConfig, requestUri: s
     throw new OAuthError('invalid_request', { description: 'this request_uri was not issued here', spec: 'RFC 9126 §4' })
   }
   const id = requestUri.slice(REQUEST_URI_PREFIX.length)
-  const artifact = await config.adapter.artifacts.find('pushed_authorization_request', id)
+  const artifact = await readArtifact(config.adapter.artifacts, 'pushed_authorization_request', id)
   if (!artifact || artifact.consumedAt) {
     throw new OAuthError('invalid_request', { description: 'this request_uri is unknown, expired, or already used', spec: 'RFC 9126 §4' })
   }
@@ -93,5 +94,5 @@ export const resolvePushedRequest = async (config: ResolvedConfig, requestUri: s
   if (!(await config.adapter.artifacts.consume('pushed_authorization_request', id))) {
     throw new OAuthError('invalid_request', { description: 'this request_uri was already used', spec: 'RFC 9126 §4' })
   }
-  return new URLSearchParams(artifact.payload.params as string)
+  return new URLSearchParams(artifact.payload.params)
 }

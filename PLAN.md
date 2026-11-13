@@ -502,9 +502,14 @@ text it is held to. In fix order.
 
 **Structure**
 
-- [ ] `Artifact.payload` is `Record<string, unknown>` and the provider casts it about thirty times —
+- [x] `Artifact.payload` is `Record<string, unknown>` and the provider casts it about thirty times —
   the shape ARCHITECTURE.md §4.1 argues against. A payload type per kind, read and written through
   one function each; no adapter changes
+  Fixed: `src/payloads.ts` maps every kind to its payload, and `readArtifact`/`writeArtifact` hold the
+  one cast; `Stored<K>` distributes, so a union of kinds narrows on `kind`, and an interaction's three
+  shapes and CIBA's request-or-answer narrow on their own fields. `./broker` and `./accounts` are
+  entries of their own that reach the provider by name, so the hand-off keeps one cast and the reset
+  token, with an empty payload, needs none. `resolveAccessToken` now returns the typed record
 - [ ] Device and CIBA are one state machine written twice: poll, slow-down, approve, deny. The
   grant merge is written three times (`interactions.ts:136`, `device.ts:202`, `ciba.ts:196`), and
   `device.ts:200` rewrites `session.clients` rather than calling the atomic `addClient`

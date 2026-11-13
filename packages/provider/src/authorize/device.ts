@@ -1,9 +1,10 @@
-import type { Artifact, Client } from '@oidcraft/adapter'
+import type { Client } from '@oidcraft/adapter'
 import { randomString } from '@oidcraft/core'
 import { authenticateClient } from '../clients/authenticate'
 import type { ResolvedConfig } from '../config'
 import type { ClientCertificate } from '../context'
 import { OAuthError } from '../errors'
+import { readArtifact, readByUserCode, type Stored, writeArtifact } from '../payloads'
 import { type Binding, issueTokens } from '../token/issue'
 import { checkApproval } from './approval'
 import { recordConsent } from './consent'
@@ -49,7 +50,7 @@ export const deviceAuthorizationEndpoint = async (
   const expiresIn = config.ttl.deviceCode
   const expiresAt = new Date(Date.now() + expiresIn * 1000)
 
-  await config.adapter.artifacts.upsert({
+  await writeArtifact(config.adapter.artifacts, {
     id: deviceCode,
     kind: 'device_code',
     clientId: client.clientId,
@@ -83,7 +84,7 @@ export type DevicePayload = {
   lastPolledAt?: number
 }
 
-type DeviceDecision = Pick<DevicePayload, 'status' | 'scopes' | 'accountId' | 'sessionId' | 'grantId'>
+export type DeviceDecision = Pick<DevicePayload, 'status' | 'scopes' | 'accountId' | 'sessionId' | 'grantId'>
 
 /**
  * The person's answer is its own record, under the user code: the device code is stored hashed, so
@@ -91,11 +92,11 @@ type DeviceDecision = Pick<DevicePayload, 'status' | 'scopes' | 'accountId' | 's
  * cannot undo an answer that is somewhere else (FR-C7). It must not carry `userCode`, which adapters index.
  */
 const decisionFor = async (config: ResolvedConfig, userCode: string) =>
-  (await config.adapter.artifacts.find('user_code', userCode))?.payload as DeviceDecision | undefined
+  (await readArtifact(config.adapter.artifacts, 'user_code', userCode))?.payload
 
-const decide = (config: ResolvedConfig, request: Artifact, decision: DeviceDecision) =>
-  config.adapter.artifacts.upsert({
-    id: (request.payload as unknown as DevicePayload).userCode,
+const decide = (config: ResolvedConfig, request: Stored<'device_code'>, decision: DeviceDecision) =>
+  writeArtifact(config.adapter.artifacts, {
+    id: request.payload.userCode,
     kind: 'user_code',
     clientId: request.clientId,
     ...(decision.accountId && { accountId: decision.accountId }),
@@ -103,10 +104,10 @@ const decide = (config: ResolvedConfig, request: Artifact, decision: DeviceDecis
     expiresAt: request.expiresAt
   })
 
-const payloadOf = async (config: ResolvedConfig, artifact: Artifact): Promise<DevicePayload> => {
-  const requested = artifact.payload as unknown as DevicePayload
-  return { ...requested, ...(await decisionFor(config, requested.userCode)) }
-}
+const payloadOf = async (config: ResolvedConfig, artifact: Stored<'device_code'>): Promise<DevicePayload> => ({
+  ...artifact.payload,
+  ...(await decisionFor(config, artifact.payload.userCode))
+})
 
 /**
  * The device polls this; a person approves it elsewhere. Slow-down is enforced here rather than
@@ -114,20 +115,20 @@ const payloadOf = async (config: ResolvedConfig, artifact: Artifact): Promise<De
  * (RFC 8628 §3.5).
  */
 const consumeDeviceCode = async (config: ResolvedConfig, deviceCode: string, clientId: string) => {
-  const artifact = await config.adapter.artifacts.find('device_code', deviceCode)
+  const artifact = await readArtifact(config.adapter.artifacts, 'device_code', deviceCode)
   if (!artifact) throw new OAuthError('expired_token', { description: 'the device code is unknown or expired', spec: 'RFC 8628 §3.5' })
   if (artifact.clientId !== clientId)
     throw new OAuthError('invalid_grant', { description: 'this device code belongs to another client', spec: 'RFC 6749 §5.2' })
   if (artifact.consumedAt)
     throw new OAuthError('invalid_grant', { description: 'this device code was already redeemed', spec: 'RFC 8628 §3.5' })
 
-  const requested = artifact.payload as unknown as DevicePayload
+  const requested = artifact.payload
   const now = Date.now()
   const since = requested.lastPolledAt ? (now - requested.lastPolledAt) / 1000 : Number.POSITIVE_INFINITY
 
   const slowDown = since < requested.interval
   const polled = { ...requested, lastPolledAt: now, interval: requested.interval + (slowDown ? DEFAULT_INTERVAL : 0) }
-  await config.adapter.artifacts.upsert({ ...artifact, payload: polled })
+  await writeArtifact(config.adapter.artifacts, { ...artifact, payload: polled })
   if (slowDown) {
     throw new OAuthError('slow_down', { description: `poll no more often than every ${polled.interval} seconds`, spec: 'RFC 8628 §3.5' })
   }
@@ -169,13 +170,13 @@ export type UserCodeContext = { clientIp?: string | undefined }
 const attemptsFor = async (config: ResolvedConfig, context: UserCodeContext) => {
   const id = context.clientIp ? `ip:${context.clientIp}` : 'anonymous'
   const limit = context.clientIp ? MAX_FAILURES : MAX_ANONYMOUS_FAILURES
-  const record = await config.adapter.artifacts.find('user_code_attempts', id)
-  const failures = (record?.payload.failures as number | undefined) ?? 0
+  const record = await readArtifact(config.adapter.artifacts, 'user_code_attempts', id)
+  const failures = record?.payload.failures ?? 0
   if (failures >= limit) {
     throw new OAuthError('invalid_request', { description: 'too many wrong codes; try again later', spec: 'RFC 8628 §5.1', status: 429 })
   }
   return async () => {
-    await config.adapter.artifacts.upsert({
+    await writeArtifact(config.adapter.artifacts, {
       id,
       kind: 'user_code_attempts',
       clientId: '',
@@ -188,7 +189,7 @@ const attemptsFor = async (config: ResolvedConfig, context: UserCodeContext) => 
 /** Looks up what a person typed, so a screen can show them what they are approving (FR-C7). */
 export const findByUserCode = async (config: ResolvedConfig, typed: string, context: UserCodeContext = {}) => {
   const recordFailure = await attemptsFor(config, context)
-  const artifact = await config.adapter.artifacts.findByUserCode?.(normalizeUserCode(typed))
+  const artifact = await readByUserCode(config.adapter.artifacts, normalizeUserCode(typed))
   if (!artifact) {
     await recordFailure()
     return undefined
@@ -247,7 +248,7 @@ export const deviceSignIn = async (config: ResolvedConfig, typed: string, contex
     throw new OAuthError('invalid_request', { description: 'that code is not one we are waiting for', status: 404, spec: 'FR-C7' })
   }
   const id = randomString()
-  await config.adapter.artifacts.upsert({
+  await writeArtifact(config.adapter.artifacts, {
     id,
     kind: 'interaction',
     clientId: found.artifact.clientId,

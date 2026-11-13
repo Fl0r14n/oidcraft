@@ -1,8 +1,9 @@
-import type { Artifact, Client, Grant, Session } from '@oidcraft/adapter'
+import type { Client, Grant, Session } from '@oidcraft/adapter'
 import { randomString, sha256 } from '@oidcraft/core'
 import { base64url } from 'jose'
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
+import { readArtifact, type Stored, writeArtifact } from '../payloads'
 import { isFresh } from '../session/session'
 import { selectUpstream } from '../upstreams/selection'
 import { assertChallenge } from './pkce'
@@ -306,7 +307,7 @@ export const authorize = async (
   const detailsConsent = request.authorizationDetails
     ? await detailsConsentId(session.accountId, request.clientId, request.authorizationDetails)
     : undefined
-  if (detailsConsent && !(await config.adapter.artifacts.find('authorization_details_consent', detailsConsent))) {
+  if (detailsConsent && !(await readArtifact(config.adapter.artifacts, 'authorization_details_consent', detailsConsent))) {
     outstanding.push('authorization_details')
   }
 
@@ -354,14 +355,14 @@ const suspend = async (
         })
       : undefined
 
-  const artifact: Artifact = {
+  const artifact: Stored<'interaction'> = {
     id,
     kind: 'interaction',
     clientId: request.clientId,
     // A consent interaction already knows who is consenting; a login one does not yet.
     ...(session && { accountId: session.accountId }),
     payload: {
-      request: request as unknown as Record<string, unknown>,
+      request,
       interactionKind: kind,
       ...(upstream && {
         upstream: { chosen: upstream.chosen?.id, candidates: upstream.candidates.map(provider => provider.id) }
@@ -369,13 +370,13 @@ const suspend = async (
     },
     expiresAt: new Date(Date.now() + config.ttl.interaction * 1000)
   }
-  await config.adapter.artifacts.upsert(artifact)
+  await writeArtifact(config.adapter.artifacts, artifact)
   return id
 }
 
 const issueCode = async (config: ResolvedConfig, request: AuthorizationRequest, session: Session, grant: Grant) => {
   const code = randomString()
-  await config.adapter.artifacts.upsert({
+  await writeArtifact(config.adapter.artifacts, {
     id: code,
     kind: 'authorization_code',
     clientId: request.clientId,

@@ -1,7 +1,8 @@
-import type { Artifact, Client, Grant, Session } from '@oidcraft/adapter'
+import type { Client, Grant, Session } from '@oidcraft/adapter'
 import { randomString } from '@oidcraft/core'
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
+import { type SignIn, type Stored, writeArtifact } from '../payloads'
 import { type Binding, confirmationOf, issueAccessToken } from './access-token'
 import { mintIdToken } from './id-token'
 import { subjectFor } from './subjects'
@@ -48,7 +49,6 @@ export const issueTokens = async (
     resources?: string[]
   }
 ) => {
-  const { jkt } = binding
   // FR-C11: logout notifies the session's clients, so every client it signs in to must be on the list.
   // An offline refresh may outlive the session; addClient does not bring an ended one back.
   if (!session.clients.includes(client.clientId)) await config.adapter.sessions.addClient(session.id, client.clientId)
@@ -70,8 +70,7 @@ export const issueTokens = async (
   const accessToken = access.token
 
   const publicClient = client.tokenEndpointAuthMethod === 'none'
-  const refreshJkt = publicClient ? jkt : undefined
-  const refreshX5t = publicClient ? binding.x5t : undefined
+  const refreshCnf = publicClient ? confirmationOf(binding) : undefined
   let refreshToken: string | undefined
   const offline = refreshScopes.includes('offline_access')
   // Only for a client registered for the grant: a refresh token nobody asked for is a credential nobody guards.
@@ -81,7 +80,7 @@ export const issueTokens = async (
     const now = Math.floor(Date.now() / 1000)
     const familyEnd = familyExpiresAt ?? now + config.ttl.refreshTokenFamily
     const sessionEnd = offline ? familyEnd : Math.floor(session.expiresAt.getTime() / 1000)
-    await config.adapter.artifacts.upsert({
+    await writeArtifact(config.adapter.artifacts, {
       id: refreshToken,
       kind: 'refresh_token',
       clientId: client.clientId,
@@ -100,7 +99,7 @@ export const issueTokens = async (
         ...(offline ? { signIn: snapshotOf(session) } : { sessionBound: true }),
         familyExpiresAt: familyEnd,
         ...(resources.length && { resources }),
-        ...((refreshJkt || refreshX5t) && { cnf: confirmationOf({ jkt: refreshJkt, x5t: refreshX5t }) })
+        ...(refreshCnf && { cnf: refreshCnf })
       },
       expiresAt: new Date(Math.min(now + config.ttl.refreshToken, familyEnd, sessionEnd) * 1000)
     })
@@ -125,8 +124,6 @@ export const issueTokens = async (
   }
 }
 
-type SignIn = { id: string; accountId: string; authTime: number; acr?: string; amr?: string[]; idp?: string }
-
 const snapshotOf = (session: Session): SignIn => ({
   id: session.id,
   accountId: session.accountId,
@@ -140,23 +137,23 @@ const snapshotOf = (session: Session): SignIn => ({
  * The session behind a refresh token, or the sign-in it recorded once that session has ended:
  * offline access must not die with the browser session (OIDC Core §11). Revoking the grant still ends it.
  */
-export const loadGrantAndSignIn = async (config: ResolvedConfig, artifact: Artifact) => {
+export const loadGrantAndSignIn = async (config: ResolvedConfig, artifact: Stored<'refresh_token'>) => {
   const grant = artifact.grantId ? await config.adapter.grants.find(artifact.grantId) : undefined
   if (!grant) throw new OAuthError('invalid_grant', { description: 'the grant behind this token no longer exists', spec: 'RFC 6749 §5.2' })
-  const live = await config.adapter.sessions.find(artifact.payload.sessionId as string)
+  const live = await config.adapter.sessions.find(artifact.payload.sessionId)
   if (live) return { grant, session: live }
-  const signIn = artifact.payload.signIn as SignIn | undefined
+  const { signIn } = artifact.payload
   if (!signIn) throw new OAuthError('invalid_grant', { description: 'the session behind this token has ended', spec: 'RFC 6749 §5.2' })
   const { authTime, ...rest } = signIn
   const session: Session = { ...rest, authTime: new Date(authTime), clients: [], expiresAt: new Date() }
   return { grant, session }
 }
 
-export const loadGrantAndSession = async (config: ResolvedConfig, artifact: Artifact) => {
+export const loadGrantAndSession = async (config: ResolvedConfig, artifact: Stored<'authorization_code'>) => {
   const grant = artifact.grantId ? await config.adapter.grants.find(artifact.grantId) : undefined
   if (!grant) throw new OAuthError('invalid_grant', { description: 'the grant behind this token no longer exists', spec: 'RFC 6749 §5.2' })
 
-  const session = await config.adapter.sessions.find(artifact.payload.sessionId as string)
+  const session = await config.adapter.sessions.find(artifact.payload.sessionId)
   if (!session) throw new OAuthError('invalid_grant', { description: 'the session behind this token has ended', spec: 'RFC 6749 §5.2' })
 
   return { grant, session }

@@ -233,22 +233,22 @@ export const createBroker = (config: BrokerConfig) => {
 
       const ttl = config.handoffTtl ?? DEFAULT_HANDOFF_TTL
       const binding = randomString()
-      const handoff: Handoff = {
+      const expiresAt = new Date(Date.now() + ttl * 1000)
+      const handoff: Omit<Handoff, 'expiresAt'> = {
         provider: provider.id,
         state,
         nonce,
         codeVerifier: code_verifier,
         interactionId,
-        browserBinding: await hashOf(binding),
-        expiresAt: new Date(Date.now() + ttl * 1000)
+        browserBinding: await hashOf(binding)
       }
 
       await config.adapter.artifacts.upsert({
         id: handoff.state,
         kind: 'broker_handoff',
         clientId: provider.id,
-        payload: handoff as unknown as Record<string, unknown>,
-        expiresAt: handoff.expiresAt
+        payload: handoff,
+        expiresAt
       })
 
       /** `setCookie` must reach the browser with the redirect to `url`, or the callback is refused. */
@@ -265,9 +265,10 @@ export const createBroker = (config: BrokerConfig) => {
 
       const stored = await config.adapter.artifacts.find('broker_handoff', state)
       if (!stored) throw new Error('this sign-in did not start here, or it expired')
+      const handoff = stored.payload as Omit<Handoff, 'expiresAt'>
       // Checked before the handoff is spent, so a stranger holding the callback URL cannot burn it.
       const presented = cookieValue(cookieHeader, bindingCookie(state))
-      const expected = (stored.payload as unknown as Handoff).browserBinding
+      const expected = handoff.browserBinding
       if (!presented || !(await constantTimeEquals(await hashOf(presented), expected))) {
         throw new Error('this sign-in did not start in this browser')
       }
@@ -275,7 +276,6 @@ export const createBroker = (config: BrokerConfig) => {
       if (!(await config.adapter.artifacts.consume('broker_handoff', state))) throw new Error('this sign-in was already completed')
       await config.adapter.artifacts.destroy('broker_handoff', state)
 
-      const handoff = stored.payload as unknown as Handoff
       const provider = required(handoff.provider)
 
       // RFC 6749 §4.1.2.1: an error on the redirect uri is the upstream's answer, and there is no

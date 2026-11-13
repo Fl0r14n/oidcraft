@@ -22,6 +22,7 @@ import { discoveryEndpoint } from './discovery'
 import { errorResponse, OAuthError } from './errors'
 import { jwksEndpoint } from './keys/jwks'
 import { management } from './management'
+import { readArtifact } from './payloads'
 import { assertFapiClient, underFapi } from './profile/fapi'
 import { introspectionEndpoint } from './resource/introspection'
 import { revocationEndpoint } from './resource/revocation'
@@ -71,14 +72,14 @@ const errorValues = (error: OAuthError) => ({ error: error.code, ...(error.descr
 
 /** An interaction's error answer, single-use, delivered in the mode the request asked for (FR-C14). */
 const deliverStoredResponse = async (config: ResolvedConfig, id: string) => {
-  const artifact = await config.adapter.artifacts.find('authorization_response', id)
+  const artifact = await readArtifact(config.adapter.artifacts, 'authorization_response', id)
   if (!artifact || !(await config.adapter.artifacts.consume('authorization_response', id))) {
     throw new OAuthError('invalid_request', {
       description: 'this authorization response is unknown, expired or already delivered',
       spec: 'FR-I2'
     })
   }
-  return authorizationResponse(config.issuer, artifact.payload.target as ResponseTarget, artifact.payload.values as Record<string, string>)
+  return authorizationResponse(config.issuer, artifact.payload.target, artifact.payload.values)
 }
 
 const authorizationHandler: Handler = async (config, request) => {

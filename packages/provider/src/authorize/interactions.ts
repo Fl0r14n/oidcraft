@@ -1,22 +1,18 @@
 import { randomString } from '@oidcraft/core'
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
-import type { InteractionCompletion, InteractionKind, InteractionRequest, InteractionResult } from '../interaction'
+import type { InteractionCompletion, InteractionRequest, InteractionResult } from '../interaction'
+import { type DeviceLogin, type InteractionPayload, readArtifact, writeArtifact } from '../payloads'
 import { startSession } from '../session/session'
-import type { AuthorizationRequest } from './authorization'
-import { detailsConsentId, type ResponseTarget } from './authorization'
+import { type AuthorizationRequest, detailsConsentId, type ResponseTarget } from './authorization'
 import { recordConsent } from './consent'
 import { pushParameters } from './par'
 
 const load = async (config: ResolvedConfig, id: string) => {
-  const artifact = await config.adapter.artifacts.find('interaction', id)
+  const artifact = await readArtifact(config.adapter.artifacts, 'interaction', id)
   if (!artifact)
     throw new OAuthError('invalid_request', { description: 'this interaction is unknown or has expired', status: 404, spec: 'FR-I2' })
-  return {
-    artifact,
-    request: artifact.payload.request as unknown as AuthorizationRequest,
-    kind: artifact.payload.interactionKind as InteractionKind
-  }
+  return { artifact, payload: artifact.payload }
 }
 
 /** A session for an account the `AccountStore` cannot find would issue tokens for nobody (FR-I2). */
@@ -31,9 +27,10 @@ const knownAccount = async (config: ResolvedConfig, accountId: string) => {
 
 export const interactions = (config: ResolvedConfig) => ({
   async find(id: string): Promise<InteractionRequest> {
-    const { artifact, request, kind } = await load(config, id)
-    if (kind === 'logout') return logoutView(id, artifact.clientId, artifact.expiresAt)
-    if (artifact.payload.device) return deviceView(id, artifact.clientId, artifact.payload.device as DeviceLogin, artifact.expiresAt)
+    const { artifact, payload } = await load(config, id)
+    if (payload.interactionKind === 'logout') return logoutView(id, artifact.clientId, artifact.expiresAt)
+    if ('device' in payload) return deviceView(id, artifact.clientId, payload.device, artifact.expiresAt)
+    const { request, interactionKind: kind } = payload
     const client = await config.adapter.clients.find(request.clientId)
     return {
       id,
@@ -46,7 +43,7 @@ export const interactions = (config: ResolvedConfig) => ({
       uiLocales: request.uiLocales,
       maxAge: request.maxAge,
       upstreamProviders: client?.upstreamProviders,
-      upstream: artifact.payload.upstream as InteractionRequest['upstream'],
+      upstream: payload.upstream,
       authorizationDetails: request.authorizationDetails,
       redirectUri: request.redirectUri,
       expiresAt: artifact.expiresAt
@@ -60,9 +57,10 @@ export const interactions = (config: ResolvedConfig) => ({
    * belong in a URL the user can edit.
    */
   async complete(id: string, outcome: InteractionResult): Promise<InteractionCompletion> {
-    const { artifact, request, kind } = await load(config, id)
-    if (kind === 'logout') return confirmLogout(config, id, artifact.payload, outcome)
-    if (artifact.payload.device) return completeDeviceLogin(config, id, artifact.clientId, artifact.payload.device as DeviceLogin, outcome)
+    const { artifact, payload } = await load(config, id)
+    if (payload.interactionKind === 'logout') return confirmLogout(config, id, payload, outcome)
+    if ('device' in payload) return completeDeviceLogin(config, id, artifact.clientId, payload.device, outcome)
+    const { request } = payload
     if (outcome.consent) {
       const consented = outcome.consent.scopes
       const unasked = consented.filter(scope => !request.scopes.includes(scope))
@@ -108,7 +106,7 @@ export const interactions = (config: ResolvedConfig) => ({
       // authorization endpoint, which delivers it in the mode the client asked for.
       const responseId = randomString()
       const target: ResponseTarget = { redirectUri: request.redirectUri, responseMode: request.responseMode, state: request.state }
-      await config.adapter.artifacts.upsert({
+      await writeArtifact(config.adapter.artifacts, {
         id: responseId,
         kind: 'authorization_response',
         clientId: request.clientId,
@@ -136,7 +134,7 @@ export const interactions = (config: ResolvedConfig) => ({
       await recordConsent(config, accountId, request.clientId, outcome.consent.scopes)
 
       if (requestedDetails) {
-        await config.adapter.artifacts.upsert({
+        await writeArtifact(config.adapter.artifacts, {
           id: await detailsConsentId(accountId, request.clientId, requestedDetails),
           kind: 'authorization_details_consent',
           clientId: request.clientId,
@@ -171,8 +169,6 @@ const logoutView = (id: string, clientId: string, expiresAt: Date): InteractionR
   expiresAt
 })
 
-type DeviceLogin = { userCode: string; scopes: string[] }
-
 const deviceView = (id: string, clientId: string, device: DeviceLogin, expiresAt: Date): InteractionRequest => ({
   ...logoutView(id, clientId, expiresAt),
   kind: 'login',
@@ -202,7 +198,12 @@ const completeDeviceLogin = async (
 }
 
 /** The person confirmed; end-session runs again with a single-use proof of it (OIDC RP-Initiated Logout 1.0 §2). */
-const confirmLogout = async (config: ResolvedConfig, id: string, payload: Record<string, unknown>, outcome: InteractionResult) => {
+const confirmLogout = async (
+  config: ResolvedConfig,
+  id: string,
+  payload: Extract<InteractionPayload, { interactionKind: 'logout' }>,
+  outcome: InteractionResult
+) => {
   if (!outcome.logout) {
     throw new OAuthError('invalid_request', {
       description: 'a logout interaction is completed only by confirming it',
@@ -215,7 +216,7 @@ const confirmLogout = async (config: ResolvedConfig, id: string, payload: Record
   }
   const url = new URL(`${config.issuer}${config.routes.endSession}`)
   url.searchParams.set('logout', id)
-  if (typeof payload.state === 'string') url.searchParams.set('state', payload.state)
+  if (payload.state !== undefined) url.searchParams.set('state', payload.state)
   return { redirectTo: url.toString(), setCookie: undefined }
 }
 

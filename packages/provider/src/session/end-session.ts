@@ -4,6 +4,7 @@ import { createLocalJWKSet, type JWTPayload, jwtVerify } from 'jose'
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
 import { jwksResponseBody } from '../keys/keys'
+import { readArtifact, writeArtifact } from '../payloads'
 import { clearCookie } from './cookies'
 import { type FrontChannelLogout, frontChannelLogouts, type LogoutNotification, logoutTokens } from './logout'
 import { sessionCookie } from './session'
@@ -95,7 +96,7 @@ export const endSessionEndpoint = async (
 
 const askToConfirm = async (config: ResolvedConfig, session: Session, client: Client | undefined, state: string | null) => {
   const id = randomString()
-  await config.adapter.artifacts.upsert({
+  await writeArtifact(config.adapter.artifacts, {
     id,
     kind: 'interaction',
     clientId: client?.clientId ?? '',
@@ -108,8 +109,9 @@ const askToConfirm = async (config: ResolvedConfig, session: Session, client: Cl
 
 /** Only a confirmed logout interaction for this very session ends it, and only once. */
 const acceptConfirmation = async (config: ResolvedConfig, id: string, session: Session | undefined) => {
-  const artifact = await config.adapter.artifacts.find('interaction', id)
-  if (!artifact?.consumedAt || artifact.payload.interactionKind !== 'logout' || artifact.payload.sessionId !== session?.id) {
+  const artifact = await readArtifact(config.adapter.artifacts, 'interaction', id)
+  const payload = artifact?.payload
+  if (!artifact?.consumedAt || payload?.interactionKind !== 'logout' || payload.sessionId !== session?.id) {
     throw new OAuthError('invalid_request', {
       description: 'this logout confirmation is unknown, expired, or for another session',
       spec: 'OIDC RP-Initiated Logout 1.0 §2'

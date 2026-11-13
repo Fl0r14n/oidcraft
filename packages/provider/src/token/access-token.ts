@@ -1,8 +1,9 @@
-import type { Artifact, ArtifactKind, Client } from '@oidcraft/adapter'
+import type { Client } from '@oidcraft/adapter'
 import { randomString } from '@oidcraft/core'
 import { createLocalJWKSet, importJWK, type JSONWebKeySet, jwtVerify, SignJWT } from 'jose'
 import type { ResolvedConfig } from '../config'
 import { jwksResponseBody, signingKey } from '../keys/keys'
+import { readArtifact, type Stored, writeArtifact } from '../payloads'
 import { defaultSigningAlg } from '../profile/fapi'
 
 export const JWT_ACCESS_TOKEN_TYPE = 'at+jwt'
@@ -41,7 +42,7 @@ export const issueAccessToken = async (config: ResolvedConfig, request: AccessTo
   const expiresAt = request.expiresAt ?? new Date(Date.now() + config.ttl.accessToken * 1000)
   // RFC 9449 §6: the confirmation claim is what makes the token useless without the key.
   const cnf = confirmationOf(request.binding)
-  await config.adapter.artifacts.upsert({
+  await writeArtifact(config.adapter.artifacts, {
     id,
     kind: 'access_token',
     clientId: request.client.clientId,
@@ -58,7 +59,7 @@ export const issueAccessToken = async (config: ResolvedConfig, request: AccessTo
       ...(request.resource && { resource: request.resource }),
       ...(request.audience && { aud: request.audience }),
       ...(cnf && { cnf }),
-      ...(jwt && { format: 'jwt' })
+      ...(jwt && { format: 'jwt' as const })
     },
     expiresAt
   })
@@ -126,8 +127,12 @@ export const mintJwtAccessToken = async (config: ResolvedConfig, input: AccessTo
 }
 
 /** An access token by whichever form it was presented in; any other kind by its id. */
-export const findPresented = (config: ResolvedConfig, kind: ArtifactKind, presented: string) =>
-  kind === 'access_token' ? resolveAccessToken(config, presented) : config.adapter.artifacts.find(kind, presented)
+export const findPresented = (
+  config: ResolvedConfig,
+  kind: 'access_token' | 'refresh_token',
+  presented: string
+): Promise<Stored<'access_token' | 'refresh_token'> | undefined> =>
+  kind === 'access_token' ? resolveAccessToken(config, presented) : readArtifact(config.adapter.artifacts, kind, presented)
 
 const looksLikeJwt = (value: string) => value.split('.').length === 3
 
@@ -138,16 +143,16 @@ const looksLikeJwt = (value: string) => value.split('.').length === 3
  * even though it would still verify offline. Its `jti` finds that record only once the signature
  * verifies, and never when presented bare: a `jti` is in every resource server's logs (FR-T2).
  */
-export const resolveAccessToken = async (config: ResolvedConfig, presented: string): Promise<Artifact | undefined> => {
+export const resolveAccessToken = async (config: ResolvedConfig, presented: string) => {
   if (!looksLikeJwt(presented)) {
-    const opaque = await config.adapter.artifacts.find('access_token', presented)
+    const opaque = await readArtifact(config.adapter.artifacts, 'access_token', presented)
     return opaque?.payload.format === 'jwt' ? undefined : opaque
   }
 
   try {
     const keys = createLocalJWKSet(jwksResponseBody(await config.adapter.keys.active()) as JSONWebKeySet)
     const { payload } = await jwtVerify(presented, keys, { issuer: config.issuer, typ: JWT_ACCESS_TOKEN_TYPE })
-    return typeof payload.jti === 'string' ? await config.adapter.artifacts.find('access_token', payload.jti) : undefined
+    return typeof payload.jti === 'string' ? await readArtifact(config.adapter.artifacts, 'access_token', payload.jti) : undefined
   } catch {
     return undefined
   }

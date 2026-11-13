@@ -1,4 +1,3 @@
-import type { ArtifactKind } from '@oidcraft/adapter'
 import { authenticateClient } from '../clients/authenticate'
 import type { ResolvedConfig } from '../config'
 import type { ClientCertificate } from '../context'
@@ -6,9 +5,11 @@ import { OAuthError } from '../errors'
 import { findPresented } from '../token/access-token'
 import { revokeFamily } from '../token/family'
 
-const REVOCABLE: ArtifactKind[] = ['refresh_token', 'access_token']
+type Revocable = 'access_token' | 'refresh_token'
 
-const order = (hint: string | null) => (hint === 'access_token' ? (['access_token', 'refresh_token'] as ArtifactKind[]) : REVOCABLE)
+const REVOCABLE: Revocable[] = ['refresh_token', 'access_token']
+
+const order = (hint: string | null): Revocable[] => (hint === 'access_token' ? ['access_token', 'refresh_token'] : REVOCABLE)
 
 /**
  * RFC 7009 §2.2: an unknown token is a 200, not an error. Anything else turns this endpoint into an

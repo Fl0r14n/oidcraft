@@ -1,9 +1,10 @@
-import type { Artifact, Client } from '@oidcraft/adapter'
+import type { Client } from '@oidcraft/adapter'
 import { randomString } from '@oidcraft/core'
 import { authenticateClient } from '../clients/authenticate'
 import type { ResolvedConfig } from '../config'
 import type { ClientCertificate } from '../context'
 import { OAuthError } from '../errors'
+import { readArtifact, type Stored, writeArtifact } from '../payloads'
 import { type Binding, issueTokens } from '../token/issue'
 import { checkApproval } from './approval'
 import { recordConsent } from './consent'
@@ -28,7 +29,7 @@ export type CibaPayload = {
 
 const KIND = 'backchannel_authentication_request'
 
-type CibaAnswer = Pick<CibaPayload, 'status' | 'scopes' | 'accountId' | 'sessionId' | 'grantId'>
+export type CibaAnswer = Pick<CibaPayload, 'status' | 'scopes' | 'accountId' | 'sessionId' | 'grantId'>
 
 /**
  * The person's answer is a record of its own, beside the request: a poll rewrites the request it
@@ -36,8 +37,8 @@ type CibaAnswer = Pick<CibaPayload, 'status' | 'scopes' | 'accountId' | 'session
  */
 const answerId = (authReqId: string) => `${authReqId}:answer`
 
-const answer = (config: ResolvedConfig, request: Artifact, payload: CibaAnswer) =>
-  config.adapter.artifacts.upsert({
+const answer = (config: ResolvedConfig, request: Stored<typeof KIND>, payload: CibaAnswer) =>
+  writeArtifact(config.adapter.artifacts, {
     id: answerId(request.id),
     kind: KIND,
     clientId: request.clientId,
@@ -46,9 +47,15 @@ const answer = (config: ResolvedConfig, request: Artifact, payload: CibaAnswer) 
     expiresAt: request.expiresAt
   })
 
-const payloadOf = async (config: ResolvedConfig, artifact: Artifact): Promise<CibaPayload> => ({
-  ...(artifact.payload as unknown as CibaPayload),
-  ...((await config.adapter.artifacts.find(KIND, answerId(artifact.id)))?.payload as CibaAnswer | undefined)
+/** A request, never an answer: the answer's id is the request's with a suffix no presented id carries. */
+const findRequest = async (config: ResolvedConfig, authReqId: string) => {
+  const artifact = await readArtifact(config.adapter.artifacts, KIND, authReqId)
+  return artifact && 'mode' in artifact.payload ? { artifact, requested: artifact.payload } : undefined
+}
+
+const payloadOf = async (config: ResolvedConfig, authReqId: string, requested: CibaPayload): Promise<CibaPayload> => ({
+  ...requested,
+  ...(await readArtifact(config.adapter.artifacts, KIND, answerId(authReqId)))?.payload
 })
 
 /**
@@ -119,7 +126,7 @@ export const backchannelAuthenticationEndpoint = async (
 
   const authReqId = randomString()
   const expiresIn = config.ttl.backchannelRequest
-  await config.adapter.artifacts.upsert({
+  await writeArtifact(config.adapter.artifacts, {
     id: authReqId,
     kind: KIND,
     clientId: client.clientId,
@@ -145,20 +152,20 @@ export const backchannelAuthenticationEndpoint = async (
 
 /** The same slow-down discipline as the device flow: the provider enforces it (OIDC CIBA 1.0 §11). */
 const consumeAuthReqId = async (config: ResolvedConfig, authReqId: string, clientId: string) => {
-  const artifact = await config.adapter.artifacts.find(KIND, authReqId)
-  if (!artifact) throw new OAuthError('expired_token', { description: 'that auth_req_id is unknown or expired', spec: 'OIDC CIBA 1.0 §11' })
+  const found = await findRequest(config, authReqId)
+  if (!found) throw new OAuthError('expired_token', { description: 'that auth_req_id is unknown or expired', spec: 'OIDC CIBA 1.0 §11' })
+  const { artifact, requested } = found
   if (artifact.clientId !== clientId)
     throw new OAuthError('invalid_grant', { description: 'that auth_req_id belongs to another client', spec: 'OIDC CIBA 1.0 §11' })
   if (artifact.consumedAt)
     throw new OAuthError('invalid_grant', { description: 'that auth_req_id was already redeemed', spec: 'OIDC CIBA 1.0 §11' })
 
   // OIDC CIBA 1.0 §10.2: a ping client redeems with the same request a poll client makes.
-  const requested = artifact.payload as unknown as CibaPayload
   const now = Date.now()
   const since = requested.lastPolledAt ? (now - requested.lastPolledAt) / 1000 : Number.POSITIVE_INFINITY
   const slowDown = since < requested.interval
   const polled = { ...requested, lastPolledAt: now, interval: requested.interval + (slowDown ? DEFAULT_INTERVAL : 0) }
-  await config.adapter.artifacts.upsert({ ...artifact, payload: polled })
+  await writeArtifact(config.adapter.artifacts, { ...artifact, payload: polled })
   if (slowDown) {
     throw new OAuthError('slow_down', {
       description: `poll no more often than every ${polled.interval} seconds`,
@@ -166,7 +173,7 @@ const consumeAuthReqId = async (config: ResolvedConfig, authReqId: string, clien
     })
   }
 
-  const payload = await payloadOf(config, artifact)
+  const payload = await payloadOf(config, authReqId, requested)
 
   if (payload.status === 'denied') throw new OAuthError('access_denied', { description: 'the user declined', spec: 'OIDC CIBA 1.0 §11' })
   if (payload.status === 'pending')
@@ -186,7 +193,7 @@ const consumeAuthReqId = async (config: ResolvedConfig, authReqId: string, clien
  */
 export type CibaPing = { clientId: string; uri: string; clientNotificationToken: string; authReqId: string }
 
-const pingFor = (artifact: Artifact, payload: CibaPayload): CibaPing | undefined =>
+const pingFor = (artifact: Stored<typeof KIND>, payload: CibaPayload): CibaPing | undefined =>
   payload.mode === 'ping' && payload.notificationEndpoint && payload.clientNotificationToken
     ? {
         clientId: artifact.clientId,
@@ -200,9 +207,10 @@ export type CibaDecision = { accountId: string; sessionId: string; scopes: strin
 
 /** What the out-of-band channel calls once the person has answered on their own device. */
 export const resolveBackchannelRequest = async (config: ResolvedConfig, authReqId: string, outcome: CibaDecision) => {
-  const artifact = await config.adapter.artifacts.find(KIND, authReqId)
-  if (!artifact) throw new OAuthError('invalid_request', { description: 'that request is unknown or expired', status: 404, spec: 'FR-C17' })
-  const payload = await payloadOf(config, artifact)
+  const found = await findRequest(config, authReqId)
+  if (!found) throw new OAuthError('invalid_request', { description: 'that request is unknown or expired', status: 404, spec: 'FR-C17' })
+  const { artifact } = found
+  const payload = await payloadOf(config, authReqId, found.requested)
   if (payload.status !== 'pending')
     throw new OAuthError('invalid_request', { description: 'that request was already answered', status: 409, spec: 'FR-C17' })
 

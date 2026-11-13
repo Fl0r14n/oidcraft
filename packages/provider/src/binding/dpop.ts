@@ -3,6 +3,7 @@ import { base64url, calculateJwkThumbprint, decodeProtectedHeader, importJWK, ty
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
 import { CLIENT_SIGNING_ALGS } from '../keys/algorithms'
+import { readArtifact, writeArtifact } from '../payloads'
 
 /** RFC 9449 §4.2: asymmetric only. A symmetric alg would let anyone holding the proof mint another. */
 
@@ -23,7 +24,7 @@ export type DpopProof = { jkt: string; jti: string }
  */
 export const issueNonce = async (config: ResolvedConfig, clientId: string) => {
   const nonce = randomString()
-  await config.adapter.artifacts.upsert({
+  await writeArtifact(config.adapter.artifacts, {
     id: nonce,
     kind: 'dpop_nonce',
     clientId,
@@ -136,7 +137,7 @@ export const verifyDpopProof = async (config: ResolvedConfig, request: Request, 
     const presented = payload.nonce
     // A nonce stays usable until it expires: it marks freshness, and it is the jti check above that
     // stops a proof being replayed (RFC 9449 §8).
-    const issued = typeof presented === 'string' ? await config.adapter.artifacts.find('dpop_nonce', presented) : undefined
+    const issued = typeof presented === 'string' ? await readArtifact(config.adapter.artifacts, 'dpop_nonce', presented) : undefined
     if (issued?.clientId !== options.requireNonceFor) await requireNonce(config, options.requireNonceFor, presented)
   }
 

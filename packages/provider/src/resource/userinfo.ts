@@ -77,7 +77,7 @@ export const userinfoEndpoint = async (config: ResolvedConfig, request: Request,
     throw unauthorized('this access token was issued for another resource; the ID token carries the claims')
   }
 
-  const confirmation = artifact.payload.cnf as { jkt?: string; 'x5t#S256'?: string } | undefined
+  const confirmation = artifact.payload.cnf
 
   if (confirmation?.jkt) {
     // RFC 9449 §7.1: a bound token presented as a Bearer is exactly the theft this prevents.
@@ -103,12 +103,12 @@ export const userinfoEndpoint = async (config: ResolvedConfig, request: Request,
     }
   }
 
-  const scopes = (artifact.payload.scopes as string[] | undefined) ?? []
+  const { scopes } = artifact.payload
   if (!scopes.includes('openid')) throw unauthorized('the access token does not carry the openid scope')
 
   const claims = await config.adapter.accounts.claims(artifact.accountId, scopes, [])
   // OIDC Core §5.3.2: the same sub the ID token carried, or the client cannot match them up.
-  const subject = (artifact.payload.subject as string | undefined) ?? artifact.accountId
+  const subject = artifact.payload.subject ?? artifact.accountId
 
   const client = await config.adapter.clients.find(artifact.clientId)
   if (client?.userinfoSignedResponseAlg || client?.userinfoEncryptedResponseAlg) {

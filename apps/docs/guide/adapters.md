@@ -86,11 +86,12 @@ Hand it to `fromKv` with a key store and, optionally, your accounts:
 
 The test behind that sample registers a client, signs a person in, redeems the code, and then
 replays it: the replay is refused with `invalid_grant` and the refresh token from the first
-redemption stops working, because the replay revoked the grant (FR-T4). Revocation is a `scan` over
-the grant's index followed by `destroy` calls, which is why `scan` is one of the five.
+redemption stops working, because the replay revoked everything that code produced (FR-T4).
+Revocation is a `scan` over the family's index followed by `destroy` calls, which is why `scan` is
+one of the five.
 
 A key-value store has no secondary index, so `fromKv` writes each one the protocol needs as a key
-beside the record: revoking a grant and every by-account lookup is a prefix scan of one record's
+beside the record: revoking a grant or a family and every by-account lookup is a prefix scan of one record's
 keys, never of a whole family of records (NFR-P1). The SQL adapters use real columns instead
 (FR-A5).
 
@@ -105,7 +106,7 @@ username at sign-up, creating a realm. Single use cannot be built from a read fo
 
 Run against eight parallel callers for one key, all eight win. Through a provider, that would be
 two parallel redemptions of one authorization code both receiving tokens. With the atomic `insert`
-above, the test sees at most one redemption succeed: the other is a replay, which revokes the grant, and
+above, the test sees at most one redemption succeed: the other is a replay, which revokes what the code produced, and
 refuses the first as well when it gets there before the first has finished.
 
 What qualifies: Redis `SET NX`, a Cloudflare Durable Object, a single-process `Map`, a SQL
@@ -162,9 +163,13 @@ trusts the answer rather than re-checking it.
   `find` still returns it with `consumedAt` set (FR-T3, FR-T4, NFR-S4).
 - `upsert` never writes or clears `consumedAt`. A poll that read the artifact before it was
   redeemed and writes it back must not revive it.
-- `revokeByGrantId(grantId)` removes every artifact of that grant and nothing else. A replayed code
-  or refresh token calls it, so it has to find them all; that is an index on `grant_id`, not a JSON
-  search (FR-A5).
+- `revokeByGrantId(grantId)` removes every artifact of that grant and nothing else. Withdrawing
+  consent calls it, so it has to find them all; that is an index on `grant_id`, not a JSON search
+  (FR-A5).
+- `revokeByFamilyId(familyId)` does the same for one family: every token descending from one
+  authorization, which a replayed code or refresh token, or a revoked refresh token, ends while the
+  same app on another device keeps working (FR-T3). Migration `0005_families` adds its column and
+  index.
 - `revokeByClientId(clientId)` and `grants.destroyByClientId(clientId)` remove what a deleted client
   held: its tokens, those of the client-credentials grant included, and the consents given to it.
 - `findByUserCode` is optional; the device flow needs it (FR-C7). `prune` is optional; see above.

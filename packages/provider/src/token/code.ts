@@ -1,22 +1,24 @@
 import type { Artifact, Client } from '@oidcraft/adapter'
+import { randomString } from '@oidcraft/core'
 import { storedId } from '../artifacts'
 import { verifyChallenge } from '../authorize/pkce'
 import { audienceFor, requestedResources } from '../authorize/resources'
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
 import { underFapi } from '../profile/fapi'
+import { revokeFamily } from './family'
 import { type Binding, issueTokens, loadGrantAndSession, loadGrantAndSignIn } from './issue'
 
 /**
- * Replaying a single-use artifact revokes the grant it belongs to, rather than merely failing.
- * A replay means the code or refresh token leaked; everything derived from it must stop working
- * (FR-T3, FR-T4, NFR-S4, RFC 9700 §4.14.2).
+ * Replaying a single-use artifact revokes its family rather than merely failing: a replay means the
+ * code or refresh token leaked, and everything derived from it must stop working. The grant's other
+ * families — the same app on another device — are not what leaked (FR-T3, FR-T4, NFR-S4, RFC 9700 §4.14.2).
  */
 const revokeOnReplay = async (config: ResolvedConfig, artifact: Artifact, what: string) => {
   await replayed(config, artifact)
-  if (artifact.grantId) await config.adapter.artifacts.revokeByGrantId(artifact.grantId)
+  await revokeFamily(config, artifact)
   throw new OAuthError('invalid_grant', {
-    description: `this ${what} was already used; the grant has been revoked`,
+    description: `this ${what} was already used; every token issued from it has been revoked`,
     spec: 'RFC 9700 §4.14.2'
   })
 }
@@ -80,6 +82,7 @@ export const authorizationCodeGrant = async (config: ResolvedConfig, client: Cli
 
   const { grant, session } = await loadGrantAndSession(config, artifact)
   const tokens = await issueTokens(config, client, grant, session, scopesOf(artifact), {
+    familyId: artifact.familyId ?? randomString(),
     nonce: artifact.payload.nonce as string | undefined,
     binding,
     authorizationDetails: artifact.payload.authorizationDetails as unknown[] | undefined,
@@ -136,6 +139,7 @@ export const refreshTokenGrant = async (config: ResolvedConfig, client: Client, 
 
   // RFC 8705 §3: the new access token is bound to the certificate presented now, as at issuance.
   const tokens = await issueTokens(config, client, grant, session, requested?.length ? requested : granted, {
+    familyId: artifact.familyId ?? randomString(),
     binding: { jkt: bound?.jkt ?? binding.jkt, x5t: binding.x5t },
     refreshScopes: granted,
     sessionBound: artifact.payload.sessionBound === true,

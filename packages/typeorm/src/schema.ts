@@ -10,6 +10,7 @@ export type ArtifactRow = {
   client_id: string
   account_id: string | null
   grant_id: string | null
+  family_id: string | null
   user_code: string | null
   payload: string
   consumed_at: number | null
@@ -97,6 +98,7 @@ export const ArtifactEntity = new EntitySchema<ArtifactRow>({
     client_id: text(),
     account_id: text({ nullable: true }),
     grant_id: text({ nullable: true }),
+    family_id: text({ nullable: true }),
     user_code: text({ nullable: true }),
     payload: text(),
     consumed_at: millis({ nullable: true }),
@@ -106,7 +108,8 @@ export const ArtifactEntity = new EntitySchema<ArtifactRow>({
     { name: 'oidc_artifacts_grant_idx', columns: ['grant_id'] },
     { name: 'oidc_artifacts_user_code_idx', columns: ['user_code'] },
     { name: 'oidc_artifacts_expiry_idx', columns: ['expires_at'] },
-    { name: 'oidc_artifacts_client_idx', columns: ['client_id'] }
+    { name: 'oidc_artifacts_client_idx', columns: ['client_id'] },
+    { name: 'oidc_artifacts_family_idx', columns: ['family_id'] }
   ]
 })
 

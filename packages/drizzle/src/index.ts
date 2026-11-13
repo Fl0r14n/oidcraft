@@ -47,6 +47,7 @@ export const drizzleAdapter = (options: DrizzleAdapterOptions): FullAdapter => {
     clientId: row.clientId,
     ...(row.accountId && { accountId: row.accountId }),
     ...(row.grantId && { grantId: row.grantId }),
+    ...(row.familyId && { familyId: row.familyId }),
     payload: row.payload as Record<string, unknown>,
     ...(row.consumedAt && { consumedAt: row.consumedAt }),
     expiresAt: row.expiresAt
@@ -119,6 +120,7 @@ export const drizzleAdapter = (options: DrizzleAdapterOptions): FullAdapter => {
           clientId: artifact.clientId,
           accountId: artifact.accountId ?? null,
           grantId: artifact.grantId ?? null,
+          familyId: artifact.familyId ?? null,
           userCode: (artifact.payload.userCode as string | undefined) ?? null,
           payload: artifact.payload,
           consumedAt: artifact.consumedAt ?? null,
@@ -159,6 +161,9 @@ export const drizzleAdapter = (options: DrizzleAdapterOptions): FullAdapter => {
       async revokeByGrantId(grantId) {
         // One indexed delete, not a scan — this is the whole point of a relational adapter (FR-A5).
         await db.delete(artifacts).where(eq(artifacts.grantId, grantId))
+      },
+      async revokeByFamilyId(familyId) {
+        await db.delete(artifacts).where(eq(artifacts.familyId, familyId))
       },
       async revokeByClientId(clientId) {
         await db.delete(artifacts).where(eq(artifacts.clientId, clientId))

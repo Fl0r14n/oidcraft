@@ -48,6 +48,7 @@ const toArtifact = (row: ArtifactRow): Artifact => ({
   clientId: row.client_id,
   ...(row.account_id && { accountId: row.account_id }),
   ...(row.grant_id && { grantId: row.grant_id }),
+  ...(row.family_id && { familyId: row.family_id }),
   payload: parse<Record<string, unknown>>(row.payload),
   ...(row.consumed_at && { consumedAt: new Date(row.consumed_at) }),
   expiresAt: new Date(row.expires_at)
@@ -195,13 +196,19 @@ export const typeormAdapter = (options: TypeormAdapterOptions): FullAdapter => {
         client_id: artifact.clientId,
         account_id: artifact.accountId ?? null,
         grant_id: artifact.grantId ?? null,
+        family_id: artifact.familyId ?? null,
         user_code: (artifact.payload.userCode as string | undefined) ?? null,
         payload: json(artifact.payload),
         consumed_at: artifact.consumedAt ? artifact.consumedAt.getTime() : null,
         expires_at: artifact.expiresAt.getTime()
       }
       // consumed_at is left out of the update: an upsert must never revive a consumed artifact.
-      await upsert(artifactRows, row, ['kind', 'id'], ['client_id', 'account_id', 'grant_id', 'user_code', 'payload', 'expires_at'])
+      await upsert(
+        artifactRows,
+        row,
+        ['kind', 'id'],
+        ['client_id', 'account_id', 'grant_id', 'family_id', 'user_code', 'payload', 'expires_at']
+      )
     },
 
     async find(kind: ArtifactKind, id: string) {
@@ -238,6 +245,10 @@ export const typeormAdapter = (options: TypeormAdapterOptions): FullAdapter => {
     async revokeByGrantId(grantId: string) {
       // One indexed delete, not a scan (FR-A5).
       await artifactRows.delete({ grant_id: grantId })
+    },
+
+    async revokeByFamilyId(familyId: string) {
+      await artifactRows.delete({ family_id: familyId })
     },
 
     async revokeByClientId(clientId: string) {

@@ -4,6 +4,7 @@ import type { ResolvedConfig } from '../config'
 import type { ClientCertificate } from '../context'
 import { OAuthError } from '../errors'
 import { findPresented } from '../token/access-token'
+import { revokeFamily } from '../token/family'
 
 const REVOCABLE: ArtifactKind[] = ['refresh_token', 'access_token']
 
@@ -27,11 +28,11 @@ export const revocationEndpoint = async (config: ResolvedConfig, request: Reques
     const artifact = await findPresented(config, kind, presented)
     if (!artifact || artifact.clientId !== client.clientId) continue
 
-    // Revoking a refresh token takes every token of its grant with it: leaving the access tokens it
-    // minted alive would make "sign this application out" mean nothing for their remaining lifetime.
-    // The grant stays: it is the consent, which signing out does not withdraw (FR-C8, FR-I4).
-    if (kind === 'refresh_token' && artifact.grantId) {
-      await config.adapter.artifacts.revokeByGrantId(artifact.grantId)
+    // Revoking a refresh token takes its family with it: leaving the access tokens it minted alive
+    // would make "sign this application out" mean nothing for their remaining lifetime. The same app
+    // on another device, and the consent, stay (FR-C8, FR-I4).
+    if (kind === 'refresh_token' && (artifact.familyId || artifact.grantId)) {
+      await revokeFamily(config, artifact)
     } else {
       await config.adapter.artifacts.destroy(kind, artifact.id)
     }

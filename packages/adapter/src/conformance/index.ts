@@ -248,6 +248,21 @@ export const adapterConformance = (create: () => Adapter | Promise<Adapter>, opt
       }
     },
     {
+      // FR-T3: a replay on one device ends that device's tokens, not the grant's on another.
+      name: 'revokeByFamilyId removes every artifact of that family and nothing else',
+      run: async () => {
+        const adapter = await full()
+        await adapter.artifacts.upsert(artifact({ id: 'f1', kind: 'access_token', grantId: 'g1', familyId: 'phone' }))
+        await adapter.artifacts.upsert(artifact({ id: 'f2', kind: 'refresh_token', grantId: 'g1', familyId: 'phone' }))
+        await adapter.artifacts.upsert(artifact({ id: 'f3', kind: 'refresh_token', grantId: 'g1', familyId: 'laptop' }))
+        await adapter.artifacts.revokeByFamilyId('phone')
+        same(await adapter.artifacts.find('access_token', 'f1'), undefined, "the revoked family's access token")
+        same(await adapter.artifacts.find('refresh_token', 'f2'), undefined, "the revoked family's refresh token")
+        same((await adapter.artifacts.find('refresh_token', 'f3'))?.id, 'f3', "the same grant's other family")
+        same((await adapter.artifacts.find('refresh_token', 'f3'))?.familyId, 'laptop', 'the family id, read back')
+      }
+    },
+    {
       // FR-T7: deleting a client takes what it holds, client_credentials tokens included, which no grant reaches.
       name: 'revokeByClientId removes every artifact of that client and nothing else',
       run: async () => {

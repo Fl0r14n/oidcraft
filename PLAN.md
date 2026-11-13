@@ -5,7 +5,7 @@ This file is working state: tick items off and add notes as work lands.
 
 ## Status
 
-**Implemented, as of 2026-11-13**, with 1184 passing tests (179 more skip without Postgres and Redis) and `bun run verify` as the gate — everything
+**Implemented, as of 2026-11-13**, with 1194 passing tests (184 more skip without Postgres and Redis) and `bun run verify` as the gate — everything
 below, FR-T6, FR-C21 and FR-A4's Postgres included. Published as `@oidcraft/*` (the move below), with
 the docs site at https://fl0r14n.github.io/oidcraft/. Items 1–11 under _Next_ are done; item 12, the
 2026-11-12 review, is open, and until its security findings are fixed this is not a provider to put
@@ -442,9 +442,14 @@ text it is held to. In fix order.
   consent stays, as `Grant`'s own comment and ARCHITECTURE.md §4 always did. Only `/revoke` is
   affected: end-session never touched the grant
   Fixed
-- [ ] One grant per account and client means one app on two devices shares it, so a revocation or a
+- [x] One grant per account and client means one app on two devices shares it, so a revocation or a
   detected replay on one signs out the other. A family id on refresh tokens, and revocation and
   replay scoped to the family; FR-C8, FR-T3 and FR-T4 change with it. After the item above, not with it
+  Fixed: `Artifact.familyId`, minted with each code and each device or CIBA redemption and carried by
+  every token issued from it, an exchanged one included; `ArtifactStore.revokeByFamilyId` in the
+  contract, every adapter and the conformance suite, with migration `0005_families`. A code replay, a
+  refresh replay and `/revoke` of a refresh token end the family; withdrawing consent, a password
+  reset and deleting a client still end the grant. A contract change: a third-party adapter adds the method
 - [x] A FAPI client's refresh token is never rewritten, so its idle lifetime never restarts and it
   dies 14 days after issue whatever its use (`token/issue.ts:74`). Rewrite the same artifact with a
   new expiry on each use, capped by the family's: one write, no contract change. FR-T3

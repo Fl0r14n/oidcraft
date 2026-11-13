@@ -103,6 +103,7 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
       const ttl = ttlFrom(artifact.expiresAt)
       await kv.upsert({ key: artifactKey(artifact.kind, artifact.id), value: enc(stored), ttl })
       if (artifact.grantId) await kv.upsert({ key: `grant-index/${artifact.grantId}/${artifact.kind}/${artifact.id}`, value: '', ttl })
+      if (artifact.familyId) await kv.upsert({ key: `family-index/${artifact.familyId}/${artifact.kind}/${artifact.id}`, value: '', ttl })
       if (typeof artifact.payload.userCode === 'string') {
         await kv.upsert({ key: `user-code/${artifact.payload.userCode}`, value: artifactKey(artifact.kind, artifact.id), ttl })
       }
@@ -139,6 +140,14 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
 
     async revokeByGrantId(grantId) {
       for await (const { key } of kv.scan(`grant-index/${grantId}/`)) {
+        const [, , kind, id] = key.split('/')
+        if (kind && id) await kv.destroy(artifactKey(kind, id))
+        await kv.destroy(key)
+      }
+    },
+
+    async revokeByFamilyId(familyId) {
+      for await (const { key } of kv.scan(`family-index/${familyId}/`)) {
         const [, , kind, id] = key.split('/')
         if (kind && id) await kv.destroy(artifactKey(kind, id))
         await kv.destroy(key)

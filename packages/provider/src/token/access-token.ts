@@ -18,6 +18,7 @@ export type AccessTokenRequest = {
   binding: Binding
   accountId?: string | undefined
   grantId?: string | undefined
+  familyId?: string | undefined
   sessionId?: string | undefined
   /** FR-C18: what this client was told the user is called. */
   subject?: string | undefined
@@ -46,6 +47,7 @@ export const issueAccessToken = async (config: ResolvedConfig, request: AccessTo
     clientId: request.client.clientId,
     ...(request.accountId && { accountId: request.accountId }),
     ...(request.grantId && { grantId: request.grantId }),
+    ...(request.familyId && { familyId: request.familyId }),
     payload: {
       iat: Math.floor(Date.now() / 1000),
       scopes: request.scopes,

@@ -381,6 +381,7 @@ const issueCode = async (config: ResolvedConfig, request: AuthorizationRequest, 
     clientId: request.clientId,
     accountId: session.accountId,
     grantId: grant.id,
+    familyId: randomString(),
     payload: {
       redirectUri: request.redirectUri,
       codeChallenge: request.codeChallenge,

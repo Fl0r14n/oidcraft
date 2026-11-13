@@ -64,6 +64,7 @@ export type ArtifactStore = EntityStore<Artifact, [kind: ArtifactKind, id: strin
    */
   consume(kind: ArtifactKind, id: string): Promise<boolean>
   revokeByGrantId(grantId: string): Promise<void>
+  revokeByFamilyId(familyId: string): Promise<void>
   /** Deleting a client takes its tokens with it, those of the client-credentials grant included, which no grant reaches (FR-T7). */
   revokeByClientId(clientId: string): Promise<void>
   /** Bounded sweep of expired rows; the runtime calls it, storage does not schedule (NFR-P3). */

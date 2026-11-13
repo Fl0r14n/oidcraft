@@ -41,6 +41,7 @@ export const postgresTables = (schema?: string) => {
       clientId: text('client_id').notNull(),
       accountId: text('account_id'),
       grantId: text('grant_id'),
+      familyId: text('family_id'),
       userCode: text('user_code'),
       payload: json('payload').notNull(),
       consumedAt: millis('consumed_at'),
@@ -51,7 +52,8 @@ export const postgresTables = (schema?: string) => {
       index('oidc_artifacts_grant_idx').on(t.grantId),
       index('oidc_artifacts_user_code_idx').on(t.userCode),
       index('oidc_artifacts_expiry_idx').on(t.expiresAt),
-      index('oidc_artifacts_client_idx').on(t.clientId)
+      index('oidc_artifacts_client_idx').on(t.clientId),
+      index('oidc_artifacts_family_idx').on(t.familyId)
     ]
   )
 

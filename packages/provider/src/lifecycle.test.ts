@@ -100,7 +100,7 @@ const tokens = async () => {
 }
 
 describe('revocation', () => {
-  test("revoking a refresh token takes the grant's tokens with it", async () => {
+  test('revoking a refresh token takes its family with it', async () => {
     const issued = await tokens()
     const response = await post('/revoke', { token: issued.refresh_token }, { authorization: basic() })
     expect(response.status).toBe(200)

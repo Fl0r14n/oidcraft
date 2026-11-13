@@ -67,11 +67,14 @@ FR-C3 requires PKCE (RFC 7636) on the code grant, with exactly the one exemption
 **Configurable?** Only per client, through `requirePkce: false`, and only for a confidential client.
 Even then a request without a `nonce` is refused. No provider-wide switch exists.
 
-### Refresh tokens rotate, and reuse revokes the grant
+### Refresh tokens rotate, and reuse revokes the family
 
-FR-T3: a refresh token rotates on every use. Presenting a consumed refresh token revokes the entire
-grant (RFC 9700 §4.14.2). A stolen token is then a race between the thief and the legitimate client,
-and whichever one loses reveals the theft and ends the grant for both.
+FR-T3: a refresh token rotates on every use. Each authorization — a code redeemed, a device or CIBA
+request approved — starts a family, and every token issued from it belongs to it. Presenting a
+consumed refresh token revokes that family (RFC 9700 §4.14.2). A stolen token is then a race between
+the thief and the legitimate client, and whichever one loses reveals the theft and ends the family
+for both. The grant is one per account and client, so the same app signed in on another device is a
+different family and keeps working: what leaked was one device's token, not the consent.
 
 There is one exception. Under the FAPI 2.0 profile (FR-C21), a client is confidential, authenticates
 with a key, and holds sender-constrained tokens. Its refresh token is useless without that key, and
@@ -87,10 +90,10 @@ than the session and dies when the session ends, logout included (FR-T6).
 client under the FAPI 2.0 profile, which is a single switch that brings all of that profile's other
 refusals with it. Nothing turns off rotation on its own.
 
-### Replaying a single-use artifact revokes its grant
+### Replaying a single-use artifact revokes what it produced
 
-FR-T4: an authorization code is single-use, and redeeming it a second time revokes the grant it
-belongs to. NFR-S4 states the general rule. A replay means the artifact leaked, so everything derived
+FR-T4: an authorization code is single-use, and redeeming it a second time revokes the family it
+started. NFR-S4 states the general rule. A replay means the artifact leaked, so everything derived
 from it has to stop working too.
 
 This is only as strong as the storage underneath it. Single use cannot be built from a read followed

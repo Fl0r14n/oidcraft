@@ -279,5 +279,5 @@ export const deviceCodeGrant = async (config: ResolvedConfig, client: Client, fo
   if (!grant || !session)
     throw new OAuthError('invalid_grant', { description: 'the grant or session behind this device code is gone', spec: 'RFC 6749 §5.2' })
 
-  return issueTokens(config, client, grant, session, payload.scopes, { binding })
+  return issueTokens(config, client, grant, session, payload.scopes, { familyId: randomString(), binding })
 }

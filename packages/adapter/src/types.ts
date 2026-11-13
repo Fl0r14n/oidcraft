@@ -120,6 +120,8 @@ export type Artifact = Entity &
   Expiring & {
     kind: ArtifactKind
     grantId?: string
+    /** One authorization and every token descending from it: what a replay or a revoked refresh token ends, leaving the grant's other devices alone (FR-T3). */
+    familyId?: string
     clientId: string
     payload: Record<string, unknown>
     consumedAt?: Date

@@ -136,6 +136,7 @@ export const exchangeGrant = async (config: ResolvedConfig, client: Client, form
     binding,
     accountId: decision.accountId,
     grantId: subject.grantId,
+    familyId: subject.familyId,
     sessionId: subject.payload.sessionId as string | undefined,
     subject: await subjectFor(config, client, decision.accountId),
     // An exchanged token never outlives the one it was exchanged for.

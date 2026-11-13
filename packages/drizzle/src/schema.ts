@@ -22,6 +22,7 @@ export const artifacts = sqliteTable(
     clientId: text('client_id').notNull(),
     accountId: text('account_id'),
     grantId: text('grant_id'),
+    familyId: text('family_id'),
     userCode: text('user_code'),
     payload: text('payload', { mode: 'json' }).notNull(),
     consumedAt: integer('consumed_at', { mode: 'timestamp_ms' }),
@@ -33,7 +34,8 @@ export const artifacts = sqliteTable(
     index('oidc_artifacts_grant_idx').on(table.grantId),
     index('oidc_artifacts_user_code_idx').on(table.userCode),
     index('oidc_artifacts_expiry_idx').on(table.expiresAt),
-    index('oidc_artifacts_client_idx').on(table.clientId)
+    index('oidc_artifacts_client_idx').on(table.clientId),
+    index('oidc_artifacts_family_idx').on(table.familyId)
   ]
 )
 

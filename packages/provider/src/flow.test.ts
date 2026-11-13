@@ -268,7 +268,7 @@ describe('token endpoint', () => {
   })
 
   // FR-T4 / RFC 9700 §4.14.2: the replay revokes everything the code produced.
-  test('replaying an authorization code revokes the whole grant', async () => {
+  test('replaying an authorization code revokes everything it produced', async () => {
     const { location } = await loginAndConsent()
     const code = location.searchParams.get('code') as string
     const first = await (await exchange(code)).json()
@@ -281,8 +281,8 @@ describe('token endpoint', () => {
     expect((await refresh.json()).error).toBe('invalid_grant')
   })
 
-  // NFR-S4: two redemptions in flight at once — one wins, the other is a replay and revokes the grant.
-  test('parallel redemptions of one code yield one token set and revoke the grant', async () => {
+  // NFR-S4: two redemptions in flight at once — one wins, the other is a replay and revokes what it produced.
+  test('parallel redemptions of one code yield one token set and revoke it', async () => {
     const { location } = await loginAndConsent()
     const code = location.searchParams.get('code') as string
     const responses = await Promise.all([exchange(code), exchange(code)])
@@ -317,7 +317,7 @@ describe('token endpoint', () => {
   })
 
   // FR-T3: rotation is unconditional.
-  test('a refresh rotates the token and replaying the old one revokes the grant', async () => {
+  test('a refresh rotates the token and replaying the old one revokes its family', async () => {
     const { location } = await loginAndConsent()
     const first = await (await exchange(location.searchParams.get('code') as string)).json()
 
@@ -336,6 +336,72 @@ describe('token endpoint', () => {
       { authorization: basic() }
     )
     expect((await afterRevocation.json()).error).toBe('invalid_grant')
+  })
+
+  // FR-T3, FR-T4, FR-C8: one grant per account and client, one family per authorization.
+  describe('the same app on two devices', () => {
+    const twoDevices = async () => {
+      const { location, cookie } = await loginAndConsent()
+      const phoneCode = location.searchParams.get('code') as string
+      const phone = await (await exchange(phoneCode)).json()
+      const again = await go(authorizeUrl(), cookie)
+      const laptop = await (await exchange(new URL(again.headers.get('location') as string).searchParams.get('code') as string)).json()
+      return { phone, phoneCode, laptop }
+    }
+    const refresh = (refresh_token: string) => post('/token', { grant_type: 'refresh_token', refresh_token }, { authorization: basic() })
+    const userinfo = (token: string) =>
+      provider.handle(new Request(`${ISSUER}/userinfo`, { headers: { authorization: `Bearer ${token}` } }))
+
+    const stored = async (kind: 'access_token' | 'refresh_token', token: string) =>
+      adapter.artifacts.find(kind, base64url.encode(await sha256(token)))
+
+    test('share one grant', async () => {
+      const { phone, laptop } = await twoDevices()
+      const phoneToken = await stored('refresh_token', phone.refresh_token)
+      const laptopToken = await stored('refresh_token', laptop.refresh_token)
+      expect(phoneToken?.grantId).toBe(laptopToken?.grantId as string)
+      expect(phoneToken?.familyId).toBeString()
+      expect(phoneToken?.familyId).not.toBe(laptopToken?.familyId as string)
+    })
+
+    test('a replayed refresh token ends its own device and not the other', async () => {
+      const { phone, laptop } = await twoDevices()
+      expect((await refresh(phone.refresh_token)).status).toBe(200)
+      expect((await (await refresh(phone.refresh_token)).json()).error).toBe('invalid_grant')
+
+      expect((await userinfo(phone.access_token)).status).toBe(401)
+      expect((await userinfo(laptop.access_token)).status).toBe(200)
+      expect((await refresh(laptop.refresh_token)).status).toBe(200)
+    })
+
+    test('a replayed code ends what it produced and not the other', async () => {
+      const { phone, phoneCode, laptop } = await twoDevices()
+      expect((await exchange(phoneCode)).status).toBe(400)
+
+      expect((await userinfo(phone.access_token)).status).toBe(401)
+      expect((await (await refresh(phone.refresh_token)).json()).error).toBe('invalid_grant')
+      expect((await userinfo(laptop.access_token)).status).toBe(200)
+      expect((await refresh(laptop.refresh_token)).status).toBe(200)
+    })
+
+    test('revoking one device’s refresh token signs that device out and not the other', async () => {
+      const { phone, laptop } = await twoDevices()
+      expect((await post('/revoke', { token: phone.refresh_token }, { authorization: basic() })).status).toBe(200)
+
+      expect((await userinfo(phone.access_token)).status).toBe(401)
+      expect((await (await refresh(phone.refresh_token)).json()).error).toBe('invalid_grant')
+      expect((await userinfo(laptop.access_token)).status).toBe(200)
+      expect((await refresh(laptop.refresh_token)).status).toBe(200)
+    })
+
+    test('a rotated refresh token stays in its family', async () => {
+      const { phone } = await twoDevices()
+      const rotated = await (await refresh(phone.refresh_token)).json()
+      const before = await stored('access_token', phone.access_token)
+      const after = await stored('refresh_token', rotated.refresh_token)
+      expect(after?.familyId).toBeString()
+      expect(after?.familyId).toBe(before?.familyId as string)
+    })
   })
 
   test('a refresh may narrow the scope but never widen it', async () => {

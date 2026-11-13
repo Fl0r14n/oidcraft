@@ -33,6 +33,7 @@ const toArtifact = (row: Selectable<ArtifactsTable>): Artifact => ({
   clientId: row.client_id,
   ...(row.account_id && { accountId: row.account_id }),
   ...(row.grant_id && { grantId: row.grant_id }),
+  ...(row.family_id && { familyId: row.family_id }),
   payload: parse<Record<string, unknown>>(row.payload),
   ...(row.consumed_at && { consumedAt: at(row.consumed_at) }),
   expiresAt: at(row.expires_at)
@@ -141,6 +142,7 @@ export const kyselyAdapter = (options: KyselyAdapterOptions): FullAdapter => {
         client_id: artifact.clientId,
         account_id: artifact.accountId ?? null,
         grant_id: artifact.grantId ?? null,
+        family_id: artifact.familyId ?? null,
         user_code: (artifact.payload.userCode as string | undefined) ?? null,
         payload: json(artifact.payload),
         consumed_at: artifact.consumedAt ? artifact.consumedAt.getTime() : null,
@@ -195,6 +197,10 @@ export const kyselyAdapter = (options: KyselyAdapterOptions): FullAdapter => {
     async revokeByGrantId(grantId: string) {
       // One indexed delete, not a scan (FR-A5).
       await db.deleteFrom('oidc_artifacts').where('grant_id', '=', grantId).execute()
+    },
+
+    async revokeByFamilyId(familyId: string) {
+      await db.deleteFrom('oidc_artifacts').where('family_id', '=', familyId).execute()
     },
 
     async revokeByClientId(clientId: string) {

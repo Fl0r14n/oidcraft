@@ -16,6 +16,7 @@ export type ArtifactsTable = {
   client_id: string
   account_id: string | null
   grant_id: string | null
+  family_id: string | null
   user_code: string | null
   payload: string
   consumed_at: Millis | null

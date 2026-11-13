@@ -15,6 +15,7 @@ export const issueTokens = async (
   session: Session,
   scopes: string[],
   {
+    familyId,
     nonce,
     binding = {},
     authorizationDetails,
@@ -25,6 +26,8 @@ export const issueTokens = async (
     audience,
     resources = []
   }: {
+    /** FR-T3: the authorization these tokens descend from, carried through every rotation. */
+    familyId: string
     nonce?: string | undefined
     binding?: Binding
     authorizationDetails?: unknown[] | undefined
@@ -43,7 +46,7 @@ export const issueTokens = async (
     audience?: string | undefined
     /** The resources the authorization covered, so a refresh can name only those. */
     resources?: string[]
-  } = {}
+  }
 ) => {
   const { jkt } = binding
   // FR-C11: logout notifies the session's clients, so every client it signs in to must be on the list.
@@ -58,6 +61,7 @@ export const issueTokens = async (
     binding,
     accountId: session.accountId,
     grantId: grant.id,
+    familyId,
     sessionId: session.id,
     subject,
     authorizationDetails,
@@ -83,6 +87,7 @@ export const issueTokens = async (
       clientId: client.clientId,
       accountId: session.accountId,
       grantId: grant.id,
+      familyId,
       // The binding must survive rotation, or it evaporates on the first refresh. Only a public
       // client's refresh token is bound, to a DPoP key or a certificate: a confidential one is
       // already held to its client by authentication (RFC 9449 §5, RFC 8705 §4).

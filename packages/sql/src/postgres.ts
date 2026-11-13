@@ -47,6 +47,14 @@ export const POSTGRES_MIGRATIONS: Migration[] = [
       'create index oidc_grants_client_idx on oidc_grants (client_id)',
       'create index oidc_sessions_expiry_idx on oidc_sessions (expires_at)'
     ]
+  },
+  {
+    // FR-T3: a replay or a revoked refresh token ends one family, by one indexed delete (FR-A5).
+    id: '0005_families',
+    statements: [
+      'alter table oidc_artifacts add column family_id text',
+      'create index oidc_artifacts_family_idx on oidc_artifacts (family_id)'
+    ]
   }
 ]
 export type { Migration } from './migration'

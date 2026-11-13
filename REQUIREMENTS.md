@@ -110,9 +110,10 @@ polling is not lost to it. The same holds for a CIBA request (FR-C17).
 
 **FR-C8 — Revocation (RFC 7009) and introspection (RFC 7662).** Introspection requires client or
 resource-server authentication and returns `active: false` rather than an error for anything the
-caller may not see. Revoking a refresh token revokes every token issued under its grant, since
-leaving the access tokens alive would make signing an application out mean nothing; the grant
-itself, the consent, stays (FR-I4). Revoking an access token removes that token alone.
+caller may not see. Revoking a refresh token revokes its family (FR-T3), since leaving the access
+tokens alive would make signing an application out mean nothing; the same application on another
+device keeps its own family, and the grant itself, the consent, stays (FR-I4). Revoking an access
+token removes that token alone.
 
 **FR-C9 — Dynamic client registration** (OIDC DCR 1.0) with registration access tokens, gated by
 an explicit policy: open, software-statement-gated, or disabled. **Disabled is the default.**
@@ -213,8 +214,11 @@ immediately and a revoked JWT does not. A JWT presented back to this provider is
 once its signature verifies, and its `jti` is an identifier, never a credential: presenting the
 `jti` alone finds nothing (NFR-S11).
 
-**FR-T3** — Refresh tokens rotate on every use. Reuse of a consumed refresh token revokes the
-entire grant (RFC 9700 §4.14.2). This is not configurable. The one exception is a client under the
+**FR-T3** — Refresh tokens rotate on every use. Every authorization — a code redeemed, a device
+or CIBA request approved — starts a family, and every token issued from it, through every rotation,
+belongs to it. Reuse of a consumed refresh token revokes its family (RFC 9700 §4.14.2): there is
+one grant per account and client, so revoking the grant would sign the same application out on
+every other device its user has. This is not configurable. The one exception is a client under the
 FAPI 2.0 profile (FR-C21): confidential, authenticating with a key, and holding sender-constrained
 tokens, so its refresh token is useless without that key and rotation would only lose grants to a
 dropped response (FAPI 2.0 Security Profile §5.3.2.1). Its refresh token does not rotate; it still
@@ -223,7 +227,7 @@ idle lifetime, never past the `refreshTokenFamily` absolute one — and is still
 grant.
 
 **FR-T4** — Authorization codes are single-use with the same consequence on replay: consuming a
-code twice revokes the grant it belongs to.
+code twice revokes the family it started (FR-T3).
 
 **FR-T5** — Every artifact carries an absolute expiry that storage enforces, so a store that
 misses a prune cycle still cannot serve an expired token.

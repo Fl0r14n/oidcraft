@@ -334,7 +334,7 @@ not one table keyed by a model-name string:
 | Store                 | Holds                                                                                                         |
 | --------------------- | ------------------------------------------------------------------------------------------------------------- |
 | `ClientStore`         | Registered clients. `create`/`update`/`destroy` are optional — omitting them disables DCR at runtime (FR-C9). |
-| `ArtifactStore`       | Codes, access and refresh tokens, device codes, PAR and CIBA requests. Revoked by grant, and by client.       |
+| `ArtifactStore`       | Codes, access and refresh tokens, device codes, PAR and CIBA requests. Revoked by grant, family and client.   |
 | `SessionStore`        | The end-user's authenticated session at the OP, including its upstream provenance (FR-F6).                    |
 | `GrantStore`          | Durable consent: what an account allowed a client. Survives token revocation (FR-I4), not its client (FR-T7). |
 | `AccountStore`        | The host's users. Claims are resolved per request, never cached at login (FR-C5).                             |
@@ -775,7 +775,7 @@ clone.
 - **Adapter conformance** — `adapterConformance(create, { implements })`, the published
   `@oidcraft/adapter/conformance` entry, is one suite every adapter runs, covering the queries the protocol
   actually needs: expiry enforced by storage, `kind` as part of an artifact's identity,
-  `revokeByGrantId` removing that grant and nothing else, lookup by user code and by upstream
+  `revokeByGrantId` and `revokeByFamilyId` removing that grant or family and nothing else, lookup by user code and by upstream
   session, and the replay guard admitting a value once. An adapter that passes it is
   interchangeable with the others (FR-A4). It returns plain `{ name, run }` checks that throw rather
   than registering tests, so a third-party adapter runs it under whatever runner it uses (FR-A6);

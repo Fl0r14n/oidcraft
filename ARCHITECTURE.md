@@ -363,6 +363,13 @@ returns `FullAdapter`, all three at once, so it satisfies each of them. `createP
 plain `Adapter` and refuses `upstreams` without the brokering stores when it is constructed
 (NFR-D2), since one union per optional feature would make its config type unreadable.
 
+**A revocation is not undone by a request already past its checks (FR-T3, FR-T7).** Revoking a
+family writes a `revoked_family` artifact before it sweeps the family's rows, and revoking a grant
+destroys the `Grant` before it sweeps its tokens. Every write into a family — a code redeemed, a
+refresh, a device or CIBA redemption — reads both after writing and sweeps again if either says
+revoked. Either the writer sees the mark, or the sweep, which follows the mark, sees the write; no
+store needs a transaction for it.
+
 **No bearer credential reaches an adapter as itself (NFR-S11).** `createProvider` wraps the
 `ArtifactStore` it is given (`src/artifacts.ts`), so a code, an access or refresh token, a device
 code, a pushed-request reference or an interaction id is stored under the SHA-256 of its value, and

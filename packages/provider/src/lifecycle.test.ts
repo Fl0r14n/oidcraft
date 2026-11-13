@@ -108,6 +108,45 @@ const tokens = async () => {
 }
 
 describe('revocation', () => {
+  // RFC 9700 §4.14.2: a revocation landing between a refresh's checks and its writes must still win.
+  for (const by of ['the family', 'the grant'] as const) {
+    test(`racing a refresh, revoking ${by} takes the tokens that refresh writes`, async () => {
+      const issued = await tokens()
+      const written: string[] = []
+      let race = true
+      provider = createProvider({
+        issuer: ISSUER,
+        adapter: {
+          ...adapter,
+          artifacts: {
+            ...adapter.artifacts,
+            async upsert(artifact) {
+              if (race && artifact.kind === 'refresh_token' && artifact.familyId) {
+                race = false
+                if (by === 'the family') await post('/revoke', { token: issued.refresh_token }, { authorization: basic() })
+                else await provider.management.grants.revoke(artifact.grantId as string)
+              }
+              if (artifact.kind === 'refresh_token' || artifact.kind === 'access_token') written.push(artifact.id)
+              await adapter.artifacts.upsert(artifact)
+            }
+          }
+        },
+        interactionUrl: `${ISSUER}/interaction`
+      })
+
+      const refreshed = await post(
+        '/token',
+        { grant_type: 'refresh_token', refresh_token: issued.refresh_token },
+        { authorization: basic() }
+      )
+      expect((await refreshed.json()).error).toBe('invalid_grant')
+      for (const id of written) {
+        expect(await adapter.artifacts.find('refresh_token', id)).toBeUndefined()
+        expect(await adapter.artifacts.find('access_token', id)).toBeUndefined()
+      }
+    })
+  }
+
   test('revoking a refresh token takes its family with it', async () => {
     const issued = await tokens()
     const response = await post('/revoke', { token: issued.refresh_token }, { authorization: basic() })

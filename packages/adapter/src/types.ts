@@ -115,6 +115,7 @@ export type ArtifactKind =
   | 'user_code_attempts'
   | 'sign_in_attempts'
   | 'password_reset'
+  | 'revoked_family'
 
 export type Artifact = Entity &
   Partial<AccountOwned> &

@@ -119,7 +119,9 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
       if (!artifact) return false
       const expiresAt = new Date(artifact.expiresAt)
       if (expiresAt.getTime() <= Date.now()) return false
-      return kv.insert({ key: consumedKey(kind, id), value: new Date().toISOString(), ttl: ttlFrom(expiresAt) })
+      if (!(await kv.insert({ key: consumedKey(kind, id), value: new Date().toISOString(), ttl: ttlFrom(expiresAt) }))) return false
+      // Deleted between the read and the insert, it is revoked, not redeemed (NFR-S4).
+      return (await read(artifactKey(kind, id))) !== undefined
     },
 
     async destroy(kind, id) {

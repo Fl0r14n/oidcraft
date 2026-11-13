@@ -1,5 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { adapterConformance } from '../conformance'
+import { generatedKeyStore } from '../keys'
+import { fromKv } from '../kv'
 import { memoryAdapter, memoryKv } from './index'
 
 describe('memory adapter', () => {
@@ -22,6 +24,24 @@ describe('memory adapter', () => {
     const seen: string[] = []
     for await (const { key } of kv.scan('a/')) seen.push(key)
     expect(seen.sort()).toEqual(['a/1', 'a/2'])
+  })
+
+  // NFR-S4: a token revoked between consume's read and its insert must not come back as redeemed.
+  test('consume refuses an artifact deleted while it was being consumed', async () => {
+    const kv = memoryKv()
+    const adapter = fromKv(
+      {
+        ...kv,
+        async insert(entry) {
+          await kv.destroy('artifact/refresh_token/r1')
+          return kv.insert(entry)
+        }
+      },
+      { keys: await generatedKeyStore() }
+    )
+    const expiresAt = new Date(Date.now() + 60_000)
+    await adapter.artifacts.upsert({ id: 'r1', kind: 'refresh_token', clientId: 'rp', payload: {}, expiresAt })
+    expect(await adapter.artifacts.consume('refresh_token', 'r1')).toBe(false)
   })
 
   test('insert writes only what is absent or lapsed', async () => {

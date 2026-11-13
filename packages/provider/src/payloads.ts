@@ -86,6 +86,8 @@ export type Payloads = {
   /** Failed sign-ins at one account from one address, written by `./accounts`; a lock outlives the generation it ended (G-9). */
   sign_in_attempts: { generation: string; lockedUntil?: number }
   password_reset: Empty
+  /** Written before a family's tokens are deleted, so a token written into it after the sweep is caught (FR-T3). */
+  revoked_family: Empty
 }
 
 /** One record per kind, so a union of kinds narrows on `kind`. */

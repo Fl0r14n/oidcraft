@@ -82,7 +82,7 @@ release above. In fix order.
 - [x] `upstreamLogout` throwing loses the back-channel notifications of a session already destroyed;
   a malformed stored `frontchannelLogoutUri` blocks logout with a 500; `id_token_hint`'s `typ` is
   not checked
-- [ ] Revocation racing a refresh: the FAPI rewrite can resurrect a revoked token, a rotated one can
+- [x] Revocation racing a refresh: the FAPI rewrite can resurrect a revoked token, a rotated one can
   land in a family just revoked; `fromKv.consume` is read-then-insert
 - [ ] `authorization_details=[null]` is a 500; device and CIBA requests do not check the client's
   `grant_types`; a JAR-by-value request resumed after an interaction travels as plain parameters

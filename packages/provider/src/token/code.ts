@@ -10,7 +10,7 @@ import { readArtifact, type Stored, writeArtifact } from '../payloads'
 type SingleUse = Stored<'authorization_code' | 'refresh_token'>
 
 import { underFapi } from '../profile/fapi'
-import { revokeFamily } from './family'
+import { assertFamilyLive, revokeFamily } from './family'
 import { type Binding, issueTokens, loadGrantAndSession, loadGrantAndSignIn } from './issue'
 
 // A replay means it leaked: revoke its family, not the grant's others (FR-T3, FR-T4, NFR-S4, RFC 9700 §4.14.2).
@@ -75,8 +75,9 @@ export const authorizationCodeGrant = async (config: ResolvedConfig, client: Cli
   if (!(await config.adapter.artifacts.consume('authorization_code', code))) await revokeOnReplay(config, artifact, 'authorization code')
 
   const { grant, session } = await loadGrantAndSession(config, artifact)
+  const familyId = artifact.familyId ?? randomString()
   const tokens = await issueTokens(config, client, grant, session, artifact.payload.scopes, {
-    familyId: artifact.familyId ?? randomString(),
+    familyId,
     nonce: artifact.payload.nonce,
     binding,
     authorizationDetails: artifact.payload.authorizationDetails,
@@ -84,6 +85,7 @@ export const authorizationCodeGrant = async (config: ResolvedConfig, client: Cli
     audience,
     resources: artifact.payload.resources ?? []
   })
+  await assertFamilyLive(config, familyId, grant.id)
   return unlessReplayed(config, artifact, 'authorization code', tokens)
 }
 
@@ -130,8 +132,9 @@ export const refreshTokenGrant = async (config: ResolvedConfig, client: Client, 
   }
 
   // RFC 8705 §3: the new access token is bound to the certificate presented now, as at issuance.
+  const familyId = artifact.familyId ?? randomString()
   const tokens = await issueTokens(config, client, grant, session, requested?.length ? requested : granted, {
-    familyId: artifact.familyId ?? randomString(),
+    familyId,
     binding: { jkt: bound?.jkt ?? binding.jkt, x5t: binding.x5t },
     refreshScopes: granted,
     sessionBound: artifact.payload.sessionBound === true,
@@ -140,5 +143,7 @@ export const refreshTokenGrant = async (config: ResolvedConfig, client: Client, 
     audience,
     resources: artifact.payload.resources ?? []
   })
+  // RFC 9700 §4.14.2: a revocation that raced this refresh, the FAPI rewrite included, is not undone by it.
+  await assertFamilyLive(config, familyId, grant.id)
   return rotate ? unlessReplayed(config, artifact, 'refresh token', tokens) : tokens
 }

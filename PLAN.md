@@ -8,7 +8,9 @@ This file is working state: tick items off and add notes as work lands.
 **Implemented, as of 2026-11-13**, with 1243 passing tests (190 more skip without Postgres and Redis) and `bun run verify` as the gate — everything
 below, FR-T6, FR-C21 and FR-A4's Postgres included. Published as `@oidcraft/*`, the provider at 0.3.0,
 with the docs site at https://fl0r14n.github.io/oidcraft/. Every item under _Next_ is done and
-released, the 2026-11-12 review, its 2026-11-13 re-read and `tls_client_auth` by SAN included.
+released, the 2026-11-12 review, its 2026-11-13 re-read and `tls_client_auth` by SAN included. Item 16 is open: what a
+review after that release found, among it a session takeover through `sid` that 0.3.0 ships; until
+it is fixed this is not a provider to put real identities behind.
 
 The authorization code grant with mandatory PKCE, interaction suspend/resume, token issuance with
 rotation and replay revocation, UserInfo, revocation, introspection, logout in both directions,

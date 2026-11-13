@@ -653,6 +653,34 @@ describe('interaction', () => {
     expect((await provider.interactions.complete(confirm, { logout: true }, browserOf(asked))).redirectTo).toContain('logout=')
   })
 
+  // FR-F6: a brokered login reports when the person signed in upstream, and the session keeps that, not now.
+  test('a login reports its own auth_time, never one in the future', async () => {
+    const at = async (authTime: Date) => {
+      const first = await go(authorizeUrl())
+      const id = new URL(first.headers.get('location') as string).pathname.split('/').pop() as string
+      const { setCookie } = await provider.interactions.complete(id, { login: { accountId: 'ada', authTime } }, browserOf(first))
+      return (await provider.session(new Request(ISSUER, { headers: { cookie: (setCookie as string).split(';')[0] as string } })))?.authTime
+    }
+    const earlier = new Date(Math.floor(Date.now() / 1000) * 1000 - 3_600_000)
+    expect(await at(earlier)).toEqual(earlier)
+    expect((await at(new Date(Date.now() + 3_600_000)))?.getTime()).toBeLessThanOrEqual(Date.now())
+  })
+
+  // FR-F9: max_age went upstream; an answer older than it was not a re-authentication, and the client hears so.
+  test('a login older than max_age allows is answered to the client as login_required', async () => {
+    const answer = async (maxAge: string, ago: number) => {
+      const first = await go(authorizeUrl({ max_age: maxAge }))
+      const id = new URL(first.headers.get('location') as string).pathname.split('/').pop() as string
+      const authTime = new Date(Date.now() - ago * 1000)
+      const done = await provider.interactions.complete(id, { login: { accountId: 'ada', authTime } }, browserOf(first))
+      return { done, back: new URL((await go(done.redirectTo)).headers.get('location') as string) }
+    }
+    const stale = await answer('60', 3600)
+    expect(stale.done.setCookie).toBeUndefined()
+    expect(stale.back.searchParams.get('error')).toBe('login_required')
+    expect((await answer('600', 120)).done.setCookie).toBeString()
+  })
+
   // FR-I2: an answer that is refused must leave the interaction to be answered properly.
   test('a refused answer does not spend the interaction', async () => {
     const first = await go(authorizeUrl())

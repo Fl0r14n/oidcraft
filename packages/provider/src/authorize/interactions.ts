@@ -57,12 +57,16 @@ export const interactions = (config: ResolvedConfig) => ({
    * The result is never carried in the redirect: state that decides an authorization does not
    * belong in a URL the user can edit.
    */
-  async complete(id: string, outcome: InteractionResult, cookie: string | null): Promise<InteractionCompletion> {
+  async complete(id: string, given: InteractionResult, cookie: string | null): Promise<InteractionCompletion> {
     const { artifact, payload } = await load(config, id)
     await assertSameBrowser(config, cookie, payload.browser)
-    if (payload.interactionKind === 'logout') return confirmLogout(config, id, payload, outcome)
-    if ('device' in payload) return completeDeviceLogin(config, id, artifact.clientId, payload.device, outcome)
+    if (payload.interactionKind === 'logout') return confirmLogout(config, id, payload, given)
+    if ('device' in payload) return completeDeviceLogin(config, id, artifact.clientId, payload.device, given)
     const { request } = payload
+    // FR-F9: max_age went upstream with the login, so an auth_time older than it says it was not honoured.
+    const outcome: InteractionResult = staleLogin(config, artifact.expiresAt, request.maxAge, given.login?.authTime)
+      ? { error: { error: 'login_required', description: 'the sign-in is older than max_age allows' } }
+      : given
     if (outcome.consent) {
       const consented = outcome.consent.scopes
       const unasked = consented.filter(scope => !request.scopes.includes(scope))
@@ -220,6 +224,15 @@ const confirmLogout = async (
   url.searchParams.set('logout', id)
   if (payload.state !== undefined) url.searchParams.set('state', payload.state)
   return { redirectTo: url.toString(), setCookie: undefined }
+}
+
+const AUTH_TIME_SKEW = 30
+
+/** A login that reports authenticating before the request arrived, by more than `max_age` (OIDC Core §3.1.2.1). */
+const staleLogin = (config: ResolvedConfig, expiresAt: Date, maxAge: number | undefined, authTime: Date | undefined) => {
+  if (maxAge === undefined || !authTime) return false
+  const requestedAt = expiresAt.getTime() - config.ttl.interaction * 1000
+  return authTime.getTime() < requestedAt - (maxAge + AUTH_TIME_SKEW) * 1000
 }
 
 // What each part of a finished interaction answers. A prompt it answered must go, or the replay

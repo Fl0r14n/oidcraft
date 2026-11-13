@@ -26,6 +26,7 @@ export type LoginInput = {
   amr?: string[] | undefined
   idp?: string | undefined
   upstreamSessionId?: string | undefined
+  authTime?: Date | undefined
 }
 
 export const startSession = async (config: ResolvedConfig, login: LoginInput, clientId: string) => {
@@ -33,7 +34,8 @@ export const startSession = async (config: ResolvedConfig, login: LoginInput, cl
   const session: Session = {
     id: await storedId(secret),
     accountId: login.accountId,
-    authTime: new Date(),
+    // Never in the future: an upstream's clock, or a host's mistake, must not make a session fresher than now.
+    authTime: new Date(Math.min(login.authTime?.getTime() ?? Date.now(), Date.now())),
     ...(login.acr && { acr: login.acr }),
     ...(login.amr && { amr: login.amr }),
     ...(login.idp && { idp: login.idp }),

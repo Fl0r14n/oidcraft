@@ -53,7 +53,8 @@ export const brokerCallback = async (request: Request, url: URL) => {
           idp: identity.provider,
           ...(identity.acr && { acr: identity.acr }),
           ...(identity.amr && { amr: identity.amr }),
-          ...(identity.upstreamSessionId && { upstreamSessionId: identity.upstreamSessionId })
+          ...(identity.upstreamSessionId && { upstreamSessionId: identity.upstreamSessionId }),
+          ...(identity.authTime && { authTime: identity.authTime })
         }
       },
       request.headers.get('cookie')

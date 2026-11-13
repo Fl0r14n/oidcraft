@@ -56,7 +56,12 @@ export type InteractionRequest = {
 
 /** The interaction app's answer. The core re-runs the authorization request against it (FR-I2). */
 export type InteractionResult = {
-  login?: { accountId: string; acr?: string; amr?: string[]; idp?: string; upstreamSessionId?: string }
+  /**
+   * `authTime` is when the person authenticated, when that was not now: a brokered login passes the
+   * upstream's `auth_time`, which the ID token then reports (FR-F6). One older than the request's
+   * `max_age` allows is answered to the client as `login_required` (FR-F9).
+   */
+  login?: { accountId: string; acr?: string; amr?: string[]; idp?: string; upstreamSessionId?: string; authTime?: Date }
   /**
    * `authorizationDetails` must repeat every detail the request carried: approving them is explicit,
    * all or nothing, and covers this one authorization. Declining some is `access_denied`.

@@ -428,7 +428,7 @@ with a throwaway test. Several predate this week's work and shipped in 0.3.0. In
   resource origins; keep only `error` and `error_description`. RFC 9700 §2.3, FR-L6
 - [x] A refresh response without `expires_in` is dropped (`client/src/token.ts` `setExpires`), so a
   rotated refresh token is lost and the old one replayed, which ends the session. FR-L5. Probe
-- [ ] A brokered session's `auth_time` is set locally: the login result carries none, so `max_age`
+- [x] A brokered session's `auth_time` is set locally: the login result carries none, so `max_age`
   is never enforced against the upstream's answer. FR-F6, FR-F9
 
 **Correctness**

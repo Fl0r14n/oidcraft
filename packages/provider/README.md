@@ -183,7 +183,9 @@ if ('accountId' in linked) {
         accountId: linked.accountId,
         idp: back.identity.provider,
         // what an upstream back-channel logout names, and what its own logout is found by
-        upstreamSessionId: back.identity.upstreamSessionId
+        upstreamSessionId: back.identity.upstreamSessionId,
+        // when the person signed in upstream, which max_age is measured against (FR-F6, FR-F9)
+        authTime: back.identity.authTime
       }
     },
     request.headers.get('cookie')

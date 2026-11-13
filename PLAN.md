@@ -576,9 +576,10 @@ Read: `core`, `client`, and each binding's instance and reactive layer; their 32
 shape is sound — one protocol, one stateful runtime, three thin views, no ambient instance. What the
 new requirements ask that the code does not yet do:
 
-- [ ] One refresh per instance, not per browser: two tabs refreshing the same token is a replay to a
+- [x] One refresh per instance, not per browser: two tabs refreshing the same token is a replay to a
   rotating provider, this one included, and revokes the grant. `navigator.locks` around the refresh,
   re-reading storage inside the lock. FR-L5
+  Fixed: `navigator.locks` named after the storage key, and `storage.reload()` inside it
 - [ ] Failures are strings on a token-shaped object, and a request that failed is `undefined`; the
   broker tells them apart by matching `'Invalid nonce'` and by a missing ID token
   (`broker/broker.ts:47`). A typed result from `completeAuthorization`. FR-L2

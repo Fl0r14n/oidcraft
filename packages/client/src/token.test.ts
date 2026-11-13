@@ -1,6 +1,6 @@
-import { beforeEach, describe, expect, it } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test'
 import { type AuthorizationCodePKCEConfig, OAuthStatus, OAuthType } from '@oidcraft/core'
-import type { OAuth } from './module'
+import { createOAuth as create, type OAuth } from './module'
 import { createOAuth, flush, installStorage, mockOAuthFunctions, registerOAuthCleanup } from './test-utils'
 import { isExpiredToken } from './token'
 
@@ -106,6 +106,50 @@ describe('checkToken', () => {
 
     expect(second.token()).toEqual({})
     expect(oauth.token().access_token).toBe('first')
+  })
+})
+
+// FR-L5: two tabs presenting one refresh token is a replay to a provider that rotates (FR-T3).
+describe('checkToken across tabs', () => {
+  const navigator = globalThis.navigator as Navigator & { locks?: LockManager }
+  let held: Promise<unknown> = Promise.resolve()
+
+  beforeEach(() => {
+    local.clear()
+    held = Promise.resolve()
+    // One exclusive lock, as an origin's tabs share: each request waits for the one before it.
+    const locks = {
+      request: (_name: string, task: () => Promise<unknown>) => {
+        const run = held.then(task)
+        held = run.catch(() => undefined)
+        return run
+      }
+    }
+    Object.defineProperty(navigator, 'locks', { value: locks, configurable: true })
+  })
+
+  afterEach(() => {
+    Object.defineProperty(navigator, 'locks', { value: undefined, configurable: true })
+  })
+
+  it('refreshes once, and the other tab takes the token it wrote', async () => {
+    local.setItem('token', JSON.stringify({ refresh_token: 'r1', access_token: 'stale', token_type: 'Bearer', expires: Date.now() - 1 }))
+    const functions = mockOAuthFunctions()
+    functions.refresh.mockImplementation(async () => {
+      await new Promise(resolve => setTimeout(resolve, 5))
+      return { access_token: 'fresh', refresh_token: 'r2', token_type: 'Bearer', expires_in: 60 }
+    })
+    const config = { config: { tokenPath: '/t', clientId: 'c' }, functions }
+    const first = create(config)
+    const second = create(config)
+
+    await Promise.all([first.checkToken(), second.checkToken()])
+
+    expect(functions.refresh).toHaveBeenCalledTimes(1)
+    expect(first.token().refresh_token).toBe('r2')
+    expect(second.token().refresh_token).toBe('r2')
+    first.dispose()
+    second.dispose()
   })
 })
 

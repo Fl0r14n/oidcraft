@@ -462,7 +462,7 @@ the other tabs, which session storage and memory do not. The README says what th
 injected into the page reads the refresh token.
 
 **FR-L5** — One refresh at a time, across tabs as within one. Two tabs presenting the same refresh
-token is a replay to a provider that rotates (FR-T3), and costs the user the whole grant.
+token is a replay to a provider that rotates (FR-T3), and signs that browser out.
 
 **FR-L6** — A `401` ends the session and its body becomes the token state: the stored value is the
 server's error, so the application renders why it was signed out from the same place it reads the

@@ -23,6 +23,8 @@ export interface StorageStore<T> {
   set: (value: T) => void
   /** re-point at another storage key: load that key's value without writing it back */
   rekey: (key: string) => void
+  /** read the current key again: another tab's write may not have reached this one as an event yet */
+  reload: () => void
   /** start following other tabs' writes to the current key. Returns the teardown. */
   listen: () => () => void
 }
@@ -50,6 +52,7 @@ export const createStorageStore = <T>(initialKey: string, initial: T, map?: (v: 
       key = newKey
       store.setState({ value: seed(newKey) })
     },
+    reload: () => store.setState({ value: seed(key) }),
     listen: () => {
       const onStorage = (event: StorageEvent) => {
         if (event.key !== null && event.key !== key) return

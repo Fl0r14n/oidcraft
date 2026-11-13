@@ -15,6 +15,12 @@ import { watchStore } from './store'
 
 export const isExpiredToken = (token?: OAuthToken) => (token?.expires && Date.now() > token.expires) || false
 
+/** Web Locks span the tabs of an origin, which an in-memory flag cannot; without them, this tab alone (FR-L5). */
+const exclusively = (name: string, task: () => Promise<void>): Promise<void> => {
+  const locks = globalThis.navigator?.locks
+  return locks ? locks.request(name, task) : task()
+}
+
 export interface TokenState {
   type: OAuthType | undefined
   accessToken: string | undefined
@@ -81,8 +87,16 @@ export const createToken = (
   const checkToken = () => {
     if (inFlight) return inFlight
     inFlight = (async () => {
-      const t = token()
-      if (isExpiredToken(t)) {
+      if (!isExpiredToken(token())) {
+        setExpires(token())
+        return
+      }
+      await exclusively(`oidcraft.refresh.${storageKey()}`, async () => {
+        // Another tab may have refreshed while this one waited. Presenting the refresh token it spent
+        // would be a replay to a provider that rotates, and would sign both tabs out (FR-L5, FR-T3).
+        storage.reload()
+        const t = token()
+        if (!isExpiredToken(t)) return
         await autoconfigOauth()
         const refreshed = await functions.refresh(t, config())
         if (refreshed && !isExpiredToken(refreshed)) {
@@ -95,9 +109,7 @@ export const createToken = (
             setExpires({ ...(t.refresh_token && { refresh_token: t.refresh_token }), ...refreshed })
           }
         }
-      } else {
-        setExpires(t)
-      }
+      })
     })().finally(() => {
       inFlight = undefined
     })

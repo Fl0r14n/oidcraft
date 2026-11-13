@@ -9,6 +9,12 @@ lifecycle, refresh, the authorized `fetch` that retries a 401 into token state, 
 derived from the id_token or `userinfo`. It is what `@oidcraft/vue`, `@oidcraft/react` and `@oidcraft/angular`
 are built on, and what a framework without a binding here builds on directly.
 
+Refresh is one at a time across tabs, not only within one: it runs under a Web Lock named after the
+storage key, and reads storage again once it holds it, so a tab that waited takes the token another
+tab just wrote instead of presenting the refresh token that tab spent. A provider that rotates
+refresh tokens treats that as a replay and signs the browser out. Where Web Locks are missing, as
+when rendering on a server, each instance is on its own.
+
 Its consumers are those three and any other browser client. `@oidcraft/provider` uses `@oidcraft/core`
 directly and must never reach this package, which is the entire reason the two are separate rather
 than two entries of one.

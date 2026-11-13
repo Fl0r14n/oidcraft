@@ -91,13 +91,16 @@ issuer is still your configuration. The lower-level pieces are exported too: `no
 
 **mTLS on Node.** With an `https` server that requests client certificates, `nodeContext` supplies
 whatever certificate the client presented — its thumbprint, its subject and issuer as RFC 4514
-names, and `verified`, which is `socket.authorized`: whether the chain checked against your
-listener's `ca`. What each use needs:
+names, its subject alternative names, and `verified`, which is `socket.authorized`: whether the
+chain checked against your listener's `ca`. Set `capabilities: { clientCertificate: true,
+clientCertificateSans: true }`. What each use needs:
 
-- `tls_client_auth` needs `verified`. It matches the subject against the client's registered
-  `tls_client_auth_subject_dn` as names, not strings (RFC 8705 §2.1.2), so spacing, case and the
-  spelling of an attribute type do not matter, the order of RDNs does. Its alternatives — a
-  subject alternative name instead of the subject — are not supported.
+- `tls_client_auth` needs `verified`, and a client registers exactly one name its certificate must
+  carry (RFC 8705 §2.1.2). `tls_client_auth_subject_dn` is compared as a name, not a string, so
+  spacing, case and the spelling of an attribute type do not matter, the order of RDNs does. Or a
+  SAN: `tls_client_auth_san_dns` case-insensitively, `_san_ip` whatever the address's spelling,
+  `_san_email` with its domain case-insensitive and its local part exact, `_san_uri` exactly.
+  Workers supply a certificate's subject but no SANs, so there a client registers its subject DN.
 - `self_signed_tls_client_auth` and certificate-bound tokens (FR-C13) do not. They match the
   thumbprint, and the handshake already proved the client holds that certificate's key. To accept
   self-signed certificates the listener must not reject them: `requestCert: true,

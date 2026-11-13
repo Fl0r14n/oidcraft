@@ -84,7 +84,9 @@ than reading it, so discovery cannot advertise what the code refuses.
 The mTLS methods need the host to pass the _verified_ client certificate in — the core never
 terminates TLS (FR-R4), so it establishes which client presented a certificate, not whether to trust
 it. They are refused at construction, and absent from discovery, where the runtime cannot supply one
-(FR-R5, `G-8`).
+(FR-R5, `G-8`). A `tls_client_auth` client registers exactly one name its certificate must carry:
+its subject DN, or a DNS, URI, IP or email SAN (RFC 8705 §2.1.2). A SAN is refused where the
+runtime supplies certificates without them.
 
 A JWT assertion is checked for its audience, a `jti` that has not been seen, and a lifetime under
 five minutes. The audience is what stops an assertion made out to this provider being replayed at

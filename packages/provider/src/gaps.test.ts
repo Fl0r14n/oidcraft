@@ -327,6 +327,23 @@ describe('FR-C4 and FR-C13: mTLS', () => {
     expect((await response.json()).error).toBe('invalid_grant')
   })
 
+  // RFC 8705 §2.1.2: a SAN instead of the subject, whatever the subject says.
+  test('tls_client_auth authenticates by a registered SAN', async () => {
+    await adapter.clients.upsert?.(client({ tokenEndpointAuthMethod: 'tls_client_auth', tlsClientAuthSanIp: '2001:db8::1' }))
+    const provider = mtlsProvider()
+    const present = (sanIps: string[]) =>
+      provider.handle(
+        new Request(`${ISSUER}/token`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ grant_type: 'authorization_code', client_id: 'rp', code: 'x', redirect_uri: REDIRECT }).toString()
+        }),
+        { clientCertificate: { ...certificate, subjectDn: 'CN=anyone', sanIps } }
+      )
+    expect((await (await present(['2001:DB8:0:0:0:0:0:1'])).json()).error).toBe('invalid_grant')
+    expect((await (await present(['2001:db8::2'])).json()).error).toBe('invalid_client')
+  })
+
   test('a different subject DN is refused', async () => {
     await adapter.clients.upsert?.(client({ tokenEndpointAuthMethod: 'tls_client_auth', tlsClientAuthSubjectDn: 'CN=someone-else' }))
     const provider = mtlsProvider()

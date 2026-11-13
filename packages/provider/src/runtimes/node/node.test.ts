@@ -4,8 +4,8 @@ import { createServer } from 'node:http'
 import { memoryAdapter } from '@oidcraft/adapter/memory'
 import { certificateThumbprint } from '../../binding/mtls'
 import { createProvider } from '../../provider'
-import { nodeContext, toNodeHandler } from './index'
-import { CA_SIGNED, SELF_SIGNED } from './test-certificates'
+import { nodeContext, subjectAltNames, toNodeHandler } from './index'
+import { CA_SIGNED, SAN_CERTIFICATE, SELF_SIGNED } from './test-certificates'
 
 const adapter = await memoryAdapter()
 const provider = createProvider({ interactionUrl: 'https://op.example.com/interaction', issuer: 'http://127.0.0.1:0', adapter })
@@ -91,6 +91,28 @@ describe('nodeContext', () => {
   test('a certificate the listener did not verify still arrives, marked unverified', () => {
     const certificate = nodeContext()(presenting(SELF_SIGNED, false)).clientCertificate
     expect(certificate).toMatchObject({ verified: false, subjectDn: 'CN=self' })
+  })
+
+  // RFC 8705 §2.1.2: what a tls_client_auth client may register its certificate by, besides its subject.
+  test('a certificate arrives with its SANs, a quoted one read whole', () => {
+    expect(nodeContext()(presenting(SAN_CERTIFICATE, true)).clientCertificate).toMatchObject({
+      verified: true,
+      subjectDn: 'CN=rp-san',
+      sanDnsNames: ['RP.Example.COM'],
+      sanUris: ['https://rp.example.com/clients/a,b'],
+      sanIps: ['2001:DB8:0:0:0:0:0:1', '192.0.2.7'],
+      sanEmails: ['Ops@Example.COM']
+    })
+  })
+
+  test('a SAN value with a comma or a quote is JSON-quoted, and read as one value', () => {
+    expect(subjectAltNames('DNS:a.example, URI:"https://x.example/a\\u002cb", URI:"say \\"hi\\"", email:a@b.example')).toEqual([
+      ['DNS', 'a.example'],
+      ['URI', 'https://x.example/a,b'],
+      ['URI', 'say "hi"'],
+      ['email', 'a@b.example']
+    ])
+    expect(subjectAltNames(undefined)).toEqual([])
   })
 
   test('no certificate presented is none', () => {

@@ -20,6 +20,51 @@ const socketOf = (request: IncomingMessage) => request.socket as unknown as TlsS
 /** OpenSSL prints a name one RDN per line, most general first and RFC 2253-escaped; RFC 4514 wants it reversed on one line. */
 const distinguishedName = (printed: string) => printed.split('\n').filter(Boolean).reverse().join(',')
 
+/**
+ * `X509Certificate.subjectAltName` as `[type, value]` pairs. A value holding a comma is printed
+ * JSON-quoted, so the text is read entry by entry rather than split.
+ */
+export const subjectAltNames = (text: string | undefined) => {
+  const entries: [string, string][] = []
+  let at = 0
+  while (text && at < text.length) {
+    const colon = text.indexOf(':', at)
+    if (colon < 0) break
+    const type = text.slice(at, colon).trim()
+    let end = colon + 1
+    let value: string
+    if (text[end] === '"') {
+      let close = end + 1
+      while (close < text.length && text[close] !== '"') close += text[close] === '\\' ? 2 : 1
+      value = JSON.parse(text.slice(end, close + 1))
+      end = close + 1
+    } else {
+      const next = text.indexOf(', ', end)
+      value = next < 0 ? text.slice(end) : text.slice(end, next)
+      end = next < 0 ? text.length : next
+    }
+    entries.push([type, value])
+    at = text.startsWith(', ', end) ? end + 2 : end
+  }
+  return entries
+}
+
+const SAN_FIELDS: Record<string, 'sanDnsNames' | 'sanUris' | 'sanIps' | 'sanEmails'> = {
+  DNS: 'sanDnsNames',
+  URI: 'sanUris',
+  'IP Address': 'sanIps',
+  email: 'sanEmails'
+}
+
+const sansOf = (x509: X509Certificate) => {
+  const sans: Partial<Record<'sanDnsNames' | 'sanUris' | 'sanIps' | 'sanEmails', string[]>> = {}
+  for (const [type, value] of subjectAltNames(x509.subjectAltName)) {
+    const field = SAN_FIELDS[type]
+    if (field) sans[field] = [...(sans[field] ?? []), value]
+  }
+  return sans
+}
+
 const peerCertificate = (socket: TlsSocket): ClientCertificate | undefined => {
   const raw = socket.getPeerCertificate?.(true).raw
   if (!raw?.length) return undefined
@@ -29,7 +74,8 @@ const peerCertificate = (socket: TlsSocket): ClientCertificate | undefined => {
     // Only `authorized` means the chain checked; an unverified certificate still proves its key (RFC 8705 §2.2).
     verified: socket.authorized === true,
     subjectDn: distinguishedName(x509.subject),
-    issuerDn: distinguishedName(x509.issuer)
+    issuerDn: distinguishedName(x509.issuer),
+    ...sansOf(x509)
   }
 }
 

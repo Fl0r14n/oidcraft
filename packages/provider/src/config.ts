@@ -77,9 +77,11 @@ export const DEFAULT_TTL: Ttl = {
 export type Capabilities = {
   /** Whether a `RequestContext.clientCertificate` can ever arrive. False on Bun (`G-8`). */
   clientCertificate: boolean
+  /** Whether that certificate arrives with its SANs: true from `./runtimes/node`, false on Workers (RFC 8705 §2.1.2). */
+  clientCertificateSans: boolean
 }
 
-export const DEFAULT_CAPABILITIES: Capabilities = { clientCertificate: false }
+export const DEFAULT_CAPABILITIES: Capabilities = { clientCertificate: false, clientCertificateSans: false }
 
 export type Features = {
   dynamicRegistration: boolean

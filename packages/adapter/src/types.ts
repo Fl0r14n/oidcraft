@@ -45,8 +45,15 @@ export type Client = ClientCredentials &
     userinfoSignedResponseAlg?: string
     userinfoEncryptedResponseAlg?: string
     userinfoEncryptedResponseEnc?: string
-    /** RFC 8705 §2.1.1: the subject DN the client's certificate must carry. */
+    /**
+     * RFC 8705 §2.1.2: what a `tls_client_auth` client's certificate must carry — exactly one of its
+     * subject DN, or a SAN of one of four types.
+     */
     tlsClientAuthSubjectDn?: string
+    tlsClientAuthSanDns?: string
+    tlsClientAuthSanUri?: string
+    tlsClientAuthSanIp?: string
+    tlsClientAuthSanEmail?: string
     /** OIDC Front-Channel Logout 1.0 §2: whether the iframe URL must carry `iss` and `sid`. */
     frontchannelLogoutSessionRequired?: boolean
     subjectType?: 'public' | 'pairwise'

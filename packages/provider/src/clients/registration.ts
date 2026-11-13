@@ -197,6 +197,24 @@ const assertRegistrable = async (config: ResolvedConfig, client: Client) => {
   if (problems.length) throw invalid(problems.join('; '))
 }
 
+/** RFC 8705 §2.1.2's five registrations, as metadata names to `Client` fields. */
+const TLS_CLIENT_AUTH_METADATA = {
+  tls_client_auth_subject_dn: 'tlsClientAuthSubjectDn',
+  tls_client_auth_san_dns: 'tlsClientAuthSanDns',
+  tls_client_auth_san_uri: 'tlsClientAuthSanUri',
+  tls_client_auth_san_ip: 'tlsClientAuthSanIp',
+  tls_client_auth_san_email: 'tlsClientAuthSanEmail'
+} as const
+
+const tlsClientAuthFrom = (body: Record<string, unknown>) => {
+  const fields: Partial<Pick<Client, (typeof TLS_CLIENT_AUTH_METADATA)[keyof typeof TLS_CLIENT_AUTH_METADATA]>> = {}
+  for (const [name, field] of Object.entries(TLS_CLIENT_AUTH_METADATA)) {
+    const value = stringFrom(body[name], name)
+    if (value !== undefined) fields[field] = value
+  }
+  return fields
+}
+
 const metadataFrom = (config: ResolvedConfig, body: Record<string, unknown>): Client => {
   const applicationType = applicationTypeFrom(body.application_type)
   const redirectUris = validateRedirectUris(body.redirect_uris, applicationType === 'native')
@@ -230,6 +248,7 @@ const metadataFrom = (config: ResolvedConfig, body: Record<string, unknown>): Cl
     // OIDC DCR 1.0 §2: RS256 when omitted, whatever the provider's own default is (FR-T1).
     idTokenSignedResponseAlg: stringFrom(body.id_token_signed_response_alg, 'id_token_signed_response_alg') ?? 'RS256',
     ...keysFrom(body),
+    ...tlsClientAuthFrom(body),
     ...(body.backchannel_logout_uri !== undefined && {
       backchannelLogoutUri: serverUri(body.backchannel_logout_uri, 'backchannel_logout_uri')
     }),
@@ -263,6 +282,11 @@ export const clientResponse = (config: ResolvedConfig, client: Client, registrat
       backchannel_client_notification_endpoint: client.backchannelClientNotificationEndpoint
     }),
     ...(client.idTokenSignedResponseAlg && { id_token_signed_response_alg: client.idTokenSignedResponseAlg }),
+    ...Object.fromEntries(
+      Object.entries(TLS_CLIENT_AUTH_METADATA)
+        .filter(([, field]) => client[field] !== undefined)
+        .map(([name, field]) => [name, client[field]])
+    ),
     client_id_issued_at: Math.floor(client.createdAt.getTime() / 1000),
     ...(registrationAccessToken && {
       registration_access_token: registrationAccessToken,

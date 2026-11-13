@@ -5,10 +5,10 @@ This file is working state: tick items off and add notes as work lands.
 
 ## Status
 
-**Implemented, as of 2026-11-13**, with 1223 passing tests (194 more skip without Postgres and Redis) and `bun run verify` as the gate — everything
+**Implemented, as of 2026-11-13**, with 1235 passing tests (194 more skip without Postgres and Redis) and `bun run verify` as the gate — everything
 below, FR-T6, FR-C21 and FR-A4's Postgres included. Published as `@oidcraft/*` (the move below), with
 the docs site at https://fl0r14n.github.io/oidcraft/. Items 1–12 under _Next_ are done, the 2026-11-12
-review included; what it changed is not yet released. Item 13, `tls_client_auth` by SAN, is open.
+review and `tls_client_auth` by SAN included; neither is released yet.
 
 The authorization code grant with mandatory PKCE, interaction suspend/resume, token issuance with
 rotation and replay revocation, UserInfo, revocation, introspection, logout in both directions,
@@ -370,7 +370,7 @@ What is _not_ claimed: see the status section. Implemented is not the same as ce
 11. ~~Adapters as packages~~ — done 2026-11-11, ahead of 1.0: `@oidcraft/adapter` with
     `@oidcraft/drizzle`, `kysely`, `typeorm` and `redis` on it, released (below).
 12. ~~What the 2026-11-12 review found~~ — done 2026-11-13, every item below.
-13. **`tls_client_auth` by SAN** — planned below.
+13. ~~`tls_client_auth` by SAN~~ — done 2026-11-13.
 
 ## Review — 2026-11-12
 
@@ -827,28 +827,33 @@ shape and why are ARCHITECTURE.md §2.1.
   (with `TokenAuthMethod` derived from it), and `tokenAuthMethod` renamed `tokenEndpointAuthMethod`
   everywhere, core included, so core goes to `0.2.0`. `@oidcraft/adapter` depends on core for it
 
-## `tls_client_auth` by SAN (RFC 8705 §2.1.2) — planned
+## `tls_client_auth` by SAN (RFC 8705 §2.1.2) — done 2026-11-13
 
-Planned 2026-11-11, not started. Today a `tls_client_auth` client can only register
+Planned 2026-11-11. Today a `tls_client_auth` client can only register
 `tls_client_auth_subject_dn`. RFC 8705 §2.1.2 allows exactly one of five: the subject DN, or a
 `tls_client_auth_san_dns`, `_san_uri`, `_san_ip` or `_san_email` entry the certificate must carry.
 
-- [ ] `Client` in `@oidcraft/adapter` gains `tlsClientAuthSanDns`, `tlsClientAuthSanUri`,
+- [x] `Client` in `@oidcraft/adapter` gains `tlsClientAuthSanDns`, `tlsClientAuthSanUri`,
   `tlsClientAuthSanIp`, `tlsClientAuthSanEmail`. Clients are stored as JSON, so no migration; a
   minor release of `adapter` and the provider, none of the four adapters
-- [ ] `ClientCertificate` gains `sanIps` and `sanEmails` beside the existing `sanDnsNames` and `sanUris`
-- [ ] `./runtimes/node` fills all four from `X509Certificate.subjectAltName`, which quotes a value
+- [x] `ClientCertificate` gains `sanIps` and `sanEmails` beside the existing `sanDnsNames` and `sanUris`
+- [x] `./runtimes/node` fills all four from `X509Certificate.subjectAltName`, which quotes a value
   containing a comma, so it is parsed rather than split
-- [ ] `binding/mtls.ts` matches each type as it compares: DNS case-insensitive, an IP normalised (one
+- [x] `binding/mtls.ts` matches each type as it compares: DNS case-insensitive, an IP normalised (one
   IPv6 address has many spellings), an email's domain case-insensitive and its local part exact, a URI
   exact. Still only on a `verified` certificate (FR-R4)
-- [ ] Registration (DCR, RFC 7592, the management API) accepts the four, refuses a client with none
+- [x] Registration (DCR, RFC 7592, the management API) accepts the four, refuses a client with none
   or more than one of the five, and echoes them; `fapiClientProblems` applies the same rule
-- [ ] Workers expose the subject and issuer but no SANs, and Bun no certificate (G-8): construction
+- [x] Workers expose the subject and issuer but no SANs, and Bun no certificate (G-8): construction
   refuses a SAN-registered client where the runtime cannot supply SANs, as FR-R5 already does for
   the mTLS methods where no certificate can be
-- [ ] Tests: each comparison, the exactly-one rule, and Node over real TLS with a certificate per SAN
+- [x] Tests: each comparison, the exactly-one rule, and Node over real TLS with a certificate per SAN
   type, as the subject-DN case is tested today. FR-C4 names the five registrations
+  Done, with two departures: the runtime limit is a capability, `clientCertificateSans`, that
+  validation reads, since construction never sees stored clients; and the exactly-one rule lives in
+  `clientProblems` and in `matchesTlsClientAuth` itself, which refuses at request time any client
+  that reached storage another way, rather than in `fapiClientProblems` as well. Node is tested
+  through a stand-in socket carrying a real SAN certificate, Bun's TLS handing over none (G-8)
 
 Not in it: a certificate forwarded by a proxy in a header, which G-8 decided against until an
 mTLS-only deployment on Bun needs it.

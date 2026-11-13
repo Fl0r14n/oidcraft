@@ -104,19 +104,58 @@ const sameDistinguishedName = (a: string, b: string) => {
   return Boolean(left && right && JSON.stringify(left) === JSON.stringify(right))
 }
 
+/** RFC 8705 §2.1.2: a `tls_client_auth` client registers exactly one of these. */
+export const TLS_CLIENT_AUTH_NAMES = [
+  'tlsClientAuthSubjectDn',
+  'tlsClientAuthSanDns',
+  'tlsClientAuthSanUri',
+  'tlsClientAuthSanIp',
+  'tlsClientAuthSanEmail'
+] as const
+
+export const registeredNames = (client: Client) => TLS_CLIENT_AUTH_NAMES.filter(name => client[name] !== undefined)
+
+/** One IPv6 address has many spellings; a URL host has one (RFC 5952). Undefined for anything not an IP literal. */
+export const canonicalIp = (ip: string) => {
+  const host = ip.includes(':') ? `[${ip}]` : ip
+  if (!/^(\d{1,3}(\.\d{1,3}){3}|\[[0-9a-fA-F:.]+\])$/.test(host)) return undefined
+  return URL.canParse(`http://${host}/`) ? new URL(`http://${host}/`).hostname : undefined
+}
+
+/** RFC 5321 §2.4: the domain is case-insensitive, the local part is the recipient's to interpret. */
+const sameEmail = (a: string, b: string) => {
+  const [localA, domainA] = [a.slice(0, a.lastIndexOf('@')), a.slice(a.lastIndexOf('@') + 1)]
+  const [localB, domainB] = [b.slice(0, b.lastIndexOf('@')), b.slice(b.lastIndexOf('@') + 1)]
+  return a.includes('@') && localA === localB && domainA.toLowerCase() === domainB.toLowerCase()
+}
+
+const carries = (values: string[] | undefined, registered: string, same: (a: string, b: string) => boolean) =>
+  (values ?? []).some(value => same(value, registered))
+
 /**
  * `tls_client_auth` (RFC 8705 §2.1): the client is whoever holds a certificate, issued by a CA the
- * listener trusts, whose subject matches the one on record — compared as names, not strings
- * (RFC 8705 §2.1.2). An unverified certificate never qualifies: only the chain makes its subject
- * mean anything (FR-R4).
+ * listener trusts, carrying the one name it registered (§2.1.2) — a subject compared as a name, a
+ * DNS name case-insensitively, an IP whatever its spelling, an email by its domain case-insensitively,
+ * a URI exactly. An unverified certificate never qualifies: only the chain makes a name mean anything
+ * (FR-R4). Nor does a client with no name, or more than one, on record.
  */
-export const matchesSubjectDn = (client: Client, certificate: ClientCertificate) =>
-  Boolean(
-    certificate.verified &&
-      client.tlsClientAuthSubjectDn &&
-      certificate.subjectDn &&
-      sameDistinguishedName(client.tlsClientAuthSubjectDn, certificate.subjectDn)
-  )
+export const matchesTlsClientAuth = (client: Client, certificate: ClientCertificate) => {
+  const [name, ...others] = registeredNames(client)
+  const registered = name && client[name]
+  if (!certificate.verified || !registered || others.length) return false
+  switch (name) {
+    case 'tlsClientAuthSubjectDn':
+      return Boolean(certificate.subjectDn && sameDistinguishedName(registered, certificate.subjectDn))
+    case 'tlsClientAuthSanDns':
+      return carries(certificate.sanDnsNames, registered, (a, b) => a.toLowerCase() === b.toLowerCase())
+    case 'tlsClientAuthSanUri':
+      return carries(certificate.sanUris, registered, (a, b) => a === b)
+    case 'tlsClientAuthSanIp':
+      return carries(certificate.sanIps, registered, (a, b) => canonicalIp(a) !== undefined && canonicalIp(a) === canonicalIp(b))
+    case 'tlsClientAuthSanEmail':
+      return carries(certificate.sanEmails, registered, sameEmail)
+  }
+}
 
 /**
  * `self_signed_tls_client_auth` (RFC 8705 §2.2): no chain to check, so identity rests entirely on

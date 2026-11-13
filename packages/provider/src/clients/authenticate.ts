@@ -1,7 +1,7 @@
 import { type Client, hashClientSecret } from '@oidcraft/adapter'
 import { constantTimeEquals } from '@oidcraft/core'
 import { decodeJwt } from 'jose'
-import { matchesRegisteredCertificate, matchesSubjectDn } from '../binding/mtls'
+import { matchesRegisteredCertificate, matchesTlsClientAuth } from '../binding/mtls'
 import type { ResolvedConfig } from '../config'
 import type { ClientCertificate } from '../context'
 import type { Caller } from '../cors'
@@ -96,7 +96,7 @@ export const authenticateClient = async (
     // tls_client_auth trusts a subject only on a chain the listener verified; the self-signed method
     // trusts the registered certificate itself, which the handshake proved the client holds (RFC 8705 §2).
     if (!certificate) throw unauthorized(`client ${clientId} must authenticate with ${method}, and no client certificate was presented`)
-    const ok = method === 'tls_client_auth' ? matchesSubjectDn(client, certificate) : matchesRegisteredCertificate(client, certificate)
+    const ok = method === 'tls_client_auth' ? matchesTlsClientAuth(client, certificate) : matchesRegisteredCertificate(client, certificate)
     if (!ok) throw unauthorized('the client certificate does not match the one registered for this client', 'RFC 8705 §2')
     return { client, method }
   }

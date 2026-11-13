@@ -35,6 +35,8 @@ export type ClientCertificate = {
   issuerDn?: string | undefined
   sanDnsNames?: string[] | undefined
   sanUris?: string[] | undefined
+  sanIps?: string[] | undefined
+  sanEmails?: string[] | undefined
 }
 
 /** Builds the context for one request. Each runtime entry exports one of these. */

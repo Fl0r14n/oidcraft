@@ -564,3 +564,50 @@ describe('registration management (RFC 7592)', () => {
     expect(await unknown.json()).toEqual(await wrong.json())
   })
 })
+
+// RFC 8705 §2.1.2: a tls_client_auth client names exactly one thing its certificate must carry.
+describe('tls_client_auth registration', () => {
+  const mtls = (clientCertificateSans: boolean) => {
+    provider = createProvider({
+      interactionUrl: 'https://op.example.com/interaction',
+      issuer: ISSUER,
+      adapter,
+      features: { dynamicRegistration: true },
+      clientAuthMethods: ['tls_client_auth'],
+      capabilities: { clientCertificate: true, clientCertificateSans }
+    })
+  }
+  const asMtls = (names: Record<string, string>) => ({ ...valid, token_endpoint_auth_method: 'tls_client_auth', ...names })
+
+  test('a SAN is stored and echoed', async () => {
+    mtls(true)
+    const response = await register(asMtls({ tls_client_auth_san_dns: 'rp.example.com' }))
+    expect(response.status).toBe(201)
+    const body = await response.json()
+    expect(body.tls_client_auth_san_dns).toBe('rp.example.com')
+    expect((await adapter.clients.find(body.client_id))?.tlsClientAuthSanDns).toBe('rp.example.com')
+  })
+
+  test('none, or more than one, is refused', async () => {
+    mtls(true)
+    const none = await register(asMtls({}))
+    expect((await none.json()).error_description).toContain('exactly one')
+    const two = await register(asMtls({ tls_client_auth_subject_dn: 'CN=rp', tls_client_auth_san_dns: 'rp.example.com' }))
+    expect((await two.json()).error_description).toContain('exactly one')
+  })
+
+  test('a SAN is refused where the runtime supplies none, and the subject DN is not', async () => {
+    mtls(false)
+    expect((await (await register(asMtls({ tls_client_auth_san_uri: 'https://rp.example.com/id' }))).json()).error_description).toContain(
+      'no certificate SANs'
+    )
+    expect((await register(asMtls({ tls_client_auth_subject_dn: 'CN=rp' }))).status).toBe(201)
+  })
+
+  test('an IP SAN must be an IP address', async () => {
+    mtls(true)
+    expect((await (await register(asMtls({ tls_client_auth_san_ip: 'rp.example.com' }))).json()).error_description).toContain(
+      'not an IP address'
+    )
+  })
+})

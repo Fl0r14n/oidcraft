@@ -79,7 +79,7 @@ release above. In fix order.
 
 **Correctness**
 
-- [ ] `upstreamLogout` throwing loses the back-channel notifications of a session already destroyed;
+- [x] `upstreamLogout` throwing loses the back-channel notifications of a session already destroyed;
   a malformed stored `frontchannelLogoutUri` blocks logout with a 500; `id_token_hint`'s `typ` is
   not checked
 - [ ] Revocation racing a refresh: the FAPI rewrite can resurrect a revoked token, a rotated one can

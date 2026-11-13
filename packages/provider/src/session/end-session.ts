@@ -34,7 +34,8 @@ const verifyHint = async (config: ResolvedConfig, hint: string) => {
   const jwks = createLocalJWKSet(jwksResponseBody(await config.adapter.keys.active()) as never)
   try {
     // §2: a hint has usually expired and need only prove this provider issued it, so its lifetime is not checked.
-    const { payload } = await jwtVerify(hint, jwks, { issuer: config.issuer, clockTolerance: Number.MAX_SAFE_INTEGER })
+    // `typ` JWT is what this provider stamps on ID tokens alone; a logout token or a JWT access token is no hint.
+    const { payload } = await jwtVerify(hint, jwks, { issuer: config.issuer, typ: 'JWT', clockTolerance: Number.MAX_SAFE_INTEGER })
     return payload
   } catch {
     throw new OAuthError('invalid_request', {
@@ -82,7 +83,7 @@ export const endSessionEndpoint = async (
   const state = params.get('state')
   const then = target === undefined ? undefined : withState(target, state)
   // FR-F8: a brokered session is signed out upstream too, when the host continues it there.
-  const upstream = session?.idp && config.upstreamLogout ? await config.upstreamLogout(session, then) : undefined
+  const upstream = session?.idp ? await signOutUpstream(config, request, session, then) : undefined
   const location = upstream ?? then
 
   if (!location) {
@@ -91,6 +92,16 @@ export const endSessionEndpoint = async (
   }
   headers.set('location', location)
   return { response: new Response(null, { status: 303, headers }), notifications, frontChannel }
+}
+
+// FR-C11: the session is already gone, so a failing host hook must not cost the notifications that end it at its clients.
+const signOutUpstream = async (config: ResolvedConfig, request: Request, session: Session, then: string | undefined) => {
+  try {
+    return await config.upstreamLogout?.(session, then)
+  } catch (error) {
+    await Promise.resolve(config.onError?.(error, { request })).catch(() => undefined)
+    return undefined
+  }
 }
 
 const askToConfirm = async (

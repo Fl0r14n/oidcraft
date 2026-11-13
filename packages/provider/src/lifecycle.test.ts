@@ -237,6 +237,33 @@ describe('end session', () => {
     expect(location.searchParams.get('state')).toBe('s1')
   })
 
+  // OIDC RP-Initiated Logout 1.0 §2: the hint is an ID token; another JWT this provider signed is not one.
+  test('a logout token is no id_token_hint', async () => {
+    await adapter.clients.upsert?.(client({ backchannelLogoutUri: 'https://rp.example.com/bc' }))
+    const first = await tokens()
+    await provider.handle(new Request(`${ISSUER}/session/end?id_token_hint=${first.id_token}`, { headers: { cookie: first.cookie } }))
+    const logoutToken = delivered[0]?.logoutToken as string
+    expect(logoutToken).toBeString()
+
+    for (const grant of await adapter.grants.listForAccount('ada')) await adapter.grants.destroy(grant.id)
+    const second = await tokens()
+    const response = await provider.handle(
+      new Request(`${ISSUER}/session/end?id_token_hint=${logoutToken}`, { headers: { cookie: second.cookie } })
+    )
+    expect(response.status).toBe(400)
+    expect(await adapter.sessions.listForAccount('ada')).toHaveLength(1)
+  })
+
+  test('a stored front-channel URI that does not parse does not stop the logout', async () => {
+    await adapter.clients.upsert?.(client({ frontchannelLogoutUri: 'not a url' }))
+    const issued = await tokens()
+    const response = await provider.handle(
+      new Request(`${ISSUER}/session/end?id_token_hint=${issued.id_token}`, { headers: { cookie: issued.cookie } })
+    )
+    expect(response.status).toBe(200)
+    expect(await adapter.sessions.listForAccount('ada')).toHaveLength(0)
+  })
+
   // FR-F8: the host continues a brokered session's logout at its upstream; the core only hands over.
   describe('upstreamLogout', () => {
     const hooked = () => {
@@ -259,6 +286,34 @@ describe('end session', () => {
           { headers: { cookie: issued.cookie } }
         )
       )
+
+    test('a throwing hook is reported, and the logout and its notifications still happen', async () => {
+      const reported: unknown[] = []
+      await adapter.clients.upsert?.(client({ backchannelLogoutUri: 'https://rp.example.com/bc' }))
+      provider = createProvider({
+        issuer: ISSUER,
+        adapter,
+        interactionUrl: `${ISSUER}/interaction`,
+        onLogout: notifications => {
+          delivered = notifications
+        },
+        onError: error => {
+          reported.push(error)
+        },
+        upstreamLogout: async () => {
+          throw new Error('upstream down')
+        }
+      })
+      const issued = await tokens()
+      const [session] = await adapter.sessions.listForAccount('ada')
+      await adapter.sessions.upsert({ ...(session as NonNullable<typeof session>), idp: 'upstream' })
+
+      const response = await endWithRedirect(issued)
+      expect(response.status).toBe(303)
+      expect(response.headers.get('location')).toBe('https://rp.example.com/bye?state=s1')
+      expect(delivered.map(notification => notification.clientId)).toEqual(['rp'])
+      expect((reported[0] as Error).message).toBe('upstream down')
+    })
 
     test('sends a brokered session to the upstream, handing over where it was going', async () => {
       const calls = hooked()

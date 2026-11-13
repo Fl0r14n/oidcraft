@@ -14,7 +14,8 @@ export const frontChannelLogouts = async (config: ResolvedConfig, session: Sessi
   const out: FrontChannelLogout[] = []
   for (const clientId of session.clients) {
     const client = await config.adapter.clients.find(clientId)
-    if (!client?.frontchannelLogoutUri) continue
+    // One stored URI that does not parse must not keep the others, or the logout, from happening.
+    if (!client?.frontchannelLogoutUri || !URL.canParse(client.frontchannelLogoutUri)) continue
     const uri = new URL(client.frontchannelLogoutUri)
     if (client.frontchannelLogoutSessionRequired) {
       uri.searchParams.set('iss', config.issuer)

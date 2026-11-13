@@ -426,7 +426,7 @@ with a throwaway test. Several predate this week's work and shipped in 0.3.0. In
 - [x] The client's authorized `fetch` and the axios interceptors send the bearer token to any origin,
   and store any 401 body whole as the token state, from any origin. Limit both to the configured
   resource origins; keep only `error` and `error_description`. RFC 9700 §2.3, FR-L6
-- [ ] A refresh response without `expires_in` is dropped (`client/src/token.ts` `setExpires`), so a
+- [x] A refresh response without `expires_in` is dropped (`client/src/token.ts` `setExpires`), so a
   rotated refresh token is lost and the old one replayed, which ends the session. FR-L5. Probe
 - [ ] A brokered session's `auth_time` is set locally: the login result carries none, so `max_age`
   is never enforced against the upstream's answer. FR-F6, FR-F9
@@ -444,7 +444,7 @@ with a throwaway test. Several predate this week's work and shipped in 0.3.0. In
   read before the verify, so a racing reset or TOTP change can be undone. The write-back is gone with the lockout rework
   (2026-11-13): counting no longer touches the credential, and the recovery path reads it again; the
   reset half is open
-- [ ] Client: the refresh drops `id_token`; redirect classification matches `?barcode=`; `unreachable`
+- [ ] Client: ~~the refresh drops `id_token`~~ (kept since 2026-11-13, with the `expires_in` fix); redirect classification matches `?barcode=`; `unreachable`
   is inferred from an echo; the handoff shares the token slot, so a login in one tab ends the others;
   a URL passed to `oauthCallback` is not cleaned; a non-redirecting logout and the refresh lock have
   no timeout; a storage key changed mid-refresh; an expired ID token becomes a truthy profile;

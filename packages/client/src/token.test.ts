@@ -80,6 +80,16 @@ describe('checkToken', () => {
     expect(oauth.token().access_token).toBe('fresh')
   })
 
+  // FR-L5: expires_in is RECOMMENDED, not required (RFC 6749 §5.1); a provider that leaves it out still rotated.
+  it('keeps a refresh response that says nothing of when it expires', async () => {
+    refresh.mockResolvedValue({ access_token: 'fresh', refresh_token: 'r2' })
+    oauth.setToken({ refresh_token: 'r', access_token: 'stale', id_token: 'id', expires: Date.now() - 10_000 })
+
+    await oauth.checkToken()
+
+    expect(oauth.token()).toMatchObject({ access_token: 'fresh', refresh_token: 'r2', id_token: 'id' })
+  })
+
   it('derives expires from expires_in on a token that has none', async () => {
     oauth.setToken({ access_token: 'live', expires_in: 60 })
 

@@ -82,11 +82,14 @@ export const createToken = (
     if (discovered) setConfig(applyDiscovery(c, discovered))
   }
 
-  const setExpires = (t: OAuthToken) => {
+  const withExpiry = (t: OAuthToken) => {
     const expiresIn = Number(t?.expires_in) || 0
-    if (expiresIn && !t.expires) {
-      setToken({ ...t, expires: Date.now() + expiresIn * 1e3 })
-    }
+    return expiresIn && !t.expires ? { ...t, expires: Date.now() + expiresIn * 1e3 } : t
+  }
+
+  const setExpires = (t: OAuthToken) => {
+    const dated = withExpiry(t)
+    if (dated !== t) setToken(dated)
   }
 
   let inFlight: Promise<void> | undefined
@@ -112,8 +115,11 @@ export const createToken = (
             // does, so the dead token is dropped rather than retried forever
             setToken(refreshed)
           } else {
-            // keep the old refresh token: the response is not required to include a new one
-            setExpires({ ...(t.refresh_token && { refresh_token: t.refresh_token }), ...refreshed })
+            // Stored whether or not it says when it expires: dropped, a rotated refresh token is lost
+            // and the spent one replayed, which ends the session (FR-L5). A refresh response need not
+            // repeat the refresh token or the ID token (RFC 6749 §6, OIDC Core §12.2), so both are kept.
+            const kept = { ...(t.refresh_token && { refresh_token: t.refresh_token }), ...(t.id_token && { id_token: t.id_token }) }
+            setToken(withExpiry({ ...kept, ...refreshed }))
           }
         }
       })

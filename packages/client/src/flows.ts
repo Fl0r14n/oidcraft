@@ -23,6 +23,24 @@ import type { RedirectOptions } from './types'
 /** RFC 6749 §4.1.2 and §4.1.2.1, RFC 9207, OIDC Session Management: what a code callback adds to the URL. */
 const CALLBACK_PARAMETERS = ['code', 'state', 'iss', 'session_state', 'error', 'error_description', 'error_uri']
 
+/** Milliseconds a redirecting logout waits for revocation before it signs out regardless. */
+const REVOCATION_PATIENCE = 3_000
+
+const settledWithin = async (ms: number, task: () => unknown) => {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const elapsed = new Promise<void>(resolve => {
+    timer = setTimeout(resolve, ms)
+  })
+  const settled = Promise.resolve()
+    .then(task)
+    .then(
+      () => undefined,
+      () => undefined
+    )
+  await Promise.race([settled, elapsed])
+  clearTimeout(timer)
+}
+
 /** A callback that ended without a token becomes the token state, so the app renders why from where it reads the token (FR-L6). */
 const failureState = (failure: Exclude<AuthorizationResult, { ok: true }>): OAuthToken => {
   if (failure.reason === 'refused') {
@@ -84,12 +102,8 @@ export const createFlows = (
       if (id_token) params.set('id_token_hint', id_token)
       if (logoutState) params.set('state', logoutState)
       // Ending the session at the provider leaves an offline refresh token working; revoked first, and
-      // a failure to revoke does not stand between the person and signing out.
-      try {
-        await functions.revoke(token(), config())
-      } catch {
-        // signing out goes ahead
-      }
+      // neither a failure to revoke nor an endpoint that hangs stands between the person and signing out.
+      await settledWithin(REVOCATION_PATIENCE, () => functions.revoke(token(), config()))
       setToken({})
       const url = `${logoutPath}${logoutPath.includes('?') ? '&' : '?'}${params}`
       if (redirect) {
@@ -108,8 +122,11 @@ export const createFlows = (
   /** The code or tokens in the address bar would outlive the callback in history and in a shared link. */
   const forgetCallback = (flow: 'code' | 'implicit') => {
     const url = new URL(globalThis.location.href)
-    if (flow === 'implicit') url.hash = ''
-    else for (const name of CALLBACK_PARAMETERS) url.searchParams.delete(name)
+    for (const name of CALLBACK_PARAMETERS) url.searchParams.delete(name)
+    // An implicit response is all fragment; a code can arrive there too, under response_mode=fragment.
+    const fragment = new URLSearchParams(url.hash.slice(1))
+    for (const name of CALLBACK_PARAMETERS) fragment.delete(name)
+    url.hash = flow === 'implicit' ? '' : fragment.toString()
     globalThis.history?.replaceState(globalThis.history.state, '', url.toString())
   }
 

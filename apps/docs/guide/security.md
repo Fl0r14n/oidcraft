@@ -212,6 +212,9 @@ not:
   `client_secret_basic` or `client_secret_post`: registration and `management.clients.create` return
   a generated one once, and a lost one is replaced with `management.clients.rotateSecret`. A client
   you seed through the adapter yourself stores `clientSecretHash: await hashClientSecret(secret)`.
+  The hash is unsalted, which protects a generated secret and not a short chosen one, so the
+  management API refuses a supplied secret under 32 characters; seed generated ones too. Management
+  never hands a hash out.
   `client_secret_jwt` keeps its secret readable, as the HMAC key it is, which is a reason to prefer
   `private_key_jwt`.
 - **Logs (NFR-S10).** No secret is ever logged. A token appears in a log, if at all, as a prefix and

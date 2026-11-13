@@ -6,6 +6,19 @@ const HASHED: ReadonlySet<ClientAuthMethod> = new Set<ClientAuthMethod>(['client
 /** How a method keeps its secret: `hashed` compares a digest, `key` is `client_secret_jwt`'s HMAC key and must be readable (NFR-S11). */
 export const secretKind = (method: ClientAuthMethod) => (HASHED.has(method) ? 'hashed' : method === 'client_secret_jwt' ? 'key' : undefined)
 
+/**
+ * A generated secret is 288 random bits, so an unsalted hash of it hides it; one a host chooses is
+ * only as strong as its length, and a short one is guessed from its hash (NFR-S11). As long as an
+ * HS256 key must be, too (RFC 7518 §3.2).
+ */
+export const MIN_SUPPLIED_SECRET_LENGTH = 32
+
+export const assertSuppliedSecret = (secret: string | undefined) => {
+  if (secret !== undefined && secret.length < MIN_SUPPLIED_SECRET_LENGTH) {
+    throw new Error(`a client secret must be at least ${MIN_SUPPLIED_SECRET_LENGTH} characters; leave it out to have one generated`)
+  }
+}
+
 const without = (client: Client) => {
   const { clientSecret: _secret, clientSecretHash: _hash, ...rest } = client
   return rest as Client

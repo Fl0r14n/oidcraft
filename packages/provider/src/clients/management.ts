@@ -4,12 +4,17 @@ import { audit } from '../audit'
 import type { ResolvedConfig } from '../config'
 import { deleteClient } from './delete'
 import { clientResponse } from './registration'
-import { rotatedSecret, storableSecret } from './secret'
+import { assertSuppliedSecret, rotatedSecret, storableSecret } from './secret'
 import { clientProblems } from './validate'
 
 export type ManagementClientInput = Omit<Client, keyof Timestamped | 'registrationAccessToken' | 'clientSecretHash'> & {
   clientId?: string
 }
+
+/** A client as management hands it out: never the hash of its secret or of its registration access token (NFR-S11). */
+export type ManagedClient = Omit<Client, 'clientSecretHash' | 'registrationAccessToken'>
+
+const managed = ({ clientSecretHash: _secret, registrationAccessToken: _token, ...client }: Client): ManagedClient => client
 
 const assertValid = (config: ResolvedConfig, client: Client) => {
   const problems = clientProblems(config, client)
@@ -19,16 +24,19 @@ const assertValid = (config: ResolvedConfig, client: Client) => {
 export const clientManagement = (config: ResolvedConfig) => ({
   async list(cursor?: string, limit?: number) {
     if (!config.adapter.clients.list) throw new Error('this adapter cannot list clients')
-    return config.adapter.clients.list(cursor, limit)
+    const page = await config.adapter.clients.list(cursor, limit)
+    return { ...page, clients: page.clients.map(managed) }
   },
 
   async get(clientId: string) {
-    return config.adapter.clients.find(clientId)
+    const client = await config.adapter.clients.find(clientId)
+    return client && managed(client)
   },
 
   /** The stored client, carrying a generated secret this once: a hashed one cannot be read back (NFR-S11). */
   async create(input: ManagementClientInput) {
     if (!config.adapter.clients.upsert) throw new Error('this adapter cannot create clients')
+    assertSuppliedSecret(input.clientSecret)
     const now = new Date()
     const { client, issued } = await storableSecret(
       { ...input, clientId: input.clientId ?? randomString(), requirePkce: input.requirePkce !== false, createdAt: now, updatedAt: now },
@@ -38,13 +46,14 @@ export const clientManagement = (config: ResolvedConfig) => ({
     if (await config.adapter.clients.find(client.clientId)) throw new Error(`client ${client.clientId} already exists`)
     await config.adapter.clients.upsert(client)
     await audit(config, 'client.create', { clientId: client.clientId })
-    return { ...client, ...(issued && { clientSecret: issued }) }
+    return { ...managed(client), ...(issued && { clientSecret: issued }) }
   },
 
   async update(clientId: string, patch: Partial<Omit<Client, 'clientSecretHash'>>) {
     if (!config.adapter.clients.upsert) throw new Error('this adapter cannot update clients')
     const existing = await config.adapter.clients.find(clientId)
     if (!existing) throw new Error(`client ${clientId} does not exist`)
+    assertSuppliedSecret(patch.clientSecret)
     const { client: updated } = await storableSecret({ ...existing, ...patch, clientId, updatedAt: new Date() }, false)
     assertValid(config, updated)
     await config.adapter.clients.upsert(updated)
@@ -71,7 +80,7 @@ export const clientManagement = (config: ResolvedConfig) => ({
   },
 
   /** What a client sees of itself, for an admin screen that mirrors the registration response. */
-  describe(client: Client) {
+  describe(client: ManagedClient) {
     return clientResponse(config, client)
   }
 })

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { memoryAdapter } from '@oidcraft/adapter/memory'
-import { createAccounts, generateSecretKey, hotp, type PasswordHasher } from './index'
+import { addressBucket, createAccounts, generateSecretKey, hotp, type PasswordHasher } from './index'
 import { open } from './sealed'
 import { counterAt, fromBase32 } from './totp'
 
@@ -97,6 +97,22 @@ describe('passwords', () => {
         for (let i = 0; i < 2; i++) await accounts.authenticate('ada', 'nope nope', at(`192.0.2.${address}`))
       }
       expect(await accounts.authenticate('ada', 'correct horse', at('198.51.100.1'))).toMatchObject({ ok: false, reason: 'locked' })
+    })
+
+    test('the owner signing in does not restart a guess spread over many addresses', async () => {
+      const { accounts } = await setup()
+      await accounts.register({ username: 'ada', password: 'correct horse' })
+      for (let address = 0; address < 49; address++) await accounts.authenticate('ada', 'nope nope', at(`192.0.2.${address}`))
+      expect(await accounts.authenticate('ada', 'correct horse', at('198.51.100.1'))).toMatchObject({ ok: true })
+      expect(await accounts.authenticate('ada', 'nope nope', at('192.0.2.200'))).toMatchObject({ ok: false, reason: 'locked' })
+    })
+
+    test('an IPv6 guesser is counted by its /64, not address by address', async () => {
+      const { accounts } = await setup()
+      await accounts.register({ username: 'ada', password: 'correct horse' })
+      for (let host = 1; host <= 4; host++) await accounts.authenticate('ada', 'nope nope', at(`2001:db8:1:2::${host}`))
+      expect(await accounts.authenticate('ada', 'nope nope', at('2001:db8:1:2:ffff::9'))).toMatchObject({ ok: false, reason: 'locked' })
+      expect(await accounts.authenticate('ada', 'correct horse', at('2001:db8:1:3::1'))).toMatchObject({ ok: true })
     })
 
     test('signing in clears that address’s count', async () => {
@@ -217,5 +233,16 @@ describe('password reset', () => {
     await accounts.register({ username: 'ada', password: 'correct horse' })
     const issued = await accounts.reset.issue('ada')
     expect(await adapter.artifacts.find('password_reset', issued?.token as string)).toBeUndefined()
+  })
+})
+
+describe('addressBucket', () => {
+  test('an IPv4 address is itself; an IPv6 one its /64, however it is written', () => {
+    expect(addressBucket('192.0.2.7')).toBe('192.0.2.7')
+    expect(addressBucket('2001:db8:1:2::9')).toBe('2001:db8:1:2::/64')
+    expect(addressBucket('2001:0DB8:0001:0002:0000:0000:0000:0009')).toBe('2001:db8:1:2::/64')
+    expect(addressBucket('[2001:db8::1]')).toBe('2001:db8:0:0::/64')
+    expect(addressBucket('fe80::1%eth0')).toBe('fe80:0:0:0::/64')
+    expect(addressBucket('::ffff:192.0.2.7')).toBe('192.0.2.7')
   })
 })

@@ -263,7 +263,12 @@ const metadataFrom = (config: ResolvedConfig, body: Record<string, unknown>): Cl
  * The registration access token and a hashed client secret are stored as digests, so a response
  * carries one only when the caller holds it or it was just issued (NFR-S11).
  */
-export const clientResponse = (config: ResolvedConfig, client: Client, registrationAccessToken?: string, issuedSecret?: string) => {
+export const clientResponse = (
+  config: ResolvedConfig,
+  client: Omit<Client, 'clientSecretHash' | 'registrationAccessToken'>,
+  registrationAccessToken?: string,
+  issuedSecret?: string
+) => {
   const secret = issuedSecret ?? client.clientSecret
   return {
     client_id: client.clientId,

@@ -5,10 +5,11 @@ This file is working state: tick items off and add notes as work lands.
 
 ## Status
 
-**Implemented, as of 2026-11-13**, with 1235 passing tests (194 more skip without Postgres and Redis) and `bun run verify` as the gate — everything
+**Implemented, as of 2026-11-13**, with 1243 passing tests (190 more skip without Postgres and Redis) and `bun run verify` as the gate — everything
 below, FR-T6, FR-C21 and FR-A4's Postgres included. Published as `@oidcraft/*` (the move below), with
 the docs site at https://fl0r14n.github.io/oidcraft/. Items 1–12 under _Next_ are done, the 2026-11-12
-review and `tls_client_auth` by SAN included; neither is released yet.
+review and `tls_client_auth` by SAN included; neither is released yet. Items 14 and 15 are open: the
+follow-ups a re-read of that work found, and the release itself.
 
 The authorization code grant with mandatory PKCE, interaction suspend/resume, token issuance with
 rotation and replay revocation, UserInfo, revocation, introspection, logout in both directions,
@@ -371,6 +372,8 @@ What is _not_ claimed: see the status section. Implemented is not the same as ce
     `@oidcraft/drizzle`, `kysely`, `typeorm` and `redis` on it, released (below).
 12. ~~What the 2026-11-12 review found~~ — done 2026-11-13, every item below.
 13. ~~`tls_client_auth` by SAN~~ — done 2026-11-13.
+14. ~~What the 2026-11-13 re-read found~~ — done 2026-11-13.
+15. **The release** of everything since 2026-11-11, below.
 
 ## Review — 2026-11-12
 
@@ -591,6 +594,80 @@ new requirements ask that the code does not yet do:
   Fixed: refreshed thirty seconds ahead, or half its lifetime when shorter; a redirecting logout revokes
   first and goes ahead when revocation fails; the callback's own parameters, or an implicit response's
   whole fragment, leave the address bar once the exchange has read them
+
+## Re-read — 2026-11-13
+
+The twenty commits that closed the 2026-11-12 review, read against what each was meant to do, with
+`bun run verify` green against Postgres and Redis and both conformance plans green in CI. Read
+closely: client-secret hashing, token families, the first-consent race, the payload types, the shared
+device and CIBA state machine, the signer, CORS, the request context, upstream logout, the lockout
+counters, the client-library commits, the typed result in `core`, and `tls_client_auth` by SAN. Not
+read: the shared SQL row mapping, the dead-code and `interactionUrl` commits, the README and demo
+changes, and most of the new tests. Nothing found blocks a release.
+
+- [x] `management.clients.list` and `get` return whole client records, `clientSecretHash` and the
+  hashed registration access token included, and the demo's admin API sends them to the browser
+  (`apps/demo-server/src/admin/api.ts:57`). Strip both in management, so no host has to remember to.
+  NFR-S11
+  Fixed: `ManagedClient`, what `list`, `get` and `create` return
+- [x] `hashClientSecret` is an unsalted SHA-256, which is right for a generated secret of 288 random
+  bits and weak for one a host chooses: `management.clients.create` and `update` accept a supplied
+  `clientSecret`, and a short one is guessable from its hash. Refuse a supplied secret under a stated
+  length, or say in the README that only a generated one is protected. NFR-S11
+  Fixed: under 32 characters is refused, as an HS256 key must be anyway; the security page says why
+- [x] Two first consents at once for different scopes: the SQL adapters' grant upsert replaces the
+  scopes of the write it lands on rather than merging them, so one tab's scopes can be lost. One
+  grant and no error result, and the person is asked once more. Merge in `recordConsent` by reading
+  back and writing again when the stored scopes lack what was just consented. FR-I4
+  Fixed: `recordConsent` reads back and writes again, and `fromKv` merges a write that lost the claim
+  on its pair. The SQL adapters still replace on that conflict, since merging JSON text is not
+  portable across SQLite and Postgres: a write landing after the other has read back still loses its
+  scopes, and the person is asked once more
+- [x] A successful sign-in resets the account-wide failure count, so a guess spread over many
+  addresses starts again whenever the real user signs in. Let that count lapse by time, as the
+  per-address one does, instead of by success. `G-9`
+  Fixed: with an address, the account-wide count is a `sign_in_attempts` record of its own, lapsing a
+  day (`failureWindow`) after its last failure; without one, the credential's counter as before
+- [x] An IPv6 guesser has a /64 of addresses, so the per-address limit does little against one and
+  the account ceiling locks the owner out after all. Count an IPv6 address by its /64. `G-9`
+  Fixed: `addressBucket`, an IPv4-mapped address counted as the IPv4 one
+- [x] The upstream ID token kept as a logout hint is stored as itself for `logoutHintTtl`, fourteen
+  days by default, and carries the person's claims. A recorded decision (FR-F8, FR-F10); the default
+  could follow the provider's `ttl.session` rather than restate it, so a deployment with short
+  sessions keeps it no longer than it can use it
+  Fixed: `BrokerConfig.sessionTtl`, to be given `provider.config.ttl.session`, defaulting to
+  `DEFAULT_TTL.session`, now exported
+- [x] `logout()` in `@oidcraft/client` awaits the revocation with no timeout, so a revocation
+  endpoint that hangs holds the sign-out. A few seconds at most, then sign out regardless. FR-L6
+  Fixed: three seconds
+- [x] The callback clean-up removes query parameters only: a code delivered in the fragment
+  (`response_mode=fragment`) stays in the address bar (`client/src/flows.ts`, `forgetCallback`)
+  Fixed: the callback's parameters leave the fragment too, the app's own staying
+
+## The release of 2026-11-13's work — not started
+
+Nothing since 2026-11-11 is published and no version has been bumped. Wider than the adapter and
+provider release first planned, because `core` and the bindings changed too:
+
+- [ ] `@oidcraft/core` — breaking: `completeAuthorization` returns an `AuthorizationResult`
+- [ ] `@oidcraft/client` — refresh ahead of expiry and under a Web Lock, logout revokes, the callback
+  leaves the address bar; names the new `core`
+- [ ] `@oidcraft/adapter` — breaking: `revokeByClientId`, `revokeByFamilyId`, `destroyByClientId`, the
+  grant upsert resolved on its pair, `clientSecretHash`, three new artifact kinds, optional `prune`
+  on sessions and replay
+- [ ] `@oidcraft/provider` — breaking: tokens and client secrets hashed at rest, token families,
+  the runtime entries called without an issuer, `interactionUrl` required by type, `onError`,
+  `upstreamLogout`, UserInfo refusing a token issued for a resource
+- [ ] `@oidcraft/drizzle`, `kysely`, `typeorm` — breaking: migrations `0004_indexes` and
+  `0005_families`, the new contract methods
+- [ ] `@oidcraft/redis` — breaking: the command function must pass `EVAL` through, and the entry and
+  its two index sets must be on one node
+- [ ] `@oidcraft/vue`, `react`, `angular` — name the new `client` and `core`
+
+In that order: `core`, `client`, `adapter`, the provider, the four adapters, then the bindings, each
+a GitHub release through `publish.yml`, waiting for one publish to succeed before the next names it.
+Stored tokens, client secrets under `client_secret_basic` and `client_secret_post`, and pairwise
+subjects from before this work do not survive the upgrade; with no deployment yet, that is free.
 
 ## Server review — 2026-10-10
 

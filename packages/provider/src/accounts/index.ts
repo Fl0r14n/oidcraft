@@ -23,6 +23,8 @@ export type AccountsPolicy = {
   maxFailedAttempts: number
   /** Failed attempts from all addresses together before the account locks for everyone (G-9). @default 50 */
   maxFailedAttemptsPerAccount: number
+  /** How long the account-wide count of the attempt above remembers a failure. @default 86400 */
+  failureWindow: Seconds
   /** @default 900 */
   lockout: Seconds
   /** How long a reset token lives. @default 1800 */
@@ -75,6 +77,28 @@ export type SignInContext = { clientIp?: string | undefined }
 
 type Attempts = { failures: number; lockedUntil?: number }
 
+/**
+ * Whom an address stands for: an IPv4 address itself, an IPv6 one by its /64, which one subscriber
+ * is routinely given whole — counted address by address, a guesser there has 2^64 of them (G-9).
+ */
+export const addressBucket = (ip: string) => {
+  if (!ip.includes(':')) return ip
+  const address = ip
+    .toLowerCase()
+    .replace(/^\[|\]$/g, '')
+    .split('%')[0] as string
+  const mapped = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/.exec(address)
+  if (mapped) return mapped[1] as string
+  const [head = '', tail] = address.split('::')
+  const left = head ? head.split(':') : []
+  const right = tail ? tail.split(':') : []
+  const groups = tail === undefined ? left : [...left, ...Array<string>(Math.max(0, 8 - left.length - right.length)).fill('0'), ...right]
+  return `${groups
+    .slice(0, 4)
+    .map(group => Number.parseInt(group || '0', 16).toString(16))
+    .join(':')}::/64`
+}
+
 export type AuthenticationResult =
   | { ok: true; accountId: string; secondFactor: boolean }
   | { ok: false; reason: 'invalid' }
@@ -123,6 +147,7 @@ export const createAccounts = (options: AccountsOptions) => {
     minPasswordLength: 8,
     maxFailedAttempts: 5,
     maxFailedAttemptsPerAccount: 50,
+    failureWindow: 86_400,
     lockout: 900,
     resetTtl: 1800,
     recoveryCodes: 10,
@@ -147,52 +172,74 @@ export const createAccounts = (options: AccountsOptions) => {
   const lockedUntil = (credential: Credential) =>
     credential.lockedUntil && credential.lockedUntil.getTime() > Date.now() ? credential.lockedUntil : undefined
 
-  const attemptsId = (accountId: string, clientIp: string) => `${accountId}:${clientIp}`
-  const attemptsAt = async (accountId: string, clientIp: string) =>
-    (await adapter.artifacts.find('sign_in_attempts', attemptsId(accountId, clientIp)))?.payload as Attempts | undefined
+  /** One record for the account across every address, and one per address (G-9). */
+  const accountWide = (accountId: string) => `${accountId}:*`
+  const perAddress = (accountId: string, clientIp: string) => `${accountId}:${addressBucket(clientIp)}`
+  const attemptsAt = async (id: string) => (await adapter.artifacts.find('sign_in_attempts', id))?.payload as Attempts | undefined
+  const lockedAt = async (id: string) => {
+    const until = (await attemptsAt(id))?.lockedUntil
+    return until && until > Date.now() ? new Date(until) : undefined
+  }
 
   /** Locked for everyone, or for this address alone (G-9). */
   const lockFor = async (credential: Credential, context: SignInContext) => {
     const account = lockedUntil(credential)
     if (account || !context.clientIp) return account
-    const until = (await attemptsAt(credential.accountId, context.clientIp))?.lockedUntil
-    return until && until > Date.now() ? new Date(until) : undefined
+    return (await lockedAt(accountWide(credential.accountId))) ?? (await lockedAt(perAddress(credential.accountId, context.clientIp)))
   }
 
   const locked = (until: Date) => ({ ok: false, reason: 'locked', until }) as const
   const invalid = { ok: false, reason: 'invalid' } as const
 
+  /** One more failure on this record; true when that reaches `limit`, which locks it until `until`. */
+  const count = async (id: string, accountId: string, limit: number, until: Date, window: Seconds) => {
+    const failures = ((await attemptsAt(id))?.failures ?? 0) + 1
+    const locking = failures >= limit
+    await adapter.artifacts.upsert({
+      id,
+      kind: 'sign_in_attempts',
+      clientId: '',
+      accountId,
+      payload: (locking ? { failures: 0, lockedUntil: until.getTime() } : { failures }) satisfies Attempts,
+      expiresAt: new Date(Math.max(until.getTime(), Date.now() + window * 1000))
+    })
+    return locking
+  }
+
   const fail = async (credential: Credential, context: SignInContext) => {
     const until = new Date(Date.now() + policy.lockout * 1000)
-    const accountLimit = context.clientIp ? policy.maxFailedAttemptsPerAccount : policy.maxFailedAttempts
+    if (context.clientIp) {
+      // The account-wide count lapses with time, not with the next good sign-in: otherwise the owner
+      // signing in would restart a guess spread over many addresses (G-9).
+      if (
+        await count(
+          accountWide(credential.accountId),
+          credential.accountId,
+          policy.maxFailedAttemptsPerAccount,
+          until,
+          policy.failureWindow
+        )
+      ) {
+        return locked(until)
+      }
+      const address = perAddress(credential.accountId, context.clientIp)
+      return (await count(address, credential.accountId, policy.maxFailedAttempts, until, policy.lockout)) ? locked(until) : invalid
+    }
+
     const failedAttempts = credential.failedAttempts + 1
-    const lockingAccount = failedAttempts >= accountLimit
+    const locking = failedAttempts >= policy.maxFailedAttempts
     const { lockedUntil: _, ...rest } = credential
     await credentials.upsert({
       ...rest,
-      failedAttempts: lockingAccount ? 0 : failedAttempts,
-      ...(lockingAccount && { lockedUntil: until }),
+      failedAttempts: locking ? 0 : failedAttempts,
+      ...(locking && { lockedUntil: until }),
       updatedAt: new Date()
     })
-    if (lockingAccount) return locked(until)
-    if (!context.clientIp) return invalid
-
-    const failures = ((await attemptsAt(credential.accountId, context.clientIp))?.failures ?? 0) + 1
-    const lockingAddress = failures >= policy.maxFailedAttempts
-    const attempts: Attempts = lockingAddress ? { failures: 0, lockedUntil: until.getTime() } : { failures }
-    await adapter.artifacts.upsert({
-      id: attemptsId(credential.accountId, context.clientIp),
-      kind: 'sign_in_attempts',
-      clientId: '',
-      accountId: credential.accountId,
-      payload: attempts,
-      expiresAt: until
-    })
-    return lockingAddress ? locked(until) : invalid
+    return locking ? locked(until) : invalid
   }
 
   const clearAddress = async (accountId: string, context: SignInContext) => {
-    if (context.clientIp) await adapter.artifacts.destroy('sign_in_attempts', attemptsId(accountId, context.clientIp))
+    if (context.clientIp) await adapter.artifacts.destroy('sign_in_attempts', perAddress(accountId, context.clientIp))
   }
 
   const succeed = async (credential: Credential, context: SignInContext) => {

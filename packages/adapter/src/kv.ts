@@ -254,7 +254,18 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
       const ttl = grant.expiresAt && { ttl: ttlFrom(grant.expiresAt) }
       const claimed = await kv.insert({ key: grantIndex(grant), value: grant.id, ...ttl })
       const id = claimed ? grant.id : ((await read(grantIndex(grant))) ?? grant.id)
-      const stored = id === grant.id ? grant : { ...grant, id, createdAt: (await readGrant(id))?.createdAt ?? grant.createdAt }
+      const held = id === grant.id ? undefined : await readGrant(id)
+      // A lost claim is a first consent that raced another: it adds to that grant, never replaces it (FR-I4).
+      const stored = held
+        ? {
+            ...grant,
+            id,
+            createdAt: held.createdAt,
+            scopes: [...new Set([...held.scopes, ...grant.scopes])],
+            claims: [...new Set([...held.claims, ...grant.claims])],
+            resources: { ...held.resources, ...grant.resources }
+          }
+        : { ...grant, id }
       await kv.upsert({ key: `grant/${id}`, value: enc(stored), ...ttl })
       await kv.upsert({ key: grantIndex(grant), value: id, ...ttl })
     },

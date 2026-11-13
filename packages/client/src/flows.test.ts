@@ -199,6 +199,16 @@ describe('logout', () => {
     expect(await oauth.logout('https://app/')).toStartWith('https://idp/logout?')
     expect(oauth.token()).toEqual({})
   })
+
+  it('does not wait on a revocation endpoint that never answers', async () => {
+    build({ config: { tokenPath: '/t', clientId: 'c', logoutPath: 'https://idp/logout' } })
+    functions.revoke.mockImplementation(() => new Promise(() => undefined))
+    oauth.setToken({ access_token: 'at', refresh_token: 'rt' })
+    const started = Date.now()
+    expect(await oauth.logout('https://app/')).toStartWith('https://idp/logout?')
+    expect(Date.now() - started).toBeLessThan(4_000)
+    expect(oauth.token()).toEqual({})
+  }, 6_000)
 })
 
 describe('oauthCallback', () => {
@@ -400,6 +410,22 @@ describe('the callback url', () => {
 
     expect(oauth.token().access_token).toBe('at')
     expect(replaced).toBe('http://localhost/cb?tab=2')
+  })
+
+  // response_mode=fragment puts a code where the query cleaning would miss it.
+  it('loses a code delivered in the fragment, and keeps the app’s own fragment', async () => {
+    const functions = mocked()
+    functions.authorize.mockResolvedValue({ access_token: 'at', token_type: 'Bearer' })
+    const oauth = createOAuth({ config: { tokenPath: '/t', clientId: 'c', authorizePath: '/a' }, functions })
+    Object.assign(globalThis.location, {
+      href: 'http://localhost/cb#code=c1&state=s1&view=list',
+      search: '',
+      hash: '#code=c1&state=s1&view=list'
+    })
+
+    await oauth.oauthCallback()
+
+    expect(replaced).toBe('http://localhost/cb#view=list')
   })
 
   it('loses the whole fragment of an implicit response', async () => {

@@ -197,8 +197,12 @@ the upstream, give the broker a `postLogoutRedirectUri` registered there, and ha
 broker's `logoutUrl`:
 
 ```ts
-const broker = createBroker({ ..., postLogoutRedirectUri: 'https://auth.example.com/broker/logged-out' })
 const provider = createProvider({ ..., upstreamLogout: (session, then) => broker.logoutUrl(session, then) })
+const broker = createBroker({
+  ...,
+  postLogoutRedirectUri: 'https://auth.example.com/broker/logged-out',
+  sessionTtl: provider.config.ttl.session // the hint below is kept as long as a session lasts
+})
 
 // GET /broker/logged-out: the upstream is done, so carry on to where the logout was going
 const then = await broker.completeLogout(new URL(request.url))

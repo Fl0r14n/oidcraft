@@ -15,7 +15,7 @@ import {
   sha256
 } from '@oidcraft/core'
 import type { BrokeringAdapter, Session } from '@oidcraft/provider'
-import { OAuthError, type SelectionHints, selectUpstream } from '@oidcraft/provider'
+import { DEFAULT_TTL, OAuthError, type SelectionHints, selectUpstream } from '@oidcraft/provider'
 import { base64url } from 'jose'
 import { pickClaims } from './claims'
 import { logoutHintId } from './logout'
@@ -44,10 +44,10 @@ export type BrokerConfig = {
    */
   postLogoutRedirectUri?: string
   /**
-   * Seconds an upstream ID token is kept as its logout's hint: as long as the local sessions it may
-   * end, so `ttl.session` of the provider. Fourteen days by default.
+   * The provider's `ttl.session`: pass `provider.config.ttl.session`. An upstream ID token kept as its
+   * logout's hint lives as long as the local session it may end, and no longer (FR-F8, FR-F10).
    */
-  logoutHintTtl?: number
+  sessionTtl?: number
   /** Seconds a handoff stays usable. Short on purpose: it is a single-use one-way ticket (FR-F3). */
   handoffTtl?: number
   /** Development only: lets discovery and the token exchange run over http. */
@@ -55,7 +55,6 @@ export type BrokerConfig = {
 }
 
 const DEFAULT_HANDOFF_TTL = 600
-const DEFAULT_LOGOUT_HINT_TTL = 1_209_600
 
 /** What each check the RP core makes means for the downstream client (FR-L2). */
 const CHECKS: Record<CallbackCheck, { description: string; spec: string }> = {
@@ -328,7 +327,7 @@ export const createBroker = (config: BrokerConfig) => {
           kind: 'upstream_id_token',
           clientId: provider.id,
           payload: { idToken: token.id_token },
-          expiresAt: new Date(Date.now() + (config.logoutHintTtl ?? DEFAULT_LOGOUT_HINT_TTL) * 1000)
+          expiresAt: new Date(Date.now() + (config.sessionTtl ?? DEFAULT_TTL.session) * 1000)
         })
       }
 

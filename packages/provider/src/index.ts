@@ -33,6 +33,7 @@ export type { CibaDecision, CibaPayload, CibaPing } from './authorize/ciba'
 export type { DeviceApproval, DevicePayload, UserCodeContext } from './authorize/device'
 export { type DpopProof, type VerifyOptions, verifyDpopProof } from './binding/dpop'
 export { certificateThumbprint } from './binding/mtls'
+export type { ManagedClient } from './clients/management'
 export type {
   AuditEvent,
   Capabilities,
@@ -44,6 +45,7 @@ export type {
   Routes,
   Ttl
 } from './config'
+export { DEFAULT_TTL } from './config'
 export type { ClientCertificate, ContextProvider, RequestContext } from './context'
 export { errorResponse, OAuthError, type OAuthErrorCode, type OAuthErrorInit } from './errors'
 export type { Management, ManagementClientInput } from './management'

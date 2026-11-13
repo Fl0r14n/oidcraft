@@ -69,13 +69,22 @@ describe('management', () => {
 
   test('hashes a secret it is given, on create and on update', async () => {
     const created = await provider.management.clients.create(
-      input({ tokenEndpointAuthMethod: 'client_secret_post', clientSecret: 'a-long-enough-client-secret' })
+      input({ tokenEndpointAuthMethod: 'client_secret_post', clientSecret: 'a-client-secret-of-thirty-two-chars' })
     )
-    expect(created.clientSecretHash).toBe(await hashClientSecret('a-long-enough-client-secret'))
-    await provider.management.clients.update('rp', { clientSecret: 'another-long-enough-secret' })
+    expect(created).not.toHaveProperty('clientSecretHash')
+    expect((await adapter.clients.find('rp'))?.clientSecretHash).toBe(await hashClientSecret('a-client-secret-of-thirty-two-chars'))
+    await provider.management.clients.update('rp', { clientSecret: 'another-client-secret-of-32-chars' })
     const stored = await adapter.clients.find('rp')
     expect(stored?.clientSecret).toBeUndefined()
-    expect(stored?.clientSecretHash).toBe(await hashClientSecret('another-long-enough-secret'))
+    expect(stored?.clientSecretHash).toBe(await hashClientSecret('another-client-secret-of-32-chars'))
+  })
+
+  test('refuses a supplied secret too short to survive its hash being read', async () => {
+    await expect(
+      provider.management.clients.create(input({ tokenEndpointAuthMethod: 'client_secret_basic', clientSecret: 'hunter2' }))
+    ).rejects.toThrow('at least 32')
+    await provider.management.clients.create(input({ tokenEndpointAuthMethod: 'client_secret_basic' }))
+    await expect(provider.management.clients.update('rp', { clientSecret: 'hunter2' })).rejects.toThrow('at least 32')
   })
 
   test('keeps client_secret_jwt’s secret readable, and will not make one from a hash', async () => {
@@ -86,8 +95,21 @@ describe('management', () => {
     await expect(provider.management.clients.update('basic', { tokenEndpointAuthMethod: 'client_secret_jwt' })).rejects.toThrow(
       'cannot give back'
     )
-    await provider.management.clients.update('basic', { tokenEndpointAuthMethod: 'client_secret_jwt', clientSecret: 'a-long-enough-key' })
-    expect((await adapter.clients.find('basic'))?.clientSecret).toBe('a-long-enough-key')
+    await provider.management.clients.update('basic', {
+      tokenEndpointAuthMethod: 'client_secret_jwt',
+      clientSecret: 'an-hmac-key-of-at-least-32-chars'
+    })
+    expect((await adapter.clients.find('basic'))?.clientSecret).toBe('an-hmac-key-of-at-least-32-chars')
+  })
+
+  // NFR-S11: a hash is still what a guess is checked against; an admin screen has no use for it.
+  test('never hands out the hash of a secret or of a registration access token', async () => {
+    await provider.management.clients.create(input({ tokenEndpointAuthMethod: 'client_secret_basic' }))
+    await adapter.clients.upsert?.({ ...((await adapter.clients.find('rp')) as Client), registrationAccessToken: 'hashed' })
+    for (const client of [await provider.management.clients.get('rp'), ...(await provider.management.clients.list()).clients]) {
+      expect(client).not.toHaveProperty('clientSecretHash')
+      expect(client).not.toHaveProperty('registrationAccessToken')
+    }
   })
 
   test('rotates a secret, which ends the old one', async () => {

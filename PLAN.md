@@ -101,10 +101,6 @@ release above. In fix order.
   row rewritten since its select; the conformance suite never prunes artifacts and cannot tell a
   merging grant upsert from a replacing one
 
-- [ ] SQLite's migrations declare primary keys without `not null`, which SQLite then allows null in,
-  so TypeORM's schema builder still finds every SQLite table to rebuild (its types agree since
-  `OIDCRAFT_SQLITE_ENTITIES`). A migration rebuilding them with `not null`, shared by every SQL adapter.
-
 **Small**
 
 - [ ] The broker's binding cookie can be planted from a sibling subdomain; NAT64 addresses share a

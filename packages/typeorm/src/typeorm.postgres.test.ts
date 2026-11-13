@@ -44,21 +44,10 @@ describe.skipIf(!POSTGRES_URL)('typeorm adapter on Postgres', () => {
     test(`typeorm/postgres: ${check.name}`, check.run)
   }
 
-  // FR-A4: an entity's column type that disagrees with the migration's makes TypeORM's schema builder rebuild the table.
-  test('every entity column has the type the migrations gave it', async () => {
+  // FR-A4: entities that disagree with the migrations would have TypeORM's schema builder rebuild tables.
+  test('the entities describe exactly the tables the migrations made', async () => {
     const { dataSource } = await fresh()
-    const runner = dataSource.createQueryRunner()
-    const differ: string[] = []
-    for (const entity of dataSource.entityMetadatas) {
-      const table = await runner.getTable(entity.tableName)
-      for (const column of entity.columns) {
-        const made = table?.findColumnByName(column.databaseName)?.type
-        const declared = dataSource.driver.normalizeType(column)
-        if (made !== declared) differ.push(`${entity.tableName}.${column.databaseName}: ${made} != ${declared}`)
-      }
-    }
-    await runner.release()
-    expect(differ).toEqual([])
+    expect((await dataSource.driver.createSchemaBuilder().log()).upQueries.map(query => query.query)).toEqual([])
   })
 
   test('the shipped migrations run through TypeORM, in order, once', async () => {

@@ -1,5 +1,3 @@
-import type { Client } from '@oidcraft/adapter'
-
 /**
  * What a WHATWG `Request` cannot carry, supplied by the host (FR-R4). The issuer is not among them:
  * it is configuration, never a property of a request (NFR-S6).
@@ -41,8 +39,3 @@ export type ClientCertificate = {
 
 /** Builds the context for one request. Each runtime entry exports one of these. */
 export type ContextProvider<TExtra = unknown> = (request: Request, extra: TExtra) => RequestContext
-
-export type ClientAuthenticationInput = {
-  client: Client
-  context: RequestContext
-}

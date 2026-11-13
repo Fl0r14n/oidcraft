@@ -11,7 +11,6 @@ export type IdTokenInput = {
   subject?: string | undefined
   nonce?: string | undefined
   accessToken?: string | undefined
-  code?: string | undefined
   claims?: Record<string, unknown> | undefined
 }
 
@@ -53,8 +52,7 @@ export const mintIdToken = async (config: ResolvedConfig, input: IdTokenInput) =
     ...(input.session.idp && { idp: input.session.idp }),
     // Back-Channel Logout 1.0 §2.4: the sid a logout token names, so the client can match the two.
     sid: input.session.id,
-    ...(input.accessToken && { at_hash: await halfHash(input.accessToken, alg) }),
-    ...(input.code && { c_hash: await halfHash(input.code, alg) })
+    ...(input.accessToken && { at_hash: await halfHash(input.accessToken, alg) })
   }
 
   return signer.sign(payload, 'JWT')

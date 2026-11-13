@@ -6,8 +6,6 @@ import { OAuthError } from '../errors'
 import { CLIENT_SIGNING_ALGS } from '../keys/algorithms'
 import { FAPI_ALGS, underFapi } from '../profile/fapi'
 
-/** RFC 9101 §8.2: `none` would make the object unauthenticated, which is the whole point of it. */
-
 /**
  * Parameters that must agree with what was sent outside the object, when present (§6.1). They are
  * also the only ones taken from outside: OIDC Core §6.1 requires them in the query even when the

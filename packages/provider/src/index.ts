@@ -44,7 +44,7 @@ export type {
   Routes,
   Ttl
 } from './config'
-export type { ClientAuthenticationInput, ClientCertificate, ContextProvider, RequestContext } from './context'
+export type { ClientCertificate, ContextProvider, RequestContext } from './context'
 export { errorResponse, OAuthError, type OAuthErrorCode, type OAuthErrorInit } from './errors'
 export type { Management, ManagementClientInput } from './management'
 export { createProvider, type LogoutDelivery, type Provider } from './provider'

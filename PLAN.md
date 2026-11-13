@@ -542,10 +542,15 @@ text it is held to. In fix order.
   without it; `toNodeHandler` keeps its `issuer`, the base it rebuilds each URL from. `handle` takes
   `Pick<RequestContext, 'clientCertificate'>`, and `UserCodeContext` is `Pick<RequestContext, 'clientIp'>`,
   so one context serves both
-- [ ] `ProviderConfig.interactionUrl` is typed optional and required at construction, which leaves
+- [x] `ProviderConfig.interactionUrl` is typed optional and required at construction, which leaves
   dead checks in `provider.ts`, `device.ts` and `ciba.ts`
-- [ ] Dead: `IdTokenInput.code` and `.claims`, the exported `ClientAuthenticationInput`. Detached doc
+  Fixed: required in `ProviderConfig` and `ResolvedConfig`; construction still refuses a missing or
+  relative one, for a JavaScript caller. `ciba.ts` had no such check by then
+- [x] Dead: `IdTokenInput.code` and `.claims`, the exported `ClientAuthenticationInput`. Detached doc
   comments at `binding/dpop.ts:7`, `authorize/request-object.ts:8`, `adapter/src/types.ts:125`
+  Fixed, but for `IdTokenInput.claims`, which FR-C5's ID-token claims now use. `c_hash` went with
+  `code`, there being no hybrid flow (FR-C1). The two stranded algorithm notes are on
+  `CLIENT_SIGNING_ALGS`, where the list they explain lives; the brokering-key note is on `LinkedIdentity`
 
 **Required and not built**
 

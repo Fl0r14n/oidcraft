@@ -7,8 +7,6 @@ import { CLIENT_SIGNING_ALGS } from '../keys/algorithms'
 import { readArtifact, writeArtifact } from '../payloads'
 import { FAPI_ALGS, FAPI_IAT_SKEW, underFapi } from '../profile/fapi'
 
-/** RFC 9449 §4.2: asymmetric only. A symmetric alg would let anyone holding the proof mint another. */
-
 const SKEW = 5
 const MAX_AGE = 60
 

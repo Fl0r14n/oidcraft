@@ -127,7 +127,6 @@ export type Artifact = Entity &
     consumedAt?: Date
   }
 
-/** An account's link to an upstream provider — the brokering key (FR-F5). */
 /**
  * What `@oidcraft/provider/accounts` keeps per local account (FR-I7). Every secret here is either a one-way hash
  * or, for the TOTP secret the server must read back, ciphertext bound to `accountId`.
@@ -157,6 +156,7 @@ export type Realm = Entity &
     settings: Record<string, unknown>
   }
 
+/** An account's link to an upstream provider — the brokering key (FR-F5). */
 export type LinkedIdentity = AccountOwned & {
   provider: string
   subject: string

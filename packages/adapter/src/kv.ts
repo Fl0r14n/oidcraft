@@ -79,7 +79,6 @@ const part = (id: string) => encodeURIComponent(id)
  * record, and a lookup is a prefix scan of one record's keys. A request path never scans a whole
  * family of records (NFR-P1); a relational adapter uses real columns instead (FR-A5).
  */
-
 export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
   const read = async (key: string) => (await kv.find(key))?.value
   // The last segment of each key under a prefix: how a record's index is read back (NFR-P1).

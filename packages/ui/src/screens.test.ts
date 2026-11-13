@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import type { InteractionRequest } from '@oidcraft/provider/interaction'
+import { assets } from './assets'
 import { createScreens } from './screens'
 
 const screens = createScreens({ brand: { name: 'Acme', host: 'id.acme.test' } })
@@ -96,4 +97,17 @@ test('the second step and sign-up post where they should, with the fields passwo
   const register = await (await screens.register(view)).text()
   expect(register).toContain('autocomplete="new-password"')
   expect(firstButton(register)).toContain('type="submit"')
+})
+
+test('the stylesheet and its fonts can be mounted under any prefix', async () => {
+  const stylesheet = 'https://id.acme.test/t/acme/static/ui.css'
+  const prefixed = createScreens({ brand: { name: 'Acme', host: 'id.acme.test' }, urls: { stylesheet: new URL(stylesheet).pathname } })
+  expect(await (await prefixed.login(view)).text()).toContain('href="/t/acme/static/ui.css"')
+  const fonts = [...(await assets(new Request(stylesheet)).text()).matchAll(/url\(["']?([^"')]+)/g)].map(match => match[1] as string)
+  expect(fonts.length).toBeGreaterThan(0)
+  for (const font of fonts) {
+    const url = new URL(font, stylesheet)
+    expect(url.pathname.startsWith('/t/acme/static/')).toBe(true)
+    expect(assets(new Request(url)).status).toBe(200)
+  }
 })

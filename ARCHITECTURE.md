@@ -616,7 +616,9 @@ The **interaction screens** are rendered on the server with `renderToString` and
 each is a form that posts. The conformance suite drives them with a browser that runs little
 JavaScript, and `packages/ui/src/screens.test.ts` pins the ids and texts its plan clicks on
 (NFR-C1). There is no HTML entrypoint for Bun to bundle their styles from, so `assets.ts` builds
-the stylesheet once at startup and serves it with the font under `/assets/*`.
+the stylesheet once at startup, and `assets` serves it and its fonts by file name under whatever
+route mounts it — `/assets/*` in the demo, `urls.stylesheet` for another. The stylesheet names the
+fonts relatively, so they follow it.
 
 The **admin UI** (`src/admin`) is a client-rendered app on the same components. Its table and
 dialog are `@oidcraft/ui`'s `UiDataTable` and `UiDialog`, which wrap `@vuetify/v0` — headless, so

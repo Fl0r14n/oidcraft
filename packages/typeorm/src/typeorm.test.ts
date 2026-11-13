@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { generatedKeyStore } from '@oidcraft/adapter'
 import { adapterConformance } from '@oidcraft/adapter/conformance'
-import { DataSource } from 'typeorm'
+import { DataSource, type DataSourceOptions } from 'typeorm'
 import { OIDCRAFT_SQLITE_ENTITIES, TYPEORM_SQLITE_MIGRATIONS, typeormAdapter } from './index'
 
 const accounts = {
@@ -13,8 +13,13 @@ const accounts = {
   }
 }
 
-const fresh = async () => {
-  const dataSource = new DataSource({ type: 'sqljs', entities: OIDCRAFT_SQLITE_ENTITIES, migrations: TYPEORM_SQLITE_MIGRATIONS })
+const fresh = async (options: Pick<DataSourceOptions, 'invalidWhereValuesBehavior'> = {}) => {
+  const dataSource = new DataSource({
+    type: 'sqljs',
+    entities: OIDCRAFT_SQLITE_ENTITIES,
+    migrations: TYPEORM_SQLITE_MIGRATIONS,
+    ...options
+  })
   await dataSource.initialize()
   await dataSource.runMigrations()
   return { dataSource, adapter: typeormAdapter({ dataSource, keys: await generatedKeyStore(), accounts }) }
@@ -35,10 +40,19 @@ describe('typeorm adapter', () => {
   })
 
   // FR-A4: entities that disagree with the migrations make TypeORM's schema builder rebuild every table.
-  // FR-A4: entities that disagree with the migrations would have TypeORM's schema builder rebuild tables.
   test('the entities describe exactly the tables the migrations made', async () => {
     const { dataSource } = await fresh()
     expect((await dataSource.driver.createSchemaBuilder().log()).upQueries.map(query => query.query)).toEqual([])
+  })
+
+  test('a missing value is refused, not dropped, under a host that ignores undefined in a where', async () => {
+    const { adapter } = await fresh({ invalidWhereValuesBehavior: { undefined: 'ignore', null: 'ignore' } })
+    const identities = adapter.identities as NonNullable<typeof adapter.identities>
+    await identities.upsert({ accountId: 'u1', provider: 'google', subject: 'g-1', claims: {}, linkedAt: new Date() })
+    await expect(identities.find('google', undefined as never)).rejects.toThrow(/subject/)
+    await expect(identities.destroy('google', undefined as never)).rejects.toThrow(/subject/)
+    await expect(adapter.grants.find(null as never)).rejects.toThrow(/id/)
+    expect((await identities.find('google', 'g-1'))?.accountId).toBe('u1')
   })
 
   test('revocation uses the grant index rather than scanning', async () => {

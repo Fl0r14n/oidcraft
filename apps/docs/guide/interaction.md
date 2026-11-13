@@ -310,7 +310,8 @@ separately failed codes, are counted per account and peer address, each attempt 
 hash is checked so parallel guesses cannot outrun the count: pass `{ clientIp }` from the runtime's
 context to `authenticate` and `verifySecondFactor`, and five failures lock that address out of that
 account for 900 seconds, while fifty from all addresses together within a day lock the account for
-everyone; the owner signing in does not reset those. An IPv6 address counts by its /64. Without an
+everyone; the owner signing in does not reset those. An IPv6 address counts by its /64, except an IPv4 peer reached through
+a NAT64 translator (`64:ff9b::/96`), which counts by its IPv4 address. Without an
 address, five lock the account. All of it is set by `policy` (FR-I7, `G-9`). Answer a locked account
 on the password screen as you answer a wrong password, or the difference confirms the username exists. The provider guide's
 [Local accounts](/guide/provider#local-accounts) has the setup.

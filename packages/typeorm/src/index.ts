@@ -32,9 +32,17 @@ export type TypeormAdapterOptions = {
 
 const now = () => Date.now()
 
+// FR-A6: the DataSource is the host's, and its `invalidWhereValuesBehavior` can drop a missing value, so a lookup matches any row and a delete every one.
+const by = <T extends object>(where: T) => {
+  for (const [column, value] of Object.entries(where)) {
+    if (value === undefined || value === null) throw new TypeError(`the ${column} to look up by is ${value}`)
+  }
+  return where
+}
+
 // FR-T5: a grant may carry an expiry, which the query enforces as it does an artifact's.
 const grantLive = (where: FindOptionsWhere<GrantRow>) => [
-  { ...where, expires_at: IsNull() },
+  { ...by(where), expires_at: IsNull() },
   { ...where, expires_at: MoreThan(now()) }
 ]
 
@@ -117,20 +125,20 @@ export const typeormAdapter = (options: TypeormAdapterOptions): FullAdapter => {
     },
 
     async destroy(kind: ArtifactKind, id: string) {
-      await artifactRows.delete({ kind, id })
+      await artifactRows.delete(by({ kind, id }))
     },
 
     async revokeByGrantId(grantId: string) {
       // One indexed delete, not a scan (FR-A5).
-      await artifactRows.delete({ grant_id: grantId })
+      await artifactRows.delete(by({ grant_id: grantId }))
     },
 
     async revokeByFamilyId(familyId: string) {
-      await artifactRows.delete({ family_id: familyId })
+      await artifactRows.delete(by({ family_id: familyId }))
     },
 
     async revokeByClientId(clientId: string) {
-      await artifactRows.delete({ client_id: clientId })
+      await artifactRows.delete(by({ client_id: clientId }))
     },
 
     async prune(before: Date, limit: number) {
@@ -155,7 +163,7 @@ export const typeormAdapter = (options: TypeormAdapterOptions): FullAdapter => {
   return {
     clients: {
       async find(clientId) {
-        const row = await clients.findOneBy({ client_id: clientId })
+        const row = await clients.findOneBy(by({ client_id: clientId }))
         if (!row) return undefined
         return toClient(row)
       },
@@ -163,7 +171,7 @@ export const typeormAdapter = (options: TypeormAdapterOptions): FullAdapter => {
         await upsert(clients, clientRow(client), ['client_id'], ['data', 'updated_at'])
       },
       async destroy(clientId) {
-        await clients.delete({ client_id: clientId })
+        await clients.delete(by({ client_id: clientId }))
       },
       async list(cursor, limit) {
         const query = clients.createQueryBuilder('c').orderBy('c.client_id')
@@ -210,7 +218,7 @@ export const typeormAdapter = (options: TypeormAdapterOptions): FullAdapter => {
       // Compare-and-swap, retried while another writer wins, so concurrent sign-ins are all recorded (FR-C11).
       async addClient(id, clientId) {
         for (let attempt = 0; attempt < 64; attempt++) {
-          const row = await sessions.findOne({ where: { id }, select: { clients: true } })
+          const row = await sessions.findOne({ where: by({ id }), select: { clients: true } })
           if (!row) return
           const current = parse<string[]>(row.clients)
           if (current.includes(clientId)) return
@@ -225,7 +233,7 @@ export const typeormAdapter = (options: TypeormAdapterOptions): FullAdapter => {
         throw new Error(`session ${id} kept changing; its client list could not be updated`)
       },
       async destroy(id) {
-        await sessions.delete({ id })
+        await sessions.delete(by({ id }))
       },
       async prune(before, limit) {
         const doomed = await sessions
@@ -261,10 +269,10 @@ export const typeormAdapter = (options: TypeormAdapterOptions): FullAdapter => {
         await upsert(grants, grantRow(grant), ['account_id', 'client_id'], ['scopes', 'claims', 'resources', 'expires_at'])
       },
       async destroy(id) {
-        await grants.delete({ id })
+        await grants.delete(by({ id }))
       },
       async destroyByClientId(clientId) {
-        await grants.delete({ client_id: clientId })
+        await grants.delete(by({ client_id: clientId }))
       }
     },
 
@@ -272,43 +280,43 @@ export const typeormAdapter = (options: TypeormAdapterOptions): FullAdapter => {
 
     credentials: {
       async find(accountId: string) {
-        const row = await credentials.findOneBy({ account_id: accountId })
+        const row = await credentials.findOneBy(by({ account_id: accountId }))
         return row ? toCredential(row) : undefined
       },
       async findByUsername(username: string) {
-        const row = await credentials.findOneBy({ username })
+        const row = await credentials.findOneBy(by({ username }))
         return row ? toCredential(row) : undefined
       },
       // Both the key and the username are unique; a collision on either is a lost race.
       async create(credential: Credential) {
         return insertIfAbsent(credentials, credentialRow(credential), async () =>
-          credentials.exists({ where: [{ account_id: credential.accountId }, { username: credential.username }] })
+          credentials.exists({ where: [by({ account_id: credential.accountId }), by({ username: credential.username })] })
         )
       },
       async upsert(credential: Credential) {
         await upsert(credentials, credentialRow(credential), ['account_id'])
       },
       async destroy(accountId: string) {
-        await credentials.delete({ account_id: accountId })
+        await credentials.delete(by({ account_id: accountId }))
       }
     },
 
     realms: {
       async find(id: string) {
-        const row = await realms.findOneBy({ id })
+        const row = await realms.findOneBy(by({ id }))
         return row ? toRealm(row) : undefined
       },
       async list() {
         return (await realms.find()).map(toRealm)
       },
       async create(realm: Realm) {
-        return insertIfAbsent(realms, realmRow(realm), async () => realms.existsBy({ id: realm.id }))
+        return insertIfAbsent(realms, realmRow(realm), async () => realms.existsBy(by({ id: realm.id })))
       },
       async upsert(realm: Realm) {
         await upsert(realms, realmRow(realm), ['id'])
       },
       async destroy(id: string) {
-        await realms.delete({ id })
+        await realms.delete(by({ id }))
       }
     },
 
@@ -323,7 +331,7 @@ export const typeormAdapter = (options: TypeormAdapterOptions): FullAdapter => {
           .where('namespace = :namespace and value = :value and expires_at <= :now', { namespace, value, now: now() })
           .execute()
         return insertIfAbsent(replay, { namespace, value, expires_at: now() + ttl * 1000 }, async () =>
-          replay.existsBy({ namespace, value })
+          replay.existsBy(by({ namespace, value }))
         )
       },
       async prune(before, limit) {
@@ -346,17 +354,17 @@ export const typeormAdapter = (options: TypeormAdapterOptions): FullAdapter => {
 
     identities: {
       async find(provider: string, subject: string) {
-        const row = await identities.findOneBy({ provider, subject })
+        const row = await identities.findOneBy(by({ provider, subject }))
         return row ? toIdentity(row) : undefined
       },
       async listForAccount(accountId: string) {
-        return (await identities.findBy({ account_id: accountId })).map(toIdentity)
+        return (await identities.findBy(by({ account_id: accountId }))).map(toIdentity)
       },
       async upsert(identity: LinkedIdentity) {
         await upsert(identities, identityRow(identity), ['provider', 'subject'])
       },
       async destroy(provider: string, subject: string) {
-        await identities.delete({ provider, subject })
+        await identities.delete(by({ provider, subject }))
       }
     }
   }

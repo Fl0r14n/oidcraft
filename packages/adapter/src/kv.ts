@@ -281,9 +281,10 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
     }
   }
 
+  const identityKey = (provider: string, subject: string) => `identity/${part(provider)}/${part(subject)}`
   const identities: LinkedIdentityStore = {
     async find(provider, subject) {
-      const identity = dec<LinkedIdentity>(await read(`identity/${provider}/${subject}`))
+      const identity = dec<LinkedIdentity>(await read(identityKey(provider, subject)))
       return identity ? revive(identity, ['linkedAt']) : undefined
     },
     async listForAccount(accountId) {
@@ -291,10 +292,10 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
       return all.filter(identity => identity.accountId === accountId)
     },
     async upsert(identity) {
-      await kv.upsert({ key: `identity/${identity.provider}/${identity.subject}`, value: enc(identity) })
+      await kv.upsert({ key: identityKey(identity.provider, identity.subject), value: enc(identity) })
     },
     async destroy(provider, subject) {
-      await kv.destroy(`identity/${provider}/${subject}`)
+      await kv.destroy(identityKey(provider, subject))
     }
   }
 

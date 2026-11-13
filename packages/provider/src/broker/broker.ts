@@ -84,9 +84,6 @@ const upstreamFailure = (provider: string, result: AuthorizationResult | undefin
   })
 }
 
-// FR-F3: binds the handoff to the browser that started it, or a callback URL is a bearer credential (login CSRF).
-const bindingCookie = (state: string) => `oidcraft.fed.${state}`
-
 const cookieValue = (header: string | null | undefined, name: string) => {
   for (const pair of header?.split(';') ?? []) {
     const separator = pair.indexOf('=')
@@ -99,14 +96,18 @@ const hashOf = async (value: string) => base64url.encode(await sha256(value))
 
 export const createBroker = (config: BrokerConfig) => {
   const callback = new URL(config.callbackUri)
+  const secure = callback.protocol === 'https:'
+  // FR-F3: binds the handoff to the browser that started it, or a callback URL is a bearer credential (login CSRF).
+  // `__Host-` refuses a `Domain` attribute, so a sibling subdomain cannot plant its own binding; the prefix needs `Path=/`.
+  const bindingCookie = (state: string) => (secure ? `__Host-oidcraft.fed.${state}` : `oidcraft.fed.${state}`)
   const cookieFor = (state: string, value: string, maxAge: number) =>
     [
       `${bindingCookie(state)}=${value}`,
-      `Path=${callback.pathname}`,
+      `Path=${secure ? '/' : callback.pathname}`,
       'HttpOnly',
       // Lax, not Strict: the upstream's redirect back is a cross-site top-level navigation.
       'SameSite=Lax',
-      ...(callback.protocol === 'https:' ? ['Secure'] : []),
+      ...(secure ? ['Secure'] : []),
       `Max-Age=${maxAge}`
     ].join('; ')
 

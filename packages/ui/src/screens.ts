@@ -1,4 +1,5 @@
 import { DEFAULT_MAX_LENGTH, type InteractionRequest, type OAuthFieldError, type OAuthFieldErrors } from '@oidcraft/provider/interaction'
+import { STYLESHEET } from './assets'
 import type { Brand, Theme } from './brand'
 import { render } from './render'
 import ConsentScreen from './screens/ConsentScreen.vue'
@@ -22,6 +23,8 @@ export type ScreenUrls = {
   deviceDecide: string
   /** Where a reset link lands. It outlives the interaction that asked for it. */
   reset: string
+  /** Where `assets` answers for `ui.css`; its fonts are fetched beside it. */
+  stylesheet: string
 }
 
 export type InteractionAction = 'login' | 'upstream' | 'consent' | 'logout' | 'otp' | 'recovery' | 'choose' | 'register' | 'forgot'
@@ -86,10 +89,11 @@ export const createScreens = ({ brand, theme, urls: overrides }: ScreensOptions)
     device: '/device',
     deviceDecide: '/device/decide',
     reset: '/reset',
+    stylesheet: STYLESHEET,
     ...overrides
   }
   const page = (title: string, component: Parameters<typeof render>[1], props: Record<string, unknown>, status?: number) =>
-    render(title, component, props, { brand, theme, status })
+    render(title, component, props, { brand, theme, status, stylesheet: urls.stylesheet })
 
   const messageScreen = (title: string, text: string, status?: number) => page(title, MessageScreen, { title, text }, status)
 

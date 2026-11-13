@@ -1,6 +1,5 @@
 import { type Component, createSSRApp, h } from 'vue'
 import { renderToString } from 'vue/server-renderer'
-import { STYLESHEET } from './assets'
 import { BRAND, type Brand, type Theme } from './brand'
 
 const escapeHtml = (value: string) =>
@@ -16,7 +15,7 @@ const themeStyle = (theme: Theme) => {
   return declarations.length ? `<style>:root{${declarations.join(';')}}</style>` : ''
 }
 
-export type RenderOptions = { brand: Brand; theme?: Theme | undefined; status?: number | undefined }
+export type RenderOptions = { brand: Brand; theme?: Theme | undefined; status?: number | undefined; stylesheet: string }
 
 /** Plain server-rendered HTML with no script, every screen a form that posts: the conformance suite's browser runs little (NFR-C1). */
 export const render = async (title: string, component: Component, props: Record<string, unknown>, options: RenderOptions) => {
@@ -26,7 +25,7 @@ export const render = async (title: string, component: Component, props: Record<
   return new Response(
     `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light dark"><title>${escapeHtml(title)} · ${escapeHtml(options.brand.name)}</title>
-<link rel="stylesheet" href="${STYLESHEET}">${themeStyle(options.theme ?? {})}</head>
+<link rel="stylesheet" href="${escapeHtml(options.stylesheet)}">${themeStyle(options.theme ?? {})}</head>
 <body>${body}</body></html>`,
     { status: options.status ?? 200, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } }
   )

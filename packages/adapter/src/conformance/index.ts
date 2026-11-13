@@ -555,6 +555,18 @@ export const adapterConformance = (create: () => Adapter | Promise<Adapter>, opt
       }
     },
     {
+      // FR-F5: a subject is the upstream's to choose, so one holding a separator must not reach another provider's identity.
+      name: 'a provider and subject that join to the same text are still two identities',
+      needs: 'identities',
+      run: async () => {
+        const adapter = await full()
+        await adapter.identities.upsert({ accountId: 'u1', provider: 'corp', subject: 'eu/42', claims: {}, linkedAt: new Date() })
+        same(await adapter.identities.find('corp/eu', '42'), undefined, 'provider corp/eu, subject 42')
+        await adapter.identities.upsert({ accountId: 'u2', provider: 'corp/eu', subject: '42', claims: {}, linkedAt: new Date() })
+        same((await adapter.identities.find('corp', 'eu/42'))?.accountId, 'u1', 'provider corp, subject eu/42')
+      }
+    },
+    {
       // FR-I7: a username belongs to one account, even when two sign-ups race for it.
       name: 'a credential is created once per account and per username, atomically',
       needs: 'credentials',

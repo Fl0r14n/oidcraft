@@ -304,4 +304,13 @@ describe('addressBucket', () => {
     expect(addressBucket('fe80::1%eth0')).toBe('fe80:0:0:0::/64')
     expect(addressBucket('::ffff:192.0.2.7')).toBe('192.0.2.7')
   })
+
+  // A translator puts every IPv4 peer in one /64, so counting by it would let one guesser lock out all of them.
+  test('an IPv4 peer behind NAT64 or a mapped address is its own IPv4 address', () => {
+    expect(addressBucket('64:ff9b::192.0.2.7')).toBe('192.0.2.7')
+    expect(addressBucket('64:ff9b::c000:207')).toBe('192.0.2.7')
+    expect(addressBucket('64:ff9b::198.51.100.1')).not.toBe(addressBucket('64:ff9b::192.0.2.7'))
+    expect(addressBucket('::ffff:c000:207')).toBe('192.0.2.7')
+    expect(addressBucket('64:ff9b:1::c000:207')).toBe('64:ff9b:1:0::/64')
+  })
 })

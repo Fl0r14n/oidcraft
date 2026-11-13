@@ -16,7 +16,8 @@ for types and `sha256` identical in 0.4.0, so a consumer holds both copies until
 
 **Provider 0.3.0 and earlier are not to be put in front of real identities**: they ship a session
 takeover through `sid` and the other security faults the review after that release found, fixed in
-0.4.0. The review's correctness and small findings, and the provider follow-ups, are open.
+0.4.0. The review's correctness and small findings are fixed on `main`, unreleased; the provider
+follow-ups are open.
 
 The authorization code grant with mandatory PKCE, interaction suspend/resume, token issuance with
 rotation and replay revocation, UserInfo, revocation, introspection, logout in both directions,
@@ -67,11 +68,11 @@ word: the host is the authenticator, and an essential `acr` would be enforceable
 
 ## Next, in this order
 
-1. **The correctness and small findings of the review after the release** — below. Correctness done
-   2026-11-13 on `main`, unreleased; its release needs `adapter` 0.2.1 (the `revoked_family` kind,
-   the suite's new checks), `drizzle` and `kysely` 0.2.1, `typeorm` 0.3.0 (`OIDCRAFT_ENTITIES` split
-   by dialect), `core` 0.5.0 (the `token` check), `client` 0.4.0 (the handoff in `sessionStorage`),
-   the provider 0.5.0 and the bindings.
+1. **Release the review's fixes** — below, all done 2026-11-13 on `main`. The release needs
+   `adapter` 0.2.1 (the `revoked_family` kind, the suite's new checks, the identity key),
+   `drizzle` and `kysely` 0.2.1, `typeorm` 0.3.0 (`OIDCRAFT_ENTITIES` split by dialect), `core`
+   0.5.0 (the `token` check), `client` 0.4.0 (the handoff in `sessionStorage`), the provider 0.5.0
+   and the bindings.
 2. **Provider follow-ups**, below. Before 1.0.
 
 ## Review — 2026-11-13, after the release
@@ -103,9 +104,12 @@ release above. In fix order.
 
 **Small**
 
-- [ ] The broker's binding cookie can be planted from a sibling subdomain; NAT64 addresses share a
+- [x] The broker's binding cookie can be planted from a sibling subdomain; NAT64 addresses share a
   /64; `@oidcraft/ui` asset paths are fixed at `/assets`; TypeORM deletes trust the host's
-  undefined-where setting; `fromKv` identity keys are not encoded
+  undefined-where setting; `fromKv` identity keys are not encoded. The binding cookie is `__Host-`
+  over https; TypeORM refuses a missing value in a lookup as well as a delete, since the same
+  setting makes a find match any row; `fromKv`'s identity key changed, so a Redis store's links
+  made before it are not found
 
 ## Provider follow-ups
 

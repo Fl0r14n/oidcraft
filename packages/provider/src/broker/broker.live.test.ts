@@ -69,13 +69,13 @@ const broker = createBroker({
   ]
 })
 
+/** The upstream session cookie the last sign-in left in the browser. */
+let upstreamCookie = ''
+
 /**
  * Drives whatever the upstream asks for, rather than assuming a fixed number of legs: consent is
  * remembered (FR-I4), so a second sign-in for the same account and client skips it entirely.
  */
-/** The upstream session cookie the last sign-in left in the browser. */
-let upstreamCookie = ''
-
 const authenticateUpstream = async (authorizationUrl: string) => {
   let response = await upstream.handle(new Request(authorizationUrl))
   let cookie = ''
@@ -169,6 +169,24 @@ describe('brokering to a live upstream', () => {
     expect(setCookie).toContain('HttpOnly')
     expect(setCookie).toContain('SameSite=Lax')
     expect(setCookie).toContain(`Path=${new URL(CALLBACK).pathname}`)
+  })
+
+  test('over https the binding cookie is __Host-, so a sibling subdomain cannot plant one', async () => {
+    const secure = createBroker({
+      adapter: downstream,
+      callbackUri: 'https://op.example.test/federation/callback',
+      allowInsecure: true,
+      providers: [{ id: 'self', issuer: ISSUER, clientId: 'broker', clientSecret: 'a-long-enough-upstream-secret', scopes: ['openid'] }]
+    })
+    const { url, setCookie } = await secure.start('downstream-interaction-host', 'self')
+    expect(setCookie).toStartWith('__Host-oidcraft.fed.')
+    expect(setCookie).toContain('Path=/;')
+    expect(setCookie).toContain('Secure')
+    expect(setCookie).not.toContain('Domain')
+    const state = new URL(url).searchParams.get('state') as string
+    const callback = new URL(`https://op.example.test/federation/callback?code=whatever&state=${state}`)
+    const planted = `oidcraft.fed.${state}=${cookieOf(setCookie).split('=')[1]}`
+    await expect(secure.complete(callback, planted)).rejects.toThrow(/did not start in this browser/)
   })
 
   test('a callback whose state was never issued is refused', async () => {

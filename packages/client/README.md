@@ -9,9 +9,10 @@ lifecycle, refresh, the authorized `fetch` that retries a 401 into token state, 
 derived from the id_token or `userinfo`. It is what `@oidcraft/vue`, `@oidcraft/react` and `@oidcraft/angular`
 are built on, and what a framework without a binding here builds on directly.
 
-A sign-in in progress keeps its handoff — `state`, `nonce`, the PKCE verifier — in this tab's
-`sessionStorage`, never in the token every tab shares: starting a sign-in in one tab signs none of
-the others out.
+A sign-in in progress keeps its handoff — `state`, `nonce`, the PKCE verifier — under its own `state`
+in `localStorage`, expiring after ten minutes, never in the token every tab shares: starting a
+sign-in in one tab signs none of the others out, and the callback may land in any tab. A callback
+that fails, or that nobody started, never ends a live session.
 
 Refresh is one at a time across tabs, not only within one: it runs under a Web Lock named after the
 storage key, and reads storage again once it holds it, so a tab that waited takes the token another

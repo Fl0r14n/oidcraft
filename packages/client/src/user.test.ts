@@ -28,6 +28,18 @@ describe('user', () => {
     expect(strict.user()).toBeUndefined()
   })
 
+  // After a reload a discovered config has no jwks_uri until discovery runs, and the ID token cannot be checked without it.
+  it('runs discovery before checking a stored ID token', async () => {
+    const functions = mockOAuthFunctions()
+    functions.openIdConfiguration.mockResolvedValue({ issuer: 'https://idp', jwks_uri: 'https://idp/jwks' } as never)
+    const discovered = createOAuth({ storageKey: 'discovered.token', config: { issuerPath: 'https://idp', clientId: 'c' }, functions })
+    discovered.setToken({ id_token: idToken({ name: 'Jane' }) })
+
+    await flush()
+
+    expect(functions.openIdConfiguration).toHaveBeenCalled()
+  })
+
   it('derives the user from the id_token claims', async () => {
     oauth.setToken({ id_token: idToken({ name: 'Jane', email: 'jane@acme.io' }) })
 

@@ -22,7 +22,7 @@ import { createStore } from './store'
 import type { TokenContext } from './token'
 import type { RedirectOptions } from './types'
 
-const CALLBACK_PARAMETERS = ['code', 'state', 'iss', 'session_state', 'error', 'error_description', 'error_uri']
+const CALLBACK_PARAMETERS = ['code', 'state', 'iss', 'session_state', 'id_token', 'error', 'error_description', 'error_uri']
 
 const REVOCATION_PATIENCE = 3_000
 
@@ -53,29 +53,47 @@ const failureState = (failure: Exclude<AuthorizationResult, { ok: true }>): OAut
   return { error: 'temporarily_unavailable', error_description: 'the token endpoint did not answer' }
 }
 
+/** Long enough to sign in, short enough that an abandoned sign-in's verifier does not linger. */
+const HANDOFF_TTL = 10 * 60_000
+
 export const createFlows = (
   { config, storageKey }: Pick<ConfigContext, 'config' | 'storageKey'>,
   { token, setToken, autoconfigOauth }: Pick<TokenContext, 'token' | 'setToken' | 'autoconfigOauth'>,
   functions: OAuthFunctions,
   jwt: Jwt
 ) => {
-  // Per tab, never in the shared token: written there, starting a login signed every other tab out. Survives the redirect.
-  const handoffKey = () => `${storageKey()}.handoff`
+  // Keyed by its own state, never in the shared token: written there, starting a login signed every other tab out. Any tab
+  // may finish it — a callback can land in a new tab or window — and an abandoned one expires.
+  const handoffPrefix = () => `${storageKey()}.handoff.`
   let pending: Partial<AuthorizationHandoff> | undefined
   const saveHandoff = (handoff: Partial<AuthorizationHandoff>) => {
     pending = handoff
     try {
-      globalThis.sessionStorage?.setItem(handoffKey(), JSON.stringify(handoff))
+      const store = globalThis.localStorage
+      if (!store || !handoff.state) return
+      for (let i = store.length - 1; i >= 0; i--) {
+        const key = store.key(i)
+        if (key?.startsWith(handoffPrefix()) && !(Number(JSON.parse(store.getItem(key) ?? '{}').expires) > Date.now()))
+          store.removeItem(key)
+      }
+      store.setItem(`${handoffPrefix()}${handoff.state}`, JSON.stringify({ ...handoff, expires: Date.now() + HANDOFF_TTL }))
     } catch {}
   }
-  const takeHandoff = (): Partial<AuthorizationHandoff> | undefined => {
+  const takeHandoff = (state: string | undefined): Partial<AuthorizationHandoff> | undefined => {
     let stored: Partial<AuthorizationHandoff> | undefined
     try {
-      const raw = globalThis.sessionStorage?.getItem(handoffKey())
-      globalThis.sessionStorage?.removeItem(handoffKey())
-      stored = raw ? JSON.parse(raw) : undefined
+      const store = globalThis.localStorage
+      // An error answered without its state, as RFC 6749 §4.1.2.1 forbids but servers do, is matched only when one is pending.
+      const keys = Array.from({ length: store?.length ?? 0 }, (_, i) => store?.key(i)).filter(key => key?.startsWith(handoffPrefix()))
+      const key = state ? `${handoffPrefix()}${state}` : keys.length === 1 ? keys[0] : undefined
+      if (key) {
+        const raw = globalThis.localStorage?.getItem(key)
+        globalThis.localStorage?.removeItem(key)
+        const { expires, ...handoff } = raw ? JSON.parse(raw) : { expires: 0 }
+        if (Number(expires) > Date.now()) stored = handoff
+      }
     } catch {}
-    const handoff = stored ?? pending
+    const handoff = stored ?? (state === undefined || pending?.state === state ? pending : undefined)
     pending = undefined
     return handoff
   }
@@ -156,10 +174,13 @@ export const createFlows = (
     try {
       // an implicit callback after a reload still needs the discovered `jwks_uri` to verify its ID token
       await autoconfigOauth()
-      const result = await completeAuthorization(config(), source as never, takeHandoff(), { functions, verifyIdToken: jwt })
-      if (result) {
-        setToken(result.ok ? result.token : failureState(result))
-      }
+      const result = await completeAuthorization(config(), source as never, takeHandoff(parameters.state), {
+        functions,
+        verifyIdToken: jwt
+      })
+      // A callback that failed, or that nobody started, never ends a live session: it is reported only to one with none.
+      if (result?.ok) setToken(result.token)
+      else if (result && !token()?.access_token) setToken(failureState(result))
     } finally {
       // after the exchange, not before: a live Location is read again inside it
       // a URL handed in is cleaned too when it is the address bar's, as a router passing `location.href` does

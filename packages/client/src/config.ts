@@ -2,6 +2,9 @@ import type { OAuthTypeConfig } from '@oidcraft/core'
 import { createStore } from './store'
 import type { OAuthConfig } from './types'
 
+/** Stands in for the page's origin when there is no page to resolve a relative URL against. */
+const THIS_PAGE = 'https://this-page.invalid'
+
 export const createConfig = (cfg?: OAuthConfig) => {
   const configStore = createStore<{ oauthConfig: OAuthConfig }>({
     oauthConfig: {
@@ -45,11 +48,22 @@ export const createConfig = (cfg?: OAuthConfig) => {
   }
 
   // RFC 9700 §2.3, FR-L6: the bearer goes only to this page's origin, the provider's and `resourceOrigins`.
+  // Resolved as the browser will: `//host/x` and `\\host\x` parse only against a base, and land on another origin.
+  // Without a page to resolve against, a path still means this page, and anything that names a host does not.
   const isResourceUrl = (url?: string) => {
-    if (!url || !URL.canParse(url)) return true
+    if (!url) return true
+    const page = globalThis.location?.origin && globalThis.location.origin !== 'null' ? globalThis.location.href : undefined
+    const base = page ?? THIS_PAGE
+    if (!URL.canParse(url, base)) return false
+    const target = new URL(url, base).origin
+    if (!page && target === THIS_PAGE) return true
     const { issuerPath, issuer, userPath } = (config() ?? {}) as { issuerPath?: string; issuer?: string; userPath?: string }
-    const allowed = [globalThis.location?.origin, ...[issuerPath, issuer, userPath].map(originOf), ...(oauthConfig().resourceOrigins ?? [])]
-    return allowed.includes(new URL(url).origin)
+    const allowed = [
+      page && globalThis.location.origin,
+      ...[issuerPath, issuer, userPath].map(originOf),
+      ...(oauthConfig().resourceOrigins ?? [])
+    ]
+    return allowed.includes(target)
   }
 
   const storageKey = () => oauthConfig().storageKey || 'token'

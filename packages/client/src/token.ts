@@ -10,7 +10,7 @@ import {
   type OpenIdConfig
 } from '@oidcraft/core'
 import type { ConfigContext } from './config'
-import { createStorageStore } from './storage'
+import { createStorageStore, readSlot, writeSlot } from './storage'
 import { watchStore } from './store'
 
 export const isExpiredToken = (token?: OAuthToken) => (token?.expires && Date.now() > token.expires) || false
@@ -20,12 +20,16 @@ const isExpiringToken = (token?: OAuthToken) => (token?.expires && Date.now() + 
 
 // FR-L5: Web Locks span the origin's tabs; without them, this tab alone.
 const REFRESH_PATIENCE = 30_000
+/** setTimeout's ceiling, about 24.8 days; a later expiry is waited for in steps. */
+const LONGEST_TIMER = 2 ** 31 - 1
+
+const ELAPSED = Symbol('elapsed')
 
 // FR-L5: the refresh holds the cross-tab lock, so one that never answers must not hold it, and every tab waiting on it, forever.
 const answeredWithin = async <T>(ms: number, task: Promise<T>) => {
   let timer: ReturnType<typeof setTimeout> | undefined
-  const elapsed = new Promise<undefined>(resolve => {
-    timer = setTimeout(() => resolve(undefined), ms)
+  const elapsed = new Promise<typeof ELAPSED>(resolve => {
+    timer = setTimeout(() => resolve(ELAPSED), ms)
   })
   try {
     return await Promise.race([task, elapsed])
@@ -116,19 +120,23 @@ export const createToken = (
         storage.reload()
         const t = token()
         if (!isExpiringToken(t)) return
-        await autoconfigOauth()
-        const refreshed = await answeredWithin(REFRESH_PATIENCE, functions.refresh(t, config()))
-        // rekeyed meanwhile, the answer belongs to the key it was asked for, not the one now in use
-        if (storageKey() !== key) return
-        if (refreshed && !isExpiredToken(refreshed)) {
-          if (refreshed.error) {
-            setToken(refreshed)
-          } else {
-            // FR-L5: stored even without an expiry; RFC 6749 §6 and OIDC Core §12.2 let it omit the refresh and ID tokens
-            const kept = { ...(t.refresh_token && { refresh_token: t.refresh_token }), ...(t.id_token && { id_token: t.id_token }) }
-            setToken(withExpiry({ ...kept, ...refreshed }))
-          }
+        if ((await answeredWithin(REFRESH_PATIENCE, autoconfigOauth())) === ELAPSED) return
+        const request = functions.refresh(t, config())
+        // The answer belongs to the slot it was asked for, rekeyed or not, and only while that slot still holds what was sent.
+        const settle = (refreshed: OAuthToken | undefined) => {
+          if (!refreshed || isExpiredToken(refreshed)) return
+          const current = storageKey() === key ? (storage.reload(), token()) : (readSlot(key) as OAuthToken | undefined)
+          if (current?.refresh_token !== t.refresh_token) return
+          // FR-L5: stored even without an expiry; RFC 6749 §6 and OIDC Core §12.2 let it omit the refresh and ID tokens
+          const kept = { ...(t.refresh_token && { refresh_token: t.refresh_token }), ...(t.id_token && { id_token: t.id_token }) }
+          const next = refreshed.error ? refreshed : withExpiry({ ...kept, ...refreshed })
+          if (storageKey() === key) setToken(next)
+          else writeSlot(key, next)
         }
+        const refreshed = await answeredWithin(REFRESH_PATIENCE, request)
+        // Given up on, not abandoned: a rotated refresh token arriving late is the only one left, and replaying the old one revokes it.
+        if (refreshed === ELAPSED) void request.then(settle, () => undefined)
+        else settle(refreshed)
       })
     })().finally(() => {
       inFlight = undefined
@@ -145,6 +153,31 @@ export const createToken = (
     }
   }
 
+  // Whether a token is live is read off the clock, so nothing in the store changes when it lapses: a binding kept showing it
+  // signed in until the next request. At its expiry it is refreshed, or written again so every reader recomputes.
+  const watchExpiry = () => {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const schedule = (expires: number | undefined) => {
+      clearTimeout(timer)
+      if (!expires) return
+      timer = setTimeout(
+        () => {
+          const t = token()
+          if (t?.expires !== expires) return
+          if (Date.now() < expires) return schedule(expires)
+          if (t.refresh_token) void checkToken().catch(() => undefined)
+          else if (t.access_token) setToken({ ...t })
+        },
+        Math.min(Math.max(0, expires - Date.now()), LONGEST_TIMER)
+      )
+    }
+    const off = watchStore(storage.store, () => token()?.expires, schedule, { immediate: true })
+    return () => {
+      clearTimeout(timer)
+      off()
+    }
+  }
+
   let teardowns: Array<() => void> = []
 
   const start = () => {
@@ -155,7 +188,8 @@ export const createToken = (
       storage.listen(),
       watchStore(configStore, storageKey, key => storage.rekey(key)),
       watchStore(configStore, config, revalidate),
-      watchStore(storage.store, rawAccessToken, revalidate)
+      watchStore(storage.store, rawAccessToken, revalidate),
+      watchExpiry()
     ]
     revalidate()
   }

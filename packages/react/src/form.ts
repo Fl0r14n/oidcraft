@@ -1,3 +1,4 @@
+import { tokenState } from '@oidcraft/client'
 import { createOAuthForm, type OAuthFormController, type OAuthFormOptions, type OAuthFormView, oauthFormView } from '@oidcraft/react/core'
 import { useMemo, useRef } from 'react'
 import { useOAuthError, useStoreValue } from './hooks'
@@ -22,7 +23,11 @@ export const useOAuthForm = (options: UseOAuthFormOptions = {}): OAuthForm => {
         {
           login: parameters => oauth.login(parameters),
           isAuthorized: oauth.isAuthorized,
-          errorDescription: oauth.errorDescription
+          // FR-L8: what the view shows, so dismissing an error without a description dismisses it
+          errorDescription: () => {
+            const state = tokenState(oauth.token())
+            return state.errorDescription ?? state.error
+          }
         },
         seed.current
       ),

@@ -14,6 +14,8 @@ export type OAuthForm = Omit<OAuthFormController, 'store' | 'state' | 'view' | '
 /** The resource-owner password form; call it inside an effect scope. OAuth 2.1 removed the grant, so `@oidcraft/provider` refuses it. */
 export const useOAuthForm = (options: OAuthFormOptions = {}): OAuthForm => {
   const oauth = getActiveOAuth()
+  // FR-L8: an error without a description is still one, shown and dismissed by the same text in every binding.
+  const flowError = () => oauth.errorDescription.value ?? oauth.error.value
   const {
     store,
     state,
@@ -25,14 +27,14 @@ export const useOAuthForm = (options: OAuthFormOptions = {}): OAuthForm => {
     {
       login: parameters => oauth.login(parameters),
       isAuthorized: () => oauth.isAuthorized.value,
-      errorDescription: () => oauth.errorDescription.value
+      errorDescription: () => flowError()
     },
     options
   )
 
   const snapshot = storeRef(store, state)
   // read here, not through the controller, so this computed tracks it
-  const view = computed(() => oauthFormView(snapshot.value, oauth.errorDescription.value, actions.maxLength))
+  const view = computed(() => oauthFormView(snapshot.value, flowError(), actions.maxLength))
 
   return {
     ...actions,

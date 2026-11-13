@@ -1,5 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test'
-import { type AuthorizationCodePKCEConfig, OAuthStatus, OAuthType } from '@oidcraft/core'
+import { afterEach, beforeEach, describe, expect, it, jest, setSystemTime } from 'bun:test'
+import { type AuthorizationCodePKCEConfig, OAuthStatus, type OAuthToken, OAuthType } from '@oidcraft/core'
 import { createOAuth as create, type OAuth } from './module'
 import { createOAuth, flush, installStorage, mockOAuthFunctions, registerOAuthCleanup } from './test-utils'
 import { isExpiredToken } from './token'
@@ -90,10 +90,51 @@ describe('checkToken', () => {
     expect(oauth.token()).toMatchObject({ access_token: 'fresh', refresh_token: 'r2', id_token: 'id' })
   })
 
-  it('drops a refresh answered after the storage key changed, rather than writing it under the new one', async () => {
+  // A token's liveness is read off the clock; without a write at expiry a binding keeps showing it signed in.
+  it('tells its readers when the token lapses', () => {
+    jest.useFakeTimers()
+    const start = Date.now()
+    try {
+      oauth.setToken({ access_token: 'a', token_type: 'Bearer', expires: start + 5_000 })
+      let notified = 0
+      const off = oauth.tokenStore.subscribe(() => notified++)
+      setSystemTime(start + 5_001)
+      jest.advanceTimersByTime(5_001)
+      off()
+      expect(notified).toBeGreaterThan(0)
+      expect(oauth.isAuthorized()).toBe(false)
+    } finally {
+      jest.useRealTimers()
+      setSystemTime()
+    }
+  })
+
+  // FR-L5: the lock is let go after 30 s, but the request is not: its rotated refresh token is the only live one left.
+  it('keeps a rotated token that arrives after the refresh was given up on', async () => {
+    jest.useFakeTimers()
+    try {
+      let answer: ((token: OAuthToken) => void) | undefined
+      refresh.mockImplementation(() => new Promise(resolve => (answer = resolve)))
+      oauth.setToken({ refresh_token: 'r', access_token: 'stale', expires: Date.now() - 10_000 })
+
+      const checking = oauth.checkToken()
+      for (let tick = 0; !answer && tick < 100; tick++) await Promise.resolve()
+      jest.advanceTimersByTime(30_001)
+      await checking
+      answer?.({ access_token: 'late', refresh_token: 'r2', expires_in: 60 })
+      for (let tick = 0; tick < 10; tick++) await Promise.resolve()
+
+      expect(oauth.token()).toMatchObject({ access_token: 'late', refresh_token: 'r2' })
+    } finally {
+      jest.useRealTimers()
+    }
+  })
+
+  // A rotated refresh token is the only live one: dropped, the next refresh would replay the spent one (FR-L5, FR-T4).
+  it('stores a refresh answered after the storage key changed under the key it was asked for', async () => {
     refresh.mockImplementation(async () => {
       oauth.setStorageKey('tenant-b')
-      return { access_token: 'fresh', expires_in: 60 }
+      return { access_token: 'fresh', refresh_token: 'r2', expires_in: 60 }
     })
     oauth.setToken({ refresh_token: 'r', access_token: 'stale', expires: Date.now() - 10_000 })
 
@@ -101,6 +142,7 @@ describe('checkToken', () => {
 
     expect(oauth.token().access_token).toBeUndefined()
     expect(globalThis.localStorage.getItem('tenant-b')).toBeNull()
+    expect(JSON.parse(globalThis.localStorage.getItem('token') ?? '{}')).toMatchObject({ access_token: 'fresh', refresh_token: 'r2' })
   })
 
   it('derives expires from expires_in on a token that has none', async () => {

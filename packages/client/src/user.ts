@@ -7,7 +7,7 @@ import type { TokenContext } from './token'
 
 export const createUser = (
   { configStore, config }: Pick<ConfigContext, 'configStore' | 'config'>,
-  { tokenStore, token, isAuthorized }: Pick<TokenContext, 'tokenStore' | 'token' | 'isAuthorized'>,
+  { tokenStore, token, isAuthorized, autoconfigOauth }: Pick<TokenContext, 'tokenStore' | 'token' | 'isAuthorized' | 'autoconfigOauth'>,
   { oauthFetch }: Pick<FetchContext, 'oauthFetch'>,
   functions: OAuthFunctions,
   jwt: Jwt
@@ -30,15 +30,22 @@ export const createUser = (
       userStore.setState({ user: undefined })
       return
     }
+    let subject: unknown
     if (idToken) {
+      // After a reload a discovered config has no jwks_uri yet, and an ID token checked without it fails (FR-L2).
+      await autoconfigOauth().catch(() => undefined)
+      if (stale()) return
       const claims = await jwt(idToken)
       if (stale()) return
       // FR-L2: a token that fails verification, an expired one included, is nobody
       userStore.setState({ user: claims.error ? undefined : claims })
+      subject = claims.error ? undefined : claims.sub
     }
     if (authorized && userPath) {
       const usr = await functions.userInfo(config(), oauthFetch)
-      if (stale() || !usr) return
+      if (stale() || !usr || 'error' in usr) return
+      // OIDC Core §5.3.2: an answer about anyone but the ID token's subject is not used. A plain OAuth profile has no sub to check.
+      if (subject !== undefined && usr.sub !== subject) return
       userStore.setState({ user: usr })
     }
   }
@@ -55,7 +62,7 @@ export const createUser = (
       ),
       watchStore(
         configStore,
-        () => (config() as any)?.userPath,
+        () => [(config() as any)?.userPath, (config() as any)?.jwksUri],
         () => void sync()
       )
     ]

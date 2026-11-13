@@ -82,7 +82,9 @@ export const defaultOAuthFunctions: OAuthFunctions = {
   authorize: async (token, config) => {
     const { tokenPath, scope } = config || {}
     const { code, redirect_uri, code_verifier } = token || {}
-    if (!code || !tokenPath) return token
+    if (!code) return token
+    // Nowhere to exchange it: reported as no answer, never the redirect's own parameters taken for one (FR-L2).
+    if (!tokenPath) return undefined
     const exchanged = await authenticatedPost(
       tokenPath,
       { code, redirect_uri, grant_type: 'authorization_code', scope, code_verifier },

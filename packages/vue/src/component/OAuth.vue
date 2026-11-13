@@ -26,7 +26,7 @@
                 <template #prepend>
                   <VAvatar color="primary">
                     <VImg :src="user.picture" v-if="user.picture" />
-                    <span class="text-h5" v-else v-html="user.initials" />
+                    <span class="text-h5" v-else>{{ user.initials }}</span>
                   </VAvatar>
                 </template>
               </VListItem>

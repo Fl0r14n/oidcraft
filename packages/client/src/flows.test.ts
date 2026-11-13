@@ -243,6 +243,27 @@ describe('oauthCallback', () => {
   /** What `login` leaves behind for the callback to match. */
   const pending = (state = 'xyz') => armHandoff({ state, redirect_uri: 'https://h/callback' })
 
+  // A link to the callback route must not sign anyone out: only a sign-in this browser started may change the session.
+  it('leaves a live session alone when a callback nobody started arrives', async () => {
+    oauth.setToken({ access_token: 'live', token_type: 'Bearer' })
+
+    await oauth.oauthCallback('https://h/callback?code=junk&state=nope')
+    await oauth.oauthCallback('https://h/callback?error=access_denied')
+
+    expect(oauth.token().access_token).toBe('live')
+  })
+
+  // A callback can land in another tab or window than the one that started it: a new tab, a noopener popup.
+  it('finishes in a fresh instance a sign-in another started', async () => {
+    functions.authorize.mockResolvedValue({ access_token: 'from-elsewhere', token_type: 'Bearer' })
+    pending('st')
+    const elsewhere = createOAuth({ config: { tokenPath: '/t', clientId: 'c', authorizePath: '/a' }, functions })
+
+    await elsewhere.oauthCallback('https://h/callback?code=c&state=st')
+
+    expect(elsewhere.token().access_token).toBe('from-elsewhere')
+  })
+
   it('ignores a url with neither a code nor a token', async () => {
     await oauth.oauthCallback('https://h/callback')
     expect(functions.authorize).not.toHaveBeenCalled()

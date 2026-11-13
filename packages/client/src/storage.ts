@@ -1,6 +1,6 @@
 import { createStore, type Subscribable } from './store'
 
-const read = (key: string) => {
+export const readSlot = (key: string) => {
   try {
     const value = globalThis.localStorage?.getItem(key)
     return (value && JSON.parse(value)) || undefined
@@ -9,7 +9,7 @@ const read = (key: string) => {
   }
 }
 
-const write = (key: string, value: any) => {
+export const writeSlot = (key: string, value: any) => {
   try {
     globalThis.localStorage?.setItem(key, JSON.stringify(value))
   } catch {
@@ -31,7 +31,7 @@ export interface StorageStore<T> {
 
 export const createStorageStore = <T>(initialKey: string, initial: T, map?: (v: any) => T): StorageStore<T> => {
   const seed = (key: string): T => {
-    const stored = read(key)
+    const stored = readSlot(key)
     return map?.(stored || initial) || stored || initial
   }
 
@@ -43,7 +43,7 @@ export const createStorageStore = <T>(initialKey: string, initial: T, map?: (v: 
     get: () => store.getState().value,
     // written before the notify: a listener may navigate away
     set: value => {
-      write(key, value)
+      writeSlot(key, value)
       store.setState({ value })
     },
     rekey: newKey => {

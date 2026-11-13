@@ -31,11 +31,13 @@ const stub = () => {
   const calls: Array<Record<string, unknown>> = []
   const authorized = signal(false)
   const description = signal<string | undefined>(undefined)
+  const code = signal<string | undefined>(undefined)
   const oauth = {
     login: async (parameters?: Record<string, unknown>) => {
       calls.push(parameters ?? {})
     },
     isAuthorized: authorized,
+    error: code,
     errorDescription: description
   } as unknown as NgxOAuth
   return {
@@ -45,6 +47,10 @@ const stub = () => {
     fail: (message: string) => {
       authorized.set(false)
       description.set(message)
+    },
+    failBare: (error: string) => {
+      authorized.set(false)
+      code.set(error)
     }
   }
 }
@@ -131,6 +137,16 @@ describe('oauthForm', () => {
 
     harness.fail('account locked')
     expect(form.view().error).toBe('account locked')
+  })
+
+  // FR-L8: an error the server sent without a description is shown by its code, and dismissing it dismisses it.
+  it('shows and dismisses an error that came without a description', () => {
+    const form = build(harness.oauth)
+
+    harness.failBare('invalid_grant')
+    expect(form.view().error).toBe('invalid_grant')
+    form.dismissError()
+    expect(form.view().error).toBeUndefined()
   })
 
   it('toggles password visibility', () => {

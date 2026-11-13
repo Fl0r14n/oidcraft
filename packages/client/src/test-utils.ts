@@ -48,12 +48,21 @@ export const installStorage = (): Storage => {
   return local
 }
 
-/** A sign-in this tab started, as `login` leaves it for the callback. */
+/** A sign-in started, as `login` leaves it for the callback: under its own state, expiring. */
 export const armHandoff = (handoff: Record<string, string>, storageKey = 'token') =>
-  globalThis.sessionStorage.setItem(`${storageKey}.handoff`, JSON.stringify(handoff))
+  globalThis.localStorage.setItem(`${storageKey}.handoff.${handoff.state}`, JSON.stringify({ ...handoff, expires: Date.now() + 60_000 }))
 
-export const handoffOf = (storageKey = 'token'): Record<string, string | undefined> =>
-  JSON.parse(globalThis.sessionStorage.getItem(`${storageKey}.handoff`) ?? '{}')
+/** The one pending handoff, whatever its state. */
+export const handoffOf = (storageKey = 'token'): Record<string, string | undefined> => {
+  for (let i = 0; i < globalThis.localStorage.length; i++) {
+    const key = globalThis.localStorage.key(i)
+    if (key?.startsWith(`${storageKey}.handoff.`)) {
+      const { expires: _, ...handoff } = JSON.parse(globalThis.localStorage.getItem(key) ?? '{}')
+      return handoff
+    }
+  }
+  return {}
+}
 
 /** Clearing the returned `localStorage` clears the tab's `sessionStorage` too, where a pending handoff lives. */
 const memoryStorage = (alsoClear?: () => void): Storage => {

@@ -53,6 +53,15 @@ describe('authorized transport', () => {
       expect(refresh).toHaveBeenCalled()
     })
 
+    // FR-L6: these parse only against the page, and the browser sends them to another origin.
+    it('is empty for a scheme-relative or backslashed URL to another host', async () => {
+      oauth.setToken({ access_token: 'at', token_type: 'Bearer' })
+
+      expect(await oauth.authHeaders('//evil.example/steal')).toEqual({})
+      expect(await oauth.authHeaders('\\\\evil.example\\steal')).toEqual({})
+      expect(await oauth.authHeaders('https://evil.example/steal')).toEqual({})
+    })
+
     it('is empty for an ignored path', async () => {
       oauth.setToken({ access_token: 'at', token_type: 'Bearer' })
 

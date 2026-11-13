@@ -61,9 +61,11 @@ Versions are set in each `package.json`. Publish in this order, each from a GitH
 
 1. `@oidcraft/core@0.5.0` — a callback answer without an `access_token` fails a new `token` check;
    `CallbackCheck` gains `'token'`; `authorize` returns `undefined` when nothing answered.
-2. `@oidcraft/client@0.4.0` — a sign-in's handoff lives in the tab's `sessionStorage`; redirects are
-   classified by parameter name; an ID token that does not verify is no profile; the refresh lock
-   times out.
+2. `@oidcraft/client@0.4.0` — a sign-in's handoff is keyed by its `state`, out of the shared token,
+   finishable in any tab; a failed or stray callback never ends a live session; the bearer goes
+   only to allowed origins, `//host` URLs included; redirects are classified by parameter name; an ID
+   token that does not verify is no profile, and discovery runs before it is checked; a refresh
+   answered late or after a rekey is kept; bindings see a token lapse.
 3. `@oidcraft/adapter@0.3.0` — the `revoked_family` artifact kind; `fromKv`'s identity key changed,
    so links a Redis store made before it are not found; `AccountStore.claims` documents its third
    argument; `Client.defaultAcrValues`; the conformance suite checks prune, grant expiry and replacing upserts.
@@ -78,8 +80,8 @@ Versions are set in each `package.json`. Publish in this order, each from a GitH
 6. `@oidcraft/typeorm@0.3.0` — the same, and `OIDCRAFT_ENTITIES` becomes `OIDCRAFT_SQLITE_ENTITIES`
    and `OIDCRAFT_POSTGRES_ENTITIES`.
 7. `@oidcraft/vue@10.0.0`, `@oidcraft/react@5.0.0`, `@oidcraft/angular@12.0.0` — majors for what
-   `core` and `client` changed underneath them; React's error hooks report an error without a
-   description.
+   `core` and `client` changed underneath them; every binding shows and dismisses an error that came
+   without a description.
 
 ## After the release: passkeys (FR-I8)
 

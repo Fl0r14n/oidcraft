@@ -1,12 +1,12 @@
 import type { Client } from '@oidcraft/adapter'
 import { CIBA_GRANT, cibaGrant } from '../authorize/ciba'
 import { deviceCodeGrant } from '../authorize/device'
-import { verifyDpopProof } from '../binding/dpop'
+import { proofOptions, verifyDpopProof } from '../binding/dpop'
 import { authenticateClient } from '../clients/authenticate'
-import { publicUrl, type ResolvedConfig } from '../config'
+import type { ResolvedConfig } from '../config'
 import type { ClientCertificate } from '../context'
 import { OAuthError } from '../errors'
-import { FAPI_ALGS, FAPI_IAT_SKEW, underFapi } from '../profile/fapi'
+import { underFapi } from '../profile/fapi'
 import { clientCredentialsGrant } from './client-credentials'
 import { authorizationCodeGrant, refreshTokenGrant } from './code'
 import { exchangeGrant, TOKEN_EXCHANGE } from './exchange'
@@ -24,14 +24,7 @@ const bindingFor = async (config: ResolvedConfig, client: Client, request: Reque
       spec: 'RFC 9449 §5'
     })
   }
-  return (
-    await verifyDpopProof(config, request, {
-      htu: publicUrl(config, request),
-      requireNonceFor: config.features.dpopNonces ? client.clientId : undefined,
-      algorithms: underFapi(config, client) ? FAPI_ALGS : undefined,
-      futureSkew: underFapi(config, client) ? FAPI_IAT_SKEW : undefined
-    })
-  ).jkt
+  return (await verifyDpopProof(config, request, proofOptions(config, request, client.clientId, client))).jkt
 }
 
 export const tokenEndpoint = async (config: ResolvedConfig, request: Request, certificate?: ClientCertificate | undefined) => {

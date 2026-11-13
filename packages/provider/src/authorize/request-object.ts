@@ -1,5 +1,6 @@
 import type { Client } from '@oidcraft/adapter'
-import { createLocalJWKSet, type JSONWebKeySet, jwtVerify } from 'jose'
+import { jwtVerify } from 'jose'
+import { clientKeySet } from '../clients/keys'
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
 import { CLIENT_SIGNING_ALGS } from '../keys/algorithms'
@@ -18,21 +19,6 @@ const JWT_CLAIMS = ['iss', 'aud', 'exp', 'nbf', 'iat', 'jti']
 
 const invalid = (description: string, spec = 'RFC 9101 §6.1') => new OAuthError('invalid_request', { description, spec })
 
-const keySetFor = async (config: ResolvedConfig, client: Client) => {
-  if (client.jwks) return createLocalJWKSet(client.jwks as unknown as JSONWebKeySet)
-  if (client.jwksUri) {
-    // Fetching it here would be outbound I/O in the core, to a URL the client chose (FR-A1).
-    if (!config.resolveClientJwks) {
-      throw invalid(
-        `client ${client.clientId} registered a jwks_uri but no resolveClientJwks was configured; the core does not fetch it itself`,
-        'ARCHITECTURE.md §3.2'
-      )
-    }
-    return createLocalJWKSet((await config.resolveClientJwks(client)) as unknown as JSONWebKeySet)
-  }
-  throw invalid(`client ${client.clientId} has no keys registered, so it cannot sign a request object`)
-}
-
 /**
  * Verifies a JAR request object and folds its parameters into the request (RFC 9101).
  *
@@ -44,7 +30,7 @@ export const applyRequestObject = async (config: ResolvedConfig, client: Client,
   const jwt = params.get('request')
   if (!jwt) return params
 
-  const { payload } = await jwtVerify(jwt, await keySetFor(config, client), {
+  const { payload } = await jwtVerify(jwt, await clientKeySet(config, client, invalid, 'sign a request object'), {
     issuer: client.clientId,
     audience: config.issuer,
     // RFC 9101 §8.2: never none, never a shared secret; exactly what discovery advertises.

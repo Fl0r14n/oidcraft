@@ -39,7 +39,8 @@ export type FromKvOptions = {
   accounts?: AccountStore
 }
 
-const noAccounts: AccountStore = {
+/** Every account lookup misses: the store an adapter uses until the host composes its own in. */
+export const noAccounts: AccountStore = {
   async find() {
     return undefined
   },

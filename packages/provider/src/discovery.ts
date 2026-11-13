@@ -1,10 +1,7 @@
-import type { ClientAuthMethod } from '@oidcraft/adapter'
-import type { ResolvedConfig } from './config'
+import { MTLS_METHODS, type ResolvedConfig } from './config'
 import { CLIENT_SECRET_ALGS, CLIENT_SIGNING_ALGS } from './keys/algorithms'
 import { signingAlgorithms } from './keys/keys'
 import { FAPI_ALGS, FAPI_AUTH_METHODS } from './profile/fapi'
-
-const MTLS_METHODS: ClientAuthMethod[] = ['tls_client_auth', 'self_signed_tls_client_auth']
 
 /**
  * Advertises only what this configuration can actually do (FR-C6). A capability the runtime cannot

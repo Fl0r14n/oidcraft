@@ -1,9 +1,11 @@
+import type { Client } from '@oidcraft/adapter'
 import { randomString, sha256 } from '@oidcraft/core'
 import { base64url, calculateJwkThumbprint, decodeProtectedHeader, importJWK, type JWK, jwtVerify } from 'jose'
-import type { ResolvedConfig } from '../config'
+import { publicUrl, type ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
 import { CLIENT_SIGNING_ALGS } from '../keys/algorithms'
 import { readArtifact, writeArtifact } from '../payloads'
+import { FAPI_ALGS, FAPI_IAT_SKEW, underFapi } from '../profile/fapi'
 
 /** RFC 9449 §4.2: asymmetric only. A symmetric alg would let anyone holding the proof mint another. */
 
@@ -79,6 +81,20 @@ export type VerifyOptions = {
   algorithms?: string[] | undefined
   /** Seconds an `iat` may run ahead of this clock; FAPI 2.0 requires accepting ten (FR-C21). */
   futureSkew?: number | undefined
+}
+
+/**
+ * What every endpoint verifying a client's proof requires of it: the provider's public URL, a nonce
+ * when the provider demands them, and FAPI 2.0's narrower algorithms and skew (NFR-S6, FR-C21).
+ */
+export const proofOptions = (config: ResolvedConfig, request: Request, clientId: string, client: Client | undefined): VerifyOptions => {
+  const fapi = underFapi(config, client)
+  return {
+    htu: publicUrl(config, request),
+    requireNonceFor: config.features.dpopNonces ? clientId : undefined,
+    algorithms: fapi ? FAPI_ALGS : undefined,
+    futureSkew: fapi ? FAPI_IAT_SKEW : undefined
+  }
 }
 
 /**

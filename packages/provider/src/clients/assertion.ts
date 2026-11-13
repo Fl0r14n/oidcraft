@@ -1,9 +1,10 @@
 import type { Client } from '@oidcraft/adapter'
-import { createLocalJWKSet, type JSONWebKeySet, jwtVerify } from 'jose'
+import { jwtVerify } from 'jose'
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
 import { CLIENT_SECRET_ALGS, CLIENT_SIGNING_ALGS } from '../keys/algorithms'
 import { FAPI_ALGS, FAPI_IAT_SKEW, FAPI_NBF_MAX_AGE, underFapi } from '../profile/fapi'
+import { clientKeySet } from './keys'
 
 export const ASSERTION_TYPE = 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer'
 
@@ -13,20 +14,6 @@ const SKEW = 5
 
 const unauthorized = (description: string, spec = 'RFC 7523 §3') =>
   new OAuthError('invalid_client', { description, spec, headers: { 'www-authenticate': 'Basic realm="oidcraft"' } })
-
-const keysFor = async (config: ResolvedConfig, client: Client) => {
-  if (client.jwks) return createLocalJWKSet(client.jwks as unknown as JSONWebKeySet)
-  if (client.jwksUri) {
-    if (!config.resolveClientJwks) {
-      throw unauthorized(
-        `client ${client.clientId} registered a jwks_uri but no resolveClientJwks was configured; the core does not fetch it itself`,
-        'ARCHITECTURE.md §3.2'
-      )
-    }
-    return createLocalJWKSet((await config.resolveClientJwks(client)) as unknown as JSONWebKeySet)
-  }
-  throw unauthorized(`client ${client.clientId} has no keys registered, so it cannot present a private_key_jwt`)
-}
 
 /**
  * Verifies a JWT client assertion (RFC 7523 §3, OIDC Core §9).
@@ -49,7 +36,7 @@ export const verifyClientAssertion = async (config: ResolvedConfig, client: Clie
         : (() => {
             throw unauthorized(`client ${client.clientId} has no secret to sign with`)
           })()
-      : await keysFor(config, client)
+      : await clientKeySet(config, client, unauthorized, 'present a private_key_jwt')
 
   const { payload } = await jwtVerify(assertion, key as never, {
     issuer: client.clientId,

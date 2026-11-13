@@ -1,11 +1,10 @@
 import { randomString } from '@oidcraft/core'
-import { verifyDpopProof } from '../binding/dpop'
+import { proofOptions, verifyDpopProof } from '../binding/dpop'
 import { authenticateClient } from '../clients/authenticate'
-import { publicUrl, type ResolvedConfig } from '../config'
+import type { ResolvedConfig } from '../config'
 import type { ClientCertificate } from '../context'
 import { OAuthError } from '../errors'
 import { readArtifact, writeArtifact } from '../payloads'
-import { FAPI_ALGS, FAPI_IAT_SKEW, underFapi } from '../profile/fapi'
 import { parseAuthorizationRequest, validateAuthorizationRequest } from './authorization'
 import { applyRequestObject } from './request-object'
 
@@ -50,12 +49,7 @@ export const pushedAuthorizationRequestEndpoint = async (
 
   // RFC 9449 §10.1: a proof on the push binds the code to its key, exactly as dpop_jkt would.
   if (config.features.dpop && request.headers.has('dpop')) {
-    const { jkt } = await verifyDpopProof(config, request, {
-      htu: publicUrl(config, request),
-      requireNonceFor: config.features.dpopNonces ? client.clientId : undefined,
-      algorithms: underFapi(config, client) ? FAPI_ALGS : undefined,
-      futureSkew: underFapi(config, client) ? FAPI_IAT_SKEW : undefined
-    })
+    const { jkt } = await verifyDpopProof(config, request, proofOptions(config, request, client.clientId, client))
     if (params.has('dpop_jkt') && params.get('dpop_jkt') !== jkt) {
       throw new OAuthError('invalid_dpop_proof', {
         description: 'dpop_jkt names a different key from the DPoP proof',

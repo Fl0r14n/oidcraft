@@ -11,6 +11,7 @@ import type {
   Realm,
   Session
 } from '@oidcraft/adapter'
+import { noAccounts } from '@oidcraft/adapter'
 import { type DataSource, type EntitySchema, QueryFailedError, type Repository } from 'typeorm'
 import {
   ArtifactEntity,
@@ -132,15 +133,6 @@ const toRealm = (row: RealmRow): Realm => ({
   createdAt: new Date(row.created_at),
   updatedAt: new Date(row.updated_at)
 })
-
-const noAccounts: AccountStore = {
-  async find() {
-    return undefined
-  },
-  async claims() {
-    return undefined
-  }
-}
 
 const upsert = async <T extends object>(
   repository: Repository<T>,

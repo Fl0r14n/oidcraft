@@ -11,6 +11,7 @@ import type {
   Realm,
   Session
 } from '@oidcraft/adapter'
+import { noAccounts } from '@oidcraft/adapter'
 import { type AnyRelations, and, eq, gt, isNull, lte } from 'drizzle-orm'
 import type { PgQueryResultHKT } from 'drizzle-orm/pg-core'
 import type { PgAsyncDatabase } from 'drizzle-orm/pg-core/async'
@@ -392,15 +393,6 @@ export const drizzleAdapter = (options: DrizzleAdapterOptions): FullAdapter => {
         await db.delete(identities).where(and(eq(identities.provider, provider), eq(identities.subject, subject)))
       }
     }
-  }
-}
-
-const noAccounts: AccountStore = {
-  async find() {
-    return undefined
-  },
-  async claims() {
-    return undefined
   }
 }
 

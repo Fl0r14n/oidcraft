@@ -11,6 +11,7 @@ import type {
   Realm,
   Session
 } from '@oidcraft/adapter'
+import { noAccounts } from '@oidcraft/adapter'
 import type { Kysely, Selectable } from 'kysely'
 import type { ArtifactsTable, CredentialsTable, GrantsTable, IdentitiesTable, OidcraftDatabase, RealmsTable, SessionsTable } from './schema'
 
@@ -61,15 +62,6 @@ const toGrant = (row: Selectable<GrantsTable>): Grant => ({
   createdAt: at(row.created_at),
   ...(row.expires_at && { expiresAt: at(row.expires_at) })
 })
-
-const noAccounts: AccountStore = {
-  async find() {
-    return undefined
-  },
-  async claims() {
-    return undefined
-  }
-}
 
 const credentialRow = (credential: Credential) => ({
   account_id: credential.accountId,

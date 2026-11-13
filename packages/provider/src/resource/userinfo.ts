@@ -1,11 +1,10 @@
 import type { Client } from '@oidcraft/adapter'
 import { CompactEncrypt, importJWK, type JWK } from 'jose'
-import { verifyDpopProof } from '../binding/dpop'
-import { publicUrl, type ResolvedConfig } from '../config'
+import { proofOptions, verifyDpopProof } from '../binding/dpop'
+import type { ResolvedConfig } from '../config'
 import type { ClientCertificate } from '../context'
 import { OAuthError } from '../errors'
 import { signerFor } from '../keys/signer'
-import { FAPI_ALGS, FAPI_IAT_SKEW, underFapi } from '../profile/fapi'
 import { resolveAccessToken } from '../token/access-token'
 
 const presentedToken = (request: Request, form: URLSearchParams | undefined) => {
@@ -77,14 +76,11 @@ export const userinfoEndpoint = async (config: ResolvedConfig, request: Request,
     if (presented.scheme !== 'dpop') {
       throw unauthorized('this access token is DPoP-bound and must be presented with the DPoP scheme', 'DPoP')
     }
-    const fapi = underFapi(config, await config.adapter.clients.find(artifact.clientId))
+    const owner = await config.adapter.clients.find(artifact.clientId)
     await verifyDpopProof(config, request, {
-      htu: publicUrl(config, request),
+      ...proofOptions(config, request, artifact.clientId, owner),
       accessToken: presented.token,
-      expectedJkt: confirmation.jkt,
-      requireNonceFor: config.features.dpopNonces ? artifact.clientId : undefined,
-      algorithms: fapi ? FAPI_ALGS : undefined,
-      futureSkew: fapi ? FAPI_IAT_SKEW : undefined
+      expectedJkt: confirmation.jkt
     })
   }
 

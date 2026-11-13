@@ -20,7 +20,7 @@ export type {
 export { hashClientSecret } from './client-secret'
 export { ConfigurationError } from './errors'
 export { generatedKeyStore, generateKey, staticKeyStore } from './keys'
-export { type FromKvOptions, fromKv, type KvEntry, type KvStore } from './kv'
+export { type FromKvOptions, fromKv, type KvEntry, type KvStore, noAccounts } from './kv'
 export type {
   Account,
   AccountOwned,

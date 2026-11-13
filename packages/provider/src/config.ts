@@ -258,7 +258,7 @@ export type ResolvedConfig = {
   authorizationDetailTypes: string[]
 }
 
-const MTLS_METHODS: ClientAuthMethod[] = ['tls_client_auth', 'self_signed_tls_client_auth']
+export const MTLS_METHODS: ClientAuthMethod[] = ['tls_client_auth', 'self_signed_tls_client_auth']
 
 const DEFAULT_SCOPES = ['openid', 'profile', 'email', 'offline_access']
 

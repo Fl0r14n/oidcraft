@@ -28,10 +28,7 @@ const certificate = (cf: IncomingCf): ClientCertificate | undefined => {
 }
 
 /** Cloudflare puts the peer address in a header and the verified client certificate on `request.cf`. */
-export const workerdContext =
-  (issuer: string) =>
-  (request: Request, cf: IncomingCf = {}): RequestContext => ({
-    issuer,
-    clientIp: request.headers.get('cf-connecting-ip') ?? undefined,
-    clientCertificate: certificate(cf)
-  })
+export const workerdContext = (request: Request, cf: IncomingCf = {}): RequestContext => ({
+  clientIp: request.headers.get('cf-connecting-ip') ?? undefined,
+  clientCertificate: certificate(cf)
+})

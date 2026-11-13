@@ -47,7 +47,7 @@ const server = serve({
     if (!site) return new Response('No such realm', { status: 404 })
     const { provider, screens } = site
     const routes = routesFor(site)
-    const context = bunContext(provider.config.issuer, server)(request)
+    const context = bunContext(server)(request)
     if (url.pathname.startsWith('/interaction/')) {
       const response = await routes.interactionRoutes(request, url)
       if (response) return response

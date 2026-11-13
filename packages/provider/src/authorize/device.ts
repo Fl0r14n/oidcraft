@@ -2,7 +2,7 @@ import type { Client } from '@oidcraft/adapter'
 import { randomString } from '@oidcraft/core'
 import { authenticateClient } from '../clients/authenticate'
 import type { ResolvedConfig } from '../config'
-import type { ClientCertificate } from '../context'
+import type { ClientCertificate, RequestContext } from '../context'
 import { OAuthError } from '../errors'
 import { readArtifact, readByUserCode, type Stored, writeArtifact } from '../payloads'
 import type { Binding } from '../token/issue'
@@ -108,7 +108,7 @@ const MAX_FAILURES = 5
 const MAX_ANONYMOUS_FAILURES = 50
 
 /** Who is typing codes, as far as the host can tell. Only the peer address counts (FR-R4). */
-export type UserCodeContext = { clientIp?: string | undefined }
+export type UserCodeContext = Pick<RequestContext, 'clientIp'>
 
 /**
  * RFC 8628 §5.1: a user code is short enough to guess, so wrong guesses are limited per peer.

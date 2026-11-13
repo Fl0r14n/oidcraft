@@ -61,12 +61,12 @@ describe('nodeContext', () => {
 
   // NFR-S6: everything left of the proxy's own entry was written by the client.
   test('with trustProxy, takes the address the proxy appended, not one the client wrote', () => {
-    const context = nodeContext('https://op.example.com', { trustProxy: true })(incoming('6.6.6.6, 203.0.113.9'))
+    const context = nodeContext({ trustProxy: true })(incoming('6.6.6.6, 203.0.113.9'))
     expect(context.clientIp).toBe('203.0.113.9')
   })
 
   test('without trustProxy, the header is ignored', () => {
-    expect(nodeContext('https://op.example.com')(incoming('6.6.6.6')).clientIp).toBe('10.0.0.2')
+    expect(nodeContext()(incoming('6.6.6.6')).clientIp).toBe('10.0.0.2')
   })
 
   // Bun's node:tls hands over no client certificate (G-8), so a real handshake cannot run here; the
@@ -78,7 +78,7 @@ describe('nodeContext', () => {
     }) as never
 
   test('a CA-verified certificate arrives verified, with its subject as an RFC 4514 name', async () => {
-    const certificate = nodeContext('https://op.example.com')(presenting(CA_SIGNED, true)).clientCertificate
+    const certificate = nodeContext()(presenting(CA_SIGNED, true)).clientCertificate
     expect(certificate).toEqual({
       thumbprint: await certificateThumbprint(new X509Certificate(CA_SIGNED).raw),
       verified: true,
@@ -89,12 +89,12 @@ describe('nodeContext', () => {
 
   // RFC 8705 §2.2: the listener cannot verify a self-signed certificate, and need not — the handshake proved its key.
   test('a certificate the listener did not verify still arrives, marked unverified', () => {
-    const certificate = nodeContext('https://op.example.com')(presenting(SELF_SIGNED, false)).clientCertificate
+    const certificate = nodeContext()(presenting(SELF_SIGNED, false)).clientCertificate
     expect(certificate).toMatchObject({ verified: false, subjectDn: 'CN=self' })
   })
 
   test('no certificate presented is none', () => {
     const plain = { headers: {}, socket: { authorized: false, getPeerCertificate: () => ({}) } } as never
-    expect(nodeContext('https://op.example.com')(plain).clientCertificate).toBeUndefined()
+    expect(nodeContext()(plain).clientCertificate).toBeUndefined()
   })
 })

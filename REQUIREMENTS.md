@@ -421,8 +421,9 @@ on Bun, the `info.remoteAddr` second argument on Deno, `req.socket` on Node, `re
 its own globals and containing no protocol logic.
 
 **FR-R4** — Everything the core cannot learn from the `Request` — the verified client TLS
-certificate, the real client IP, the deployment's public origin — arrives as an explicit
-`RequestContext`. The core never reads `X-Forwarded-*` on its own authority (NFR-S6).
+certificate, the real client IP — arrives as an explicit `RequestContext`. The deployment's public
+origin is not among them: it is configuration (FR-R1, NFR-S6). The core never reads `X-Forwarded-*`
+on its own authority.
 
 **FR-R5** — A capability the running runtime cannot supply disables the features that need it,
 loudly, at construction rather than at the first request (NFR-D2). The mTLS client-authentication

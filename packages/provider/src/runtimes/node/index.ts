@@ -48,12 +48,12 @@ const forwardedIp = (request: IncomingMessage) => {
  * unless a proxy you control is the only thing that can reach this process (FR-R4, NFR-S6).
  */
 export const nodeContext =
-  (issuer: string, options: NodeBridgeOptions = {}) =>
+  (options: NodeBridgeOptions = {}) =>
   (request: IncomingMessage): RequestContext => {
     const socket = socketOf(request)
     const clientIp = (options.trustProxy ? forwardedIp(request) : undefined) ?? socket.remoteAddress
     const certificate = peerCertificate(socket)
-    return { issuer, ...(clientIp && { clientIp }), ...(certificate && { clientCertificate: certificate }) }
+    return { ...(clientIp && { clientIp }), ...(certificate && { clientCertificate: certificate }) }
   }
 
 /** `node:http` speaks IncomingMessage/ServerResponse; this is the only runtime needing that translated (FR-R3). */
@@ -97,7 +97,7 @@ export const toNodeHandler = (
   issuer: string,
   options: NodeBridgeOptions = {}
 ): NodeHandler => {
-  const context = nodeContext(issuer, options)
+  const context = nodeContext(options)
   return async (incoming, outgoing) => {
     const response = await handle(toRequest(incoming, issuer), context(incoming))
     await sendResponse(response, outgoing)

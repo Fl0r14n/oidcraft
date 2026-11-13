@@ -1,16 +1,18 @@
 import type { Client } from '@oidcraft/adapter'
 
 /**
- * What a WHATWG `Request` cannot carry, supplied by the host (FR-R4).
+ * What a WHATWG `Request` cannot carry, supplied by the host (FR-R4). The issuer is not among them:
+ * it is configuration, never a property of a request (NFR-S6).
  *
  * Every one of these is runtime-specific, which is why each runtime gets its own tiny entry —
  * `@oidcraft/provider/runtimes/{bun,deno,node,workerd}` — rather than the core
  * sniffing for globals or trusting a header.
  */
 export type RequestContext = {
-  /** The deployment's public origin. Configuration, never derived from a header (NFR-S6). */
-  issuer: string
-  /** The peer address. Not available from `Request` on any runtime. */
+  /**
+   * The peer address. Not available from `Request` on any runtime. `handle` does not read it: it is
+   * for the limits the host applies with it, such as wrong device codes per address (FR-R4, NFR-S12).
+   */
   clientIp?: string | undefined
   /**
    * The verified client certificate, when the listener requested one. Required by the mTLS client

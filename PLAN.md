@@ -534,9 +534,14 @@ text it is held to. In fix order.
   Fixed, not by a return value, which an error thrown after authentication would lose: `dispatch`
   hands each request a `Caller` that client authentication fills the moment it finds the client, and
   UserInfo from the token's client, which it now reads once
-- [ ] `RequestContext` carries an `issuer` that `dispatch` overwrites, so every runtime entry's
+- [x] `RequestContext` carries an `issuer` that `dispatch` overwrites, so every runtime entry's
   `issuer` argument does nothing, and a `clientIp` `handle` never reads while the device rate limit
   takes it separately
+  Fixed: FR-R4 amended, the public origin being configuration (FR-R1, NFR-S6). `issuer` is gone from
+  `RequestContext` and from `bunContext`, `denoContext` and `workerdContext`, which are now called
+  without it; `toNodeHandler` keeps its `issuer`, the base it rebuilds each URL from. `handle` takes
+  `Pick<RequestContext, 'clientCertificate'>`, and `UserCodeContext` is `Pick<RequestContext, 'clientIp'>`,
+  so one context serves both
 - [ ] `ProviderConfig.interactionUrl` is typed optional and required at construction, which leaves
   dead checks in `provider.ts`, `device.ts` and `ciba.ts`
 - [ ] Dead: `IdTokenInput.code` and `.claims`, the exported `ClientAuthenticationInput`. Detached doc

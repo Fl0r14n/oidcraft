@@ -259,7 +259,8 @@ as pending rather than passing quietly.
 ### 3.1 Request pipeline
 
 The root entry exposes one function of `(Request, RequestContext) => Promise<Response>`. It is the
-whole surface.
+whole surface. Of the context it reads the client certificate; the client IP is the host's, for the
+limits it applies (NFR-S12).
 
 > **workerd** is Cloudflare's open-source JS/Wasm runtime — the engine behind Cloudflare Workers.
 > It is named throughout because it is the strictest non-Node target: no filesystem, no `node:net`,
@@ -296,8 +297,8 @@ Request
 ```
 
 `RequestContext` carries what the core cannot learn from the `Request` on its own authority: the
-verified client certificate for mTLS, the client IP, and the deployment's public origin (FR-R4,
-NFR-S6). The issuer is configuration and is never derived from a header.
+verified client certificate for mTLS and the client IP (FR-R4). The issuer is not in it: it is
+configuration, never derived from a request (NFR-S6).
 
 **CORS is decided by the registration, not by configuration.** Discovery and the key set are
 readable from any origin. A preflight on the token, UserInfo, revocation or introspection endpoint

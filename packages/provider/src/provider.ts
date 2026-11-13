@@ -58,10 +58,16 @@ export type Provider = {
   /** CIBA's out-of-band half, for whatever channel actually asks the person (FR-C17). */
   ciba: { resolve: (authReqId: string, outcome: CibaDecision) => ReturnType<typeof resolveBackchannelRequest> }
   /** The whole surface: a WHATWG Request in, a Response out, no I/O of its own (FR-R1, FR-A1). */
-  handle(request: Request, context?: Partial<RequestContext>): Promise<Response>
+  /** Reads only the certificate of the context; the host keeps the peer address for its own limits. */
+  handle(request: Request, context?: Pick<RequestContext, 'clientCertificate'>): Promise<Response>
 }
 
-type Handler = (config: ResolvedConfig, request: Request, context: RequestContext, caller: Caller) => Promise<Response>
+type Handler = (
+  config: ResolvedConfig,
+  request: Request,
+  context: Pick<RequestContext, 'clientCertificate'>,
+  caller: Caller
+) => Promise<Response>
 
 const seeOther = (url: string, setCookie?: string) =>
   new Response(null, {
@@ -222,7 +228,7 @@ const dispatch = async (
   config: ResolvedConfig,
   route: Route,
   request: Request,
-  context: Partial<RequestContext> | undefined,
+  context: Pick<RequestContext, 'clientCertificate'> | undefined,
   caller: Caller
 ) => {
   try {
@@ -233,8 +239,7 @@ const dispatch = async (
         headers: { allow: route.methods.join(', ') }
       })
     }
-    // The issuer is configuration and is never taken from a header (NFR-S6).
-    return await route.handle(withKeysOnce(config), request, { ...context, issuer: config.issuer }, caller)
+    return await route.handle(withKeysOnce(config), request, context ?? {}, caller)
   } catch (error) {
     // NFR-D5: only what was not meant. A hook that fails must not turn the answer into something else.
     if (!(error instanceof OAuthError) || error.status >= 500) {

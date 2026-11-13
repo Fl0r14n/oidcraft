@@ -224,7 +224,7 @@ address, which oidcraft uses for rate limiting, so each runtime has a small help
 ```ts
 // Bun
 import { bunContext } from '@oidcraft/provider/runtimes/bun'
-Bun.serve({ fetch: (request, server) => provider.handle(request, bunContext(issuer, server)(request)) })
+Bun.serve({ fetch: (request, server) => provider.handle(request, bunContext(server)(request)) })
 
 // Node: node:http, Express, anything with (req, res)
 import { createServer } from 'node:http'
@@ -233,11 +233,11 @@ createServer(toNodeHandler(provider.handle, issuer)).listen(3001)
 
 // Deno
 import { denoContext } from '@oidcraft/provider/runtimes/deno'
-Deno.serve((request, info) => provider.handle(request, denoContext(issuer)(request, info)))
+Deno.serve((request, info) => provider.handle(request, denoContext(request, info)))
 
 // Cloudflare Workers
 import { workerdContext } from '@oidcraft/provider/runtimes/workerd'
-export default { fetch: (request: Request) => provider.handle(request, workerdContext(issuer)(request, request.cf)) }
+export default { fetch: (request: Request) => provider.handle(request, workerdContext(request, request.cf)) }
 ```
 
 Behind a reverse proxy on Node, `toNodeHandler(provider.handle, issuer, { trustProxy: true })` reads
@@ -270,7 +270,7 @@ Bun.serve({
   async fetch(request, server) {
     const provider = await realms.resolve(request)
     if (!provider) return new Response('Not found', { status: 404 })
-    return provider.handle(request, bunContext(provider.config.issuer, server)(request))
+    return provider.handle(request, bunContext(server)(request))
   }
 })
 

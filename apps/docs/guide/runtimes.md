@@ -30,14 +30,13 @@ in production.
 
 The issuer goes into every token and every discovery document, so it is never derived from the
 request. A `Host` or `X-Forwarded-Host` header that could change it would let a request rewrite the
-issuer of the tokens it receives (NFR-S6). `provider.handle` replaces whatever `issuer` a context
-carries with the configured one, and every runtime's test on this page sends a hostile `Host`,
+issuer of the tokens it receives (NFR-S6). No request context carries an issuer, so nothing a
+request says can become one, and every runtime's test on this page sends a hostile `Host`,
 `X-Forwarded-Host` and `X-Forwarded-Proto` and checks that discovery still reports the configured
 issuer.
 
-Each context helper below also takes the issuer; pass the same value. Behind a proxy that
-terminates TLS, the issuer is still the public `https` origin your users see, written into your
-configuration.
+Behind a proxy that terminates TLS, the issuer is still the public `https` origin your users see,
+written into your configuration.
 
 ## Why every runtime needs a context provider
 

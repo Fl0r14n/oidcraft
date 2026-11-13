@@ -27,7 +27,7 @@ describe('bun', () => {
   // #region bun
   const server = Bun.serve({
     port: 0,
-    fetch: (request, server) => provider.handle(request, bunContext(issuer, server)(request))
+    fetch: (request, server) => provider.handle(request, bunContext(server)(request))
   })
   // #endregion bun
 
@@ -41,7 +41,7 @@ describe('bun', () => {
   test('the context carries the peer address and never a certificate', async () => {
     const seen = Bun.serve({
       port: 0,
-      fetch: (request, server) => Response.json(bunContext(issuer, server)(request))
+      fetch: (request, server) => Response.json(bunContext(server)(request))
     })
     const context = await (await fetch(seen.url)).json()
     seen.stop()
@@ -68,14 +68,13 @@ describe('node', () => {
 
 describe('deno', () => {
   // #region deno
-  const handler = (request: Request, info: { remoteAddr: { hostname: string } }) =>
-    provider.handle(request, denoContext(issuer)(request, info))
+  const handler = (request: Request, info: { remoteAddr: { hostname: string } }) => provider.handle(request, denoContext(request, info))
   // #endregion deno
 
   test('the handler Deno.serve is given answers with the configured issuer', async () => {
     const request = new Request('https://evil.example.net/.well-known/openid-configuration', { headers: hostile })
     expect(await discovery(handler(request, { remoteAddr: { hostname: '198.51.100.4' } }))).toBe(issuer)
-    expect(denoContext(issuer)(request, { remoteAddr: { hostname: '198.51.100.4' } })).toEqual({ issuer, clientIp: '198.51.100.4' })
+    expect(denoContext(request, { remoteAddr: { hostname: '198.51.100.4' } })).toEqual({ clientIp: '198.51.100.4' })
   })
 })
 
@@ -84,7 +83,7 @@ describe('workerd', () => {
   type CfRequest = Request & { cf?: IncomingCf }
 
   const worker = {
-    fetch: (request: CfRequest) => provider.handle(request, workerdContext(issuer)(request, request.cf))
+    fetch: (request: CfRequest) => provider.handle(request, workerdContext(request, request.cf))
   }
   // #endregion workerd
 
@@ -93,7 +92,7 @@ describe('workerd', () => {
       headers: { ...hostile, 'cf-connecting-ip': '192.0.2.9' }
     })
     expect(await discovery(worker.fetch(request))).toBe(issuer)
-    expect(workerdContext(issuer)(request).clientIp).toBe('192.0.2.9')
+    expect(workerdContext(request).clientIp).toBe('192.0.2.9')
   })
 })
 

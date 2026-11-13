@@ -10,9 +10,8 @@ type BunServer = { requestIP(request: Request): { address: string } | null }
  * the mTLS client-authentication methods are unavailable on this runtime (REQUIREMENTS.md `G-8`).
  */
 export const bunContext =
-  (issuer: string, server: BunServer) =>
+  (server: BunServer) =>
   (request: Request): RequestContext => ({
-    issuer,
     clientIp: server.requestIP(request)?.address
   })
 

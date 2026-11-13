@@ -89,31 +89,31 @@ release above. In fix order.
 **Correctness**
 
 - [x] `upstreamLogout` throwing loses the back-channel notifications of a session already destroyed;
-  a malformed stored `frontchannelLogoutUri` blocks logout with a 500; `id_token_hint`'s `typ` is
-  not checked
+      a malformed stored `frontchannelLogoutUri` blocks logout with a 500; `id_token_hint`'s `typ` is
+      not checked
 - [x] Revocation racing a refresh: the FAPI rewrite can resurrect a revoked token, a rotated one can
-  land in a family just revoked; `fromKv.consume` is read-then-insert
+      land in a family just revoked; `fromKv.consume` is read-then-insert
 - [x] `authorization_details=[null]` is a 500; device and CIBA requests do not check the client's
-  `grant_types`; a JAR-by-value request resumed after an interaction travels as plain parameters
+      `grant_types`; a JAR-by-value request resumed after an interaction travels as plain parameters
 - [x] Accounts: a password reset leaves `sign_in_attempts` locks in place
 - [x] Client: redirect classification matches `?barcode=`; `unreachable` is inferred from an echo;
-  the handoff shares the token slot, so a login in one tab ends the others; a URL passed to
-  `oauthCallback` is not cleaned; a non-redirecting logout and the refresh lock have no timeout; a
-  storage key changed mid-refresh; an expired ID token becomes a truthy profile; `logoutPath` skips
-  `assertSecure`; React's error hook reads `errorDescription` only
+      the handoff shares the token slot, so a login in one tab ends the others; a URL passed to
+      `oauthCallback` is not cleaned; a non-redirecting logout and the refresh lock have no timeout; a
+      storage key changed mid-refresh; an expired ID token becomes a truthy profile; `logoutPath` skips
+      `assertSecure`; React's error hook reads `errorDescription` only
 - [x] Storage: TypeORM's entities say `bigint` where the SQLite migrations say `integer`, so its schema
-  builder rebuilds every table; the SQL adapters ignore `Grant.expiresAt`; artifact prune can delete a
-  row rewritten since its select; the conformance suite never prunes artifacts and cannot tell a
-  merging grant upsert from a replacing one
+      builder rebuilds every table; the SQL adapters ignore `Grant.expiresAt`; artifact prune can delete a
+      row rewritten since its select; the conformance suite never prunes artifacts and cannot tell a
+      merging grant upsert from a replacing one
 
 **Small**
 
 - [x] The broker's binding cookie can be planted from a sibling subdomain; NAT64 addresses share a
-  /64; `@oidcraft/ui` asset paths are fixed at `/assets`; TypeORM deletes trust the host's
-  undefined-where setting; `fromKv` identity keys are not encoded. The binding cookie is `__Host-`
-  over https; TypeORM refuses a missing value in a lookup as well as a delete, since the same
-  setting makes a find match any row; `fromKv`'s identity key changed, so a Redis store's links
-  made before it are not found
+      /64; `@oidcraft/ui` asset paths are fixed at `/assets`; TypeORM deletes trust the host's
+      undefined-where setting; `fromKv` identity keys are not encoded. The binding cookie is `__Host-`
+      over https; TypeORM refuses a missing value in a lookup as well as a delete, since the same
+      setting makes a find match any row; `fromKv`'s identity key changed, so a Redis store's links
+      made before it are not found
 
 ## Provider follow-ups
 
@@ -124,17 +124,17 @@ shows it. In order.
 **Before 1.0**
 
 - [x] Security events reach no hook. FR-M3 widened rather than a second hook: `onAudit` hears
-  `token.replay` (with the grant and family it revoked) and `client.authentication_failed`, carried
-  on the refusal's `OAuthError` and emitted where the request ends. A lockout and a wrong device code
-  were never invisible: the host calls `accounts` and `provider.device.*` and is answered. A failing
-  audit hook goes to `onError` and changes no answer. FR-M3
+      `token.replay` (with the grant and family it revoked) and `client.authentication_failed`, carried
+      on the refusal's `OAuthError` and emitted where the request ends. A lockout and a wrong device code
+      were never invisible: the host calls `accounts` and `provider.device.*` and is answered. A failing
+      audit hook goes to `onError` and changes no answer. FR-M3
 - [x] A throwing `onLogout` turns a logout that happened into a 500. Both logout hooks are guarded as
-  `onError` is (`hooks.ts`), each failure reported there. FR-C11, NFR-D5
+      `onError` is (`hooks.ts`), each failure reported there. FR-C11, NFR-D5
 - [x] Nine endpoints read the body with no content-type check. `readForm` refuses a non-empty body
-  that is not form-encoded with a 415; the size cap stays the host's, as NFR-S12 already puts the
-  rate limits, and _Before production_ and the security guide say so. NFR-S12
+      that is not form-encoded with a 415; the size cap stays the host's, as NFR-S12 already puts the
+      rate limits, and _Before production_ and the security guide say so. NFR-S12
 - [x] `ResolvedConfig` is `ProviderConfig` written out three times. Now `ProviderConfig` with its
-  defaulted fields resolved; every hook is carried through by the spread, which a test pins. NFR-D2
+      defaulted fields resolved; every hook is carried through by the spread, which a test pins. NFR-D2
 
 **Smaller**
 
@@ -144,8 +144,8 @@ shows it. In order.
 - [x] Two doc comments stacked on `Provider.handle` — already gone by the time this was picked up
 - [x] The route table is a line per route: the endpoints already take `(config, request, certificate, caller)`
 - [x] `gaps.test.ts` and `flow.test.ts` are split beside the modules they test, over one harness,
-  `test-flow.ts`, whose adapter gets its own `accounts` per test — the old shared one let a test's
-  override of `claims` leak into the next file. `small.test.ts` is named the same way and was left
+      `test-flow.ts`, whose adapter gets its own `accounts` per test — the old shared one let a test's
+      override of `claims` leak into the next file. `small.test.ts` is named the same way and was left
 
 ## Still open on the client libraries
 

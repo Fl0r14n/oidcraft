@@ -10,6 +10,8 @@ import { applyRequestObject } from './request-object'
 
 export const REQUEST_URI_PREFIX = 'urn:ietf:params:oauth:request_uri:'
 
+const CLIENT_AUTHENTICATION = ['client_secret', 'client_assertion', 'client_assertion_type']
+
 /** Stores already-validated parameters behind a single-use reference (RFC 9126 §2.2). */
 export const pushParameters = async (config: ResolvedConfig, clientId: string, params: URLSearchParams) => {
   const id = randomString()
@@ -35,6 +37,8 @@ export const pushedAuthorizationRequestEndpoint = async (
 ) => {
   const form = new URLSearchParams(await request.text())
   const { client } = await authenticateClient(config, form, request.headers, certificate)
+  // NFR-S11: what authenticated the push is not part of the request, and stored with it would be a credential at rest.
+  for (const name of CLIENT_AUTHENTICATION) form.delete(name)
 
   // §2.1: a pushed request may not reference another one.
   if (form.has('request_uri')) {

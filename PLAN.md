@@ -413,7 +413,7 @@ with a throwaway test. Several predate this week's work and shipped in 0.3.0. In
   Spend the decoy when locked. FR-I7. Probe
 - [x] Recovery codes are an unsalted SHA-256 of 50 bits, crackable from a dump. HMAC them under the
   accounts `secretKey`. FR-I7
-- [ ] PAR stores the pushing client's `client_secret` and `client_assertion` in the request artifact,
+- [x] PAR stores the pushing client's `client_secret` and `client_assertion` in the request artifact,
   then in the interaction (`authorize/par.ts`, `applyRequestObject` returning the form). Drop client
   authentication parameters before storing. NFR-S11
 - [ ] An RFC 7592 PUT rebuilds the client from metadata alone and drops what the operator set:

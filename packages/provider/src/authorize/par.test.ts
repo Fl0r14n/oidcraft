@@ -72,6 +72,25 @@ const push = (params: Record<string, string>, headers: Record<string, string> = 
 const authorize = (params: Record<string, string>) => provider.handle(new Request(`${ISSUER}/authorize?${new URLSearchParams(params)}`))
 
 describe('pushed authorization requests', () => {
+  // NFR-S11: the stored request, and the interaction it suspends into, are no place for a client's credential.
+  test('stores none of the client authentication it was pushed with', async () => {
+    await adapter.clients.upsert?.(client({ clientId: 'poster', tokenEndpointAuthMethod: 'client_secret_post' }))
+    const pushed = await push({ ...requestParams(), client_id: 'poster', client_secret: SECRET }, {})
+    expect(pushed.status).toBe(201)
+    const { request_uri } = await pushed.json()
+    const stored = async (kind: 'pushed_authorization_request' | 'interaction', id: string) =>
+      JSON.stringify((await adapter.artifacts.find(kind, base64url.encode(await sha256(id))))?.payload)
+
+    const kept = await stored('pushed_authorization_request', request_uri.split(':').pop())
+    expect(kept).toContain('poster')
+    for (const leaked of [SECRET, 'client_secret']) expect(kept).not.toContain(leaked)
+
+    const suspended = await authorize({ client_id: 'poster', request_uri })
+    const interaction = await stored('interaction', (suspended.headers.get('location') as string).split('/').pop() as string)
+    expect(interaction).toContain('poster')
+    expect(interaction).not.toContain(SECRET)
+  })
+
   test('returns a single-use request_uri', async () => {
     const response = await push(requestParams())
     expect(response.status).toBe(201)

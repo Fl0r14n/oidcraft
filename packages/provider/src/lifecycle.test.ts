@@ -3,6 +3,7 @@ import { hashClientSecret } from '@oidcraft/adapter'
 import { memoryAdapter } from '@oidcraft/adapter/memory'
 import { randomString, sha256 } from '@oidcraft/core'
 import { base64url, decodeJwt } from 'jose'
+import { storedId } from './artifacts'
 import type { Adapter, Client, LogoutNotification } from './index'
 import { createProvider, type Provider } from './provider'
 import { SESSION_COOKIE } from './session/session'
@@ -338,11 +339,17 @@ describe('end session', () => {
     const asked = await provider.handle(new Request(`${ISSUER}/session/end`, { headers: { cookie: issued.cookie } }))
     const id = (asked.headers.get('location') as string).split('/').pop() as string
     const { redirectTo } = await provider.interactions.complete(id, { logout: true })
-    const other = { id: 'other', accountId: 'grace', authTime: new Date(), clients: [], expiresAt: new Date(Date.now() + 60_000) }
+    const other = {
+      id: await storedId('other'),
+      accountId: 'grace',
+      authTime: new Date(),
+      clients: [],
+      expiresAt: new Date(Date.now() + 60_000)
+    }
     await adapter.sessions.upsert(other)
     const response = await provider.handle(new Request(redirectTo, { headers: { cookie: `${SESSION_COOKIE}=other` } }))
     expect(response.status).toBe(400)
-    expect(await adapter.sessions.find('other')).toBeTruthy()
+    expect(await adapter.sessions.find(other.id)).toBeTruthy()
   })
 
   // §2: the hint is usually long expired by the time the user signs out; it only proves who issued it.
@@ -379,14 +386,20 @@ describe('end session', () => {
   // A hint proves this provider issued it, not that it is about this browser's session (FR-C11).
   test("a hint from another session does not end this browser's without asking", async () => {
     const issued = await tokens()
-    const other = { id: 'other', accountId: 'grace', authTime: new Date(), clients: [], expiresAt: new Date(Date.now() + 60_000) }
+    const other = {
+      id: await storedId('other'),
+      accountId: 'grace',
+      authTime: new Date(),
+      clients: [],
+      expiresAt: new Date(Date.now() + 60_000)
+    }
     await adapter.sessions.upsert(other)
     const asked = await provider.handle(
       new Request(`${ISSUER}/session/end?id_token_hint=${issued.id_token}`, { headers: { cookie: `${SESSION_COOKIE}=other` } })
     )
     expect(asked.status).toBe(303)
     expect(asked.headers.get('location')).toStartWith(`${ISSUER}/interaction/`)
-    expect(await adapter.sessions.find('other')).toBeTruthy()
+    expect(await adapter.sessions.find(other.id)).toBeTruthy()
   })
 
   test('no session is still a clean sign-out', async () => {

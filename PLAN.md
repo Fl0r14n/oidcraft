@@ -376,7 +376,7 @@ What is _not_ claimed: see the status section. Implemented is not the same as ce
 14. ~~What the 2026-11-13 re-read found~~ — done 2026-11-13.
 15. ~~The release~~ of everything since 2026-11-11 — done 2026-11-13.
 16. **What the 2026-11-13 review after the release found** — below, security first, then a patch release.
-16. **Provider follow-ups — 2026-11-13**, below. After the release, before 1.0.
+17. **Provider follow-ups — 2026-11-13**, below. After the release, before 1.0.
 
 ## Review — 2026-11-13, after the release
 
@@ -387,7 +387,7 @@ with a throwaway test. Several predate this week's work and shipped in 0.3.0. In
 
 **Security — first, and a patch release after**
 
-- [ ] The ID token's `sid` is `session.id`, which is the session cookie's value and what `readSession`
+- [x] The ID token's `sid` is `session.id`, which is the session cookie's value and what `readSession`
   looks up (`token/id-token.ts:54`, `session/session.ts:14,42`): any client the person signs in to can
   set that cookie and be them at the provider. The cookie carries a random secret; the session is
   stored under its SHA-256, which is the public `sid`. NFR-S11. Probe

@@ -83,7 +83,7 @@ const tokensFor = async (provider: Provider, extra: Record<string, string> = {})
     const location = new URL(response.headers.get('location') as string)
     if (!location.pathname.startsWith('/interaction/')) {
       const code = location.searchParams.get('code') as string
-      return (
+      const issued = await (
         await post(
           provider,
           '/token',
@@ -91,6 +91,7 @@ const tokensFor = async (provider: Provider, extra: Record<string, string> = {})
           { authorization: basic() }
         )
       ).json()
+      return { ...issued, cookie }
     }
     const id = location.pathname.split('/').pop() as string
     const view = await provider.interactions.find(id)
@@ -379,8 +380,7 @@ describe('step-up authentication', () => {
     const issued = await tokensFor(provider)
     expect(issued.access_token).toBeTruthy()
 
-    const session = (await adapter.sessions.listForAccount('ada'))[0]
-    const cookie = `${SESSION_COOKIE}=${session?.id}`
+    const cookie = issued.cookie
     const response = await provider.handle(
       new Request(
         `${ISSUER}/authorize?${new URLSearchParams({
@@ -403,8 +403,7 @@ describe('step-up authentication', () => {
 
   test('an acr the session already meets does not', async () => {
     const provider = build()
-    await tokensFor(provider)
-    const session = (await adapter.sessions.listForAccount('ada'))[0]
+    const { cookie } = await tokensFor(provider)
     const response = await provider.handle(
       new Request(
         `${ISSUER}/authorize?${new URLSearchParams({
@@ -416,7 +415,7 @@ describe('step-up authentication', () => {
           code_challenge_method: 'S256',
           acr_values: 'pwd'
         })}`,
-        { headers: { cookie: `${SESSION_COOKIE}=${session?.id}` } }
+        { headers: { cookie } }
       )
     )
     expect(new URL(response.headers.get('location') as string).searchParams.get('code')).toBeTruthy()
@@ -424,8 +423,7 @@ describe('step-up authentication', () => {
 
   test('prompt=none with an unmet acr is login_required, not a weaker token', async () => {
     const provider = build()
-    await tokensFor(provider)
-    const session = (await adapter.sessions.listForAccount('ada'))[0]
+    const { cookie } = await tokensFor(provider)
     const response = await provider.handle(
       new Request(
         `${ISSUER}/authorize?${new URLSearchParams({
@@ -438,7 +436,7 @@ describe('step-up authentication', () => {
           acr_values: 'mfa',
           prompt: 'none'
         })}`,
-        { headers: { cookie: `${SESSION_COOKIE}=${session?.id}` } }
+        { headers: { cookie } }
       )
     )
     expect(new URL(response.headers.get('location') as string).searchParams.get('error')).toBe('login_required')

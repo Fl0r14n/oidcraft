@@ -134,6 +134,38 @@ describe('NFR-S11: no bearer credential is stored as itself', () => {
     expect(refreshed.status).toBe(400)
   })
 
+  // The ID token's `sid` reaches every client the person signs in to; as the cookie it would be them.
+  test('a session cookie, of which the sid is the hash and not the value', async () => {
+    await adapter.clients.upsert?.(client())
+    const provider = build()
+    const issued = await tokensFor(provider)
+    const secret = issued.cookie.split('=')[1] as string
+    const sid = decodeJwt(issued.id_token).sid as string
+    expect(sid).toBe(await hashOf(secret))
+    expect(await adapter.sessions.find(sid)).toBeDefined()
+    expect(await adapter.sessions.find(secret)).toBeUndefined()
+
+    const silently = (cookie: string) =>
+      provider.handle(
+        new Request(
+          `${ISSUER}/authorize?${new URLSearchParams({
+            client_id: 'rp',
+            redirect_uri: REDIRECT,
+            response_type: 'code',
+            scope: 'openid',
+            code_challenge: challenge,
+            code_challenge_method: 'S256',
+            prompt: 'none'
+          })}`,
+          { headers: { cookie } }
+        )
+      )
+    const replayed = new URL((await silently(`${SESSION_COOKIE}=${sid}`)).headers.get('location') as string)
+    expect(replayed.searchParams.get('error')).toBe('login_required')
+    const owned = new URL((await silently(issued.cookie)).headers.get('location') as string)
+    expect(owned.searchParams.get('code')).toBeTruthy()
+  })
+
   test('a pushed request reference', async () => {
     await adapter.clients.upsert?.(client())
     const provider = build({ features: { pushedAuthorizationRequests: true } })

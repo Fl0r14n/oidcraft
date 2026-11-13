@@ -522,9 +522,10 @@ client. A host that keeps them encrypts them at rest.
 **NFR-S10** — No secret is ever logged. Tokens appear in logs as a prefix and a hash, if at all.
 
 **NFR-S11** — No bearer credential is stored as itself. Authorization codes, access and refresh
-tokens, device codes, pushed-request references, registration access tokens and password-reset
-tokens are stored under a SHA-256 of their value, so a copy of the database yields no usable token.
-A client secret used with `client_secret_basic` or `client_secret_post` is stored hashed the same
+tokens, device codes, pushed-request references, registration access tokens, password-reset
+tokens and the session cookie are stored under a SHA-256 of their value, so a copy of the database
+yields no usable token. The session's hash is also the `sid` clients are told, which is why the
+cookie must not be it. A client secret used with `client_secret_basic` or `client_secret_post` is stored hashed the same
 way. `client_secret_jwt` is the exception it has to be — the secret is the HMAC key — which is a
 reason to prefer `private_key_jwt`. The device `user_code` is the other: short enough to type is
 short enough that a hash hides nothing, and it lives minutes (NFR-S3).

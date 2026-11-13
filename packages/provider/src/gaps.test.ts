@@ -66,6 +66,7 @@ const tokensFor = async (
     code_challenge: challenge,
     code_challenge_method: 'S256'
   })
+  let secret = session
   let cookie = session ? `${SESSION_COOKIE}=${session}` : ''
   let response = await provider.handle(new Request(`${ISSUER}/authorize?${params}`, { headers: cookie ? { cookie } : {} }))
   for (let leg = 0; leg < 4; leg++) {
@@ -73,7 +74,7 @@ const tokensFor = async (
     if (!location.pathname.startsWith('/interaction/')) {
       const code = location.searchParams.get('code') as string
       const isPublic = (await adapter.clients.find(clientId))?.tokenEndpointAuthMethod === 'none'
-      return (
+      const issued = await (
         await provider.handle(
           new Request(`${ISSUER}/token`, {
             method: 'POST',
@@ -89,6 +90,7 @@ const tokensFor = async (
           context
         )
       ).json()
+      return { ...issued, secret }
     }
     const id = location.pathname.split('/').pop() as string
     const view = await provider.interactions.find(id)
@@ -96,17 +98,20 @@ const tokensFor = async (
       id,
       view.kind === 'login' ? { login: { accountId: 'ada', acr: 'pwd' } } : { consent: { scopes: view.scopes } }
     )
-    if (done.setCookie) cookie = `${SESSION_COOKIE}=${done.setCookie.split('=')[1]?.split(';')[0]}`
+    if (done.setCookie) {
+      secret = done.setCookie.split('=')[1]?.split(';')[0]
+      cookie = `${SESSION_COOKIE}=${secret}`
+    }
     response = await provider.handle(new Request(done.redirectTo, { headers: cookie ? { cookie } : {} }))
   }
   throw new Error('never reached the redirect')
 }
 
 /** RP-initiated logout as a relying party sends it: with the ID token it was issued (OIDC RP-Initiated Logout 1.0 §2). */
-const endSession = (provider: Provider, sessionId: string | undefined, idToken: string) =>
+const endSession = (provider: Provider, secret: string | undefined, idToken: string) =>
   provider.handle(
     new Request(`${ISSUER}/session/end?${new URLSearchParams({ id_token_hint: idToken })}`, {
-      headers: { cookie: `${SESSION_COOKIE}=${sessionId}` }
+      headers: { cookie: `${SESSION_COOKIE}=${secret}` }
     })
   )
 
@@ -247,9 +252,8 @@ describe('FR-C11: front-channel logout', () => {
       }
     })
     const issued = await tokensFor(provider)
-    const session = (await adapter.sessions.listForAccount('ada'))[0]
 
-    await endSession(provider, session?.id, issued.id_token)
+    await endSession(provider, issued.secret, issued.id_token)
     expect(targets).toEqual([{ clientId: 'rp', uri: 'https://rp.example.com/fc' }])
     expect(issued.access_token).toBeTruthy()
   })
@@ -265,7 +269,7 @@ describe('FR-C11: front-channel logout', () => {
     })
     const issued = await tokensFor(provider)
     const session = (await adapter.sessions.listForAccount('ada'))[0]
-    await endSession(provider, session?.id, issued.id_token)
+    await endSession(provider, issued.secret, issued.id_token)
 
     const url = new URL(targets[0]?.uri as string)
     expect(url.searchParams.get('iss')).toBe(ISSUER)
@@ -282,11 +286,10 @@ describe('FR-C11: front-channel logout', () => {
       }
     })
     const issued = await tokensFor(provider)
-    const session = (await adapter.sessions.listForAccount('ada'))[0]
-    await tokensFor(provider, 'rp2', undefined, { session: session?.id })
+    await tokensFor(provider, 'rp2', undefined, { session: issued.secret })
     expect(await adapter.sessions.listForAccount('ada')).toHaveLength(1)
 
-    await endSession(provider, session?.id, issued.id_token)
+    await endSession(provider, issued.secret, issued.id_token)
     expect(targets.map(target => target.clientId).sort()).toEqual(['rp', 'rp2'])
   })
 
@@ -299,8 +302,7 @@ describe('FR-C11: front-channel logout', () => {
       }
     })
     const issued = await tokensFor(provider)
-    const session = (await adapter.sessions.listForAccount('ada'))[0]
-    await endSession(provider, session?.id, issued.id_token)
+    await endSession(provider, issued.secret, issued.id_token)
     expect(targets).toEqual([])
   })
 })
@@ -539,8 +541,7 @@ describe('FR-C18: a pairwise subject never leaks the account id', () => {
       }
     })
     const issued = await tokensFor(provider)
-    const session = (await adapter.sessions.listForAccount('ada'))[0]
-    await endSession(provider, session?.id, issued.id_token)
+    await endSession(provider, issued.secret, issued.id_token)
     expect(decodeJwt(tokens[0]?.logoutToken as string).sub).toBe(decodeJwt(issued.id_token).sub as string)
   })
 })

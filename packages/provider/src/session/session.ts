@@ -1,5 +1,6 @@
 import type { Session } from '@oidcraft/adapter'
 import { randomString } from '@oidcraft/core'
+import { storedId } from '../artifacts'
 import type { ResolvedConfig } from '../config'
 import { parseCookies, serializeCookie } from './cookies'
 
@@ -11,9 +12,10 @@ export const sessionCookie = (config: Pick<ResolvedConfig, 'issuerUrl'>) => {
   return path ? `${SESSION_COOKIE}.${path.replace(/[^A-Za-z0-9]/g, '_')}` : SESSION_COOKIE
 }
 
+// NFR-S11: the cookie carries a secret and the session is stored under its hash, which is the `sid` clients are told.
 export const readSession = async (config: ResolvedConfig, request: Request) => {
-  const id = parseCookies(request.headers.get('cookie')).get(sessionCookie(config))
-  return id ? config.adapter.sessions.find(id) : undefined
+  const secret = parseCookies(request.headers.get('cookie')).get(sessionCookie(config))
+  return secret ? config.adapter.sessions.find(await storedId(secret)) : undefined
 }
 
 export type LoginInput = {
@@ -25,8 +27,9 @@ export type LoginInput = {
 }
 
 export const startSession = async (config: ResolvedConfig, login: LoginInput, clientId: string) => {
+  const secret = randomString()
   const session: Session = {
-    id: randomString(),
+    id: await storedId(secret),
     accountId: login.accountId,
     authTime: new Date(),
     ...(login.acr && { acr: login.acr }),
@@ -39,7 +42,7 @@ export const startSession = async (config: ResolvedConfig, login: LoginInput, cl
   await config.adapter.sessions.upsert(session)
   return {
     session,
-    cookie: serializeCookie(sessionCookie(config), session.id, {
+    cookie: serializeCookie(sessionCookie(config), secret, {
       maxAge: config.ttl.session,
       secure: config.issuerUrl.protocol === 'https:'
     })

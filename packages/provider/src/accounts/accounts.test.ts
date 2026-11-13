@@ -271,6 +271,22 @@ describe('password reset', () => {
     expect(await accounts.reset.complete(issued.token, 'another staple')).toEqual({ ok: false, reason: 'invalid' })
   })
 
+  // G-9: the lock was against guesses at a password the reset just replaced.
+  test('lifts the locks, account-wide and of the address completing it', async () => {
+    const { accounts } = await setup()
+    await accounts.register({ username: 'ada', password: 'correct horse' })
+    for (let address = 0; address < 50; address++) await accounts.authenticate('ada', 'nope nope', { clientIp: `192.0.2.${address}` })
+    for (let i = 0; i < 5; i++) await accounts.authenticate('ada', 'nope nope', { clientIp: '198.51.100.1' })
+    for (let i = 0; i < 5; i++) await accounts.authenticate('ada', 'nope nope')
+    expect(await accounts.authenticate('ada', 'correct horse', { clientIp: '198.51.100.1' })).toMatchObject({ reason: 'locked' })
+
+    const issued = await accounts.reset.issue('ada')
+    await accounts.reset.complete(issued?.token as string, 'battery staple', { clientIp: '198.51.100.1' })
+    expect(await accounts.authenticate('ada', 'battery staple', { clientIp: '198.51.100.1' })).toMatchObject({ ok: true })
+    expect(await accounts.authenticate('ada', 'battery staple', { clientIp: '203.0.113.9' })).toMatchObject({ ok: true })
+    expect(await accounts.authenticate('ada', 'battery staple')).toMatchObject({ ok: true })
+  })
+
   test('the token itself is not what is stored', async () => {
     const { adapter, accounts } = await setup()
     await accounts.register({ username: 'ada', password: 'correct horse' })

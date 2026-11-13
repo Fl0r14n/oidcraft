@@ -301,7 +301,8 @@ seals TOTP secrets and keys the recovery-code hashes, so changing it invalidates
   `totp.status`, `totp.regenerateRecoveryCodes`
 - `reset.issue` and `reset.complete` — single-use reset tokens. Delivering one is I/O, so you send
   it (FR-A1); `issue` returns nothing for an unknown username, and your page must answer both cases
-  the same way. Completing a reset ends the account's sessions.
+  the same way. Completing a reset ends the account's sessions and lifts its locks: the account's
+  own and, given `{ clientIp }`, that address's.
 
 The hasher is injected: `bunPasswordHasher` from `@oidcraft/provider/runtimes/bun`,
 `nodePasswordHasher` from `@oidcraft/provider/runtimes/node`, or your own. Failed passwords, and

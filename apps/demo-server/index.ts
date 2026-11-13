@@ -50,7 +50,7 @@ const server = serve({
       const response = await routes.interactionRoutes(request, url, context.clientIp)
       if (response) return response
     }
-    if (url.pathname === '/reset') return routes.resetRoutes(request, url)
+    if (url.pathname === '/reset') return routes.resetRoutes(request, url, context.clientIp)
     if (url.pathname === '/federation/callback' && site.brokering) {
       const response = await brokerCallback(request, url)
       if (response) return response

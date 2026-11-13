@@ -86,7 +86,7 @@ release above. In fix order.
   land in a family just revoked; `fromKv.consume` is read-then-insert
 - [x] `authorization_details=[null]` is a 500; device and CIBA requests do not check the client's
   `grant_types`; a JAR-by-value request resumed after an interaction travels as plain parameters
-- [ ] Accounts: a password reset leaves `sign_in_attempts` locks in place
+- [x] Accounts: a password reset leaves `sign_in_attempts` locks in place
 - [ ] Client: redirect classification matches `?barcode=`; `unreachable` is inferred from an echo;
   the handoff shares the token slot, so a login in one tab ends the others; a URL passed to
   `oauthCallback` is not cleaned; a non-redirecting logout and the refresh lock have no timeout; a

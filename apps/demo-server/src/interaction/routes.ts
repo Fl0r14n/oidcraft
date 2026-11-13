@@ -186,11 +186,11 @@ const build = (site: Site) => {
   }
 
   /** Where a reset link lands. Outside any interaction, because the one that asked has long expired. */
-  const resetRoutes = async (request: Request, url: URL) => {
+  const resetRoutes = async (request: Request, url: URL, clientIp: string | undefined) => {
     if (request.method === 'GET') return screens.reset(url.searchParams.get('token') ?? '')
     const body = await form(request)
     const token = body.get('token') ?? ''
-    const result = await accounts.reset.complete(token, body.get('password') ?? '')
+    const result = await accounts.reset.complete(token, body.get('password') ?? '', { clientIp })
     if (result.ok) return screens.message('Password changed', 'Sign in again with your new password, from the application you were using.')
     if (result.reason === 'password') return screens.reset(token, { error: PASSWORD_MESSAGES[result.problem], status: 400 })
     return screens.message('This link no longer works', 'It expired or was already used. Ask for a new one from the sign-in screen.', 400)

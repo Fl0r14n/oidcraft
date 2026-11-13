@@ -425,7 +425,7 @@ export const createAccounts = (options: AccountsOptions) => {
       },
 
       /** Sets the new password, ends every session the old one opened and revokes the tokens issued to the account (FR-T7). */
-      async complete(token: string, password: string) {
+      async complete(token: string, password: string, context: SignInContext = {}) {
         const problem = passwordProblem(password)
         if (problem) return { ok: false, reason: 'password', problem } as const
         const id = await digest(token)
@@ -434,6 +434,11 @@ export const createAccounts = (options: AccountsOptions) => {
           return { ok: false, reason: 'invalid' } as const
         const set = await setPassword(artifact.accountId, password)
         if (!set.ok) return { ok: false, reason: 'invalid' } as const
+        // G-9: guesses at a password that is gone lock nothing; a fresh generation, so no slot of the old one counts.
+        const accountId = artifact.accountId
+        const buckets = [accountWide(accountId), ownBucket(accountId, 'password', {}), ownBucket(accountId, 'code', {})]
+        if (context.clientIp) buckets.push(ownBucket(accountId, 'password', context), ownBucket(accountId, 'code', context))
+        for (const bucket of buckets) await renew(bucket, accountId)
         for (const session of await adapter.sessions.listForAccount(artifact.accountId)) await adapter.sessions.destroy(session.id)
         // FR-T7: an offline refresh token carries its own sign-in and would outlive the sessions; the consent stays.
         for (const grant of await adapter.grants.listForAccount(artifact.accountId)) await adapter.artifacts.revokeByGrantId(grant.id)

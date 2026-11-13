@@ -348,6 +348,10 @@ register dynamically are served by `features: { dynamicRegistration: true }`, an
   `staticKeyStore([await generateKey('ES256'), await generateKey('RS256')])` from `@oidcraft/adapter`, persisted as JSON. An
   RS256 key is required: every OpenID provider must offer one.
 - **https.** The issuer must be `https`, except on `localhost`.
+- **Rate limiting.** oidcraft limits what only it can count: wrong device codes per address, and
+  failed passwords and second-factor codes per account. Limiting requests per address at the token,
+  authorization and registration endpoints is yours, in front of the provider, where the real peer
+  address is known — pass that address in as `clientIp` for the device verification page.
 - **Logout delivery.** oidcraft never makes outbound requests itself. Back-channel logout hands you
   the notifications through `onLogout`, and you send them.
 - **Administration.** `provider.management` has functions, not routes, for clients, grants,

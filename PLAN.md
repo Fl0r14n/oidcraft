@@ -560,7 +560,8 @@ text it is held to. In fix order.
   ended it, and the broker's `logoutUrl` and `completeLogout` behind it, opted into per upstream by
   `propagateLogout`. The upstream ID token is kept as the hint, decided 2026-11-13 and written into
   FR-F8 and FR-F10, since without one most upstreams, this one included, do not redirect back
-- [ ] NFR-S12: the README does not yet say which limiting is the host's
+- [x] NFR-S12: the README does not yet say which limiting is the host's
+  Fixed: under _Before production_
 - [ ] `G-9`: failed sign-ins counted per account and address — five lock that address out of that
   account — with a ceiling of about fifty per account across all addresses. `authenticate` and
   `verifySecondFactor` take an optional `clientIp`; without one, today's per-account lock. The

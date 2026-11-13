@@ -2,6 +2,7 @@ import type { Client } from '@oidcraft/adapter'
 import { canonicalIp, registeredNames } from '../binding/mtls'
 import type { ResolvedConfig } from '../config'
 import { fapiClientProblems } from '../profile/fapi'
+import { supportedAcrValues } from '../upstreams/selection'
 import { secretKind } from './secret'
 
 // However a client reaches the store (FR-M1); otherwise each is found at the token endpoint, as a 500 nobody there can fix.
@@ -45,6 +46,10 @@ export const clientProblems = (config: ResolvedConfig, client: Client) => {
   if (client.tlsClientAuthSanEmail !== undefined && !client.tlsClientAuthSanEmail.includes('@')) {
     problems.push(`tls_client_auth_san_email ${client.tlsClientAuthSanEmail} is not an email address`)
   }
+
+  const supported = supportedAcrValues(config)
+  const unsupported = supported ? (client.defaultAcrValues ?? []).filter(value => !supported.includes(value)) : []
+  if (unsupported.length) problems.push(`default_acr_values ${unsupported.join(', ')} is not among acr_values_supported (FR-C23)`)
 
   const fapi = fapiClientProblems(config, client)
   if (fapi.length) problems.push(`FAPI 2.0: ${fapi.join('; ')} (FR-C21)`)

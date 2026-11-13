@@ -62,6 +62,8 @@ export const provider = createProvider({
   adapter,
   ...(profile && { profile: profile as 'fapi2' }),
   interactionUrl: `${issuer()}/interaction`,
+  // What the demo's sign-in reports: a password alone, or with a second factor (FR-C23).
+  acrValues: ['pwd', 'mfa'],
   // Descriptors only: the admin API lists these, and an upstream's client secret is not for it.
   upstreams: upstreams.map(({ id, label, domains }) => ({ id, ...(label && { label }), ...(domains && { domains }) })),
   features: { deviceFlow: true, pushedAuthorizationRequests: true, dpop: true, dynamicRegistration: mcpEnabled },

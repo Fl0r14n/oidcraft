@@ -212,6 +212,15 @@ does not meet it is a failed authentication, answered `access_denied` (§5.5.1.1
 and a login as anyone else is refused. A requested claim the account does not have is left out,
 essential or not, as §5.5 requires.
 
+**FR-C23 — Authentication context classes.** The configuration may list the `acr` values its logins
+report, advertised as `acr_values_supported` (OIDC Discovery 1.0 §3) beside the
+`urn:oidcraft:idp:<id>` value naming each upstream, which home-realm discovery reads (FR-F4); unlisted,
+nothing is advertised. A client's `default_acr_values` (OIDC DCR 1.0 §2) stand in for `acr_values` on a request
+that names neither `acr_values` nor an `acr` in `claims`, which override them. As the specification
+says, they request `acr` as a voluntary claim: like `acr_values` (FR-C16), one login is asked to
+meet them and the ID token reports what it reached. Requiring a level is an essential `acr` in
+`claims` (FR-C22). When the configuration lists values, a client defaulting to any other is refused.
+
 ## 4. Tokens — `FR-T*`
 
 **FR-T1** — ID tokens are always JWS; `none` never. An `RS256` key is mandatory in every key set

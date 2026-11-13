@@ -6,7 +6,9 @@ import {
   authorizeUrl,
   basic,
   browserOf,
+  build,
   client,
+  drive,
   go,
   ISSUER,
   loginAndConsent,
@@ -175,5 +177,76 @@ describe('a derived identifier has one input it can come from', () => {
   test('a newline moving between the account and the client changes the details-consent id', async () => {
     const details = [{ type: 'payment' }]
     expect(await detailsConsentId('a\nb', 'c', details)).not.toBe(await detailsConsentId('a', 'b\nc', details))
+  })
+})
+
+// FR-C23, OIDC DCR 1.0 §2: a client's default_acr_values, voluntary as acr_values are.
+describe('default acr values', () => {
+  /** Authorize and answer each interaction with a login at `acr`, or consent; the views seen and where it ends. */
+  const run = async (params: Record<string, string>, acr: string, cookie = '') => {
+    const views: { kind: string; acrValues: string[] | undefined }[] = []
+    let response = await go(authorizeUrl(params), cookie)
+    for (let leg = 0; leg < 4; leg++) {
+      const location = new URL(response.headers.get('location') as string)
+      if (!location.pathname.startsWith('/interaction/')) return { location, views, cookie }
+      const id = location.pathname.split('/').pop() as string
+      const view = await provider.interactions.find(id)
+      views.push(view)
+      const answer =
+        view.kind === 'login' ? { login: { accountId: 'ada', acr } } : { consent: { scopes: view.scopes, claims: view.claims } }
+      const done = await provider.interactions.complete(id, answer, browserOf(response))
+      if (done.setCookie) cookie = `${SESSION_COOKIE}=${done.setCookie.split('=')[1]?.split(';')[0]}`
+      response = await go(done.redirectTo, cookie)
+    }
+    throw new Error('never reached the client')
+  }
+  const logins = (views: { kind: string }[]) => views.filter(view => view.kind === 'login').length
+
+  test('a session below them signs in once more, and the code is issued whatever that login reached', async () => {
+    const first = await run({}, 'pwd')
+    await adapter.clients.upsert?.(client({ defaultAcrValues: ['mfa'] }))
+    const again = await run({}, 'pwd', first.cookie)
+    expect(logins(again.views)).toBe(1)
+    expect(again.views[0]?.acrValues).toEqual(['mfa'])
+    expect(again.location.searchParams.get('code')).toBeTruthy()
+  })
+
+  test('a session that meets them is not asked again', async () => {
+    await adapter.clients.upsert?.(client({ defaultAcrValues: ['mfa'] }))
+    const first = await run({}, 'mfa')
+    const again = await run({}, 'mfa', first.cookie)
+    expect(logins(again.views)).toBe(0)
+    expect(again.location.searchParams.get('code')).toBeTruthy()
+  })
+
+  test('acr_values on the request, or an acr in claims, override them', async () => {
+    const first = await run({}, 'pwd')
+    await adapter.clients.upsert?.(client({ defaultAcrValues: ['mfa'] }))
+    expect(logins((await run({ acr_values: 'pwd' }, 'pwd', first.cookie)).views)).toBe(0)
+    const voluntary = JSON.stringify({ id_token: { acr: { values: ['pwd'] } } })
+    expect(logins((await run({ claims: voluntary }, 'pwd', first.cookie)).views)).toBe(0)
+  })
+
+  test('are advertised only when the configuration lists them, and a client naming another is refused', async () => {
+    const metadata = async () => (await provider.handle(new Request(`${ISSUER}/.well-known/openid-configuration`))).json()
+    expect(await metadata()).not.toHaveProperty('acr_values_supported')
+    drive(build({ acrValues: ['pwd', 'mfa'], upstreams: [{ id: 'google' }], features: { dynamicRegistration: true } }))
+    expect((await metadata()).acr_values_supported).toEqual(['pwd', 'mfa', 'urn:oidcraft:idp:google'])
+
+    const register = (values: string[]) =>
+      provider.handle(
+        new Request(`${ISSUER}/register`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ redirect_uris: [REDIRECT], token_endpoint_auth_method: 'none', default_acr_values: values })
+        })
+      )
+    const accepted = await register(['mfa'])
+    expect(accepted.status).toBe(201)
+    expect((await accepted.json()).default_acr_values).toEqual(['mfa'])
+    expect((await register(['urn:oidcraft:idp:google'])).status).toBe(201)
+    const refused = await register(['gold'])
+    expect(refused.status).toBe(400)
+    expect((await refused.json()).error).toBe('invalid_client_metadata')
   })
 })

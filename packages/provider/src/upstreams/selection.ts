@@ -1,3 +1,4 @@
+import type { ResolvedConfig } from '../config'
 /**
  * An upstream as home-realm discovery sees it (FR-F4). Choosing is a decision, so the core makes it;
  * the round trip is I/O, so `@oidcraft/provider/broker` makes it, driven by the host.
@@ -18,6 +19,10 @@ export type SelectionHints = {
 
 /** `acr_values` naming a provider directly, e.g. `urn:oidcraft:idp:entra`. */
 export const ACR_PREFIX = 'urn:oidcraft:idp:'
+
+/** FR-C23: the configured levels, and an `acr` naming each upstream, which home-realm discovery accepts (FR-F4). */
+export const supportedAcrValues = (config: Pick<ResolvedConfig, 'acrValues' | 'upstreams'>) =>
+  config.acrValues && [...config.acrValues, ...config.upstreams.map(upstream => `${ACR_PREFIX}${upstream.id}`)]
 
 const domainOf = (loginHint: string | undefined) => loginHint?.split('@')[1]?.toLowerCase()
 

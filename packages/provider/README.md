@@ -139,6 +139,13 @@ functions, `find(accountId)` and `claims(accountId, scopes, claims)`, as in the 
 above. The third argument names claims the person consented to one by one, through the `claims`
 request parameter; release those too.
 
+How a person signed in reaches clients as `acr` and `amr`, which your login answer sets: the demo
+reports `acr: 'pwd'` for a password and `'mfa'` after a second factor. List the levels as
+`acrValues` and discovery advertises them. A client asks for one with `acr_values`, or by default
+through its registered `default_acr_values`; either is a request, and one login is asked to meet
+it. To require a level, a client sends it as an essential `acr` in the `claims` parameter, and a
+login that falls short is refused.
+
 ## Sign in with Google or Microsoft
 
 oidcraft can broker: your applications sign in at oidcraft, and oidcraft signs the person in at an

@@ -289,7 +289,8 @@ const authorizationUrl = async (config: ResolvedConfig, request: AuthorizationRe
   if (remaining.length) params.set('prompt', remaining.join(' '))
   else params.delete('prompt')
   // The login just run answered acr_values and the ID token reports what it achieved (FR-C16); replaying it can loop.
-  if (loggedIn) params.delete('acr_values')
+  // Emptied rather than dropped, or the client's default_acr_values would stand in for it (FR-C23).
+  if (loggedIn) params.set('acr_values', '')
   // Replaying max_age loops whenever it is shorter than the round trip, as max_age=0 always is (OIDC Core §3.1.2.1).
   if (loggedIn) params.delete('max_age')
   // Already resolved into these parameters; replaying the reference would consume it twice (RFC 9126 §4).

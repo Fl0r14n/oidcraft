@@ -7,14 +7,5 @@
     "condition": "CheckIfAuthorizationEndpointError",
     "expected-result": "failure",
     "comment": "FR-C3, OAuth 2.1 §7.5.1.1: a confidential client without PKCE must send a nonce"
-  },
-  {
-    "test-name": "oidcc-ensure-request-with-acr-values-succeeds",
-    "variant": "*",
-    "configuration-filename": "*",
-    "current-block": "Verify authorization endpoint response",
-    "condition": "ValidateIdTokenACRClaimAgainstAcrValuesRequest",
-    "expected-result": "warning",
-    "comment": "the demo login can only do a password, and reports acr=pwd rather than claim a level it did not reach (FR-F6)"
   }
 ]

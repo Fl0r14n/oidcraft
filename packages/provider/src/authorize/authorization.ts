@@ -137,6 +137,8 @@ export const validateAuthorizationRequest = (
     })
   }
 
+  const claims = parseClaimsRequest(config, params.get('claims'))
+
   const responseMode = params.get('response_mode') ?? 'query'
   if (!RESPONSE_MODES.includes(responseMode)) {
     throw new OAuthError('invalid_request', { description: `unsupported response_mode ${responseMode}`, spec: 'OIDC Core §3.1.2.1' })
@@ -154,14 +156,23 @@ export const validateAuthorizationRequest = (
     prompt,
     maxAge,
     loginHint: params.get('login_hint') ?? undefined,
-    acrValues: params.get('acr_values') ? list(params.get('acr_values')) : undefined,
+    acrValues: acrValuesFor(client, params, claims),
     uiLocales: params.get('ui_locales') ? list(params.get('ui_locales')) : undefined,
     authorizationDetails: parseAuthorizationDetails(config, params.get('authorization_details')),
     resources: requestedResources(config, params),
     dpopJkt: config.features.dpop ? dpopJktOf(params.get('dpop_jkt')) : undefined,
-    claims: parseClaimsRequest(config, params.get('claims')),
+    claims,
     raw: params.toString()
   }
+}
+
+// FR-C23: a client's defaults stand in only for a request that asks for no acr at all; an empty acr_values asks for none.
+const acrValuesFor = (client: Client, params: URLSearchParams, claims: ClaimsRequest | undefined) => {
+  if (params.has('acr_values')) {
+    const named = list(params.get('acr_values'))
+    return named.length ? named : undefined
+  }
+  return claims?.acr ? undefined : client.defaultAcrValues
 }
 
 // An RFC 7638 SHA-256 thumbprint: 32 bytes, base64url without padding.

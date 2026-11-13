@@ -124,6 +124,11 @@ export type ProviderConfig = {
   scopes?: string[]
   /** scope → the claims it releases (FR-C5). */
   claims?: Record<string, string[]>
+  /**
+   * The `acr` values this deployment's logins report, advertised as `acr_values_supported`; a client's
+   * `default_acr_values` must come from them. Unset, none is advertised and any is accepted (FR-C23).
+   */
+  acrValues?: string[]
   clientAuthMethods?: ClientAuthMethod[]
   features?: Partial<Features>
   capabilities?: Partial<Capabilities>
@@ -319,6 +324,9 @@ export const resolveConfig = (config: ProviderConfig): ResolvedConfig => {
     if (!url || url.hash) problems.push(`resource ${uri} must be an absolute URI without a fragment (RFC 8707 §2)`)
     else if (url.protocol !== 'https:' && !isLoopback(url)) problems.push(`resource ${uri} must be https outside loopback (NFR-S1)`)
   }
+  if (config.acrValues?.some(value => typeof value !== 'string' || !value || /\s/.test(value)))
+    problems.push('acrValues must be non-empty strings without spaces, as acr_values carries them space-separated (OIDC Core §3.1.2.1)')
+
   const duplicate = resources.find((resource, index) => resources.findIndex(other => other.uri === resource.uri) !== index)
   if (duplicate) problems.push(`resource ${duplicate.uri} is listed twice`)
 

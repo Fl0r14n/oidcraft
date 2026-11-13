@@ -238,6 +238,7 @@ const metadataFrom = (config: ResolvedConfig, body: Record<string, unknown>): Cl
     ...cibaMetadataFrom(body, grantTypes),
     // OIDC DCR 1.0 §2: RS256 when omitted, except under FAPI 2.0, which forbids it: the profile's default then (FR-T1, FR-C21).
     ...idTokenAlgFrom(config, body.id_token_signed_response_alg),
+    ...(body.default_acr_values !== undefined && { defaultAcrValues: stringsFrom(body.default_acr_values, 'default_acr_values') ?? [] }),
     ...keysFrom(body),
     ...tlsClientAuthFrom(body),
     ...(body.backchannel_logout_uri !== undefined && {
@@ -255,6 +256,7 @@ const REGISTERED = new Set<string>([
   ...['clientName', 'applicationType', 'redirectUris', 'postLogoutRedirectUris', 'grantTypes', 'responseTypes', 'scopes'],
   ...['tokenEndpointAuthMethod', 'clientSecret', 'clientSecretHash', 'sectorIdentifierUri', 'subjectType', 'requirePkce'],
   ...['backchannelTokenDeliveryMode', 'backchannelClientNotificationEndpoint', 'idTokenSignedResponseAlg', 'jwks', 'jwksUri'],
+  ...['defaultAcrValues'],
   ...['backchannelLogoutUri', ...Object.values(TLS_CLIENT_AUTH_METADATA)]
 ])
 
@@ -285,6 +287,7 @@ export const clientResponse = (
       backchannel_client_notification_endpoint: client.backchannelClientNotificationEndpoint
     }),
     ...(client.idTokenSignedResponseAlg && { id_token_signed_response_alg: client.idTokenSignedResponseAlg }),
+    ...(client.defaultAcrValues && { default_acr_values: client.defaultAcrValues }),
     ...Object.fromEntries(
       Object.entries(TLS_CLIENT_AUTH_METADATA)
         .filter(([, field]) => client[field] !== undefined)

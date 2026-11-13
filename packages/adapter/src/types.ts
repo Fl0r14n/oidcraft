@@ -38,6 +38,8 @@ export type Client = ClientCredentials &
     accessTokenFormat?: 'opaque' | 'jwt'
     /** OIDC DCR 1.0 §2. Unset, the provider's first key signs (FR-T1). */
     idTokenSignedResponseAlg?: string
+    /** OIDC DCR 1.0 §2: `acr_values` for a request that names none, requested as a voluntary claim (FR-C23). */
+    defaultAcrValues?: string[]
     /** OIDC Core §5.3.2: when set, UserInfo answers with a signed JWT rather than JSON (FR-C5). */
     userinfoSignedResponseAlg?: string
     userinfoEncryptedResponseAlg?: string

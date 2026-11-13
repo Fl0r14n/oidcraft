@@ -3,6 +3,7 @@ import { MTLS_METHODS, type ResolvedConfig } from './config'
 import { CLIENT_SECRET_ALGS, CLIENT_SIGNING_ALGS } from './keys/algorithms'
 import { signingAlgorithms } from './keys/keys'
 import { FAPI_ALGS, FAPI_AUTH_METHODS } from './profile/fapi'
+import { supportedAcrValues } from './upstreams/selection'
 
 // Advertises only what this configuration can do (FR-C6), dropping methods the runtime cannot supply (FR-R5).
 export const supportedGrantTypes = ({ features, exchangePolicy }: ResolvedConfig) => [
@@ -83,6 +84,7 @@ export const metadata = (config: ResolvedConfig, signing: string[]) => {
     require_request_uri_registration: false,
     request_object_signing_alg_values_supported: clientAlgs,
     claims_parameter_supported: true,
+    ...(config.acrValues?.length && { acr_values_supported: supportedAcrValues(config) }),
     frontchannel_logout_supported: true,
     backchannel_logout_supported: true
   }

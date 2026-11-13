@@ -75,12 +75,13 @@ Versions are set in each `package.json`. Publish in this order, each from a GitH
    times out.
 3. `@oidcraft/adapter@0.3.0` — the `revoked_family` artifact kind; `fromKv`'s identity key changed,
    so links a Redis store made before it are not found; `AccountStore.claims` documents its third
-   argument; the conformance suite checks prune, grant expiry and replacing upserts.
+   argument; `Client.defaultAcrValues`; the conformance suite checks prune, grant expiry and replacing upserts.
 4. `@oidcraft/provider@0.5.0` — the review's security and correctness fixes; the `claims` parameter
    (FR-C22), whose consent answers must repeat `view.claims` in `consent.claims`; `onAudit` hears
    `token.replay` and `client.authentication_failed`; a body that is not form-encoded is a 415; a
    throwing logout or registration audit hook goes to `onError`; under a provider-wide FAPI profile
-   dynamic registration names the profile's algorithm instead of failing on DCR's RS256 default.
+   dynamic registration names the profile's algorithm instead of failing on DCR's RS256 default;
+   a client's `default_acr_values` and the configured `acrValues`, advertised (FR-C23).
 5. `@oidcraft/drizzle@0.3.0`, `@oidcraft/kysely@0.3.0`, `@oidcraft/redis@0.3.0` — peer on `adapter`
    ^0.3.0; the SQL ones enforce `Grant.expiresAt` and prune by expiry at the delete.
 6. `@oidcraft/typeorm@0.3.0` — the same, and `OIDCRAFT_ENTITIES` becomes `OIDCRAFT_SQLITE_ENTITIES`

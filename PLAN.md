@@ -5,12 +5,13 @@ This file is working state: tick items off and add notes as work lands.
 
 ## Status
 
-**Implemented, as of 2026-11-13**, with 1243 passing tests (190 more skip without Postgres and Redis) and `bun run verify` as the gate — everything
+**Implemented, as of 2026-11-13**, with 1266 passing tests (190 more skip without Postgres and Redis) and `bun run verify` as the gate — everything
 below, FR-T6, FR-C21 and FR-A4's Postgres included. Published as `@oidcraft/*`, the provider at 0.3.0,
 with the docs site at https://fl0r14n.github.io/oidcraft/. Every item under _Next_ is done and
 released, the 2026-11-12 review, its 2026-11-13 re-read and `tls_client_auth` by SAN included. Item 16 is open: what a
-review after that release found, among it a session takeover through `sid` that 0.3.0 ships; until
-it is fixed this is not a provider to put real identities behind.
+review after that release found. Its security half is fixed on `main` and **not released** — 0.3.0
+still ships a session takeover through `sid`, so until the next release is out the published
+provider is not one to put real identities behind. Its correctness and small halves are open.
 
 The authorization code grant with mandatory PKCE, interaction suspend/resume, token issuance with
 rotation and replay revocation, UserInfo, revocation, introspection, logout in both directions,
@@ -375,7 +376,9 @@ What is _not_ claimed: see the status section. Implemented is not the same as ce
 13. ~~`tls_client_auth` by SAN~~ — done 2026-11-13.
 14. ~~What the 2026-11-13 re-read found~~ — done 2026-11-13.
 15. ~~The release~~ of everything since 2026-11-11 — done 2026-11-13.
-16. **What the 2026-11-13 review after the release found** — below, security first, then a patch release.
+16. **What the 2026-11-13 review after the release found** — below. Security done 2026-11-13, unreleased;
+    the release next, then correctness. The fixes change APIs (`interactions.complete` takes the cookie), so
+    it is not a patch.
 17. **Provider follow-ups — 2026-11-13**, below. After the release, before 1.0.
 
 ## Review — 2026-11-13, after the release

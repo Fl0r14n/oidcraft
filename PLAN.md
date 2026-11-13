@@ -420,7 +420,7 @@ with a throwaway test. Several predate this week's work and shipped in 0.3.0. In
   `profile`, `requirePushedAuthorizationRequests`, `dpopBoundAccessTokens`, `upstreamProviders`,
   `accessTokenFormat` and the rest (`clients/registration.ts`). Carry forward every field
   registration does not parse. FR-C9, FR-C21. Probe
-- [ ] After logout a session-bound refresh token still introspects `active` and is accepted as a
+- [x] After logout a session-bound refresh token still introspects `active` and is accepted as a
   token-exchange subject (`resource/introspection.ts`, `token/exchange.ts`); only the refresh grant
   checks the session. FR-T6, FR-T7
 - [ ] The client's authorized `fetch` and the axios interceptors send the bearer token to any origin,

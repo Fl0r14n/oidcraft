@@ -149,6 +149,10 @@ export const loadGrantAndSignIn = async (config: ResolvedConfig, artifact: Store
   return { grant, session }
 }
 
+/** FR-T6, FR-T7: a refresh token without offline access is over when its session is, wherever it is presented. */
+export const outlivedItsSession = async (config: ResolvedConfig, artifact: Stored<'access_token' | 'refresh_token'>) =>
+  artifact.kind === 'refresh_token' && !artifact.payload.signIn && !(await config.adapter.sessions.find(artifact.payload.sessionId))
+
 export const loadGrantAndSession = async (config: ResolvedConfig, artifact: Stored<'authorization_code'>) => {
   const grant = artifact.grantId ? await config.adapter.grants.find(artifact.grantId) : undefined
   if (!grant) throw new OAuthError('invalid_grant', { description: 'the grant behind this token no longer exists', spec: 'RFC 6749 §5.2' })

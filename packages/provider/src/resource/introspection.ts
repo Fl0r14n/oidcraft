@@ -6,6 +6,7 @@ import type { Caller } from '../cors'
 import { OAuthError } from '../errors'
 import type { Stored } from '../payloads'
 import { findPresented } from '../token/access-token'
+import { outlivedItsSession } from '../token/issue'
 import { subjectFor } from '../token/subjects'
 
 type Token = Stored<'access_token' | 'refresh_token'>
@@ -77,7 +78,7 @@ export const introspectionEndpoint = async (
 
   for (const kind of kinds) {
     const artifact = await findPresented(config, kind, presented)
-    if (!artifact || artifact.consumedAt) continue
+    if (!artifact || artifact.consumedAt || (await outlivedItsSession(config, artifact))) continue
     if (!mayIntrospect(config, client, artifact)) return inactive
 
     // FR-C18: the subject the token's client was given, never the account id behind a pairwise one.

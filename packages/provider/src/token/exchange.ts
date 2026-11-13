@@ -2,6 +2,7 @@ import type { Artifact, Client } from '@oidcraft/adapter'
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
 import { type Binding, findPresented, issueAccessToken } from './access-token'
+import { outlivedItsSession } from './issue'
 import { subjectFor } from './subjects'
 
 export const TOKEN_EXCHANGE = 'urn:ietf:params:oauth:grant-type:token-exchange'
@@ -45,7 +46,7 @@ const resolveToken = async (config: ResolvedConfig, value: string, declaredType:
     })
   }
   const artifact = await findPresented(config, kind, value)
-  return artifact && !artifact.consumedAt ? artifact : undefined
+  return artifact && !artifact.consumedAt && !(await outlivedItsSession(config, artifact)) ? artifact : undefined
 }
 
 /**

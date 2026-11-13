@@ -13,6 +13,7 @@ import { SESSION_COOKIE } from './session/session'
 /** The browser-binding cookie the redirect to an interaction set, as the browser would send it back (FR-I2). */
 const browserOf = (response: Response) => response.headers.get('set-cookie')?.split(';')[0] ?? null
 
+const EXCHANGE = 'urn:ietf:params:oauth:grant-type:token-exchange'
 const ISSUER = 'https://op.example.com'
 const REDIRECT = 'https://rp.example.com/cb'
 const SECRET = 'a-long-enough-client-secret'
@@ -839,6 +840,34 @@ describe('FR-T6: a refresh token without offline_access is bound to the session'
     const session = (await adapter.sessions.listForAccount('ada'))[0]
     await adapter.sessions.destroy(session?.id as string)
     expect((await (await refresh(provider, rotated.refresh_token)).json()).error).toBe('invalid_grant')
+  })
+
+  // FR-T7: ended means ended everywhere it can be presented, not only at the refresh grant.
+  test('after logout it introspects inactive and is no subject to exchange', async () => {
+    await adapter.clients.upsert?.(client({ grantTypes: ['authorization_code', 'refresh_token', EXCHANGE] }))
+    const provider = build({ exchangePolicy: () => ({ accountId: 'ada', scopes: ['openid'] }) })
+    const issued = await tokensFor(provider, 'rp')
+    const post = (body: Record<string, string>, path = '/token') =>
+      provider.handle(
+        new Request(`${ISSUER}${path}`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/x-www-form-urlencoded', authorization: basic() },
+          body: new URLSearchParams(body).toString()
+        })
+      )
+    const introspect = async () => (await (await post({ token: issued.refresh_token }, '/introspect')).json()).active
+    const exchange = () =>
+      post({
+        grant_type: EXCHANGE,
+        subject_token: issued.refresh_token,
+        subject_token_type: 'urn:ietf:params:oauth:token-type:refresh_token'
+      })
+
+    expect(await introspect()).toBe(true)
+    expect((await exchange()).status).toBe(200)
+    await endSession(provider, issued.secret, issued.id_token)
+    expect(await introspect()).toBe(false)
+    expect((await (await exchange()).json()).error).toBe('invalid_request')
   })
 
   test('it expires no later than the session, however long its own lifetime', async () => {

@@ -184,6 +184,10 @@ trusts the answer rather than re-checking it.
 **`grants`**
 
 - Found by id, and by `(accountId, clientId)`. Consent outlives the tokens issued under it (FR-I4).
+- One grant per `(accountId, clientId)`. An `upsert` for a pair another id already holds writes into
+  that grant, keeping its id and `createdAt`, atomically: two tabs consenting for the first time at
+  once are two writes to one grant, not a second grant and not a failed insert. The SQL adapters
+  resolve the conflict on the pair; `fromKv` claims the pair's key with `insert`.
 
 **`clients`**
 

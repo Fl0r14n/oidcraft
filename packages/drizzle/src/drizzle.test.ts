@@ -77,10 +77,11 @@ describe('drizzle adapter', () => {
     expect((await adapter.artifacts.find('access_token', 'new'))?.id).toBe('new')
   })
 
-  test('one grant per account and client, enforced by the database', async () => {
+  test('one grant per account and client: a second id writes into the first', async () => {
     const { adapter } = await fresh()
-    const base = { accountId: 'u1', clientId: 'c1', scopes: ['openid'], claims: [], resources: {}, createdAt: new Date() }
-    await adapter.grants.upsert({ id: 'g1', ...base })
-    expect(adapter.grants.upsert({ id: 'g2', ...base })).rejects.toThrow()
+    const base = { accountId: 'u1', clientId: 'c1', claims: [], resources: {}, createdAt: new Date() }
+    await adapter.grants.upsert({ id: 'g1', scopes: ['openid'], ...base })
+    await adapter.grants.upsert({ id: 'g2', scopes: ['openid', 'profile'], ...base })
+    expect((await adapter.grants.listForAccount('u1')).map(grant => [grant.id, grant.scopes])).toEqual([['g1', ['openid', 'profile']]])
   })
 })

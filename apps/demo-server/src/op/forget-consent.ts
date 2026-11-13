@@ -20,10 +20,15 @@ export const forgettingConsent = <A extends FullAdapter>(adapter: A): A => {
     },
     grants: {
       ...adapter.grants,
-      // A consent after a spent one writes a second grant for the pair; the lookup must find the new one.
+      // A consent is written into the pair's one grant (FR-I4), which makes a spent grant current again.
+      async upsert(grant) {
+        await adapter.grants.upsert(grant)
+        const stored = await adapter.grants.findByAccountAndClient(grant.accountId, grant.clientId)
+        if (stored) spent.delete(stored.id)
+      },
       async findByAccountAndClient(accountId, clientId) {
-        const held = await adapter.grants.listForAccount(accountId)
-        return held.find(grant => grant.clientId === clientId && !spent.has(grant.id))
+        const grant = await adapter.grants.findByAccountAndClient(accountId, clientId)
+        return grant && !spent.has(grant.id) ? grant : undefined
       }
     }
   }

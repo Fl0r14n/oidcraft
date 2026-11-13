@@ -6,6 +6,7 @@ import type { ClientCertificate } from '../context'
 import { OAuthError } from '../errors'
 import { type Binding, issueTokens } from '../token/issue'
 import { checkApproval } from './approval'
+import { recordConsent } from './consent'
 
 /**
  * Base32 without the characters a person misreads aloud or in a bad font: no 0/O, 1/I/L, U (which
@@ -219,19 +220,9 @@ export const resolveDeviceCode = async (
   const session = await config.adapter.sessions.find(outcome.sessionId)
   // The device now holds tokens from this session, so ending it must reach the device too (FR-C11).
   if (session && !session.clients.includes(found.artifact.clientId)) {
-    await config.adapter.sessions.upsert({ ...session, clients: [...session.clients, found.artifact.clientId] })
+    await config.adapter.sessions.addClient(session.id, found.artifact.clientId)
   }
-  const previous = await config.adapter.grants.findByAccountAndClient(outcome.accountId, found.artifact.clientId)
-  const grant = {
-    id: previous?.id ?? randomString(),
-    accountId: outcome.accountId,
-    clientId: found.artifact.clientId,
-    scopes: [...new Set([...(previous?.scopes ?? []), ...scopes])],
-    claims: previous?.claims ?? [],
-    resources: previous?.resources ?? {},
-    createdAt: previous?.createdAt ?? new Date()
-  }
-  await config.adapter.grants.upsert(grant)
+  const grant = await recordConsent(config, outcome.accountId, found.artifact.clientId, scopes)
 
   await decide(config, found.artifact, {
     status: 'approved',

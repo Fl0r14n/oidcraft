@@ -6,6 +6,7 @@ import type { ClientCertificate } from '../context'
 import { OAuthError } from '../errors'
 import { type Binding, issueTokens } from '../token/issue'
 import { checkApproval } from './approval'
+import { recordConsent } from './consent'
 
 export const CIBA_GRANT = 'urn:openid:params:grant-type:ciba'
 
@@ -213,17 +214,7 @@ export const resolveBackchannelRequest = async (config: ResolvedConfig, authReqI
 
   // CIBA §7.1: the request named a user; an approval by anyone else is not an answer to it.
   const scopes = await checkApproval(config, payload.scopes, outcome, artifact.accountId)
-  const previous = await config.adapter.grants.findByAccountAndClient(outcome.accountId, artifact.clientId)
-  const grant = {
-    id: previous?.id ?? randomString(),
-    accountId: outcome.accountId,
-    clientId: artifact.clientId,
-    scopes: [...new Set([...(previous?.scopes ?? []), ...scopes])],
-    claims: previous?.claims ?? [],
-    resources: previous?.resources ?? {},
-    createdAt: previous?.createdAt ?? new Date()
-  }
-  await config.adapter.grants.upsert(grant)
+  const grant = await recordConsent(config, outcome.accountId, artifact.clientId, scopes)
 
   await answer(config, artifact, {
     status: 'approved',

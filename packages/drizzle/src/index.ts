@@ -271,7 +271,11 @@ export const drizzleAdapter = (options: DrizzleAdapterOptions): FullAdapter => {
           createdAt: grant.createdAt,
           expiresAt: grant.expiresAt ?? null
         }
-        await db.insert(grants).values(row).onConflictDoUpdate({ target: grants.id, set: row })
+        const { id: _id, createdAt: _createdAt, ...changed } = row
+        await db
+          .insert(grants)
+          .values(row)
+          .onConflictDoUpdate({ target: [grants.accountId, grants.clientId], set: changed })
       },
       async destroy(id) {
         await db.delete(grants).where(eq(grants.id, id))

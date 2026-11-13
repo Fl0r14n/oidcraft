@@ -252,8 +252,11 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
     },
     async upsert(grant) {
       const ttl = grant.expiresAt && { ttl: ttlFrom(grant.expiresAt) }
-      await kv.upsert({ key: `grant/${grant.id}`, value: enc(grant), ...ttl })
-      await kv.upsert({ key: grantIndex(grant), value: grant.id, ...ttl })
+      const claimed = await kv.insert({ key: grantIndex(grant), value: grant.id, ...ttl })
+      const id = claimed ? grant.id : ((await read(grantIndex(grant))) ?? grant.id)
+      const stored = id === grant.id ? grant : { ...grant, id, createdAt: (await readGrant(id))?.createdAt ?? grant.createdAt }
+      await kv.upsert({ key: `grant/${id}`, value: enc(stored), ...ttl })
+      await kv.upsert({ key: grantIndex(grant), value: id, ...ttl })
     },
     async destroy(id) {
       const grant = await readGrant(id)

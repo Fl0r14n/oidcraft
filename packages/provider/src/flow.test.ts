@@ -203,6 +203,31 @@ describe('authorization endpoint', () => {
     expect(location.searchParams.get('code')).toBeTruthy()
   })
 
+  // FR-I4: one grant per account and client, however the first consents arrive.
+  test('a first consent from two tabs at once makes one grant, and both tabs get a working code', async () => {
+    const first = await go(authorizeUrl())
+    const loginId = new URL(first.headers.get('location') as string).pathname.split('/').pop() as string
+    const login = await provider.interactions.complete(loginId, { login: { accountId: 'ada' } })
+    const cookie = `${SESSION_COOKIE}=${(login.setCookie as string).split('=')[1]?.split(';')[0]}`
+
+    const tabs = await Promise.all([go(login.redirectTo, cookie), go(authorizeUrl(), cookie)])
+    const consentIds = tabs.map(tab => new URL(tab.headers.get('location') as string).pathname.split('/').pop() as string)
+    const consents = await Promise.all(
+      consentIds.map(id => provider.interactions.complete(id, { consent: { scopes: ['openid', 'profile', 'offline_access'] } }))
+    )
+
+    expect(await adapter.grants.listForAccount('ada')).toHaveLength(1)
+    for (const consent of consents) {
+      const code = new URL((await go(consent.redirectTo, cookie)).headers.get('location') as string).searchParams.get('code')
+      const redeemed = await post(
+        '/token',
+        { grant_type: 'authorization_code', code: code as string, redirect_uri: REDIRECT, code_verifier: verifier },
+        { authorization: basic() }
+      )
+      expect(redeemed.status).toBe(200)
+    }
+  })
+
   test('a remembered grant skips consent on the next authorization', async () => {
     const { cookie } = await loginAndConsent()
     const again = await go(authorizeUrl(), cookie)

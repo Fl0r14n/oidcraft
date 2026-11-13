@@ -1,4 +1,3 @@
-import type { Grant } from '@oidcraft/adapter'
 import { randomString } from '@oidcraft/core'
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
@@ -6,6 +5,7 @@ import type { InteractionCompletion, InteractionKind, InteractionRequest, Intera
 import { startSession } from '../session/session'
 import type { AuthorizationRequest } from './authorization'
 import { detailsConsentId, type ResponseTarget } from './authorization'
+import { recordConsent } from './consent'
 import { pushParameters } from './par'
 
 const load = async (config: ResolvedConfig, id: string) => {
@@ -133,18 +133,7 @@ export const interactions = (config: ResolvedConfig) => ({
     }
 
     if (outcome.consent && accountId) {
-      const previous = await config.adapter.grants.findByAccountAndClient(accountId, request.clientId)
-      const grant: Grant = {
-        id: previous?.id ?? randomString(),
-        accountId,
-        clientId: request.clientId,
-        // FR-I4: consent accumulates, so a returning user is not re-asked for what they already allowed.
-        scopes: [...new Set([...(previous?.scopes ?? []), ...outcome.consent.scopes])],
-        claims: previous?.claims ?? [],
-        resources: previous?.resources ?? {},
-        createdAt: previous?.createdAt ?? new Date()
-      }
-      await config.adapter.grants.upsert(grant)
+      await recordConsent(config, accountId, request.clientId, outcome.consent.scopes)
 
       if (requestedDetails) {
         await config.adapter.artifacts.upsert({

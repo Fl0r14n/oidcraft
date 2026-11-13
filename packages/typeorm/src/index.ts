@@ -406,7 +406,7 @@ export const typeormAdapter = (options: TypeormAdapterOptions): FullAdapter => {
           created_at: grant.createdAt.getTime(),
           expires_at: grant.expiresAt ? grant.expiresAt.getTime() : null
         }
-        await upsert(grants, row, ['id'])
+        await upsert(grants, row, ['account_id', 'client_id'], ['scopes', 'claims', 'resources', 'expires_at'])
       },
       async destroy(id) {
         await grants.delete({ id })

@@ -390,7 +390,11 @@ export const kyselyAdapter = (options: KyselyAdapterOptions): FullAdapter => {
         await db
           .insertInto('oidc_grants')
           .values(row)
-          .onConflict(conflict => conflict.column('id').doUpdateSet(row))
+          .onConflict(conflict =>
+            conflict
+              .columns(['account_id', 'client_id'])
+              .doUpdateSet({ scopes: row.scopes, claims: row.claims, resources: row.resources, expires_at: row.expires_at })
+          )
           .execute()
       },
       async destroy(id) {

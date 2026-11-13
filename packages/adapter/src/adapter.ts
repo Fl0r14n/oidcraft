@@ -84,6 +84,11 @@ export type SessionStore = EntityStore<Session> & {
   prune?(before: Date, limit: number): Promise<number>
 }
 
+/**
+ * One grant per account and client: `upsert` of a grant for a pair another id already holds writes
+ * into that grant, keeping its id and `createdAt`, atomically — two first consents at once are two
+ * writes to one grant, never a second grant or a failed insert (FR-I4).
+ */
 export type GrantStore = EntityStore<Grant> & {
   findByAccountAndClient(accountId: string, clientId: string): Promise<Grant | undefined>
   listForAccount(accountId: string): Promise<Grant[]>

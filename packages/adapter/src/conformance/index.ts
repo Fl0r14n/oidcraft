@@ -405,6 +405,33 @@ export const adapterConformance = (create: () => Adapter | Promise<Adapter>, opt
       }
     },
     {
+      // FR-I4: one grant per account and client, so a second id for the pair writes into the first.
+      name: 'a grant for a pair another id holds is written into that grant',
+      run: async () => {
+        const adapter = await full()
+        const createdAt = new Date(1_000)
+        await adapter.grants.upsert(grant({ createdAt }))
+        await adapter.grants.upsert(grant({ id: 'g2', scopes: ['openid', 'profile'] }))
+        const found = await adapter.grants.findByAccountAndClient('u1', 'c1')
+        same(found?.id, 'g1', 'the first id')
+        same(found?.scopes, ['openid', 'profile'], 'the second write')
+        same(found?.createdAt.getTime(), 1_000, 'the first createdAt')
+        same(await adapter.grants.find('g2'), undefined, 'a second grant')
+        same((await adapter.grants.listForAccount('u1')).length, 1, "u1's grants")
+      }
+    },
+    {
+      // Two tabs consenting for the first time at once: neither fails, and one grant results.
+      name: 'two first grants for one pair at once leave one grant',
+      run: async () => {
+        const adapter = await full()
+        await Promise.all(['g1', 'g2', 'g3', 'g4'].map(id => adapter.grants.upsert(grant({ id }))))
+        const grants = await adapter.grants.listForAccount('u1')
+        same(grants.length, 1, "u1's grants")
+        same((await adapter.grants.findByAccountAndClient('u1', 'c1'))?.id, grants[0]?.id, 'the grant by its pair')
+      }
+    },
+    {
       name: 'a grant is reachable by account and client',
       run: async () => {
         const adapter = await full()

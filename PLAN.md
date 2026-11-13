@@ -5,7 +5,7 @@ This file is working state: tick items off and add notes as work lands.
 
 ## Status
 
-**Implemented, as of 2026-11-13**, with 1194 passing tests (184 more skip without Postgres and Redis) and `bun run verify` as the gate — everything
+**Implemented, as of 2026-11-13**, with 1205 passing tests (194 more skip without Postgres and Redis) and `bun run verify` as the gate — everything
 below, FR-T6, FR-C21 and FR-A4's Postgres included. Published as `@oidcraft/*` (the move below), with
 the docs site at https://fl0r14n.github.io/oidcraft/. Items 1–11 under _Next_ are done; item 12, the
 2026-11-12 review, is open, and until its security findings are fixed this is not a provider to put
@@ -491,8 +491,12 @@ text it is held to. In fix order.
   Fixed: `sessions.prune` and `replay.prune` in the contract, the three SQL adapters and the conformance suite, with a session expiry index in `0004_indexes`. The sweeps still delete a row at a time: a composite key has no portable single-statement bounded delete across SQLite and Postgres
 - [x] `clients.list(cursor, limit)` ignores both in every adapter read
   Fixed: client id order, the cursor the last id of a page, checked by the conformance suite
-- [ ] A first consent from two tabs inserts two grants with different ids against a unique
+- [x] A first consent from two tabs inserts two grants with different ids against a unique
   `(account_id, client_id)` index; the second is a 500. Upsert on that pair
+  Fixed: `GrantStore.upsert` writes a grant for a pair another id holds into that grant, keeping its
+  id; the SQL adapters resolve the conflict on the pair, `fromKv` claims the pair key with `insert`,
+  and the conformance suite checks it, in parallel too. The provider's three consent writes are one
+  `recordConsent`, which returns the grant as stored. `fromKv` had not failed but kept two grants
 - [x] `findByUserCode` and `findByUpstreamSession` do not filter expired rows where `find` does
   Fixed in `fromKv` and the three SQL adapters, and checked by the conformance suite
 
@@ -504,6 +508,7 @@ text it is held to. In fix order.
 - [ ] Device and CIBA are one state machine written twice: poll, slow-down, approve, deny. The
   grant merge is written three times (`interactions.ts:136`, `device.ts:202`, `ciba.ts:196`), and
   `device.ts:200` rewrites `session.clients` rather than calling the atomic `addClient`
+  The grant merge is now `recordConsent` and the device approval calls `addClient`; the state machine is still twice
 - [ ] Signing is written four times — ID token, JWT access token, UserInfo, logout token — each
   reading the key store again. One `signerFor(config, client, alg?)`, one key read per response
 - [ ] Duplicates: the client key set in `assertion.ts` and `request-object.ts`; the DPoP options in

@@ -11,7 +11,7 @@ type SingleUse = Stored<'authorization_code' | 'refresh_token'>
 
 import { stillConsented } from '../authorize/claims'
 import { underFapi } from '../profile/fapi'
-import { assertFamilyLive, revokeFamily } from './family'
+import { revokeFamily } from './family'
 import { type Binding, issueTokens, loadGrantAndSession, loadGrantAndSignIn } from './issue'
 
 // A replay means it leaked: revoke its family, not the grant's others (FR-T3, FR-T4, NFR-S4, RFC 9700 §4.14.2).
@@ -98,7 +98,6 @@ export const authorizationCodeGrant = async (config: ResolvedConfig, client: Cli
     resources: artifact.payload.resources ?? [],
     claims: artifact.payload.claims
   })
-  await assertFamilyLive(config, familyId, grant.id)
   return unlessReplayed(config, artifact, 'authorization code', tokens)
 }
 
@@ -158,7 +157,5 @@ export const refreshTokenGrant = async (config: ResolvedConfig, client: Client, 
     resources: artifact.payload.resources ?? [],
     claims: stillConsented(config, grant, artifact.payload.claims, requested?.length ? requested : granted)
   })
-  // RFC 9700 §4.14.2: a revocation that raced this refresh, the FAPI rewrite included, is not undone by it.
-  await assertFamilyLive(config, familyId, grant.id)
   return rotate ? unlessReplayed(config, artifact, 'refresh token', tokens) : tokens
 }

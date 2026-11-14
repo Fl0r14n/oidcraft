@@ -2,7 +2,6 @@ import type { Artifact, Client } from '@oidcraft/adapter'
 import { randomString } from '@oidcraft/core'
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
-import { assertFamilyLive } from '../token/family'
 import { type Binding, issueTokens } from '../token/issue'
 import { checkApproval } from './approval'
 import { recordConsent } from './consent'
@@ -90,9 +89,7 @@ export const redeem = async <R extends Request, P extends Polled>(
   if (!grant || !session)
     throw new OAuthError('invalid_grant', { description: `the grant or session behind this ${flow.noun} is gone`, spec: flow.spec })
   const familyId = randomString()
-  const tokens = await issueTokens(config, client, grant, session, payload.scopes, { familyId, binding })
-  await assertFamilyLive(config, familyId, grant.id)
-  return tokens
+  return issueTokens(config, client, grant, session, payload.scopes, { familyId, binding })
 }
 
 export type Approval = { accountId: string; sessionId: string; scopes: string[] } | { denied: true }

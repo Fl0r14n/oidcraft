@@ -5,6 +5,7 @@ import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
 import { type SignIn, type Stored, writeArtifact } from '../payloads'
 import { type Binding, confirmationOf, issueAccessToken } from './access-token'
+import { assertFamilyLive } from './family'
 import { mintIdToken } from './id-token'
 import { subjectFor } from './subjects'
 
@@ -115,6 +116,8 @@ export const issueTokens = async (
     ? await mintIdToken(config, { client, session, subject, nonce, accessToken, claims: released })
     : undefined
 
+  // RFC 9700 §4.14.2: here, after every write, so no grant type can issue into a family a racing revocation swept.
+  await assertFamilyLive(config, familyId, grant.id)
   return {
     access_token: accessToken,
     token_type: access.tokenType,

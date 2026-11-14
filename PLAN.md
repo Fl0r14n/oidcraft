@@ -111,15 +111,14 @@ password_hash text null` on MySQL, a table rebuild on SQLite).
 
 A browser run of a password account found two bugs, fixed in `0e99fb7`, and three small UI points,
 fixed since. `bun run smoke` now clicks through the demo on every push, TOTP and a passkey included.
-What it does with a CDP virtual authenticator and codes it computes itself, a person still has to do
-once with real ones:
+A real authenticator app has since passed in a browser: TOTP from the QR code, and a reset leading
+back to the sign-in. What is still open:
 
-- **Passkeys with a real password manager.** Creating one with Google Password Manager and with Proton
-  Pass failed. The empty-`credential` bug fixed in `0e99fb7` refused every sign-up form, so that may have
-  been all of it; retest before looking further. A software authenticator, and the smoke run's virtual
-  one, pass end to end.
-- **TOTP with a real authenticator app**, scanning the QR code: the smoke run types the key's codes,
-  which checks the secret and the arithmetic but not the `otpauth://` URI an app reads from the code.
+- **Passkeys under https.** Run in Brave on Linux on 2026-11-14, through a phone by QR code: Google
+  Password Manager creates one and signs in with it. Proton Pass refuses in its own app, its log naming
+  `InsecureLocalhostNotAllowed`: it makes no passkey for an `http://localhost` origin, whatever the
+  request asks. Brave's manager fails too, its reason unread. Retest both against an https
+  issuer (`SERVER_TLS_CERT`), then a passkey-only sign-up.
 - **`@oidcraft/ui/bun-plugin` patches `@vuetify/v0`.** Drop it when upstream stops needing it; if it
   breaks again, Reka UI for the dialog and TanStack Table for the table are the replacements considered.
 

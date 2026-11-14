@@ -58,13 +58,21 @@ const error = shallowRef('')
 
 const day = (date: string) => new Date(date).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
 
+/** WebAuthn reports a refusal and a cancellation alike as NotAllowedError, on purpose (WebAuthn, privacy considerations for clients), so neither is named. */
+const ceremonyFailure = (failure: DOMException) =>
+  failure.name === 'InvalidStateError'
+    ? 'This device already has a passkey for your account.'
+    : failure.name === 'NotAllowedError'
+      ? 'No passkey was created: it was cancelled, it timed out, or the password manager refused it.'
+      : 'No passkey was created.'
+
 const attempt = async (action: () => Promise<void>, fallback: string) => {
   error.value = ''
   try {
     await action()
     emit('changed')
   } catch (failure) {
-    error.value = failure instanceof DOMException ? 'No passkey was created.' : failureMessage(failure, fallback)
+    error.value = failure instanceof DOMException ? ceremonyFailure(failure) : failureMessage(failure, fallback)
   }
 }
 

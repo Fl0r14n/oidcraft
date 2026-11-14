@@ -111,14 +111,15 @@ password_hash text null` on MySQL, a table rebuild on SQLite).
 
 A browser run of a password account found two bugs, fixed in `0e99fb7`, and three small UI points,
 fixed since. `bun run smoke` now clicks through the demo on every push, TOTP and a passkey included.
-A real authenticator app has since passed in a browser: TOTP from the QR code, and a reset leading
-back to the sign-in. What is still open:
+Since then, on 2026-11-14, a person ran it in Brave on Linux with real devices, all passing: an
+authenticator app's TOTP from the QR code; a reset leading back to the sign-in; Google Password Manager
+creating a passkey and signing in with it, through a phone by QR code; Proton Pass doing the
+same (Ed25519), and a passkey-only sign-up with it. Proton Pass refuses `localhost` as a relying party
+whatever the scheme (`InsecureLocalhostNotAllowed` in its log), so it needs the demo under another name:
+`.cert/README.md` has the setup, with `SERVER_HOSTNAME` because Bun's dev server serves the pages only
+to `localhost` or the name it listens on. Brave's own manager refused under `localhost` and was not
+retried under that name. Still open:
 
-- **Passkeys under https.** Run in Brave on Linux on 2026-11-14, through a phone by QR code: Google
-  Password Manager creates one and signs in with it. Proton Pass refuses in its own app, its log naming
-  `InsecureLocalhostNotAllowed`: it makes no passkey for an `http://localhost` origin, whatever the
-  request asks. Brave's manager fails too, its reason unread. Retest both against an https
-  issuer (`SERVER_TLS_CERT`), then a passkey-only sign-up.
 - **`@oidcraft/ui/bun-plugin` patches `@vuetify/v0`.** Drop it when upstream stops needing it; if it
   breaks again, Reka UI for the dialog and TanStack Table for the table are the replacements considered.
 

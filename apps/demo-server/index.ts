@@ -9,11 +9,13 @@ import { fapiDemoRoutes } from './src/fapi/demo'
 import { brokerCallback } from './src/interaction/broker'
 import { routesFor } from './src/interaction/routes'
 import { mcpEnabled, mcpRoutes } from './src/mcp/server'
-import { optional } from './src/op/env'
+import { issuer, optional } from './src/op/env'
 import { control } from './src/op/provider'
 import { realms, realmsEnabled, siteOf } from './src/op/realms'
 
 const port = Number(Bun.env.SERVER_PORT ?? 3001)
+// In development Bun serves an HTML bundle only to a Host of localhost or this name; 0.0.0.0 does not widen it.
+const hostname = optional('SERVER_HOSTNAME')
 // Discovery 1.0 §3 and RFC 8414 §2 require an https issuer even on loopback.
 const cert = optional('SERVER_TLS_CERT')
 // TLS 1.2 limited to the four suites FAPI 2.0 permits (BCP 195); TLS 1.3 suites are all acceptable.
@@ -26,6 +28,7 @@ const account = (await import('./src/account/index.html')).default
 
 const server = serve({
   port,
+  ...(hostname && { hostname }),
   ...(cert && key && { tls: { cert: Bun.file(cert), key: Bun.file(key), ciphers: TLS12_CIPHERS } }),
   routes: {
     // More specific than '/admin/*', so the API is not swallowed by the SPA shell.
@@ -76,10 +79,11 @@ const server = serve({
   }
 })
 
-console.log(`op on http://localhost:${server.port}`)
-console.log(`  discovery  http://localhost:${server.port}/.well-known/openid-configuration`)
-console.log(`  jwks       http://localhost:${server.port}/jwks`)
-console.log(`  admin      http://localhost:${server.port}/admin`)
-console.log(`  account    http://localhost:${server.port}/account`)
-console.log(`  device     http://localhost:${server.port}/device`)
+const base = issuer()
+console.log(`op on ${server.url.origin}, issuer ${base}`)
+console.log(`  discovery  ${base}/.well-known/openid-configuration`)
+console.log(`  jwks       ${base}/jwks`)
+console.log(`  admin      ${base}/admin`)
+console.log(`  account    ${base}/account`)
+console.log(`  device     ${base}/device`)
 if (realmsEnabled) console.log(`  realms     http://<realm>.localhost:${server.port} — create them in the admin`)

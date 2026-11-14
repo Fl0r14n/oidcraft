@@ -270,12 +270,19 @@ describe('passkey sign-in', () => {
     expect(await accounts.passkeys.authenticate('interaction-1', response)).toEqual({ ok: false, reason: 'invalid' })
   })
 
-  test('a challenge expires', async () => {
+  test('a challenge lasts ten minutes, long enough to scan one from a phone, and then expires', async () => {
     const { accounts, device } = await enrolled()
     const options = await accounts.passkeys.authenticationOptions('interaction-1')
-    const response = await device.get(options)
-    setSystemTime(new Date(Date.now() + 301_000))
-    expect(await accounts.passkeys.authenticate('interaction-1', response)).toEqual({ ok: false, reason: 'invalid' })
+    expect(options.timeout).toBe(600_000)
+    const late = await device.get(options)
+    setSystemTime(new Date(Date.now() + 599_000))
+    expect((await accounts.passkeys.authenticate('interaction-1', late)).ok).toBe(true)
+
+    setSystemTime()
+    const again = await accounts.passkeys.authenticationOptions('interaction-1')
+    const expired = await device.get(again)
+    setSystemTime(new Date(Date.now() + 601_000))
+    expect(await accounts.passkeys.authenticate('interaction-1', expired)).toEqual({ ok: false, reason: 'invalid' })
   })
 
   test('refuses another origin, another relying party, a person not verified, or a registration challenge', async () => {

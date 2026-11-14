@@ -49,6 +49,7 @@ export type Ttl = {
   refreshTokenFamily: Seconds
   idToken: Seconds
   session: Seconds
+  /** From landing on the sign-in screen to finishing it: long enough for a passkey ceremony begun inside it (FR-I8). */
   interaction: Seconds
   deviceCode: Seconds
   dpopNonce: Seconds
@@ -63,7 +64,7 @@ export const DEFAULT_TTL: Ttl = {
   refreshTokenFamily: 7_776_000,
   idToken: 900,
   session: 1_209_600,
-  interaction: 600,
+  interaction: 1800,
   deviceCode: 600,
   dpopNonce: 300,
   backchannelRequest: 600,

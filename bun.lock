@@ -68,6 +68,8 @@
       "name": "@oidcraft/demo-vue",
       "version": "0.0.0",
       "dependencies": {
+        "@fontsource-variable/public-sans": "^5.3.0",
+        "@oidcraft/ui": "workspace:*",
         "@oidcraft/vue": "workspace:*",
         "pinia": "^4.1.0",
         "vue": "^3.5.45",

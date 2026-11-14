@@ -212,6 +212,10 @@ trusts the answer rather than re-checking it.
 
 - `active()` returns keys newest first. The first signing-capable key of an algorithm signs; the
   rest only verify, so a rotation never invalidates a live token (NFR-S7).
+- `/jwks` is served `public, max-age=300, stale-while-revalidate=3600`, and a client or a cache in
+  between may hold it that long. Add a new key last, where it only verifies, and move it first, where
+  it signs, once that has passed: put first at once, its tokens fail wherever the old set is held.
+  The browser bindings fetch the set past the HTTP cache; a server-side client may not.
 
 **`replay`**
 

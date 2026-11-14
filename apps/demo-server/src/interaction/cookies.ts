@@ -42,7 +42,7 @@ const KNOWN = 'oidcraft.demo.known'
 /** A right password awaiting its second factor: bound to the interaction so it finishes no other, and short-lived. */
 export const pendingSecondFactor = {
   set: async (interactionId: string, accountId: string) =>
-    serialize(PENDING, await sign({ interactionId, accountId, until: Date.now() + 300_000 }), 300, '/interaction'),
+    serialize(PENDING, await sign({ interactionId, accountId, until: Date.now() + 600_000 }), 600, '/interaction'),
   get: async (request: Request, interactionId: string) => {
     const pending = await verified<{ interactionId: string; accountId: string; until: number }>(read(request, PENDING))
     return pending && pending.interactionId === interactionId && pending.until > Date.now() ? pending.accountId : undefined

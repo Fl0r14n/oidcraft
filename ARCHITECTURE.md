@@ -54,7 +54,7 @@ The Angular demo's `check` is TypeScript 6's `tsc`, which its compiler needs (§
 ```
 packages/core/              @oidcraft/core      the protocol (§2.1)
 packages/client/            @oidcraft/client    the client runtime, the bindings only
-packages/ui/                @oidcraft/ui        private, consumed from source by apps/demo-server (§8.1)
+packages/ui/                @oidcraft/ui        private, consumed from source by apps/demo-server and apps/demo-vue (§8.1)
 packages/vue/               @oidcraft/vue
 packages/react/             @oidcraft/react
 packages/angular/           @oidcraft/angular
@@ -129,7 +129,7 @@ Everything published is under the `@oidcraft` npm org, and each package is named
 | `@oidcraft/angular`  | `packages/angular`  | Angular binding over `@oidcraft/client`                                                  |
 
 `@oidcraft/ui` and `@oidcraft/sql` are the two private packages, consumed from source: the screens by
-`apps/demo-server` (§8.1), the SQL schema by the SQL adapters. The three bindings continue packages
+`apps/demo-server` (§8.1) and the components by `apps/demo-vue` (§8.2), the SQL schema by the SQL adapters. The three bindings continue packages
 published under older names — `vue-oidc`, `react-oauth-oidc`, `ngx-oauth` — and their version
 numbers continue those.
 
@@ -623,7 +623,7 @@ in-process as the resource server `oidcraft-api`. The admin API also requires an
 own subject. The interaction routes answer consent for these first-party clients themselves.
 
 **Sign-in is `@oidcraft/provider/accounts` (FR-I7, FR-I8).** A correct password for an account with
-TOTP sets a signed, five-minute cookie bound to the interaction, which only the code step can finish,
+TOTP sets a signed, ten-minute cookie bound to the interaction, as long as a passkey ceremony, which only the code step can finish,
 with a TOTP code, a recovery code or one of that account's passkeys. A passkey alone signs in from
 the login screen's button or the username field's autofill. `acr` is `mfa` after a second factor or
 for a passkey and `pwd` otherwise, with RFC 8176 `amr` values: `hwk` and `user` for a passkey. The
@@ -665,8 +665,10 @@ way.
 
 Vue 3 + `@oidcraft/vue`, resolved from the workspace, so it proves that the binding in
 `packages/vue` works. Run with `bun index.html` (§1.1). It uses the composables (`useOAuth`,
-`useOAuthUser`) rather than the Vuetify component, so the demo carries no UI framework. `BUN_PORT`
-sets the port.
+`useOAuthUser`) rather than the Vuetify component, and draws with `@oidcraft/ui`'s components and
+theme, so leaving it for the provider's screens and coming back looks like one product. Its signed-out
+card turns the address-bar reminder off, as it asks for nothing. Like every app on those components,
+its `[serve.static]` lists `@oidcraft/ui/bun-plugin` (§8.1). `BUN_PORT` sets the port.
 
 ### 8.3 `apps/demo-react` — the second relying party
 

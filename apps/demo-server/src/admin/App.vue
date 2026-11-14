@@ -1,7 +1,7 @@
 <template>
   <UiCard v-if="!isAuthorized" title="Administer this server">
     <template #subtitle>Sign in with an account listed in <code class="font-semibold text-ink">OIDCRAFT_ADMINS</code>.</template>
-    <UiAlert v-if="hasError">{{ errorDescription || 'The sign-in did not complete. Try again.' }}</UiAlert>
+    <UiAlert v-if="hasError">The sign-in did not complete: {{ errorDescription ?? signInError ?? 'try again.' }}</UiAlert>
     <UiButton class="w-full" @click="signIn">Sign in</UiButton>
   </UiCard>
 
@@ -43,7 +43,7 @@ const managing = computed(() => {
   const control = new URL(issuer)
   return `Realm ${currentRealm.value} — ${control.protocol}//${currentRealm.value}.${control.host}`
 })
-const { isAuthorized, hasError, errorDescription, login, logout } = useOAuth()
+const { isAuthorized, hasError, error: signInError, errorDescription, login, logout } = useOAuth()
 const user = useOAuthUser()
 const api = useAdminApi()
 const error = shallowRef('')

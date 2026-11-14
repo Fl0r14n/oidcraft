@@ -36,6 +36,10 @@ export const parseIdToken = (idToken?: string): IdTokenClaims => {
   }
 }
 
+// OIDC Core §10.1.1: an unknown `kid` is answered by fetching the keys again, which a browser's HTTP cache would answer with
+// the set that lacked it; jose already holds the set in memory. A server runtime keeps no HTTP cache, and workerd refuses the option.
+const pastHttpCache = (): RequestInit => ('document' in globalThis ? { cache: 'no-cache' } : {})
+
 /** Holds the remote JWKS for its lifetime: build one per configuration and keep it, or every verification refetches keys. */
 export const createIdTokenVerifier = ({
   jwksUri,
@@ -47,7 +51,9 @@ export const createIdTokenVerifier = ({
   assertSecure(jwksUri, allowInsecure)
   // the platform fetch: left to itself jose reaches for `node:http`, which the core never imports
   const jwksSet =
-    jwksUri && strict ? createRemoteJWKSet(new URL(jwksUri), { [customFetch]: (url, init) => fetch(url, init as RequestInit) }) : undefined
+    jwksUri && strict
+      ? createRemoteJWKSet(new URL(jwksUri), { [customFetch]: (url, init) => fetch(url, { ...(init as RequestInit), ...pastHttpCache() }) })
+      : undefined
   const literal = literalIssuer(issuer)
   return async idToken => {
     if (!idToken) return {}

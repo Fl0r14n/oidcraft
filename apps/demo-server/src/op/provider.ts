@@ -1,10 +1,11 @@
 /// <reference types="bun" />
-import { staticKeyStore } from '@oidcraft/adapter'
+import { generateKey, staticKeyStore } from '@oidcraft/adapter'
 import { createProvider } from '@oidcraft/provider'
 import { seedFapiDemoClient } from '../fapi/demo'
 import { screens } from '../interaction/screens'
 import { mcpEnabled, mcpResources, resolveClientMetadata, seedMcpResourceServer } from '../mcp/server'
 import { accountStore, createDemoAccounts, seedDemoAccounts } from './accounts'
+import { devSecret } from './dev-secrets'
 import { issuer, optional } from './env'
 import { seedFirstPartyClients } from './first-party'
 import { forgettingConsent } from './forget-consent'
@@ -14,17 +15,15 @@ import { openStorage, storageLocation } from './storage'
 import { upstreams } from './upstreams'
 
 // Production supplies OIDCRAFT_JWKS and rotates by prepending (FR-C10, NFR-S7).
-const keys = () => {
+const keys = async () => {
   const raw = optional('OIDCRAFT_JWKS')
-  if (!raw) {
-    if (Bun.env.NODE_ENV === 'production') throw new Error('OIDCRAFT_JWKS is required in production')
-    console.warn('[oidcraft] no OIDCRAFT_JWKS: generating a key for this process only')
-    return undefined
-  }
-  return staticKeyStore(JSON.parse(raw))
+  if (raw) return staticKeyStore(JSON.parse(raw))
+  if (Bun.env.NODE_ENV === 'production') throw new Error('OIDCRAFT_JWKS is required in production')
+  console.warn('[oidcraft] no OIDCRAFT_JWKS: using development keys kept beside the data')
+  return staticKeyStore(await devSecret('jwks.json', async () => [await generateKey('ES256'), await generateKey('RS256')]))
 }
 
-const storage = await openStorage({ keys: keys() })
+const storage = await openStorage({ keys: await keys() })
 
 export const accounts = createDemoAccounts(storage, optional('OIDCRAFT_BRAND_NAME') ?? 'oidcraft', issuer())
 await seedDemoAccounts(accounts, storage)

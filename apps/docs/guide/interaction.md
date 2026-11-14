@@ -74,7 +74,7 @@ A suspended request answers with a plain redirect:
 A live session does not stop the provider from asking again when the request demands it; see
 [step-up](#step-up-acr-values-and-max-age).
 
-An interaction lives for `ttl.interaction` seconds, 600 by default. Nothing has to clean up after an
+An interaction lives for `ttl.interaction` seconds, 1800 by default, long enough for a passkey ceremony begun inside it. Nothing has to clean up after an
 abandoned one; it expires, and the client never hears back.
 
 ## Reading what is asked
@@ -157,7 +157,7 @@ A passkey signs in on its own or stands in for the code (FR-I8). The screen need
 and only for it: fetch `accounts.passkeys.authenticationOptions(interactionId)` — with
 `{ accountId }` for the second step — hand them to `navigator.credentials.get`, and post the result
 to a route that calls `accounts.passkeys.authenticate(interactionId, response)`. Its challenge is
-single-use, lives five minutes and answers only for the interaction that asked. A passkey sign-in
+single-use, lives ten minutes (`policy.passkeyTimeout`, long enough to create one on a phone by scanning a code) and answers only for the interaction that asked. A passkey sign-in
 reports `acr: 'mfa'` and `amr: ['hwk', 'user']`; after a password, add `pwd` and `mfa` to the `amr`.
 Give the username field `autocomplete="username webauthn"` and start a `get` with
 `mediation: 'conditional'` when the page loads, and the browser offers passkeys in its autofill.

@@ -1,7 +1,7 @@
 <template>
   <UiCard v-if="!isAuthorized" title="Your account">
     <template #subtitle>Sign in to change your password, add passkeys and set up two-step verification.</template>
-    <UiAlert v-if="hasError">{{ errorDescription || 'The sign-in did not complete. Try again.' }}</UiAlert>
+    <UiAlert v-if="hasError">The sign-in did not complete: {{ errorDescription ?? signInError ?? 'try again.' }}</UiAlert>
     <UiButton class="w-full" @click="signIn">Sign in</UiButton>
   </UiCard>
 
@@ -35,7 +35,7 @@ type Me = {
   passkeys: { credentialId: string; name: string; createdAt: string; lastUsedAt?: string }[]
 }
 
-const { isAuthorized, hasError, errorDescription, login, logout } = useOAuth()
+const { isAuthorized, hasError, error: signInError, errorDescription, login, logout } = useOAuth()
 const api = useApi('/account/api')
 const me = shallowRef<Me>()
 const error = shallowRef('')

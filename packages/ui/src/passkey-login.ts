@@ -69,6 +69,7 @@ if (creating && creatingForm && created && passkeysAvailable()) {
     const answer = (await response.json().catch(() => ({}))) as CreationOptionsJSON & { error_description?: string }
     if (!response.ok) return fail(answer.error_description)
     created.value = JSON.stringify(await createPasskey(answer))
+    created.disabled = false
     creatingForm.submit()
   }
 

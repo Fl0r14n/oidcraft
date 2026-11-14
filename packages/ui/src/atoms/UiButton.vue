@@ -1,10 +1,13 @@
 <template>
-  <button :type="type" :class="[base, variants[variant]]"><slot /></button>
+  <a v-if="href" :href="href" :class="[base, variants[variant]]"><slot /></a>
+  <button v-else :type="type" :class="[base, variants[variant]]"><slot /></button>
 </template>
 
 <script setup lang="ts">
+/** With `href` it navigates, as a link that looks like a button; without, it acts. */
 const { type = 'button', variant = 'primary' } = defineProps<{
   type?: 'button' | 'submit'
+  href?: string | undefined
   variant?: 'primary' | 'secondary' | 'danger' | 'link'
 }>()
 

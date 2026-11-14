@@ -1,3 +1,4 @@
+import { BRAND } from '@oidcraft/ui/components'
 import { createOAuth } from '@oidcraft/vue'
 import App from './App.vue'
 import { bootstrapApp } from './app'
@@ -17,5 +18,6 @@ export const createApp = () => {
   ])
   const oauth = createOAuth({ config: { issuerPath, clientId, scope, pkce: true, allowInsecure } })
   app.use(oauth)
+  app.provide(BRAND, { name: 'oidcraft demo client', host: globalThis.location?.host ?? '' })
   return app
 }

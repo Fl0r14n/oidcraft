@@ -1,45 +1,48 @@
 <template>
-  <main class="mx-auto max-w-lg px-4 py-16">
-    <h1 class="text-2xl font-semibold tracking-tight">oidcraft demo client</h1>
-    <p class="mt-1 font-mono text-sm text-neutral-500">{{ issuerPath }}</p>
-
-    <p v-if="hasError" class="mt-8 rounded-md bg-red-50 px-4 py-3 text-sm text-red-800">
-      {{ errorDescription }}
-    </p>
-
-    <template v-if="isAuthorized">
-      <dl class="mt-8 grid grid-cols-[5rem_1fr] gap-x-4 gap-y-2 text-sm">
-        <dt class="text-neutral-500">sub</dt>
-        <dd class="font-mono break-words">{{ user?.sub ?? '—' }}</dd>
-        <dt class="text-neutral-500">name</dt>
-        <dd class="font-mono break-words">{{ user?.name ?? '—' }}</dd>
-        <dt class="text-neutral-500">email</dt>
-        <dd class="font-mono break-words">{{ user?.email ?? '—' }}</dd>
-      </dl>
-      <div class="mt-8 flex items-center justify-between gap-4">
-        <a :href="accountUrl" class="rounded-md border border-neutral-300 px-4 py-2 text-sm text-neutral-900 hover:border-neutral-500">Manage</a>
-        <button type="button" class="rounded-md bg-neutral-900 px-4 py-2 text-sm text-white hover:bg-neutral-700" @click="logout(logoutRedirectUri)">
-          Log out
-        </button>
-      </div>
+  <UiCard v-if="!isAuthorized" title="Log in to continue" :check-address="false">
+    <template #subtitle>
+      An application that signs you in through <strong class="font-semibold text-ink">{{ issuerPath }}</strong>.
     </template>
+    <UiAlert v-if="hasError">The sign-in did not complete: {{ errorDescription ?? error ?? 'try again.' }}</UiAlert>
+    <UiButton class="w-full" @click="login(parameters)">Log in</UiButton>
+  </UiCard>
 
-    <button v-else type="button" class="mt-8 rounded-md bg-neutral-900 px-4 py-2 text-sm text-white hover:bg-neutral-700" @click="login(parameters)">
-      Log in
-    </button>
-  </main>
+  <UiShell v-else title="oidcraft demo client" :subtitle="issuerPath" narrow>
+    <template #actions>
+      <UiButton :href="accountUrl" variant="secondary">Manage</UiButton>
+      <UiButton @click="logout(logoutRedirectUri)">Log out</UiButton>
+    </template>
+    <UiAlert v-if="hasError">{{ errorDescription ?? error }}</UiAlert>
+    <UiSection title="Signed in">
+      <template #description>What the provider told this application about you, from the ID token and UserInfo.</template>
+      <dl class="grid grid-cols-[6rem_1fr] gap-x-6 gap-y-3 rounded-sheet border border-rule bg-sheet p-6 text-[0.9375rem]">
+        <template v-for="[label, value] in claims" :key="label">
+          <dt class="text-muted">{{ label }}</dt>
+          <dd class="font-medium break-words">{{ value ?? '—' }}</dd>
+        </template>
+      </dl>
+    </UiSection>
+  </UiShell>
 </template>
 
 <script setup lang="ts">
+import { UiAlert, UiButton, UiCard, UiSection, UiShell } from '@oidcraft/ui/components'
 import { type OAuthParameters, useOAuth, useOAuthUser } from '@oidcraft/vue'
+import { computed } from 'vue'
 
-const { login, logout, isAuthorized, hasError, errorDescription } = useOAuth()
+const { login, logout, isAuthorized, hasError, error, errorDescription } = useOAuth()
 const user = useOAuthUser()
 
 const issuerPath = process.env.OIDCRAFT_PUBLIC_ISSUER || 'http://localhost:3001'
 const origin = process.env.OIDCRAFT_PUBLIC_ORIGIN || globalThis.location?.origin
 const logoutRedirectUri = `${origin}/`
 const accountUrl = `${issuerPath}/account`
+
+const claims = computed(() => [
+  ['Subject', user.value?.sub],
+  ['Name', user.value?.name],
+  ['Email', user.value?.email]
+])
 
 const parameters: OAuthParameters = {
   responseType: 'code',

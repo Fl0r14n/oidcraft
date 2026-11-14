@@ -15,7 +15,7 @@
           <slot />
         </div>
       </section>
-      <p class="mt-5 px-1 text-[0.8125rem] leading-relaxed text-muted">
+      <p v-if="checkAddress" class="mt-5 px-1 text-[0.8125rem] leading-relaxed text-muted">
         Check that your address bar shows <strong class="font-semibold text-ink">{{ brand.host }}</strong> before you type anything here.
       </p>
     </main>
@@ -26,6 +26,7 @@
 import { inject } from 'vue'
 import { BRAND, type Brand } from '../brand'
 
-defineProps<{ title: string }>()
+/** `checkAddress` reminds the person to look at the host before typing: off for a page that asks for nothing. */
+const { checkAddress = true } = defineProps<{ title: string; checkAddress?: boolean }>()
 const brand = inject(BRAND) as Brand
 </script>

@@ -11,9 +11,11 @@
     "typecheck": "bun check"
   },
   "dependencies": {
+    "@fontsource-variable/public-sans": "^5.3.0",
+    "@oidcraft/ui": "workspace:*",
+    "@oidcraft/vue": "workspace:*",
     "pinia": "^4.1.0",
     "vue": "^3.5.45",
-    "@oidcraft/vue": "workspace:*",
     "vue-router": "^5.5.0"
   },
   "devDependencies": {

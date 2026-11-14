@@ -2,27 +2,26 @@
 import type { AccountStore, Adapter, CredentialsAdapter } from '@oidcraft/provider'
 import { type Accounts, createAccounts, generateSecretKey } from '@oidcraft/provider/accounts'
 import { bunPasswordHasher } from '@oidcraft/provider/runtimes/bun'
+import { devSecret } from './dev-secrets'
 import { optional, withDefault } from './env'
 
 const PROFILE = ['name', 'given_name', 'family_name', 'preferred_username', 'picture', 'locale']
 
-let generatedTotpKey: string | undefined
-
-const totpKey = () => {
-  if (generatedTotpKey) return generatedTotpKey
+const secretKey = async () => {
   const key = optional('OIDCRAFT_TOTP_KEY')
   if (key) return key
   if (Bun.env.NODE_ENV === 'production') throw new Error('OIDCRAFT_TOTP_KEY is required in production')
-  console.warn('[oidcraft] no OIDCRAFT_TOTP_KEY: authenticator enrolments last until this process exits')
-  generatedTotpKey = generateSecretKey()
-  return generatedTotpKey
+  console.warn('[oidcraft] no OIDCRAFT_TOTP_KEY: using a development key kept beside the data')
+  return devSecret('totp-key.json', generateSecretKey)
 }
+
+const totpKey = await secretKey()
 
 export const createDemoAccounts = (adapter: CredentialsAdapter, issuerName: string, issuerUrl: string) =>
   createAccounts({
     adapter,
     hasher: bunPasswordHasher,
-    secretKey: totpKey(),
+    secretKey: totpKey,
     issuer: issuerName,
     origin: issuerUrl,
     // The demo's subjects are its usernames, so OIDCRAFT_ADMINS can name people rather than random ids.

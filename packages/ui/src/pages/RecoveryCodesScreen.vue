@@ -13,15 +13,12 @@
         Add them from <UiLink :href="accountUrl" target="_blank" rel="noopener">your account</UiLink> once you are in.
       </template>
     </p>
-    <a
-      :href="continueUrl"
-      class="flex h-11 w-full items-center justify-center rounded-control bg-accent px-5 text-[0.9375rem] font-semibold text-accent-ink hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
-      I saved them, continue
-    </a>
+    <UiButton :href="continueUrl" class="w-full">I saved them, continue</UiButton>
   </UiCard>
 </template>
 
 <script setup lang="ts">
+import UiButton from '../atoms/UiButton.vue'
 import UiLink from '../atoms/UiLink.vue'
 import UiCard from '../templates/UiCard.vue'
 

@@ -38,7 +38,7 @@ export type AccountsPolicy = {
   resetTtl: Seconds
   /** @default 10 */
   recoveryCodes: number
-  /** How long a passkey ceremony's challenge lives (FR-I8). @default 300 */
+  /** How long a passkey ceremony may take, a phone scanned for one included: WebAuthn L3 §15.1's upper bound (FR-I8). @default 600 */
   passkeyTimeout: Seconds
 }
 
@@ -184,7 +184,7 @@ export const createAccounts = (options: AccountsOptions) => {
     lockout: 900,
     resetTtl: 1800,
     recoveryCodes: 10,
-    passkeyTimeout: 300,
+    passkeyTimeout: 600,
     ...options.policy
   }
   const scopes = options.claims ?? STANDARD_CLAIMS

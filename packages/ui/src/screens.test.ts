@@ -161,6 +161,8 @@ describe('passkeys', () => {
     expect(register).toMatch(/<div hidden data-passkey-create data-options="\/interaction\/i1\/register-options"/)
     expect(register).toMatch(/<form method="post" action="\/interaction\/i1\/register"[\s\S]*data-passkey-create[\s\S]*<\/form>/)
     expect(firstButton(register)).toContain('type="submit"')
+    // The field shares the password form: posted empty, every password sign-up and reset took the passkey path.
+    expect(register).toContain('<input type="hidden" name="credential" disabled>')
 
     const reset = await (await screens.reset('t0ken', { passkeys: true })).text()
     expect(reset).toContain('Get back into your account')

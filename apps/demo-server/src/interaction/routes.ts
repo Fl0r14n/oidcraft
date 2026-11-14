@@ -176,7 +176,7 @@ const build = (site: Site) => {
           const problem = asked.reason === 'taken' ? 'taken' : asked.problem
           return Response.json({ error: 'invalid_username', error_description: `${usernameMessage(problem)}.` }, { status: 400 })
         }
-        if (body.has('credential')) {
+        if (body.get('credential')) {
           const created = await accounts.passkeys.signUp(id, parsed(body.get('credential')), 'Passkey')
           if (created.ok) {
             const { redirectTo, setCookie } = await provider.interactions.complete(
@@ -272,7 +272,7 @@ const build = (site: Site) => {
         ? Response.json(options, { headers: { 'cache-control': 'no-store' } })
         : Response.json({ error: 'invalid_token', error_description: 'This link expired or was already used.' }, { status: 400 })
     }
-    if (body.has('credential')) {
+    if (body.get('credential')) {
       const added = await accounts.reset.completeWithPasskey(token, parsed(body.get('credential')), 'Passkey', { clientIp })
       if (added.ok) return screens.message('Passkey added', 'Sign in again with it, from the application you were using.')
       const error =

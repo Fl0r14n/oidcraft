@@ -38,6 +38,27 @@ describe('createIdTokenVerifier', () => {
 
   const verifier = (issuer: any) => createIdTokenVerifier({ jwksUri: JWKS_URI, issuer, audience: CLIENT_ID })
 
+  // OIDC Core §10.1.1: after a key rotation a browser's cached JWKS would lack the new kid, and fetching again would get it back.
+  describe('fetching the keys', () => {
+    const token = () => sign({ iss: 'https://provider.example', aud: CLIENT_ID, sub: 'u1' })
+    const cacheOf = () => ((globalThis.fetch as any).mock.calls[0]?.[1] as RequestInit | undefined)?.cache
+
+    it('goes past the HTTP cache in a page', async () => {
+      ;(globalThis as any).document = {}
+      try {
+        await verifier('https://provider.example')(await token())
+        expect(cacheOf()).toBe('no-cache')
+      } finally {
+        delete (globalThis as any).document
+      }
+    })
+
+    it('sets no cache mode where there is no page, as workerd refuses one', async () => {
+      await verifier('https://provider.example')(await token())
+      expect(cacheOf()).toBeUndefined()
+    })
+  })
+
   describe('a literal issuer', () => {
     it('accepts a token it signed and issued', async () => {
       const token = await sign({ iss: 'https://provider.example', aud: CLIENT_ID, sub: 'u1' })

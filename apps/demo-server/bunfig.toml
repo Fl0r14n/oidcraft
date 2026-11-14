@@ -3,5 +3,5 @@ preload = ["bun-plugin-vue3"]
 # `Bun.serve` reads plugins from the served entrypoint's directory, so the root
 # bunfig does not cover this one (ARCHITECTURE.md §9.3).
 [serve.static]
-plugins = ["bun-plugin-vue3", "bun-plugin-tailwind"]
+plugins = ["bun-plugin-vue3", "bun-plugin-tailwind", "@oidcraft/ui/bun-plugin"]
 env = "OIDCRAFT_PUBLIC_*"

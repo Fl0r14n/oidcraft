@@ -607,7 +607,14 @@ The account app imports the same WebAuthn JSON conversion from `@oidcraft/ui/pas
 
 The **admin UI** (`src/admin`) is a client-rendered app on the same components. Its table and dialog
 are `@oidcraft/ui`'s `UiDataTable` and `UiDialog`, which wrap the headless `@vuetify/v0`; the
-server-rendered interaction screens never use it.
+server-rendered interaction screens never use it. Bun bundles `@vuetify/v0` only through
+`@oidcraft/ui/bun-plugin`, which every app's `[serve.static]` lists: it patches two lines that only
+Vite bundles as written. `utilities/instance.mjs` calls `helpers.mjs`'s `isArray` at its top level
+while `helpers.mjs` imports it, and Bun's dev bundler hands a module still evaluating to its cyclic
+importer as `null`; `constants/globals.mjs` reads `process.env.VITE_LOGGER_ENABLED`, which no bundler
+but Vite replaces, so a production bundle reads `process` in the browser. A patch that no longer finds
+its text fails the build. `bundles.test.ts` fails on any `process` read left in a production bundle;
+the dev cycle shows only in a browser.
 
 **The admin and account apps are clients of this OP.** Each signs in with `@oidcraft/vue` as its own
 public client (`oidcraft-admin`, `oidcraft-account`), and each API introspects the bearer token

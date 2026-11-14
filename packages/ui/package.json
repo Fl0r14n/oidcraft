@@ -10,6 +10,7 @@
     "./components": "./src/components.ts",
     "./theme.css": "./src/theme.css",
     "./passkeys": "./src/passkeys.ts",
+    "./bun-plugin": "./src/bun-plugin.ts",
     "./package.json": "./package.json"
   },
   "scripts": {

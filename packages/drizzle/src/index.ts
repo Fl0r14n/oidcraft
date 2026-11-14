@@ -217,14 +217,14 @@ export const drizzleAdapter = (options: DrizzleAdapterOptions): FullAdapter => {
       async destroy(kind, id) {
         await db.delete(artifacts).where(and(eq(artifacts.kind, kind), eq(artifacts.id, id)))
       },
-      async revokeByGrantId(grantId) {
+      async destroyByGrantId(grantId) {
         // One indexed delete, not a scan (FR-A5).
         await db.delete(artifacts).where(eq(artifacts.grantId, grantId))
       },
-      async revokeByFamilyId(familyId) {
+      async destroyByFamilyId(familyId) {
         await db.delete(artifacts).where(eq(artifacts.familyId, familyId))
       },
-      async revokeByClientId(clientId) {
+      async destroyByClientId(clientId) {
         await db.delete(artifacts).where(eq(artifacts.clientId, clientId))
       },
       async prune(before, limit) {
@@ -259,7 +259,7 @@ export const drizzleAdapter = (options: DrizzleAdapterOptions): FullAdapter => {
           .where(and(eq(sessions.accountId, accountId), gt(sessions.expiresAt, now())))
         return rows.map(toSession)
       },
-      async findByUpstreamSession(provider, upstreamSessionId) {
+      async listByUpstreamSession(provider, upstreamSessionId) {
         const rows = await db
           .select()
           .from(sessions)

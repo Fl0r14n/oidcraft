@@ -25,7 +25,7 @@ export type KvStore = EntityStore<KvEntry, [key: string]> & {
    * Writes only when the key holds no live entry, atomically, and resolves whether it wrote. Single use rests on it,
    * so an eventually consistent store cannot back a provider (FR-A3).
    */
-  insert(entry: KvEntry): Promise<boolean>
+  create(entry: KvEntry): Promise<boolean>
   /** Deletes the entry only while it holds this value, atomically, and resolves whether it deleted: a lock's release rests on it. */
   destroyIf(key: string, value: string): Promise<boolean>
   /** Prefix scan, for range deletes like grant revocation; it must cost what it matches, not the store's size: requests use it (NFR-P1). */
@@ -127,8 +127,8 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
       if (!artifact) return false
       const expiresAt = new Date(artifact.expiresAt)
       if (expiresAt.getTime() <= Date.now()) return false
-      if (!(await kv.insert({ key: consumedKey(kind, id), value: new Date().toISOString(), ttl: ttlFrom(expiresAt) }))) return false
-      // Deleted between the read and the insert, it is revoked, not redeemed (NFR-S4).
+      if (!(await kv.create({ key: consumedKey(kind, id), value: new Date().toISOString(), ttl: ttlFrom(expiresAt) }))) return false
+      // Deleted between the read and the create, it is revoked, not redeemed (NFR-S4).
       return (await read(artifactKey(kind, id))) !== undefined
     },
 
@@ -136,7 +136,7 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
       await kv.destroy(artifactKey(kind, id))
     },
 
-    async revokeByGrantId(grantId) {
+    async destroyByGrantId(grantId) {
       for await (const { key } of kv.scan(`grant-index/${grantId}/`)) {
         const [, , kind, id] = key.split('/')
         if (kind && id) await kv.destroy(artifactKey(kind, id))
@@ -144,7 +144,7 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
       }
     },
 
-    async revokeByFamilyId(familyId) {
+    async destroyByFamilyId(familyId) {
       for await (const { key } of kv.scan(`family-index/${familyId}/`)) {
         const [, , kind, id] = key.split('/')
         if (kind && id) await kv.destroy(artifactKey(kind, id))
@@ -153,7 +153,7 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
     },
 
     // Deliberately unindexed: deleting a client is rare and an operator's, not worth an index key per write.
-    async revokeByClientId(clientId) {
+    async destroyByClientId(clientId) {
       for await (const { key, value } of kv.scan('artifact/')) {
         if (dec<Artifact>(value)?.clientId === clientId) await kv.destroy(key)
       }
@@ -207,7 +207,7 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
     async listForAccount(accountId) {
       return present(await Promise.all((await under(accountSessions(accountId))).map(id => sessions.find(id))))
     },
-    async findByUpstreamSession(provider, upstreamSessionId) {
+    async listByUpstreamSession(provider, upstreamSessionId) {
       return present(await Promise.all((await under(upstreamSessions(provider, upstreamSessionId))).map(id => sessions.find(id))))
     },
     async addClient(id, clientId) {
@@ -251,7 +251,7 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
     },
     async upsert(grant) {
       const ttl = grant.expiresAt && { ttl: ttlFrom(grant.expiresAt) }
-      const claimed = await kv.insert({ key: grantIndex(grant), value: grant.id, ...ttl })
+      const claimed = await kv.create({ key: grantIndex(grant), value: grant.id, ...ttl })
       const id = claimed ? grant.id : ((await read(grantIndex(grant))) ?? grant.id)
       const held = id === grant.id ? undefined : await readGrant(id)
       // A lost claim is a first consent that raced another: it adds to that grant, never replaces it (FR-I4).
@@ -268,12 +268,12 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
       await kv.upsert({ key: `grant/${id}`, value: enc(stored), ...ttl })
       await kv.upsert({ key: grantIndex(grant), value: id, ...ttl })
     },
-    // FR-I4: a store with no compare-and-swap serializes consents to one pair by an atomic insert, released when done.
+    // FR-I4: a store with no compare-and-swap serializes consents to one pair by an atomic create, released when done.
     async merge(grant) {
       const lock = `grant-lock/${part(grant.accountId)}/${part(grant.clientId)}`
       const owner = crypto.randomUUID()
       for (let wait = 0; wait < LOCK_WAITS; wait++) {
-        if (await kv.insert({ key: lock, value: owner, ttl: LOCK_TTL })) {
+        if (await kv.create({ key: lock, value: owner, ttl: LOCK_TTL })) {
           try {
             const id = await read(grantIndex(grant))
             const held = id === undefined ? undefined : await readGrant(id)
@@ -310,7 +310,7 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
 
   const replay: ReplayGuard = {
     async claim(namespace, value, ttl) {
-      return kv.insert({ key: `replay/${namespace}/${value}`, value: '1', ttl })
+      return kv.create({ key: `replay/${namespace}/${value}`, value: '1', ttl })
     }
   }
 
@@ -344,7 +344,7 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
     return credential ? reviveCredential(credential) : undefined
   }
 
-  // The username index is claimed with `insert`, so uniqueness rests on the same atomic write as single use.
+  // The username index is claimed with `create`, so uniqueness rests on the same atomic write as single use.
   const credentials: CredentialStore = {
     find: readCredential,
     async findByUsername(username) {
@@ -352,15 +352,15 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
       return accountId ? readCredential(accountId) : undefined
     },
     async create(credential) {
-      if (!(await kv.insert({ key: usernameKey(credential.username), value: credential.accountId }))) return false
-      if (await kv.insert({ key: credentialKey(credential.accountId), value: enc(credential) })) return true
+      if (!(await kv.create({ key: usernameKey(credential.username), value: credential.accountId }))) return false
+      if (await kv.create({ key: credentialKey(credential.accountId), value: enc(credential) })) return true
       await kv.destroy(usernameKey(credential.username))
       return false
     },
     async upsert(credential) {
       const existing = await readCredential(credential.accountId)
       if (existing && existing.username !== credential.username) {
-        if (!(await kv.insert({ key: usernameKey(credential.username), value: credential.accountId }))) {
+        if (!(await kv.create({ key: usernameKey(credential.username), value: credential.accountId }))) {
           throw new Error(`the username ${credential.username} is taken`)
         }
         await kv.destroy(usernameKey(existing.username))
@@ -390,7 +390,7 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
       )
     },
     async create(passkey) {
-      if (!(await kv.insert({ key: passkeyKey(passkey.credentialId), value: enc(passkey) }))) return false
+      if (!(await kv.create({ key: passkeyKey(passkey.credentialId), value: enc(passkey) }))) return false
       await kv.upsert({ key: `${accountPasskeys(passkey.accountId)}${part(passkey.credentialId)}`, value: '' })
       return true
     },
@@ -413,7 +413,7 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
       return raw === undefined ? undefined : reviveRealm(raw)
     },
     list: () => collect(kv, 'realm/', reviveRealm),
-    create: realm => kv.insert({ key: realmKey(realm.id), value: enc(realm) }),
+    create: realm => kv.create({ key: realmKey(realm.id), value: enc(realm) }),
     async upsert(realm) {
       await kv.upsert({ key: realmKey(realm.id), value: enc(realm) })
     },

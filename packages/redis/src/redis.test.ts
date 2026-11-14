@@ -8,7 +8,7 @@ import { redisAdapter, redisKv } from './index'
 
 /**
  * Runs against a real Redis when REDIS_URL is set, as CI does. The memory store is atomic for free;
- * this is where `insert` being `SET NX` is actually what keeps parallel redemptions to one (FR-A3).
+ * this is where `create` being `SET NX` is actually what keeps parallel redemptions to one (FR-A3).
  */
 const url = Bun.env.REDIS_URL
 const client = url ? new RedisClient(url) : undefined
@@ -46,9 +46,9 @@ describe.skipIf(!client)('redis adapter', () => {
     test(`redis: ${check.name}`, check.run)
   }
 
-  test('insert is SET NX: of many parallel inserts exactly one wins', async () => {
+  test('create is SET NX: of many parallel creates exactly one wins', async () => {
     const kv = redisKv(send, { prefix: fresh() })
-    const results = await Promise.all(Array.from({ length: 20 }, (_, index) => kv.insert({ key: 'once', value: String(index), ttl: 60 })))
+    const results = await Promise.all(Array.from({ length: 20 }, (_, index) => kv.create({ key: 'once', value: String(index), ttl: 60 })))
     expect(results.filter(Boolean)).toHaveLength(1)
   })
 

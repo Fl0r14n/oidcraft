@@ -68,7 +68,7 @@ describe('discovery', () => {
 
   test('signing algorithms come from the keys that exist', async () => {
     const { body } = await json('/.well-known/openid-configuration')
-    const keys = await adapter.keys.active()
+    const keys = await adapter.keys.list()
     expect(body.id_token_signing_alg_values_supported).toEqual(keys.map(key => key.alg))
   })
 

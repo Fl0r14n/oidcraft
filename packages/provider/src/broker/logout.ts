@@ -53,7 +53,7 @@ export const upstreamLogout = async (
   if (sid) await adapter.artifacts.destroy('upstream_id_token', logoutHintId(provider.id, sid))
 
   const sessions = sid
-    ? await adapter.sessions.findByUpstreamSession(provider.id, sid)
+    ? await adapter.sessions.listByUpstreamSession(provider.id, sid)
     : await sessionsForUpstreamSubject(adapter, provider.id, sub as string)
 
   return { provider: provider.id, sessions }

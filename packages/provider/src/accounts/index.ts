@@ -351,7 +351,7 @@ export const createAccounts = (options: AccountsOptions) => {
     // new id, so a token a racing refresh writes after the sweep names a grant that is gone (FR-T3).
     for (const grant of await adapter.grants.listForAccount(accountId)) {
       await adapter.grants.destroy(grant.id)
-      await adapter.artifacts.revokeByGrantId(grant.id)
+      await adapter.artifacts.destroyByGrantId(grant.id)
       await adapter.grants.merge({ ...grant, id: randomString() })
     }
   }

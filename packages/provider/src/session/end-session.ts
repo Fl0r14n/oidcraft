@@ -33,7 +33,7 @@ const aboutThisSession = (claims: JWTPayload | undefined, session: Session | und
 
 // Unverified, a hint would let anyone name a client and be redirected to its URI (OIDC RP-Initiated Logout 1.0 §2).
 const verifyHint = async (config: ResolvedConfig, hint: string) => {
-  const jwks = createLocalJWKSet(jwksResponseBody(await config.adapter.keys.active()) as never)
+  const jwks = createLocalJWKSet(jwksResponseBody(await config.adapter.keys.list()) as never)
   try {
     // §2: a hint has usually expired and need only prove this provider issued it, so its lifetime is not checked.
     // `typ` JWT is what this provider stamps on ID tokens alone; a logout token or a JWT access token is no hint.

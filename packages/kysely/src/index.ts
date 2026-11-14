@@ -138,16 +138,16 @@ export const kyselyAdapter = (options: KyselyAdapterOptions): FullAdapter => {
       await db.deleteFrom('oidc_artifacts').where('kind', '=', kind).where('id', '=', id).execute()
     },
 
-    async revokeByGrantId(grantId: string) {
+    async destroyByGrantId(grantId: string) {
       // One indexed delete, not a scan (FR-A5).
       await db.deleteFrom('oidc_artifacts').where('grant_id', '=', grantId).execute()
     },
 
-    async revokeByFamilyId(familyId: string) {
+    async destroyByFamilyId(familyId: string) {
       await db.deleteFrom('oidc_artifacts').where('family_id', '=', familyId).execute()
     },
 
-    async revokeByClientId(clientId: string) {
+    async destroyByClientId(clientId: string) {
       await db.deleteFrom('oidc_artifacts').where('client_id', '=', clientId).execute()
     },
 
@@ -251,7 +251,7 @@ export const kyselyAdapter = (options: KyselyAdapterOptions): FullAdapter => {
           .execute()
         return rows.map(toSession)
       },
-      async findByUpstreamSession(provider, upstreamSessionId) {
+      async listByUpstreamSession(provider, upstreamSessionId) {
         const rows = await db
           .selectFrom('oidc_sessions')
           .selectAll()

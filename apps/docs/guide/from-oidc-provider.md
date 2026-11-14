@@ -125,7 +125,7 @@ the original request and may ask again (FR-I1, FR-I2; ARCHITECTURE.md §6 calls 
 
 `oidc-provider`'s adapter is one class, instantiated once per model name (`Session`, `AccessToken`,
 `Grant` and so on). Every model shares the same methods: `upsert`, `find`, `findByUid`,
-`findByUserCode`, `consume`, `destroy` and `revokeByGrantId`. Its documentation describes the
+`findByUserCode`, `consume`, `destroy` and `destroyByGrantId`. Its documentation describes the
 built-in in-memory adapter as fit for development and testing only.
 
 oidcraft splits storage by capability instead (FR-A2). `ClientStore`, `ArtifactStore`,
@@ -138,7 +138,7 @@ implementations of the single-class shape tend to end up as one `(kind, id, payl
 those queries run against JSON extraction instead of an index.
 
 If you want the simple case back, implement a `KvStore`. It has six methods, two of them atomic,
-`insert` and `destroyIf`, and `fromKv` derives a complete adapter from it (FR-A3). First-party adapters ship for
+`create` and `destroyIf`, and `fromKv` derives a complete adapter from it (FR-A3). First-party adapters ship for
 memory, Drizzle, Kysely, TypeORM and Redis, each passing one shared conformance suite. A Drizzle,
 Kysely or TypeORM adapter ships migrations for you to run; the library never alters a schema at boot.
 [The adapters guide](/guide/adapters) covers writing your own.

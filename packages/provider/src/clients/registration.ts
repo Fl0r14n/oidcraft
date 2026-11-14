@@ -76,7 +76,7 @@ const applicationTypeFrom = (raw: unknown) => {
 const assertSignable = async (config: ResolvedConfig, client: Client) => {
   const alg = client.idTokenSignedResponseAlg
   if (!alg) return
-  if (!signingAlgorithms(await config.adapter.keys.active()).includes(alg)) {
+  if (!signingAlgorithms(await config.adapter.keys.list()).includes(alg)) {
     throw invalid(`id_token_signed_response_alg ${alg} is not one this provider signs with`)
   }
 }
@@ -338,7 +338,7 @@ const idTokenAlgFrom = (config: ResolvedConfig, value: unknown, existing: Client
 /** Under FAPI 2.0 the response names the algorithm it will sign with: to a DCR client an omitted one means RS256. */
 const settleIdTokenAlg = async (config: ResolvedConfig, client: Client) => {
   if (client.idTokenSignedResponseAlg) return
-  const alg = defaultSigningAlg(config, client, await config.adapter.keys.active())
+  const alg = defaultSigningAlg(config, client, await config.adapter.keys.list())
   if (alg) client.idTokenSignedResponseAlg = alg
 }
 

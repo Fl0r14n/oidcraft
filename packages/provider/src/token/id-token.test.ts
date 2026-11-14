@@ -10,14 +10,14 @@ describe('ID token details', () => {
   test('at_hash uses the hash of the signing algorithm, and the token names its sid', async () => {
     const pair = await generateKeyPair('ES384', { extractable: true })
     const key = { kid: 'es384', alg: 'ES384' }
-    const active = adapter.keys.active.bind(adapter.keys)
-    adapter.keys.active = async () => [
+    const list = adapter.keys.list.bind(adapter.keys)
+    adapter.keys.list = async () => [
       {
         ...key,
         privateJwk: { ...(await exportJWK(pair.privateKey)), ...key },
         publicJwk: { ...(await exportJWK(pair.publicKey)), ...key }
       },
-      ...(await active())
+      ...(await list())
     ]
     await adapter.clients.upsert?.(client({ idTokenSignedResponseAlg: 'ES384' }))
     const issued = await tokensFor(build())

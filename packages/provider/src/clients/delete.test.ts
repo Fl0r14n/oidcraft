@@ -11,7 +11,7 @@ test('deleting a client destroys its grants before its tokens', async () => {
     adapter: {
       ...adapter,
       grants: { ...adapter.grants, destroyByClientId: async (id: string) => void order.push(`grants:${id}`) },
-      artifacts: { ...adapter.artifacts, revokeByClientId: async (id: string) => void order.push(`artifacts:${id}`) }
+      artifacts: { ...adapter.artifacts, destroyByClientId: async (id: string) => void order.push(`artifacts:${id}`) }
     }
   } as unknown as ResolvedConfig
   await deleteClient(config, 'rp')

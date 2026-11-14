@@ -21,7 +21,7 @@ export type Adapter = {
 /** What `@oidcraft/provider/broker` requires: linking and upstream logout need both (FR-F5, FR-F8). */
 export type BrokeringAdapter = Adapter & {
   identities: LinkedIdentityStore
-  sessions: SessionStore & Required<Pick<SessionStore, 'findByUpstreamSession'>>
+  sessions: SessionStore & Required<Pick<SessionStore, 'listByUpstreamSession'>>
 }
 
 /** What `@oidcraft/provider/accounts` requires (FR-I7, FR-I8). */
@@ -53,10 +53,10 @@ export type ArtifactStore = EntityStore<Artifact, [kind: ArtifactKind, id: strin
   findByUserCode?(userCode: string): Promise<Artifact | undefined>
   /** Atomically marks a live artifact used: `true` for one caller only, `false` if consumed, unknown or expired (FR-T3, FR-T4, NFR-S4). */
   consume(kind: ArtifactKind, id: string): Promise<boolean>
-  revokeByGrantId(grantId: string): Promise<void>
-  revokeByFamilyId(familyId: string): Promise<void>
+  destroyByGrantId(grantId: string): Promise<void>
+  destroyByFamilyId(familyId: string): Promise<void>
   /** Deleting a client takes its tokens with it, those of the client-credentials grant included, which no grant reaches (FR-T7). */
-  revokeByClientId(clientId: string): Promise<void>
+  destroyByClientId(clientId: string): Promise<void>
   /** Bounded sweep of expired rows; the runtime calls it, storage does not schedule (NFR-P3). */
   prune?(before: Date, limit: number): Promise<number>
 }
@@ -66,7 +66,7 @@ export type SessionStore = EntityStore<Session> & {
   /** Atomically adds a client: concurrent sign-ins must all reach the logout list (FR-C11); a session that is gone stays gone. */
   addClient(id: string, clientId: string): Promise<void>
   /** Upstream back-channel logout arrives keyed by the upstream session, not ours (FR-F8). */
-  findByUpstreamSession?(provider: string, upstreamSessionId: string): Promise<Session[]>
+  listByUpstreamSession?(provider: string, upstreamSessionId: string): Promise<Session[]>
   /** Bounded sweep of expired sessions, as `ArtifactStore.prune`; storage with its own expiry omits it (NFR-P3). */
   prune?(before: Date, limit: number): Promise<number>
 }
@@ -101,7 +101,7 @@ export type ActiveKey = { kid: string; alg: string; privateJwk: unknown; publicJ
 
 export type KeyStore = {
   /** Newest first. The first signing-capable key of an alg signs; the rest only verify (NFR-S7). */
-  active(): Promise<ActiveKey[]>
+  list(): Promise<ActiveKey[]>
 }
 
 /** Replay protection for one-time values: `jti`, DPoP proofs, upstream nonces (NFR-S5). */

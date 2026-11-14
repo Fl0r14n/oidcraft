@@ -36,7 +36,7 @@ const mapKv = (): KvStore => {
     async destroy(key) {
       entries.delete(key)
     },
-    async insert(entry) {
+    async create(entry) {
       if (live(entry.key)) return false
       write(entry)
       return true
@@ -70,16 +70,16 @@ const adapter = fromKv(mapKv(), {
 const provider = createProvider({ issuer, adapter, interactionUrl: `${issuer}/interaction` })
 // #endregion from-kv
 
-// #region racy-insert
+// #region racy-create
 const racy = (kv: KvStore): KvStore => ({
   ...kv,
-  async insert(entry) {
+  async create(entry) {
     if (await kv.find(entry.key)) return false
     await kv.upsert(entry)
     return true
   }
 })
-// #endregion racy-insert
+// #endregion racy-create
 
 const REDIRECT = 'https://app.example.com/callback'
 
@@ -155,16 +155,16 @@ describe('a provider over a KvStore', () => {
     expect((await refresh.json()).error).toBe('invalid_grant')
   })
 
-  test('insert writes once, and again only after the entry lapses', async () => {
+  test('create writes once, and again only after the entry lapses', async () => {
     const kv = mapKv()
-    const results = await Promise.all(Array.from({ length: 8 }, () => kv.insert({ key: 'once', value: '1' })))
+    const results = await Promise.all(Array.from({ length: 8 }, () => kv.create({ key: 'once', value: '1' })))
     expect(results.filter(Boolean)).toHaveLength(1)
 
-    expect(await kv.insert({ key: 'short', value: '1', ttl: 0.05 })).toBe(true)
-    expect(await kv.insert({ key: 'short', value: '1', ttl: 0.05 })).toBe(false)
+    expect(await kv.create({ key: 'short', value: '1', ttl: 0.05 })).toBe(true)
+    expect(await kv.create({ key: 'short', value: '1', ttl: 0.05 })).toBe(false)
     await Bun.sleep(60)
     expect(await kv.find('short')).toBeUndefined()
-    expect(await kv.insert({ key: 'short', value: '1', ttl: 0.05 })).toBe(true)
+    expect(await kv.create({ key: 'short', value: '1', ttl: 0.05 })).toBe(true)
   })
 
   test('scan yields only its prefix and tolerates deletes while it runs', async () => {
@@ -180,10 +180,10 @@ describe('a provider over a KvStore', () => {
   })
 })
 
-describe('an insert that reads and then writes', () => {
+describe('a create that reads and then writes', () => {
   test('lets every parallel caller win', async () => {
     const kv = racy(mapKv())
-    const results = await Promise.all(Array.from({ length: 8 }, () => kv.insert({ key: 'once', value: '1' })))
+    const results = await Promise.all(Array.from({ length: 8 }, () => kv.create({ key: 'once', value: '1' })))
     expect(results.filter(Boolean)).toHaveLength(8)
   })
 

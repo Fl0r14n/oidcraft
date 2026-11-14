@@ -88,7 +88,7 @@ export const redisKv = (send: RedisCommand, options: RedisKvOptions = {}): KvSto
       if (lapsed(entry.ttl)) await run(REMOVE, entry.key)
       else await write(entry, '')
     },
-    async insert(entry) {
+    async create(entry) {
       if (lapsed(entry.ttl)) return Number(await send('EXISTS', [prefix + entry.key])) === 0
       return write(entry, 'NX')
     },

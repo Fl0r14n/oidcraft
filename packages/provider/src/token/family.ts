@@ -14,8 +14,8 @@ export const revokeFamily = async (config: ResolvedConfig, artifact: Pick<Artifa
       payload: {},
       expiresAt: new Date(Date.now() + config.ttl.refreshTokenFamily * 1000)
     })
-    await config.adapter.artifacts.revokeByFamilyId(artifact.familyId)
-  } else if (artifact.grantId) await config.adapter.artifacts.revokeByGrantId(artifact.grantId)
+    await config.adapter.artifacts.destroyByFamilyId(artifact.familyId)
+  } else if (artifact.grantId) await config.adapter.artifacts.destroyByGrantId(artifact.grantId)
 }
 
 /**
@@ -25,6 +25,6 @@ export const revokeFamily = async (config: ResolvedConfig, artifact: Pick<Artifa
 export const assertFamilyLive = async (config: ResolvedConfig, familyId: string, grantId: string) => {
   const revoked = await readArtifact(config.adapter.artifacts, 'revoked_family', familyId)
   if (!revoked && (await config.adapter.grants.find(grantId))) return
-  await config.adapter.artifacts.revokeByFamilyId(familyId)
+  await config.adapter.artifacts.destroyByFamilyId(familyId)
   throw new OAuthError('invalid_grant', { description: 'this authorization was revoked while it was being used', spec: 'RFC 9700 §4.14.2' })
 }

@@ -42,7 +42,7 @@ export const createRealms = (options: RealmsConfig) => {
 
   // A key two realms share lets one's tokens verify against the other's JWKS, as with `generatedKeyStore()` (FR-M4).
   const claimKeys = async (id: string, provider: Provider) => {
-    const kids = (await provider.config.adapter.keys.active()).map(key => key.kid)
+    const kids = (await provider.config.adapter.keys.list()).map(key => key.kid)
     for (const kid of kids) {
       const owner = signers.get(kid)
       if (owner !== undefined && owner !== id)

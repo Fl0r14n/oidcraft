@@ -356,9 +356,9 @@ export const resolveConfig = (config: ProviderConfig): ResolvedConfig => {
   if (features.ciba && !config.resolveCibaUser) {
     problems.push('features.ciba needs a resolveCibaUser; the provider will not guess which hint means which account (FR-C17)')
   }
-  if (config.upstreams?.length && (!config.adapter?.identities || !config.adapter.sessions.findByUpstreamSession)) {
+  if (config.upstreams?.length && (!config.adapter?.identities || !config.adapter.sessions.listByUpstreamSession)) {
     problems.push(
-      'upstreams need an adapter with an identities store and sessions.findByUpstreamSession, ' +
+      'upstreams need an adapter with an identities store and sessions.listByUpstreamSession, ' +
         'or linking and upstream logout have nowhere to go (FR-F5, FR-F8)'
     )
   }

@@ -26,15 +26,15 @@ describe('memory adapter', () => {
     expect(seen.sort()).toEqual(['a/1', 'a/2'])
   })
 
-  // NFR-S4: a token revoked between consume's read and its insert must not come back as redeemed.
+  // NFR-S4: a token revoked between consume's read and its create must not come back as redeemed.
   test('consume refuses an artifact deleted while it was being consumed', async () => {
     const kv = memoryKv()
     const adapter = fromKv(
       {
         ...kv,
-        async insert(entry) {
+        async create(entry) {
           await kv.destroy('artifact/refresh_token/r1')
-          return kv.insert(entry)
+          return kv.create(entry)
         }
       },
       { keys: await generatedKeyStore() }
@@ -73,12 +73,12 @@ describe('memory adapter', () => {
     expect(await kv.destroyIf('k', 'gone')).toBe(false)
   })
 
-  test('insert writes only what is absent or lapsed', async () => {
+  test('create writes only what is absent or lapsed', async () => {
     const kv = memoryKv()
-    expect(await kv.insert({ key: 'k', value: '1' })).toBe(true)
-    expect(await kv.insert({ key: 'k', value: '2' })).toBe(false)
+    expect(await kv.create({ key: 'k', value: '1' })).toBe(true)
+    expect(await kv.create({ key: 'k', value: '2' })).toBe(false)
     expect((await kv.find('k'))?.value).toBe('1')
     await kv.upsert({ key: 'k', value: '3', ttl: -1 })
-    expect(await kv.insert({ key: 'k', value: '4' })).toBe(true)
+    expect(await kv.create({ key: 'k', value: '4' })).toBe(true)
   })
 })

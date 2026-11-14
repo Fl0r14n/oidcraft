@@ -208,16 +208,16 @@ export const typeormAdapter = (options: TypeormAdapterOptions): FullAdapter => {
       await artifactRows.delete(by({ kind, id }))
     },
 
-    async revokeByGrantId(grantId: string) {
+    async destroyByGrantId(grantId: string) {
       // One indexed delete, not a scan (FR-A5).
       await artifactRows.delete(by({ grant_id: grantId }))
     },
 
-    async revokeByFamilyId(familyId: string) {
+    async destroyByFamilyId(familyId: string) {
       await artifactRows.delete(by({ family_id: familyId }))
     },
 
-    async revokeByClientId(clientId: string) {
+    async destroyByClientId(clientId: string) {
       await artifactRows.delete(by({ client_id: clientId }))
     },
 
@@ -268,7 +268,7 @@ export const typeormAdapter = (options: TypeormAdapterOptions): FullAdapter => {
           .getMany()
         return rows.map(toSession)
       },
-      async findByUpstreamSession(provider, upstreamSessionId) {
+      async listByUpstreamSession(provider, upstreamSessionId) {
         const rows = await sessions
           .createQueryBuilder('s')
           .where('s.idp = :provider and s.upstream_session_id = :upstreamSessionId and s.expires_at > :now', {

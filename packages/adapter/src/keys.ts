@@ -13,7 +13,7 @@ export const staticKeyStore = (keys: ActiveKey[]): KeyStore => {
   if (!keys.some(key => key.alg === 'RS256')) {
     throw new ConfigurationError(['the key set has no RS256 key; every OpenID Provider must sign with RS256 (FR-T1, OIDC Core §15.1)'])
   }
-  return { active: async () => keys }
+  return { list: async () => keys }
 }
 
 /** Development and tests only: every restart generates a new key, which signs everyone out. */

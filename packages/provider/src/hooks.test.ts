@@ -9,7 +9,7 @@ describe('an unexpected failure is reported to the host', () => {
   const failing = (): Adapter => ({
     ...adapter,
     keys: {
-      async active() {
+      async list() {
         throw new Error('the key store is down')
       }
     }

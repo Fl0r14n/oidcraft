@@ -93,7 +93,7 @@ export const metadata = (config: ResolvedConfig, signing: string[]) => {
 const claimsFrom = (config: ResolvedConfig) => [...configuredClaims(config)]
 
 export const discoveryEndpoint = async (config: ResolvedConfig) => {
-  const keys = await config.adapter.keys.active()
+  const keys = await config.adapter.keys.list()
   return Response.json(metadata(config, signingAlgorithms(keys)), {
     headers: { 'cache-control': 'public, max-age=300' }
   })

@@ -66,6 +66,6 @@ describe('typeorm adapter', () => {
   test('a DataSource without the entities is refused at construction', async () => {
     const bare = new DataSource({ type: 'sqljs', entities: [] })
     await bare.initialize()
-    expect(() => typeormAdapter({ dataSource: bare, keys: { active: async () => [] } as never })).toThrow(/OIDCRAFT_SQLITE_ENTITIES/)
+    expect(() => typeormAdapter({ dataSource: bare, keys: { list: async () => [] } as never })).toThrow(/OIDCRAFT_SQLITE_ENTITIES/)
   })
 })

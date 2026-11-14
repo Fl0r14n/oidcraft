@@ -39,7 +39,7 @@ export const memoryKv = (): KvStore & { size: () => number } => {
     async upsert(entry) {
       write(entry)
     },
-    async insert(entry) {
+    async create(entry) {
       if (live(entry.key)) return false
       write(entry)
       return true

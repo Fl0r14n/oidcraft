@@ -77,7 +77,7 @@ What each method must do:
 - **`upsert({ key, value, ttl })`** writes unconditionally. `ttl` is in seconds; without one the
   entry does not expire.
 - **`destroy(key)`** removes the entry; a missing key is not an error.
-- **`insert({ key, value, ttl })`** writes **only if no live entry holds the key, atomically**, and
+- **`create({ key, value, ttl })`** writes **only if no live entry holds the key, atomically**, and
   resolves whether it wrote. An expired entry counts as absent: a one-time value whose window has
   lapsed may be claimed again.
 - **`destroyIf(key, value)`** removes the entry **only while it holds `value`, atomically**, and
@@ -106,17 +106,17 @@ beside the record: revoking a grant or a family and every by-account lookup is a
 keys, never of a whole family of records (NFR-P1). The SQL adapters use real columns instead
 (FR-A5).
 
-### `insert` is the one hard requirement
+### `create` and `destroyIf` are the hard requirements
 
-Every single-use rule is one call to `insert`: redeeming a code or rotating a refresh token
+Every single-use rule is one call to `create`: redeeming a code or rotating a refresh token
 (`consumed/<kind>/<id>`), admitting a `jti` or DPoP proof (`replay/<namespace>/<value>`), claiming a
 username at sign-up, creating a realm. Single use cannot be built from a read followed by a write
 (FR-A3, NFR-S4). This is what a read followed by a write looks like:
 
-<<< @/samples/adapters.test.ts#racy-insert{ts}
+<<< @/samples/adapters.test.ts#racy-create{ts}
 
 Run against eight parallel callers for one key, all eight win. Through a provider, that would be
-two parallel redemptions of one authorization code both receiving tokens. With the atomic `insert`
+two parallel redemptions of one authorization code both receiving tokens. With the atomic `create`
 above, the test sees at most one redemption succeed: the other is a replay, which revokes what the code produced, and
 refuses the first as well when it gets there before the first has finished.
 
@@ -145,7 +145,7 @@ an object of stores:
 | `realms`     | no       | a realm control plane's realms                                            |
 
 An entry point that needs an optional store says so in its type: `createBroker` takes a
-`BrokeringAdapter` (`identities` and `sessions.findByUpstreamSession` present), `createAccounts` a
+`BrokeringAdapter` (`identities` and `sessions.listByUpstreamSession` present), `createAccounts` a
 `CredentialsAdapter` (`credentials` and `passkeys`), and a realm control plane a `RealmsAdapter`. `createProvider` takes a plain
 `Adapter` and refuses `upstreams` without the brokering stores when it is constructed (NFR-D2).
 
@@ -176,14 +176,14 @@ trusts the answer rather than re-checking it.
   `find` still returns it with `consumedAt` set (FR-T3, FR-T4, NFR-S4).
 - `upsert` never writes or clears `consumedAt`. A poll that read the artifact before it was
   redeemed and writes it back must not revive it.
-- `revokeByGrantId(grantId)` removes every artifact of that grant and nothing else. Withdrawing
+- `destroyByGrantId(grantId)` removes every artifact of that grant and nothing else. Withdrawing
   consent calls it, so it has to find them all; that is an index on `grant_id`, not a JSON search
   (FR-A5).
-- `revokeByFamilyId(familyId)` does the same for one family: every token descending from one
+- `destroyByFamilyId(familyId)` does the same for one family: every token descending from one
   authorization, which a replayed code or refresh token, or a revoked refresh token, ends while the
   same app on another device keeps working (FR-T3). Migration `0005_families` adds its column and
   index.
-- `revokeByClientId(clientId)` and `grants.destroyByClientId(clientId)` remove what a deleted client
+- `destroyByClientId(clientId)` and `grants.destroyByClientId(clientId)` remove what a deleted client
   held: its tokens, those of the client-credentials grant included, and the consents given to it.
 - `findByUserCode` is optional; the device flow needs it (FR-C7). `prune` is optional; see above.
 
@@ -192,7 +192,7 @@ trusts the answer rather than re-checking it.
 - `find` never returns an expired session.
 - `addClient(id, clientId)` is atomic: two clients signing in through one session at once must both
   end up on the list that logout notifies (FR-C11). A session that is gone stays gone.
-- `findByUpstreamSession` is optional; upstream back-channel logout needs it (FR-F8).
+- `listByUpstreamSession` is optional; upstream back-channel logout needs it (FR-F8).
 
 **`grants`**
 
@@ -200,7 +200,7 @@ trusts the answer rather than re-checking it.
 - One grant per `(accountId, clientId)`. An `upsert` for a pair another id already holds writes into
   that grant, keeping its id and `createdAt`, atomically: two tabs consenting for the first time at
   once are two writes to one grant, not a second grant and not a failed insert. The SQL adapters
-  resolve the conflict on the pair; `fromKv` claims the pair's key with `insert`.
+  resolve the conflict on the pair; `fromKv` claims the pair's key with `create`.
 
 **`clients`**
 
@@ -215,7 +215,7 @@ trusts the answer rather than re-checking it.
 
 **`keys`**
 
-- `active()` returns keys newest first. The first signing-capable key of an algorithm signs; the
+- `list()` returns keys newest first. The first signing-capable key of an algorithm signs; the
   rest only verify, so a rotation never invalidates a live token (NFR-S7).
 - `/jwks` is served `public, max-age=300, stale-while-revalidate=3600`, and a client or a cache in
   between may hold it that long. Add a new key last, where it only verifies, and move it first, where

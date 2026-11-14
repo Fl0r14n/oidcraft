@@ -6,7 +6,7 @@ import { signingKey } from './keys'
 
 // The algorithm the client registered for this kind of token, else the first the profile allows (FR-T1, FR-C21).
 export const signerFor = async (config: ResolvedConfig, client: Client | undefined, registered?: string | undefined) => {
-  const keys = await config.adapter.keys.active()
+  const keys = await config.adapter.keys.list()
   const alg = registered ?? defaultSigningAlg(config, client, keys)
   const key = alg ? signingKey(keys, alg) : undefined
   if (!key || !alg) return undefined
@@ -21,6 +21,6 @@ export const signerFor = async (config: ResolvedConfig, client: Client | undefin
 /** One key read per request: a token response signs an ID token and a JWT access token from the same set. */
 export const withKeysOnce = (config: ResolvedConfig): ResolvedConfig => {
   let active: Promise<ActiveKey[]> | undefined
-  const keys = { active: () => (active ??= config.adapter.keys.active()) }
+  const keys = { list: () => (active ??= config.adapter.keys.list()) }
   return { ...config, adapter: { ...config.adapter, keys } }
 }

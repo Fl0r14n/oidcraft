@@ -319,7 +319,7 @@ returns `FullAdapter`, which satisfies each. `createProvider` takes a plain `Ada
 **A consent is a merge, never a write over another (FR-I4).** `grants.merge` adds scopes and claims
 to the one grant of an account and client, or starts it, and treats an expired grant as gone, so its
 tokens are not revived under a new consent. The SQL adapters compare-and-swap on the stored columns;
-`fromKv` serializes consents to one pair behind a lock taken with its atomic `insert`.
+`fromKv` serializes consents to one pair behind a lock taken with its atomic `create`.
 
 **A revocation is not undone by a request already past its checks (FR-T3, FR-T7).** Revoking a
 family writes a `revoked_family` artifact before it sweeps the family's rows, and revoking a grant
@@ -357,7 +357,7 @@ call site.
 
 Splitting by capability makes each payload a real type, lets a relational adapter use real columns
 and indexes (FR-A5), and lets a deployment implement only what it uses. `KvStore` (FR-A3) keeps the
-simple case simple: an `EntityStore` of `{ key, value, ttl }` entries plus `scan`, `insert` and
+simple case simple: an `EntityStore` of `{ key, value, ttl }` entries plus `scan`, `create` and
 `destroyIf`, from which `fromKv` derives the rest. The last two carry the hard requirement — each
 must be atomic — because every single-use rule is that one write, and a lock is released by that one
 delete. `destroyIf` is its own required method, not a second argument to `destroy`: an
@@ -445,7 +445,7 @@ Four things reach into the protocol core and cannot be bolted on from outside:
 - **Re-authentication.** `prompt=login`, `max_age` and a raised `acr_values` have to force a fresh
   _upstream_ authentication (FR-F9).
 - **Logout.** An upstream back-channel logout must end the local sessions it produced, and so this
-  OP's back-channel logout to its clients: `SessionStore.findByUpstreamSession` (FR-F8). The other
+  OP's back-channel logout to its clients: `SessionStore.listByUpstreamSession` (FR-F8). The other
   direction is a hook: end-session hands a brokered session and its destination to
   `ProviderConfig.upstreamLogout`, and the broker's `logoutUrl` answers with the upstream's
   end-session request, keeping the destination for `completeLogout` and the upstream ID token it kept

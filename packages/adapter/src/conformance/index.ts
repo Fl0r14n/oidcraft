@@ -244,13 +244,13 @@ export const adapterConformance = (create: () => Adapter | Promise<Adapter>, opt
     },
     {
       // FR-A5: the query the protocol needs most.
-      name: 'revokeByGrantId removes every artifact of that grant and nothing else',
+      name: 'destroyByGrantId removes every artifact of that grant and nothing else',
       run: async () => {
         const adapter = await full()
         await adapter.artifacts.upsert(artifact({ id: 'a1', kind: 'authorization_code', grantId: 'g1' }))
         await adapter.artifacts.upsert(artifact({ id: 'a2', kind: 'refresh_token', grantId: 'g1' }))
         await adapter.artifacts.upsert(artifact({ id: 'a3', kind: 'refresh_token', grantId: 'g2' }))
-        await adapter.artifacts.revokeByGrantId('g1')
+        await adapter.artifacts.destroyByGrantId('g1')
         same(await adapter.artifacts.find('authorization_code', 'a1'), undefined, "the revoked grant's code")
         same(await adapter.artifacts.find('refresh_token', 'a2'), undefined, "the revoked grant's refresh token")
         same((await adapter.artifacts.find('refresh_token', 'a3'))?.id, 'a3', "another grant's refresh token")
@@ -258,13 +258,13 @@ export const adapterConformance = (create: () => Adapter | Promise<Adapter>, opt
     },
     {
       // FR-T3: a replay on one device ends that device's tokens, not the grant's on another.
-      name: 'revokeByFamilyId removes every artifact of that family and nothing else',
+      name: 'destroyByFamilyId removes every artifact of that family and nothing else',
       run: async () => {
         const adapter = await full()
         await adapter.artifacts.upsert(artifact({ id: 'f1', kind: 'access_token', grantId: 'g1', familyId: 'phone' }))
         await adapter.artifacts.upsert(artifact({ id: 'f2', kind: 'refresh_token', grantId: 'g1', familyId: 'phone' }))
         await adapter.artifacts.upsert(artifact({ id: 'f3', kind: 'refresh_token', grantId: 'g1', familyId: 'laptop' }))
-        await adapter.artifacts.revokeByFamilyId('phone')
+        await adapter.artifacts.destroyByFamilyId('phone')
         same(await adapter.artifacts.find('access_token', 'f1'), undefined, "the revoked family's access token")
         same(await adapter.artifacts.find('refresh_token', 'f2'), undefined, "the revoked family's refresh token")
         same((await adapter.artifacts.find('refresh_token', 'f3'))?.id, 'f3', "the same grant's other family")
@@ -273,13 +273,13 @@ export const adapterConformance = (create: () => Adapter | Promise<Adapter>, opt
     },
     {
       // FR-T7: deleting a client takes what it holds, client_credentials tokens included, which no grant reaches.
-      name: 'revokeByClientId removes every artifact of that client and nothing else',
+      name: 'destroyByClientId removes every artifact of that client and nothing else',
       run: async () => {
         const adapter = await full()
         await adapter.artifacts.upsert(artifact({ id: 'c1', kind: 'access_token', clientId: 'gone' }))
         await adapter.artifacts.upsert(artifact({ id: 'c2', kind: 'refresh_token', clientId: 'gone', grantId: 'g1' }))
         await adapter.artifacts.upsert(artifact({ id: 'c3', kind: 'access_token', clientId: 'kept' }))
-        await adapter.artifacts.revokeByClientId('gone')
+        await adapter.artifacts.destroyByClientId('gone')
         same(await adapter.artifacts.find('access_token', 'c1'), undefined, "the deleted client's access token")
         same(await adapter.artifacts.find('refresh_token', 'c2'), undefined, "the deleted client's refresh token")
         same((await adapter.artifacts.find('access_token', 'c3'))?.id, 'c3', "another client's access token")
@@ -354,9 +354,9 @@ export const adapterConformance = (create: () => Adapter | Promise<Adapter>, opt
         const adapter = await full()
         await adapter.artifacts.upsert(artifact({ id: 'dx', kind: 'device_code', payload: { userCode: 'GONE-CODE' }, expiresAt: past() }))
         same(await adapter.artifacts.findByUserCode?.('GONE-CODE'), undefined, 'an expired device code found by its user code')
-        if (adapter.sessions.findByUpstreamSession) {
+        if (adapter.sessions.listByUpstreamSession) {
           await adapter.sessions.upsert(session({ id: 'sx', idp: 'entra', upstreamSessionId: 'up-gone', expiresAt: past() }))
-          same(await adapter.sessions.findByUpstreamSession('entra', 'up-gone'), [], 'an expired session found by its upstream session')
+          same(await adapter.sessions.listByUpstreamSession('entra', 'up-gone'), [], 'an expired session found by its upstream session')
         }
       }
     },
@@ -570,8 +570,8 @@ export const adapterConformance = (create: () => Adapter | Promise<Adapter>, opt
       name: 'keys are available and carry an algorithm',
       run: async () => {
         const adapter = await full()
-        const keys = await adapter.keys.active()
-        holds(keys.length > 0, 'keys.active() returned no keys')
+        const keys = await adapter.keys.list()
+        holds(keys.length > 0, 'keys.list() returned no keys')
         holds(Boolean(keys[0]?.alg), 'the active key has no alg')
         holds(Boolean(keys[0]?.kid), 'the active key has no kid')
       }
@@ -583,13 +583,13 @@ export const adapterConformance = (create: () => Adapter | Promise<Adapter>, opt
       run: async () => {
         const adapter = await full()
         holds(
-          typeof adapter.sessions.findByUpstreamSession === 'function',
-          'sessions.findByUpstreamSession is missing, which brokering needs'
+          typeof adapter.sessions.listByUpstreamSession === 'function',
+          'sessions.listByUpstreamSession is missing, which brokering needs'
         )
         await adapter.sessions.upsert(session({ idp: 'entra', upstreamSessionId: 'up-1' }))
         await adapter.sessions.upsert(session({ id: 's2', idp: 'entra', upstreamSessionId: 'up-2' }))
         same(
-          (await adapter.sessions.findByUpstreamSession('entra', 'up-1'))?.map(found => found.id),
+          (await adapter.sessions.listByUpstreamSession('entra', 'up-1'))?.map(found => found.id),
           ['s1'],
           'sessions of upstream session up-1'
         )

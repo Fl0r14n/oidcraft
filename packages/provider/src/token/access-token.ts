@@ -138,7 +138,7 @@ export const resolveAccessToken = async (config: ResolvedConfig, presented: stri
   }
 
   try {
-    const keys = createLocalJWKSet(jwksResponseBody(await config.adapter.keys.active()) as JSONWebKeySet)
+    const keys = createLocalJWKSet(jwksResponseBody(await config.adapter.keys.list()) as JSONWebKeySet)
     const { payload } = await jwtVerify(presented, keys, { issuer: config.issuer, typ: JWT_ACCESS_TOKEN_TYPE })
     return typeof payload.jti === 'string' ? await readArtifact(config.adapter.artifacts, 'access_token', payload.jti) : undefined
   } catch {

@@ -4,6 +4,6 @@ import type { ResolvedConfig } from '../config'
 export const deleteClient = async (config: ResolvedConfig, clientId: string) => {
   // Grants first, as a revocation goes: a redemption already past its checks then finds its grant gone (FR-T3).
   await config.adapter.grants.destroyByClientId(clientId)
-  await config.adapter.artifacts.revokeByClientId(clientId)
+  await config.adapter.artifacts.destroyByClientId(clientId)
   await config.adapter.clients.destroy?.(clientId)
 }

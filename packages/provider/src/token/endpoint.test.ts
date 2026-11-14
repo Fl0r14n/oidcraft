@@ -56,9 +56,9 @@ describe('token endpoint', () => {
     const counted = {
       ...adapter,
       keys: {
-        active: () => {
+        list: () => {
           reads++
-          return adapter.keys.active()
+          return adapter.keys.list()
         }
       }
     }

@@ -24,4 +24,9 @@ SERVER_TLS_KEY=../../.cert/key.pem
 ```
 
 Passkeys belong to the host they were made on: none made under `localhost` sign in under this name.
+
+`apps/demo-react` serves https from this pair too when it is present. Its server-side render calls the
+provider, and certificate checks stay on: Bun trusts the system's CAs, which `mkcert -install` joined.
+A provider behind any other self-signed certificate needs its CA trusted, or named in
+`NODE_EXTRA_CA_CERTS`.
 The `*.pem` files are git-ignored.

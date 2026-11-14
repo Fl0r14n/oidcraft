@@ -5,8 +5,6 @@ import { render } from './src/entry-server'
 import './src/entry-client.tsx' with { type: 'text' }
 
 const production = Bun.env.NODE_ENV === 'production'
-// Development only: a dev IdP is routinely fronted by a self-signed cert, and the SSR pass must not die on it.
-if (!production) process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'
 const port = Number(Bun.env.PORT || 3000)
 const key = Bun.file('../../.cert/key.pem')
 const cert = Bun.file('../../.cert/cert.pem')

@@ -34,7 +34,7 @@ const afterReset = (changed: string | null) =>
   changed === 'password'
     ? 'Your password was changed. Sign in with the new one.'
     : changed === 'passkey'
-      ? 'Your passkey was added. Sign in with it.'
+      ? 'Your passkey was added. Sign in with it, then remove the one you lost from your account: it still signs in.'
       : undefined
 
 const form = async (request: Request) => new URLSearchParams(await request.text())
@@ -306,7 +306,15 @@ const build = (site: Site) => {
     }
     if (body.get('credential')) {
       const added = await accounts.reset.completeWithPasskey(token, parsed(body.get('credential')), 'Passkey', { clientIp })
-      if (added.ok) return resumed(request, 'passkey', 'Passkey added', 'Sign in again with it, from the application you were using.')
+      if (added.ok) {
+        // FR-I8: a recovery ends what the lost passkey opened, not the passkey; only its owner knows which one is gone.
+        return resumed(
+          request,
+          'passkey',
+          'Passkey added',
+          'Sign in again with it, from the application you were using, then remove the passkey you lost from your account: it still signs in.'
+        )
+      }
       const error =
         added.reason === 'taken'
           ? 'That passkey is already registered.'

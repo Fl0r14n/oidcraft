@@ -71,13 +71,13 @@ Versions are set in each `package.json`. Publish in this order, each from a GitH
    finishable in any tab; a failed or stray callback never ends a live session; the bearer goes
    only to allowed origins, `//host` URLs included; redirects are classified by parameter name; an ID
    token that does not verify is no profile, and discovery runs before it is checked; a refresh
-   answered late or after a rekey is kept; bindings see a token lapse.
+   answered late or after a rekey is kept; bindings see a token lapse, a refresh that fails at expiry included.
 3. `@oidcraft/adapter@0.3.0` — `Credential.passwordHash` is optional, for an account with passkeys alone; the `revoked_family` artifact kind; `fromKv`'s identity key changed,
    so links a Redis store made before it are not found; `AccountStore.claims` documents its third
-   argument; `Client.defaultAcrValues`; the conformance suite checks prune, grant expiry and replacing upserts;
+   argument; `Client.defaultAcrValues`; `fromKv`'s grant merge releases only the lock it holds; the conformance suite checks prune, grant expiry and replacing upserts;
    `PasskeyStore`, which `CredentialsAdapter` now requires, the `passkey_challenge` kind, and the
    `passkeys` conformance checks (FR-I8).
-4. `@oidcraft/provider@0.5.0` — the review's security and correctness fixes; the `claims` parameter
+4. `@oidcraft/provider@0.5.0` — the review's security and correctness fixes; the family check inside `issueTokens`, for every grant; the `claims` parameter
    (FR-C22), whose consent answers must repeat `view.claims` in `consent.claims`; `onAudit` hears
    `token.replay` and `client.authentication_failed`; a body that is not form-encoded is a 415; a
    throwing logout or registration audit hook goes to `onError`; under a provider-wide FAPI profile
@@ -95,6 +95,14 @@ Versions are set in each `package.json`. Publish in this order, each from a GitH
 7. `@oidcraft/vue@10.0.0`, `@oidcraft/react@5.0.0`, `@oidcraft/angular@12.0.0` — majors for what
    `core` and `client` changed underneath them; every binding shows and dismisses an error that came
    without a description.
+
+## Left by the review of this release (2026-11-14)
+
+- **`fromKv`'s grant merge lock** is released by a read and a delete, two calls, as `KvStore` has no
+  compare-and-delete: a merge that runs past `LOCK_TTL` between the two still deletes the next one's
+  lock. Closing it means a `destroyIf(key, value)` in the contract, a Lua script in `@oidcraft/redis`.
+- **A passkey recovery keeps the lost passkey.** FR-I8 ends the sessions and tokens it opened, not the
+  passkey, as only its owner knows which one is gone; the screens after a recovery say to remove it.
 
 ## Passkeys
 

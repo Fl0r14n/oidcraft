@@ -65,7 +65,8 @@ Versions are set in each `package.json`. Publish in this order, each from a GitH
 `<name>@<version>` (ARCHITECTURE.md §11), waiting for one to reach npm before the next that names it:
 
 1. `@oidcraft/core@0.5.0` — a callback answer without an `access_token` fails a new `token` check;
-   `CallbackCheck` gains `'token'`; `authorize` returns `undefined` when nothing answered.
+   `CallbackCheck` gains `'token'`; `authorize` returns `undefined` when nothing answered; in a page
+   the JWKS is fetched past the HTTP cache, so a rotated-in `kid` is found (OIDC Core §10.1.1).
 2. `@oidcraft/client@0.4.0` — a sign-in's handoff is keyed by its `state`, out of the shared token,
    finishable in any tab; a failed or stray callback never ends a live session; the bearer goes
    only to allowed origins, `//host` URLs included; redirects are classified by parameter name; an ID
@@ -83,7 +84,8 @@ Versions are set in each `package.json`. Publish in this order, each from a GitH
    dynamic registration names the profile's algorithm instead of failing on DCR's RS256 default;
    a client's `default_acr_values` and the configured `acrValues`, advertised (FR-C23); passkeys in
    `./accounts`, behind its new `origin` option, accounts with no password and their recovery, and
-   `regenerateRecoveryCodes` moved out of `totp` (FR-I8).
+   `regenerateRecoveryCodes` moved out of `totp` (FR-I8); `ttl.interaction` defaults to 1800 and
+   `policy.passkeyTimeout` to 600, so a passkey made on a phone by scanning a code can finish.
 5. `@oidcraft/drizzle@0.3.0`, `@oidcraft/kysely@0.3.0`, `@oidcraft/redis@0.3.0` — peer on `adapter`
    ^0.3.0; the SQL ones enforce `Grant.expiresAt` and prune by expiry at the delete, and store passkeys,
    with migration `0006_passkeys`; `0002_credentials` makes `password_hash` nullable, edited in place. Drizzle and Kysely gain MySQL and MariaDB, one dialect over
@@ -104,6 +106,24 @@ nullable, rather than adding a migration. A database migrated before that keeps 
 passwordless sign-up fails on it: the demo's `apps/demo-server/data` must be deleted, and any other
 database altered by hand (`alter column password_hash drop not null` on Postgres, `modify
 password_hash text null` on MySQL, a table rebuild on SQLite).
+
+## Found by clicking through the demo (2026-11-14)
+
+A browser run of a password account found two bugs, fixed in `0e99fb7`. Still open:
+
+- **Passkeys with a real password manager.** Creating one with Google Password Manager and with Proton
+  Pass failed. The empty-`credential` bug fixed in `0e99fb7` refused every sign-up form, so that may have
+  been all of it; retest before looking further. Only a software authenticator has passed end to end.
+- **TOTP with a real authenticator app** has not been run in a browser, only in tests.
+- **No test runs the apps in a browser.** The `@vuetify/v0` import cycle under Bun's dev bundler and the
+  empty-`credential` bug both passed `verify` and showed only on a click. A headless-browser smoke run of
+  sign-up, sign-in and the account and admin apps would have caught both.
+- **`@oidcraft/ui/bun-plugin` patches `@vuetify/v0`.** Drop it when upstream stops needing it; if it
+  breaks again, Reka UI for the dialog and TanStack Table for the table are the replacements considered.
+- **Small UI points:** the account app asks for its own "Sign in" click even with a live session (it
+  could start the sign-in itself); "Password changed" leaves the person with no way back to the
+  application; the login screen shows two "or" dividers, before the passkey button and before the
+  upstreams.
 
 ## Still open on the client libraries
 

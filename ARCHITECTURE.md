@@ -503,21 +503,23 @@ however many arrive at once no more than the limit are checked; a failure also c
 account-wide bucket's (`G-9`). A second factor has a bucket of its own. The `sign_in_attempts`
 artifact holds only each bucket's generation, which a good sign-in renews, and its lock.
 
-**Passkeys (FR-I8)** are WebAuthn with attestation `none`, so the registration's key is the browser's
-word, taken from `getPublicKey()` as SubjectPublicKeyInfo: nothing decodes CBOR (NFR-D4), and an
-assertion is checked with WebCrypto alone — relying-party ID hash against the issuer's host
+**Passkeys (FR-I8)** are WebAuthn with attestation `none`, so the registration's key is the
+browser's word, taken from `getPublicKey()` as SubjectPublicKeyInfo: nothing decodes CBOR (NFR-D4),
+and an assertion is checked with WebCrypto alone — relying-party ID hash against the issuer's host
 (`origin` in `createAccounts`), client data origin, user-present and user-verified flags, the
 signature (an ES256 one converted from DER), and a counter that must rise unless both sides keep
-none. Each ceremony's challenge is a `passkey_challenge` artifact under its own value, bound to the
-interaction, or for a registration to the account, a sign-up's interaction or a reset token's digest,
-and taken by the atomic `consume` before any check can fail, so a challenge is spent whether its
-ceremony succeeds or not. A sign-up's challenge carries the username, claims and a fresh account id,
-so the account and its passkey are written only once the authenticator has answered. `PasskeyStore` is keyed by
-credential id, which an assertion names, and its `create` is atomic, so a credential id registered to
-one account is refused rather than moved to another. The user handle is an HMAC of the account id
-under `secretKey`, stable and naming no one, since an account id may be a username. A passkey is a
-second factor only beside TOTP: an account with passkeys and no TOTP still signs in with a password
-alone, so losing a passkey never locks a password account out, and a password reset does not need one.
+none. The relying party is the host, so a realm on its own subdomain has its own passkeys, and some
+password managers refuse `localhost` as one (`.cert/README.md`). Each ceremony's challenge is a
+`passkey_challenge` artifact under its own value, bound to the interaction, or for a registration to
+the account, a sign-up's interaction or a reset token's digest, and taken by the atomic `consume`
+before any check can fail, so a challenge is spent whether its ceremony succeeds or not. A sign-up's
+challenge carries the username, claims and a fresh account id, so the account and its passkey are
+written only once the authenticator has answered. `PasskeyStore` is keyed by credential id, which an
+assertion names, and its `create` is atomic, so a credential id registered to one account is refused
+rather than moved to another. The user handle is an HMAC of the account id under `secretKey`, stable
+and naming no one, since an account id may be a username. A passkey is a second factor only beside
+TOTP: an account with passkeys and no TOTP still signs in with a password alone, so losing a passkey
+never locks a password account out, and a password reset does not need one.
 
 An account made with a passkey has no `passwordHash`. `authenticate` pays the decoy hash for it and
 fails, `totp.begin` refuses it, and `passkeys.remove` refuses its last passkey; two removals that race
@@ -626,19 +628,25 @@ click, and shows its Sign in button only on `login_required`; a live session tha
 asked something is sent through an ordinary sign-in at once.
 
 **Sign-in is `@oidcraft/provider/accounts` (FR-I7, FR-I8).** A correct password for an account with
-TOTP sets a signed, ten-minute cookie bound to the interaction, as long as a passkey ceremony, which only the code step can finish,
-with a TOTP code, a recovery code or one of that account's passkeys. A passkey alone signs in from
-the login screen's button or the username field's autofill. `acr` is `mfa` after a second factor or
-for a passkey and `pwd` otherwise, with RFC 8176 `amr` values: `hwk` and `user` for a passkey. The
-account app adds, renames and removes passkeys; the admin app lists and removes them, for a device
-that is lost or stolen, and sends a recovery link. Sign-up offers a passkey in place of the password,
-then shows the recovery codes once before continuing; the login screen links a lost passkey to a
-recovery-code form, whose answer is the reset screen. An account with no password manages its
-recovery codes in the account app with a fresh passkey assertion, as one with TOTP does with a code.
-`prompt=select_account` lists the accounts this browser signed in with, from another signed cookie.
-A reset link is printed to the console where a deployment would email it. Asking for one, or
+TOTP sets a signed cookie bound to the interaction, which only the code step can finish, with a TOTP
+code, a recovery code or one of that account's passkeys; it lasts ten minutes, as a passkey ceremony
+does. A passkey alone signs in from the login screen's button or the username field's autofill.
+`acr` is `mfa` after a second factor or for a passkey and `pwd` otherwise, with RFC 8176 `amr`
+values: `hwk` and `user` for a passkey. The account app adds, renames and removes passkeys; the
+admin app lists and removes them, for a device that is lost or stolen, and sends a recovery link.
+Sign-up offers a passkey in place of the password, then shows the recovery codes once before
+continuing; the login screen links a lost passkey to a recovery-code form, whose answer is the reset
+screen. An account with no password manages its recovery codes in the account app with a fresh
+passkey assertion, as one with TOTP does with a code. What would let someone in takes more than the
+account app's token, so a stolen one is no lasting way in: a new passkey takes the current password
+and, with TOTP on, a code, or for an account with no password one of its passkeys, and a password
+set on such an account takes one of its passkeys. A recovery ends what the lost passkey opened but
+not the passkey, as only its owner knows which one is gone, so the screens after it say to remove it
+(FR-I8). `prompt=select_account` lists the accounts this browser signed in with, from another signed
+cookie. A reset link is printed to the console where a deployment would email it. Asking for one, or
 spending a recovery code, sets a signed cookie naming the interaction, so finishing the reset in the
-same browser returns to that sign-in rather than a dead end; a link opened elsewhere resumes nothing.
+same browser returns to that sign-in rather than a dead end; a link opened elsewhere resumes
+nothing.
 
 `bundles.test.ts` bundles both browser apps the way `Bun.serve` does on first request, so a syntax
 only the type checker accepts fails there rather than in a browser. `src/op` is the provider's

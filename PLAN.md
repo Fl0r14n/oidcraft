@@ -6,8 +6,9 @@ was done.
 
 ## Status
 
-**Implemented, as of 2026-11-14**, with 1408 passing tests (235 more skip without Postgres and
-Redis) and `bun run verify` as the gate: every functional requirement in `REQUIREMENTS.md`.
+**Implemented, as of 2026-11-14**, with 1451 passing tests (550 more skip without Postgres, MySQL,
+MariaDB and Redis), `bun run verify` as the gate and `bun run smoke` clicking through the demo in CI:
+every functional requirement in `REQUIREMENTS.md`.
 `metadata.test.ts` exercises every advertised discovery value rather than reading it. Published as
 `@oidcraft/*` — `core` 0.4.0, `client` 0.3.0, the provider 0.4.0, `adapter` and the four storage
 adapters 0.2.0, `vue` 9.0.0, `react` 4.0.0, `angular` 11.0.0 — with the docs site at
@@ -22,8 +23,8 @@ DPoP with nonces, PAR, JAR by value, the `claims` parameter, dynamic client regi
 7592 management, the device grant, CIBA in poll and ping, token exchange, RAR, step-up, pairwise
 subjects, identity brokering with home-realm discovery chosen by the provider, five storage adapters
 (memory, Drizzle, Kysely, TypeORM, Redis) passing one conformance suite, the SQL ones on SQLite,
-Postgres, MySQL and MariaDB, four runtime context
-providers, local accounts with passwords, passkeys and TOTP, a management API and an admin UI.
+Postgres, MySQL and MariaDB, four runtime context providers, local accounts with passwords, passkeys
+and TOTP, a management API and an admin UI.
 
 ### What is NOT done, and will not be silently forgotten
 
@@ -56,6 +57,9 @@ in the `claims` parameter (FR-C22) refuses a login that reports less, but nothin
   means decoding the CBOR `attestationObject` and validating an X.509 chain, with no dependency but
   `jose` (FR-I8, NFR-D4); an AAGUID allowlist without it checks only what the authenticator says of
   itself. A host that needs attestation brings its own `AccountStore`.
+- **Removing every passkey on a passkey recovery** — FR-I8 ends the sessions and tokens the lost one
+  opened, not the passkey: only its owner knows which one is gone, and the others are not lost. The
+  screens after a recovery say to remove it.
 - **Renaming the demo's `/federation/callback`** — it is the redirect URI registered with Google
   (`.env.example`), and renaming a URL people have registered breaks their sign-in for a word.
 
@@ -68,68 +72,50 @@ Versions are set in each `package.json`. Publish in this order, each from a GitH
    `CallbackCheck` gains `'token'`; `authorize` returns `undefined` when nothing answered; in a page
    the JWKS is fetched past the HTTP cache, so a rotated-in `kid` is found (OIDC Core §10.1.1).
 2. `@oidcraft/client@0.4.0` — a sign-in's handoff is keyed by its `state`, out of the shared token,
-   finishable in any tab; a failed or stray callback never ends a live session; the bearer goes
-   only to allowed origins, `//host` URLs included; redirects are classified by parameter name; an ID
+   finishable in any tab; a failed or stray callback never ends a live session; the bearer goes only
+   to allowed origins, `//host` URLs included; redirects are classified by parameter name; an ID
    token that does not verify is no profile, and discovery runs before it is checked; a refresh
-   answered late or after a rekey is kept; bindings see a token lapse, a refresh that fails at expiry included.
-3. `@oidcraft/adapter@0.3.0` — `Credential.passwordHash` is optional, for an account with passkeys alone; the `revoked_family` artifact kind; `fromKv`'s identity key changed,
-   so links a Redis store made before it are not found; `AccountStore.claims` documents its third
-   argument; `Client.defaultAcrValues`; `fromKv`'s grant merge releases only the lock it holds; the conformance suite checks prune, grant expiry and replacing upserts;
-   `PasskeyStore`, which `CredentialsAdapter` now requires, the `passkey_challenge` kind, and the
-   `passkeys` conformance checks (FR-I8).
-4. `@oidcraft/provider@0.5.0` — the review's security and correctness fixes; the family check inside `issueTokens`, for every grant; the `claims` parameter
-   (FR-C22), whose consent answers must repeat `view.claims` in `consent.claims`; `onAudit` hears
-   `token.replay` and `client.authentication_failed`; a body that is not form-encoded is a 415; a
-   throwing logout or registration audit hook goes to `onError`; under a provider-wide FAPI profile
-   dynamic registration names the profile's algorithm instead of failing on DCR's RS256 default;
-   a client's `default_acr_values` and the configured `acrValues`, advertised (FR-C23); passkeys in
+   answered late or after a rekey is kept; bindings see a token lapse, a refresh that fails at
+   expiry included.
+3. `@oidcraft/adapter@0.3.0` — `Credential.passwordHash` is optional, for an account with passkeys
+   alone; the `revoked_family` artifact kind; `fromKv`'s identity key changed, so links a Redis
+   store made before it are not found; `AccountStore.claims` documents its third argument;
+   `Client.defaultAcrValues`; `fromKv`'s grant merge releases only the lock it holds; the
+   conformance suite checks prune, grant expiry and replacing upserts; `PasskeyStore`, which
+   `CredentialsAdapter` now requires, the `passkey_challenge` kind, and the `passkeys` conformance
+   checks (FR-I8).
+4. `@oidcraft/provider@0.5.0` — the review's security and correctness fixes; the family check inside
+   `issueTokens`, for every grant; the `claims` parameter (FR-C22), whose consent answers must
+   repeat `view.claims` in `consent.claims`; `onAudit` hears `token.replay` and
+   `client.authentication_failed`; a body that is not form-encoded is a 415; a throwing logout or
+   registration audit hook goes to `onError`; under a provider-wide FAPI profile dynamic
+   registration names the profile's algorithm instead of failing on DCR's RS256 default; a client's
+   `default_acr_values` and the configured `acrValues`, advertised (FR-C23); passkeys in
    `./accounts`, behind its new `origin` option, accounts with no password and their recovery, and
    `regenerateRecoveryCodes` moved out of `totp` (FR-I8); `ttl.interaction` defaults to 1800 and
    `policy.passkeyTimeout` to 600, so a passkey made on a phone by scanning a code can finish.
 5. `@oidcraft/drizzle@0.3.0`, `@oidcraft/kysely@0.3.0`, `@oidcraft/redis@0.3.0` — peer on `adapter`
-   ^0.3.0; the SQL ones enforce `Grant.expiresAt` and prune by expiry at the delete, and store passkeys,
-   with migration `0006_passkeys`; `0002_credentials` makes `password_hash` nullable, edited in place. Drizzle and Kysely gain MySQL and MariaDB, one dialect over
+   ^0.3.0; the SQL ones enforce `Grant.expiresAt` and prune by expiry at the delete, and store
+   passkeys, with migration `0006_passkeys`; `0002_credentials` makes `password_hash` nullable,
+   edited in place, so a database migrated by 0.2.0 refuses a passwordless sign-up until altered by
+   hand (`alter column password_hash drop not null` on Postgres, `modify password_hash text null` on
+   MySQL, a table rebuild on SQLite). Drizzle and Kysely gain MySQL and MariaDB, one dialect over
    `MYSQL_MIGRATIONS` (`mysqlTables()` for Drizzle, `MysqlDialect` for Kysely).
 6. `@oidcraft/typeorm@0.3.0` — the same, and `OIDCRAFT_ENTITIES` becomes `OIDCRAFT_SQLITE_ENTITIES`,
-   `OIDCRAFT_POSTGRES_ENTITIES` and, for a `mysql` or `mariadb` `DataSource`, `OIDCRAFT_MYSQL_ENTITIES`.
+   `OIDCRAFT_POSTGRES_ENTITIES` and, for a `mysql` or `mariadb` `DataSource`,
+   `OIDCRAFT_MYSQL_ENTITIES`.
 7. `@oidcraft/vue@10.0.0`, `@oidcraft/react@5.0.0`, `@oidcraft/angular@12.0.0` — majors for what
    `core` and `client` changed underneath them; every binding shows and dismisses an error that came
    without a description.
 
-## Left by the review of this release (2026-11-14)
+## Open
 
 - **`fromKv`'s grant merge lock** is released by a read and a delete, two calls, as `KvStore` has no
   compare-and-delete: a merge that runs past `LOCK_TTL` between the two still deletes the next one's
   lock. Closing it means a `destroyIf(key, value)` in the contract, a Lua script in `@oidcraft/redis`.
-- **A passkey recovery keeps the lost passkey.** FR-I8 ends the sessions and tokens it opened, not the
-  passkey, as only its owner knows which one is gone; the screens after a recovery say to remove it.
-
-## Passkeys
-
-FR-I8 is in (2026-11-14), accounts with no password included. A realm on its own subdomain has its
-own passkeys, as the relying-party ID is the issuer's host.
-
-**Changing an existing database.** `0002_credentials` was edited in place to make `password_hash`
-nullable, rather than adding a migration. A database migrated before that keeps `not null`, and a
-passwordless sign-up fails on it: the demo's `apps/demo-server/data` must be deleted, and any other
-database altered by hand (`alter column password_hash drop not null` on Postgres, `modify
-password_hash text null` on MySQL, a table rebuild on SQLite).
-
-## Found by clicking through the demo (2026-11-14)
-
-A browser run of a password account found two bugs, fixed in `0e99fb7`, and three small UI points,
-fixed since. `bun run smoke` now clicks through the demo on every push, TOTP and a passkey included.
-Since then, on 2026-11-14, a person ran it in Brave on Linux with real devices, all passing: an
-authenticator app's TOTP from the QR code; a reset leading back to the sign-in; Google Password Manager
-creating a passkey and signing in with it, through a phone by QR code; Proton Pass doing the
-same (Ed25519), and a passkey-only sign-up with it. Proton Pass refuses `localhost` as a relying party
-whatever the scheme (`InsecureLocalhostNotAllowed` in its log), so it needs the demo under another name:
-`.cert/README.md` has the setup, with `SERVER_HOSTNAME` because Bun's dev server serves the pages only
-to `localhost` or the name it listens on. Brave's own manager refused under `localhost` and was not
-retried under that name. Still open:
-
-- **`@oidcraft/ui/bun-plugin` patches `@vuetify/v0`.** Drop it when upstream stops needing it; if it
-  breaks again, Reka UI for the dialog and TanStack Table for the table are the replacements considered.
+- **Brave's own password manager** refused a passkey under `localhost`, through a phone by QR code, and
+  was not retried under another name, as Proton Pass was (`.cert/README.md`). Google Password Manager
+  and Proton Pass pass end to end.
 
 ## Still open on the client libraries
 
@@ -148,6 +134,10 @@ retried under that name. Still open:
   above to ship at all.
 
 ## Waiting on upstream
+
+**`@oidcraft/ui/bun-plugin` patches `@vuetify/v0`** for its import cycle under Bun's dev bundler. Drop
+it when upstream stops needing it; if it breaks again, Reka UI for the dialog and TanStack Table for
+the table are the replacements considered.
 
 **TypeScript 7.1, in beta (`7.1.0-beta`).** `rolldown-plugin-dts` 0.30.x warns that its `tsgo`
 generator on TypeScript 7.0 "will be removed in the next minor", which would fail every package's

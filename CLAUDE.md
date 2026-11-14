@@ -143,3 +143,11 @@ bun run docs             # the docs site, VitePress on :5173
   A browser bundle imports `@oidcraft/ui/components` and `@oidcraft/ui/theme.css`, never the root:
   `bun-plugin-vue3` resolves a package `.vue` specifier as a relative path, and the root builds the
   server stylesheet at import time.
+- **The test DOM is process-wide: a test never deletes or replaces `globalThis.document` without
+  putting it back.** `scripts/test-dom.ts` registers happy-dom once for every file in the `bun test`
+  process. One test deleting it failed every later DOM test in CI, where the file order differs, and
+  passed everywhere locally.
+- **Bun's dev server serves an HTML bundle only to a `Host` of `localhost` or the name it listens on;
+  `0.0.0.0` does not widen it.** Serving the demo under another name, as Proton Pass needs for a
+  passkey, takes `SERVER_HOSTNAME` (`.cert/README.md`). `bun index.html` takes neither a certificate
+  nor a hostname, so `apps/demo-vue` stays on `http://localhost`.

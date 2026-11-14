@@ -126,7 +126,7 @@ export const createPasskeys = ({ adapter, origin: configured, name, hashingKey, 
     return id
   }
 
-  /** NFR-S5: taken before any check that could fail, so a challenge is spent whether or not its ceremony succeeds. */
+  /** NFR-S5: spent before the response is checked; one presented to another ceremony or binding is refused and left for its own. */
   const redeem = async (clientDataJSON: unknown, expected: Challenge) => {
     const bytes = bytesOf(clientDataJSON)
     const clientData = bytes && parseClientData(bytes)

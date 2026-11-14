@@ -53,7 +53,7 @@ const failureState = (failure: Exclude<AuthorizationResult, { ok: true }>): OAut
   return { error: 'temporarily_unavailable', error_description: 'the token endpoint did not answer' }
 }
 
-/** Long enough to sign in, short enough that an abandoned sign-in's verifier does not linger. */
+// FR-L3: an abandoned sign-in's code_verifier is kept no longer than this.
 const HANDOFF_TTL = 10 * 60_000
 
 export const createFlows = (
@@ -62,8 +62,7 @@ export const createFlows = (
   functions: OAuthFunctions,
   jwt: Jwt
 ) => {
-  // Keyed by its own state, never in the shared token: written there, starting a login signed every other tab out. Any tab
-  // may finish it — a callback can land in a new tab or window — and an abandoned one expires.
+  // FR-L4: keyed by its state, never in the shared token, where starting a sign-in signed the other tabs out; any tab may finish it.
   const handoffPrefix = () => `${storageKey()}.handoff.`
   let pending: Partial<AuthorizationHandoff> | undefined
   const saveHandoff = (handoff: Partial<AuthorizationHandoff>) => {

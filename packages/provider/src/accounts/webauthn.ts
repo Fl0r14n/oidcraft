@@ -1,6 +1,6 @@
 import { base64url } from 'jose'
 
-/** COSE algorithm ids, in the order a ceremony offers them. */
+// FR-I8: the relying party's preference, in order; an authenticator takes the first it supports.
 export const PASSKEY_ALGORITHMS = [-8, -7, -257] as const
 
 const SIGNATURES: Record<

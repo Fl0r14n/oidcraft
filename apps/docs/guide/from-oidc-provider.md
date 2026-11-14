@@ -137,8 +137,8 @@ grant, find by user code, expire a range (FR-A5).
 implementations of the single-class shape tend to end up as one `(kind, id, payload)` table, where
 those queries run against JSON extraction instead of an index.
 
-If you want the simple case back, implement a `KvStore`. It has five methods, one of them an atomic
-`insert`, and `fromKv` derives a complete adapter from it (FR-A3). First-party adapters ship for
+If you want the simple case back, implement a `KvStore`. It has six methods, two of them atomic,
+`insert` and `destroyIf`, and `fromKv` derives a complete adapter from it (FR-A3). First-party adapters ship for
 memory, Drizzle, Kysely, TypeORM and Redis, each passing one shared conformance suite. A Drizzle,
 Kysely or TypeORM adapter ships migrations for you to run; the library never alters a schema at boot.
 [The adapters guide](/guide/adapters) covers writing your own.

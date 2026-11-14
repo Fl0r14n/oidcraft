@@ -47,6 +47,11 @@ export const memoryKv = (): KvStore & { size: () => number } => {
     async destroy(key) {
       store.delete(key)
     },
+    async destroyIf(key, value) {
+      if (live(key)?.value !== value) return false
+      store.delete(key)
+      return true
+    },
     async *scan(prefix) {
       for (const key of [...store.keys()]) {
         if (!key.startsWith(prefix)) continue

@@ -26,6 +26,8 @@ export type KvStore = EntityStore<KvEntry, [key: string]> & {
    * so an eventually consistent store cannot back a provider (FR-A3).
    */
   insert(entry: KvEntry): Promise<boolean>
+  /** Deletes the entry only while it holds this value, atomically, and resolves whether it deleted: a lock's release rests on it. */
+  destroyIf(key: string, value: string): Promise<boolean>
   /** Prefix scan, for range deletes like grant revocation; it must cost what it matches, not the store's size: requests use it (NFR-P1). */
   scan(prefix: string): AsyncIterable<KvEntry>
 }
@@ -283,8 +285,8 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
             await grants.upsert(stored)
             return stored
           } finally {
-            // Past LOCK_TTL it may be the next merge's; the read and the delete are two calls, as KvStore has no atomic pair.
-            if ((await read(lock)) === owner) await kv.destroy(lock)
+            // FR-I4: past LOCK_TTL the lock may be the next merge's, so only this one's own is released.
+            await kv.destroyIf(lock, owner)
           }
         }
         await new Promise(resolve => setTimeout(resolve, LOCK_RETRY_MS))
@@ -295,7 +297,7 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
       const grant = await readGrant(id)
       await kv.destroy(`grant/${id}`)
       // Only its own pointer: a later grant for the same pair may have taken the key over.
-      if (grant && (await read(grantIndex(grant))) === id) await kv.destroy(grantIndex(grant))
+      if (grant) await kv.destroyIf(grantIndex(grant), id)
     },
     // Deliberately unindexed: deleting a client is rare and an operator's.
     async destroyByClientId(clientId) {

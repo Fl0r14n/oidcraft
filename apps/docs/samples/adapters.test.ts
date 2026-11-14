@@ -41,6 +41,11 @@ const mapKv = (): KvStore => {
       write(entry)
       return true
     },
+    async destroyIf(key, value) {
+      if (live(key)?.value !== value) return false
+      entries.delete(key)
+      return true
+    },
     async *scan(prefix) {
       for (const key of [...entries.keys()]) {
         const entry = key.startsWith(prefix) ? live(key) : undefined

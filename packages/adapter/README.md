@@ -20,6 +20,6 @@ For a real database: [`@oidcraft/drizzle`](https://www.npmjs.com/package/@oidcra
 [`@oidcraft/typeorm`](https://www.npmjs.com/package/@oidcraft/typeorm) or
 [`@oidcraft/redis`](https://www.npmjs.com/package/@oidcraft/redis).
 
-A new backend needs only a `KvStore`: five methods, one of them an atomic insert, and `fromKv` builds a
-complete adapter from it. Writing one, and holding it to the suite, is in the
-[storage guide](https://github.com/Fl0r14n/oidcraft/blob/main/apps/docs/guide/adapters.md).
+A new backend needs only a `KvStore`: six methods, two of them atomic, and `fromKv` builds a complete
+adapter from it. Writing one, and holding it to the suite, is in the [storage
+guide](https://github.com/Fl0r14n/oidcraft/blob/main/apps/docs/guide/adapters.md).

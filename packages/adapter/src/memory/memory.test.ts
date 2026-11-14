@@ -63,6 +63,16 @@ describe('memory adapter', () => {
     expect((await kv.find(lock))?.value).toBe('the next merge')
   })
 
+  test('destroyIf removes only the value it names, and never a lapsed one', async () => {
+    const kv = memoryKv()
+    await kv.upsert({ key: 'k', value: 'next' })
+    expect(await kv.destroyIf('k', 'lapsed')).toBe(false)
+    expect(await kv.destroyIf('k', 'next')).toBe(true)
+    expect(await kv.find('k')).toBeUndefined()
+    await kv.upsert({ key: 'k', value: 'gone', ttl: -1 })
+    expect(await kv.destroyIf('k', 'gone')).toBe(false)
+  })
+
   test('insert writes only what is absent or lapsed', async () => {
     const kv = memoryKv()
     expect(await kv.insert({ key: 'k', value: '1' })).toBe(true)

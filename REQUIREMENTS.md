@@ -284,10 +284,11 @@ survives a request, so two processes behind a load balancer behave identically t
 `LinkedIdentityStore` for brokering (FR-F5), `CredentialStore` for local accounts (FR-I7) and
 `RealmStore` for realms (FR-M4)) — not one stringly-typed blob table keyed by model name.
 
-**FR-A3** — A `KvStore` implementation (`find`/`upsert`/`destroy`/`insert`/`scan`) is sufficient to
-derive a complete `Adapter`. `insert` must write only if the key is absent, atomically: single use
-(FR-T3, FR-T4, NFR-S4) cannot be built from a read followed by a write, so an eventually consistent
-store cannot back a provider.
+**FR-A3** — A `KvStore` implementation (`find`/`upsert`/`destroy`/`insert`/`destroyIf`/`scan`) is
+sufficient to derive a complete `Adapter`. `insert` must write only if the key is absent, and
+`destroyIf` delete only while the key holds the value given, each atomically: single use (FR-T3,
+FR-T4, NFR-S4) cannot be built from a read followed by a write, nor a lock's release from a read
+followed by a delete, so an eventually consistent store cannot back a provider.
 
 **FR-A4** — First-party adapters ship for **Drizzle**, **Kysely** and **TypeORM** (FR-A6), each on
 Postgres, SQLite and MySQL, where MySQL means MySQL and MariaDB alike, held to both; **Redis** through one command function the host

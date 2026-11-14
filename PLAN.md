@@ -80,10 +80,10 @@ Versions are set in each `package.json`. Publish in this order, each from a GitH
 3. `@oidcraft/adapter@0.3.0` — `Credential.passwordHash` is optional, for an account with passkeys
    alone; the `revoked_family` artifact kind; `fromKv`'s identity key changed, so links a Redis
    store made before it are not found; `AccountStore.claims` documents its third argument;
-   `Client.defaultAcrValues`; `fromKv`'s grant merge releases only the lock it holds; the
-   conformance suite checks prune, grant expiry and replacing upserts; `PasskeyStore`, which
-   `CredentialsAdapter` now requires, the `passkey_challenge` kind, and the `passkeys` conformance
-   checks (FR-I8).
+   `Client.defaultAcrValues`; `KvStore` gains a required `destroyIf(key, value)`, an atomic
+   compare-and-delete, which `fromKv`'s grant merge releases its lock with; the conformance suite
+   checks prune, grant expiry and replacing upserts; `PasskeyStore`, which `CredentialsAdapter` now
+   requires, the `passkey_challenge` kind, and the `passkeys` conformance checks (FR-I8).
 4. `@oidcraft/provider@0.5.0` — the review's security and correctness fixes; the family check inside
    `issueTokens`, for every grant; the `claims` parameter (FR-C22), whose consent answers must
    repeat `view.claims` in `consent.claims`; `onAudit` hears `token.replay` and
@@ -95,12 +95,13 @@ Versions are set in each `package.json`. Publish in this order, each from a GitH
    `regenerateRecoveryCodes` moved out of `totp` (FR-I8); `ttl.interaction` defaults to 1800 and
    `policy.passkeyTimeout` to 600, so a passkey made on a phone by scanning a code can finish.
 5. `@oidcraft/drizzle@0.3.0`, `@oidcraft/kysely@0.3.0`, `@oidcraft/redis@0.3.0` — peer on `adapter`
-   ^0.3.0; the SQL ones enforce `Grant.expiresAt` and prune by expiry at the delete, and store
-   passkeys, with migration `0006_passkeys`; `0002_credentials` makes `password_hash` nullable,
-   edited in place, so a database migrated by 0.2.0 refuses a passwordless sign-up until altered by
-   hand (`alter column password_hash drop not null` on Postgres, `modify password_hash text null` on
-   MySQL, a table rebuild on SQLite). Drizzle and Kysely gain MySQL and MariaDB, one dialect over
-   `MYSQL_MIGRATIONS` (`mysqlTables()` for Drizzle, `MysqlDialect` for Kysely).
+   ^0.3.0; Redis implements `destroyIf` as one script; the SQL ones enforce `Grant.expiresAt` and
+   prune by expiry at the delete, and store passkeys, with migration `0006_passkeys`;
+   `0002_credentials` makes `password_hash` nullable, edited in place, so a database migrated by
+   0.2.0 refuses a passwordless sign-up until altered by hand (`alter column password_hash drop not
+   null` on Postgres, `modify password_hash text null` on MySQL, a table rebuild on SQLite). Drizzle
+   and Kysely gain MySQL and MariaDB, one dialect over `MYSQL_MIGRATIONS` (`mysqlTables()` for
+   Drizzle, `MysqlDialect` for Kysely).
 6. `@oidcraft/typeorm@0.3.0` — the same, and `OIDCRAFT_ENTITIES` becomes `OIDCRAFT_SQLITE_ENTITIES`,
    `OIDCRAFT_POSTGRES_ENTITIES` and, for a `mysql` or `mariadb` `DataSource`,
    `OIDCRAFT_MYSQL_ENTITIES`.
@@ -110,9 +111,6 @@ Versions are set in each `package.json`. Publish in this order, each from a GitH
 
 ## Open
 
-- **`fromKv`'s grant merge lock** is released by a read and a delete, two calls, as `KvStore` has no
-  compare-and-delete: a merge that runs past `LOCK_TTL` between the two still deletes the next one's
-  lock. Closing it means a `destroyIf(key, value)` in the contract, a Lua script in `@oidcraft/redis`.
 - **Brave's own password manager** refused a passkey under `localhost`, through a phone by QR code, and
   was not retried under another name, as Proton Pass was (`.cert/README.md`). Google Password Manager
   and Proton Pass pass end to end.

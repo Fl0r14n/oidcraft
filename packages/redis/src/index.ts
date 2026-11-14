@@ -53,6 +53,11 @@ const REMOVE = `
   return 1
 `
 
+const REMOVE_IF = `
+  if redis.call('GET', KEYS[1]) ~= ARGV[3] then return 0 end
+  ${REMOVE}
+`
+
 // Checked and removed in one step: a name whose key came back between a scan's read and this must stay.
 const FORGET = `
   for index = 2, #ARGV do
@@ -89,6 +94,9 @@ export const redisKv = (send: RedisCommand, options: RedisKvOptions = {}): KvSto
     },
     async destroy(key) {
       await run(REMOVE, key)
+    },
+    async destroyIf(key, value) {
+      return Number(await run(REMOVE_IF, key, value)) === 1
     },
     async *scan(start) {
       let from = `[${start}`

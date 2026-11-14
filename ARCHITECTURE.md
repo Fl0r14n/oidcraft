@@ -357,10 +357,12 @@ call site.
 
 Splitting by capability makes each payload a real type, lets a relational adapter use real columns
 and indexes (FR-A5), and lets a deployment implement only what it uses. `KvStore` (FR-A3) keeps the
-simple case simple: an `EntityStore` of `{ key, value, ttl }` entries plus `scan` and `insert`, from
-which `fromKv` derives the rest. `insert` carries the only hard requirement — it must be atomic —
-because every single-use rule is that one write. Redis `SET NX`, a Durable Object or a single-process
-`Map` qualify; Workers KV does not.
+simple case simple: an `EntityStore` of `{ key, value, ttl }` entries plus `scan`, `insert` and
+`destroyIf`, from which `fromKv` derives the rest. The last two carry the hard requirement — each
+must be atomic — because every single-use rule is that one write, and a lock is released by that one
+delete. `destroyIf` is its own required method, not a second argument to `destroy`: an
+implementation that ignored an optional argument would still type-check and delete unconditionally.
+Redis `SET NX`, a Durable Object or a single-process `Map` qualify; Workers KV does not.
 
 `consume` and `claim` are atomic in every adapter for the same reason: each returns whether _this_
 caller won, and the protocol trusts that answer rather than an earlier read. The SQL adapters use a

@@ -7,8 +7,8 @@ that outlives a request, so two processes behind a load balancer behave like one
 There are three ways to give a provider storage:
 
 - use a first-party adapter;
-- implement a `KvStore`, five methods of which one is an atomic insert, and let `fromKv` build the
-  `Adapter` from it (FR-A3);
+- implement a `KvStore`, six methods of which two are atomic, and let `fromKv` build the `Adapter`
+  from it (FR-A3);
 - implement the `Adapter` yourself, store by store (FR-A2, FR-A6).
 
 The contract is its own package, `@oidcraft/adapter`, and every type and helper on this page comes
@@ -64,7 +64,7 @@ all three. The `KvStore`-based adapters have no `prune`; their entries carry a T
 
 ## Writing a `KvStore`
 
-A `KvStore` is five methods over string keys and string values. `fromKv` does all the encoding,
+A `KvStore` is six methods over string keys and string values. `fromKv` does all the encoding,
 picks every key, and derives the full `Adapter`:
 
 <<< @/samples/adapters.test.ts#imports{ts}
@@ -80,6 +80,10 @@ What each method must do:
 - **`insert({ key, value, ttl })`** writes **only if no live entry holds the key, atomically**, and
   resolves whether it wrote. An expired entry counts as absent: a one-time value whose window has
   lapsed may be claimed again.
+- **`destroyIf(key, value)`** removes the entry **only while it holds `value`, atomically**, and
+  resolves whether it removed it. `fromKv` releases a lock with it, so a holder whose lock lapsed does
+  not remove the one the next holder took, and removes a grant's pointer with it, so one a newer grant
+  took over stays. Reading and then destroying is not enough, as the entry can change between the two.
 - **`scan(prefix)`** yields every live entry whose key starts with `prefix`. `fromKv` destroys keys
   while it iterates (revoking a grant does exactly that), so the scan must survive it. If your
   backend can list a key twice, yield it once; if an entry vanishes between listing and reading,
@@ -95,7 +99,7 @@ The test behind that sample registers a client, signs a person in, redeems the c
 replays it: the replay is refused with `invalid_grant` and the refresh token from the first
 redemption stops working, because the replay revoked everything that code produced (FR-T4).
 Revocation is a `scan` over the family's index followed by `destroy` calls, which is why `scan` is
-one of the five.
+one of the six.
 
 A key-value store has no secondary index, so `fromKv` writes each one the protocol needs as a key
 beside the record: revoking a grant or a family and every by-account lookup is a prefix scan of one record's
@@ -117,7 +121,8 @@ above, the test sees at most one redemption succeed: the other is a replay, whic
 refuses the first as well when it gets there before the first has finished.
 
 What qualifies: Redis `SET NX`, a Cloudflare Durable Object, a single-process `Map`, a SQL
-`INSERT` guarded by a primary key. What does not: an eventually consistent store, such as Workers
+`INSERT` guarded by a primary key; for `destroyIf`, a Redis script that compares and deletes, a SQL
+`DELETE … WHERE key = ? AND value = ?`. What does not: an eventually consistent store, such as Workers
 KV. It cannot back a provider (FR-A3).
 
 ## Implementing `Adapter` yourself

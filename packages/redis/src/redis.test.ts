@@ -52,6 +52,17 @@ describe.skipIf(!client)('redis adapter', () => {
     expect(results.filter(Boolean)).toHaveLength(1)
   })
 
+  test('destroyIf removes only the value it names, and a scan forgets what it removed', async () => {
+    const kv = redisKv(send, { prefix: fresh() })
+    await kv.upsert({ key: 'lock/a', value: 'next', ttl: 60 })
+    expect(await kv.destroyIf('lock/a', 'lapsed')).toBe(false)
+    expect((await kv.find('lock/a'))?.value).toBe('next')
+    expect(await kv.destroyIf('lock/a', 'next')).toBe(true)
+    expect(await kv.find('lock/a')).toBeUndefined()
+    expect(await kv.destroyIf('lock/a', 'next')).toBe(false)
+    expect(await Array.fromAsync(kv.scan('lock/'))).toEqual([])
+  })
+
   test('a prefix keeps two providers on one Redis apart, even with glob characters in it', async () => {
     const a = redisKv(send, { prefix: `${fresh()}a*[x]:` })
     const b = redisKv(send, { prefix: `${fresh()}b:` })

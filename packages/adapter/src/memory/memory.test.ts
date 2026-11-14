@@ -44,6 +44,25 @@ describe('memory adapter', () => {
     expect(await adapter.artifacts.consume('refresh_token', 'r1')).toBe(false)
   })
 
+  // FR-I4: a merge whose lock lapsed while it worked must not release the next merge's.
+  test('a merge releases only the lock it holds', async () => {
+    const kv = memoryKv()
+    const lock = 'grant-lock/u1/c1'
+    const adapter = fromKv(
+      {
+        ...kv,
+        async upsert(entry) {
+          if (entry.key.startsWith('grant/')) await kv.upsert({ key: lock, value: 'the next merge', ttl: 5 })
+          return kv.upsert(entry)
+        }
+      },
+      { keys: await generatedKeyStore() }
+    )
+    const grant = { id: 'g1', accountId: 'u1', clientId: 'c1', scopes: ['openid'], claims: [], resources: {}, createdAt: new Date() }
+    await adapter.grants.merge(grant)
+    expect((await kv.find(lock))?.value).toBe('the next merge')
+  })
+
   test('insert writes only what is absent or lapsed', async () => {
     const kv = memoryKv()
     expect(await kv.insert({ key: 'k', value: '1' })).toBe(true)

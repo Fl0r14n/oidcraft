@@ -269,8 +269,9 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
     // FR-I4: a store with no compare-and-swap serializes consents to one pair by an atomic insert, released when done.
     async merge(grant) {
       const lock = `grant-lock/${part(grant.accountId)}/${part(grant.clientId)}`
+      const owner = crypto.randomUUID()
       for (let wait = 0; wait < LOCK_WAITS; wait++) {
-        if (await kv.insert({ key: lock, value: '', ttl: LOCK_TTL })) {
+        if (await kv.insert({ key: lock, value: owner, ttl: LOCK_TTL })) {
           try {
             const id = await read(grantIndex(grant))
             const held = id === undefined ? undefined : await readGrant(id)
@@ -282,7 +283,8 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
             await grants.upsert(stored)
             return stored
           } finally {
-            await kv.destroy(lock)
+            // Past LOCK_TTL it may be the next merge's; the read and the delete are two calls, as KvStore has no atomic pair.
+            if ((await read(lock)) === owner) await kv.destroy(lock)
           }
         }
         await new Promise(resolve => setTimeout(resolve, LOCK_RETRY_MS))

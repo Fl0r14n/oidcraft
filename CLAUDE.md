@@ -33,6 +33,10 @@ Read the relevant one before anything else.
   `import.meta.env`, never a destructure or indexed read. Only `OIDCRAFT_PUBLIC_*` is inlined into
   a client bundle.
 - **A file using a Bun global carries `/// <reference types="bun" />` itself.**
+- **One word per meaning (ARCHITECTURE.md §9.3).** Storage verbs: `find`/`findBy*` (one or
+  `undefined`), `list`/`listBy*`, `upsert` and `destroy` (unconditional), `create` and `destroyIf`
+  (atomic, resolve a boolean). _Provider_ is oidcraft; an external IdP is an _upstream_. _Sign up_
+  makes an account, _register_ adds a WebAuthn credential. A refusal is `{ ok: false, reason }`.
 - Formatting is settled by `biome.json` and applied by `bun run format`. Do not argue with it.
 
 ## Hard rules

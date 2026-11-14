@@ -35,7 +35,7 @@ as whole `process.env.X` literals, every name defined even when unset, so §9.1 
 Two sharp edges:
 
 - **Plugins come from the bunfig next to the served entrypoint**, via `[serve.static]`, not the
-  root one (§9.3). Without it a `.vue` import is served as a path string and the page is blank.
+  root one (§9.4). Without it a `.vue` import is served as a path string and the page is blank.
 - **No `@/` path alias in the apps.** `paths` resolve under `bun build` but not under the dev
   server, which fails with `ENOENT … /src/@/App.vue`. App-internal imports are relative.
 
@@ -769,7 +769,41 @@ the browser breaks. Only a whole literal `process.env.X` is substituted.
 - 140 columns, single quotes, no semicolons, no trailing commas, 2-space indent — `biome.json`
   settles it and `bun run format` applies it.
 
-### 9.3 Per-app bunfig
+### 9.3 Names
+
+One word per meaning across every package, so a name says what a call does before its doc does.
+
+**Storage** (`@oidcraft/adapter`, and every store a host or adapter implements) uses storage verbs
+only; a protocol verb such as _revoke_ is the provider's, which decides what a deletion means.
+
+| Verb                               | Does                                   | Resolves            |
+| ---------------------------------- | -------------------------------------- | ------------------- |
+| `find(id)`, `findBy<Key>(…)`       | one record                             | it, or `undefined`  |
+| `list()`, `listBy<Key>(…)`         | every match (`list` may page)          | an array, or a page |
+| `upsert(record)`                   | writes, unconditionally                | nothing             |
+| `create(record)`                   | writes only what is absent, atomically | whether it wrote    |
+| `destroy(id)`, `destroyBy<Key>(…)` | deletes, unconditionally               | nothing             |
+| `destroyIf(key, value)`            | deletes only that value, atomically    | whether it deleted  |
+
+The atomic operations one store's job needs keep their own verb — `consume`, `claim`, `merge`,
+`addClient` — and `prune(before, limit)` is every bounded sweep. A conditional operation is its own
+required method, never an optional argument to an unconditional one: an implementation that ignored
+the argument would still type-check and do the unconditional thing.
+
+**Words.** _Provider_ is oidcraft, the OP. An external identity provider is an _upstream_
+(`upstream`, `upstreams`, `upstreamSessionId`). A point in time is `<event>At`, a `Date`; a duration
+is `Seconds`. _Sign up_ creates an account, with a password or a passkey; _register_ is WebAuthn's
+word for adding a credential to an account that exists; _link_ joins an upstream identity to one.
+
+**Results.** An operation that can refuse resolves `{ ok: true, … }` or `{ ok: false, reason }`:
+`reason` is a short word (`invalid`, `locked`, `taken`, `unknown` for a record that is not there),
+with `problem` when a field's rule failed and `until` when a lockout ends. A lookup resolves
+`undefined` for a miss rather than a refusal.
+
+Above storage, the management API speaks the domain — `grants.revoke`, `identities.unlink`,
+`clients.rotateSecret` — and keeps `find`, `list` and `destroy` where those are all it does.
+
+### 9.4 Per-app bunfig
 
 `Bun.serve` reads plugins from the served entrypoint's directory. The root `bunfig.toml` does not
 reach `apps/*`, so each app carries its own with `preload` and `[serve.static]`. This fails

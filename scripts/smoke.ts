@@ -260,10 +260,23 @@ const steps: [string, () => Promise<void>][] = [
     }
   ],
   [
+    'the token alone does not add a passkey: the API refuses one without the password and code',
+    async () => {
+      const status = await view.evaluate(`(async () => {
+        const { access_token } = JSON.parse(localStorage.getItem('oidcraft.account'))
+        const asked = await fetch('/account/api/passkeys/options', { method: 'POST', headers: { authorization: 'Bearer ' + access_token }, body: '{}' })
+        return asked.status
+      })()`)
+      if (status !== 400) throw new Error(`registration options without proof answered ${status}`)
+    }
+  ],
+  [
     'add a passkey',
     async () => {
       await touch(true)
       await fill('#passkey-name', 'Smoke authenticator')
+      await fill('#passkey-current', PASSWORDS[1] as string)
+      await fill('#passkey-code', await totp(secret))
       await press('form:has(#passkey-name) button[type=submit]')
       await sees('Smoke authenticator')
       await noAlert()

@@ -30,8 +30,23 @@
       </li>
     </ul>
 
-    <form v-if="supported" class="flex flex-wrap items-end gap-3 rounded-sheet border border-rule bg-sheet p-6" @submit.prevent="add">
-      <UiField id="passkey-name" v-model="name" label="Name for a new passkey" maxlength="64" required class="min-w-56 flex-1" />
+    <form v-if="supported" class="space-y-4 rounded-sheet border border-rule bg-sheet p-6" @submit.prevent="add">
+      <UiField id="passkey-name" v-model="name" label="Name for a new passkey" maxlength="64" required />
+      <p class="text-sm text-muted">
+        {{ passwordless ? 'You confirm it is you with one of your passkeys first.' : 'A passkey signs you in on its own, so it takes your password to add one.' }}
+      </p>
+      <template v-if="!passwordless">
+        <UiField id="passkey-current" v-model="current" type="password" label="Your current password" autocomplete="current-password" required />
+        <UiField
+          v-if="twoStep"
+          id="passkey-code"
+          v-model="code"
+          label="A code from your app"
+          code
+          inputmode="numeric"
+          autocomplete="one-time-code"
+          required />
+      </template>
       <UiButton type="submit">Add a passkey</UiButton>
     </form>
     <p v-else class="rounded-sheet border border-rule bg-sheet p-6 text-[0.9375rem]">This browser cannot create passkeys.</p>
@@ -40,18 +55,20 @@
 
 <script setup lang="ts">
 import { UiAlert, UiButton, UiField, UiSection } from '@oidcraft/ui/components'
-import { type CreationOptionsJSON, createPasskey, passkeysAvailable } from '@oidcraft/ui/passkeys'
+import { type CreationOptionsJSON, createPasskey, getPasskey, passkeysAvailable, type RequestOptionsJSON } from '@oidcraft/ui/passkeys'
 import { shallowRef } from 'vue'
-import { failureMessage, useApi } from '../shared/api'
+import { ApiError, failureMessage, useApi } from '../shared/api'
 
 type Passkey = { credentialId: string; name: string; createdAt: string; lastUsedAt?: string }
 
-defineProps<{ passkeys: Passkey[]; passwordless?: boolean }>()
+const { passwordless = false, twoStep = false } = defineProps<{ passkeys: Passkey[]; passwordless?: boolean; twoStep?: boolean }>()
 const emit = defineEmits<{ changed: [] }>()
 
 const api = useApi('/account/api')
 const supported = passkeysAvailable()
 const name = shallowRef<string | undefined>('My passkey')
+const current = shallowRef<string | undefined>('')
+const code = shallowRef<string | undefined>('')
 const renaming = shallowRef<string>()
 const draft = shallowRef<string | undefined>('')
 const error = shallowRef('')
@@ -76,10 +93,23 @@ const attempt = async (action: () => Promise<void>, fallback: string) => {
   }
 }
 
+const proof = async () => {
+  if (!passwordless) return { current: current.value, code: code.value }
+  try {
+    return { credential: await getPasskey(await api<RequestOptionsJSON>('/proof/options', { method: 'POST' })) }
+  } catch (failure) {
+    if (failure instanceof DOMException) throw new ApiError('No passkey confirmed it is you.', 400)
+    throw failure
+  }
+}
+
 const add = () =>
   attempt(async () => {
-    const credential = await createPasskey(await api<CreationOptionsJSON>('/passkeys/options', { method: 'POST' }))
+    const options = await api<CreationOptionsJSON>('/passkeys/options', { method: 'POST', body: JSON.stringify(await proof()) })
+    const credential = await createPasskey(options)
     await api('/passkeys', { method: 'POST', body: JSON.stringify({ credential, name: name.value }) })
+    current.value = ''
+    code.value = ''
   }, 'The passkey could not be added.')
 
 const startRename = (passkey: Passkey) => {

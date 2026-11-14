@@ -26,6 +26,7 @@
 
 <script setup lang="ts">
 import { UiAlert, UiButton, UiField, UiSection } from '@oidcraft/ui/components'
+import { getPasskey, type RequestOptionsJSON } from '@oidcraft/ui/passkeys'
 import { shallowRef } from 'vue'
 import { failureMessage, useApi } from '../shared/api'
 
@@ -42,13 +43,18 @@ const change = async () => {
   error.value = ''
   changed.value = false
   try {
-    await api('/password', { method: 'POST', body: JSON.stringify({ current: current.value, next: next.value }) })
+    // A password on an account that had none is a new way in, so its passkey confirms it (FR-I8).
+    const proof = passwordless
+      ? { credential: await getPasskey(await api<RequestOptionsJSON>('/proof/options', { method: 'POST' })) }
+      : { current: current.value }
+    await api('/password', { method: 'POST', body: JSON.stringify({ ...proof, next: next.value }) })
     changed.value = true
     current.value = ''
     next.value = ''
     if (passwordless) emit('changed')
   } catch (failure) {
-    error.value = failureMessage(failure, 'Your password could not be changed.')
+    error.value =
+      failure instanceof DOMException ? 'No passkey confirmed it is you.' : failureMessage(failure, 'Your password could not be changed.')
   }
 }
 </script>

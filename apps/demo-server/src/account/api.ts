@@ -40,6 +40,39 @@ export const accountApi = async (request: Request, url: URL): Promise<Response |
   // FR-I8: an account with no password proves a change to its recovery with its passkey, outside any interaction.
   const proofBinding = `account:${accountId}`
 
+  const provePasskey = async (response: AuthenticationResponseJSON | undefined) => {
+    const proved = response && (await accounts.passkeys.authenticate(proofBinding, response))
+    if (proved?.ok && proved.accountId === accountId) return undefined
+    return json({ error: 'invalid_passkey', error_description: 'That passkey did not confirm it is you.' }, 400)
+  }
+
+  const provePassword = async (current: string | undefined) => {
+    const checked = await accounts.authenticate(credential.username, current ?? '')
+    if (checked.ok) return { checked, refused: undefined }
+    return {
+      checked,
+      refused: json(
+        {
+          error: 'invalid_password',
+          error_description: checked.reason === 'locked' ? 'Too many attempts. Try again later.' : 'Your current password is not right.'
+        },
+        checked.reason === 'locked' ? 429 : 400
+      )
+    }
+  }
+
+  /**
+   * What lets someone in takes more than the token, or a stolen token becomes a lasting way in: one of the account's
+   * passkeys, or its password and, with two-step on, a code, as a passkey would let a sign-in skip that code.
+   */
+  const proveSignIn = async (given: { credential?: AuthenticationResponseJSON; current?: string; code?: string }) => {
+    if (given.credential) return provePasskey(given.credential)
+    if (passwordless) return json({ error: 'invalid_passkey', error_description: 'Confirm it with one of your passkeys.' }, 400)
+    const { checked, refused } = await provePassword(given.current)
+    if (refused) return refused
+    return checked.ok && checked.secondFactor ? proveSecondFactor(accountId, given.code) : undefined
+  }
+
   if (request.method === 'GET' && path === '/me') {
     return json({
       username: credential.username,
@@ -50,7 +83,16 @@ export const accountApi = async (request: Request, url: URL): Promise<Response |
     })
   }
 
-  if (request.method === 'POST' && path === '/passkeys/options') return json(await accounts.passkeys.registrationOptions(accountId))
+  if (request.method === 'POST' && path === '/proof/options') {
+    return json(await accounts.passkeys.authenticationOptions(proofBinding, { accountId }))
+  }
+
+  // The registration challenge is issued only here and `register` takes no other, so proving here gates the passkey.
+  if (request.method === 'POST' && path === '/passkeys/options') {
+    const refused = await proveSignIn(await request.json().catch(() => ({})))
+    if (refused) return refused
+    return json(await accounts.passkeys.registrationOptions(accountId))
+  }
 
   if (request.method === 'POST' && path === '/passkeys') {
     const { credential: response, name } = (await request.json().catch(() => ({}))) as {
@@ -112,17 +154,11 @@ export const accountApi = async (request: Request, url: URL): Promise<Response |
     return json({ ok: true })
   }
 
-  if (request.method === 'POST' && path === '/recovery-codes/options' && passwordless) {
-    return json(await accounts.passkeys.authenticationOptions(proofBinding, { accountId }))
-  }
-
   if (request.method === 'POST' && path === '/recovery-codes') {
     if (passwordless) {
       const { credential: response } = (await request.json().catch(() => ({}))) as { credential?: AuthenticationResponseJSON }
-      const proved = response && (await accounts.passkeys.authenticate(proofBinding, response))
-      if (!proved?.ok || proved.accountId !== accountId) {
-        return json({ error: 'invalid_passkey', error_description: 'That passkey did not confirm it is you.' }, 400)
-      }
+      const refused = await provePasskey(response)
+      if (refused) return refused
     } else {
       const refused = await proveSecondFactor(accountId, (await body(request)).code)
       if (refused) return refused
@@ -131,17 +167,17 @@ export const accountApi = async (request: Request, url: URL): Promise<Response |
   }
 
   if (request.method === 'POST' && path === '/password') {
-    const { current, next } = await body(request)
-    const checked = passwordless ? undefined : await accounts.authenticate(credential.username, current ?? '')
-    if (checked && !checked.ok) {
-      return json(
-        {
-          error: 'invalid_password',
-          error_description: checked.reason === 'locked' ? 'Too many attempts. Try again later.' : 'Your current password is not right.'
-        },
-        checked.reason === 'locked' ? 429 : 400
-      )
+    const {
+      current,
+      next,
+      credential: response
+    } = (await request.json().catch(() => ({}))) as {
+      current?: string
+      next?: string
+      credential?: AuthenticationResponseJSON
     }
+    const refused = passwordless ? await provePasskey(response) : (await provePassword(current)).refused
+    if (refused) return refused
     const set = await accounts.setPassword(accountId, next ?? '')
     if (!set.ok)
       return json(

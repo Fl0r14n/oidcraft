@@ -40,7 +40,7 @@ const error = shallowRef('')
 const regenerate = async () => {
   error.value = ''
   try {
-    const credential = await getPasskey(await api<RequestOptionsJSON>('/recovery-codes/options', { method: 'POST' }))
+    const credential = await getPasskey(await api<RequestOptionsJSON>('/proof/options', { method: 'POST' }))
     codes.value = (
       await api<{ recoveryCodes: string[] }>('/recovery-codes', { method: 'POST', body: JSON.stringify({ credential }) })
     ).recoveryCodes

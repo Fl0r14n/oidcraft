@@ -9,7 +9,7 @@
     <template #actions><UiButton id="sign-out" variant="secondary" @click="signOut">Sign out</UiButton></template>
     <UiAlert v-if="error">{{ error }}</UiAlert>
     <template v-if="me">
-      <PasskeysPanel :passkeys="me.passkeys" :passwordless="me.passwordless" @changed="load" />
+      <PasskeysPanel :passkeys="me.passkeys" :passwordless="me.passwordless" :two-step="me.totp.enrolled" @changed="load" />
       <RecoveryPanel v-if="me.passwordless" :left="me.totp.recoveryCodesLeft" @changed="load" />
       <TwoStepPanel v-else :totp="me.totp" @changed="load" />
       <PasswordPanel :passwordless="me.passwordless" @changed="load" />

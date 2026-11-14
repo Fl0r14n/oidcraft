@@ -26,8 +26,8 @@ const setup = async (origin: string | null = ORIGIN) => {
     ...(origin && { origin }),
     newAccountId: username => username
   })
-  await accounts.register({ username: 'ada', password: 'correct horse', claims: { name: 'Ada Lovelace' } })
-  await accounts.register({ username: 'grace', password: 'correct horse' })
+  await accounts.signUp({ username: 'ada', password: 'correct horse', claims: { name: 'Ada Lovelace' } })
+  await accounts.signUp({ username: 'grace', password: 'correct horse' })
   return { adapter, accounts }
 }
 
@@ -451,7 +451,7 @@ describe('an account with passkeys alone', () => {
     const again = await accounts.passkeys.signUpOptions('interaction-1', { username: 'linus' })
     if (!again.ok) throw new Error(again.reason)
     const late = await device.create(again.options)
-    await accounts.register({ username: 'linus', password: 'correct horse' })
+    await accounts.signUp({ username: 'linus', password: 'correct horse' })
     expect(await accounts.passkeys.signUp('interaction-1', late, 'Phone')).toEqual({ ok: false, reason: 'taken' })
   })
 

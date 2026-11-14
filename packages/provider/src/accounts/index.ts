@@ -145,7 +145,7 @@ export type PasskeyResetResult =
   | { ok: false; reason: 'invalid' | 'taken' }
   | { ok: false; reason: 'name'; problem: PasskeyNameProblem }
 
-export type RegistrationResult =
+export type SignUpResult =
   | { ok: true; accountId: string }
   | { ok: false; reason: 'taken' }
   | { ok: false; reason: 'username'; problem: 'required' | 'tooLong' }
@@ -415,9 +415,9 @@ export const createAccounts = (options: AccountsOptions) => {
 
   const setPassword = async (accountId: string, password: string) => {
     const problem = passwordProblem(password)
-    if (problem) return { ok: false, problem } as const
+    if (problem) return { ok: false, reason: 'password', problem } as const
     const credential = await credentials.find(accountId)
-    if (!credential) return { ok: false, problem: 'unknown' } as const
+    if (!credential) return { ok: false, reason: 'unknown' } as const
     const { lockedUntil: _, ...rest } = credential
     await credentials.upsert({ ...rest, passwordHash: await hasher.hash(password), failedAttempts: 0, updatedAt: new Date() })
     return { ok: true } as const
@@ -427,7 +427,7 @@ export const createAccounts = (options: AccountsOptions) => {
     /** Pass as the adapter's `accounts`: `createProvider({ adapter: { ...adapter, accounts: accounts.store } })`. */
     store,
 
-    async register(input: { username: string; password: string; claims?: Record<string, unknown> }): Promise<RegistrationResult> {
+    async signUp(input: { username: string; password: string; claims?: Record<string, unknown> }): Promise<SignUpResult> {
       const username = normalizeUsername(input.username)
       const usernameProblem = oauthFieldError(username)
       if (usernameProblem) return { ok: false, reason: 'username', problem: usernameProblem }

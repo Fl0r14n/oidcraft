@@ -28,7 +28,7 @@ export const clientManagement = (config: ResolvedConfig) => ({
     return { ...page, clients: page.clients.map(managed) }
   },
 
-  async get(clientId: string) {
+  async find(clientId: string) {
     const client = await config.adapter.clients.find(clientId)
     return client && managed(client)
   },

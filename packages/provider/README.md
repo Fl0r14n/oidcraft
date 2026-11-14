@@ -125,7 +125,7 @@ const provider = createProvider({
   interactionUrl: 'https://auth.example.com/interaction'
 })
 
-await accounts.register({ username: 'ada', password: 'correct horse battery', claims: { name: 'Ada Lovelace' } })
+await accounts.signUp({ username: 'ada', password: 'correct horse battery', claims: { name: 'Ada Lovelace' } })
 
 // in your login screen's POST handler
 const result = await accounts.authenticate(username, password)

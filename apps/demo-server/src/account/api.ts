@@ -181,7 +181,7 @@ export const accountApi = async (request: Request, url: URL): Promise<Response |
     const set = await accounts.setPassword(accountId, next ?? '')
     if (!set.ok)
       return json(
-        { error: 'weak_password', error_description: set.problem === 'unknown' ? 'No such account.' : PASSWORD_MESSAGES[set.problem] },
+        { error: 'weak_password', error_description: set.reason === 'unknown' ? 'No such account.' : PASSWORD_MESSAGES[set.problem] },
         400
       )
     return json({ ok: true })

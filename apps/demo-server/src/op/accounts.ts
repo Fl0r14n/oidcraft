@@ -54,9 +54,9 @@ export const accountStore = (adapter: Adapter, accounts: Accounts): AccountStore
 
 /** Demo only; the conformance suite's user exists only when the suite is configured. */
 export const seedDemoAccounts = async (accounts: Accounts, adapter: Adapter) => {
-  // Looked up first: registering hashes the password, and argon2id is deliberately not cheap.
-  const register = async (person: Parameters<Accounts['register']>[0]) => {
-    if (!(await adapter.credentials?.findByUsername(person.username))) await accounts.register(person)
+  // Looked up first: signing up hashes the password, and argon2id is deliberately not cheap.
+  const signUp = async (person: Parameters<Accounts['signUp']>[0]) => {
+    if (!(await adapter.credentials?.findByUsername(person.username))) await accounts.signUp(person)
   }
   const password = withDefault('OIDCRAFT_DEMO_PASSWORD', 'correct horse battery staple')
   const people = [
@@ -70,9 +70,9 @@ export const seedDemoAccounts = async (accounts: Accounts, adapter: Adapter) => 
       claims: { name: 'Grace Hopper', given_name: 'Grace', family_name: 'Hopper', email: 'grace@example.invalid', email_verified: false }
     }
   ]
-  for (const person of people) await register({ ...person, password })
+  for (const person of people) await signUp({ ...person, password })
   if (optional('OIDCRAFT_CONFORMANCE_SUITE')) {
-    await register({
+    await signUp({
       username: 'conformance-user',
       password: 'conformance-password',
       // oidcc-scope-profile warns unless every profile claim (OIDC Core §5.4) comes back.

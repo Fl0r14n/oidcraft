@@ -211,7 +211,7 @@ const build = (site: Site) => {
           return screens.register(view, { values, errors, notice, passkeys: true, status: 400 })
         }
 
-        const result = await accounts.register({ username: values.username, password: body.get('password') ?? '', claims })
+        const result = await accounts.signUp({ username: values.username, password: body.get('password') ?? '', claims })
         if (result.ok) return await finish(request, id, result.accountId, ['pwd'])
         const errors =
           result.reason === 'password'

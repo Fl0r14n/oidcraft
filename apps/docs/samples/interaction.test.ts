@@ -137,7 +137,7 @@ const fromBase32 = (text: string) => {
 const totpNow = (secret: string) => hotp(fromBase32(secret), Math.floor(Date.now() / 30_000))
 
 const register = async (username: string) => {
-  const created = await accounts.register({ username, password: 'correct horse battery', claims: { name: username } })
+  const created = await accounts.signUp({ username, password: 'correct horse battery', claims: { name: username } })
   if (!created.ok) throw new Error(`could not register ${username}`)
   return created.accountId
 }

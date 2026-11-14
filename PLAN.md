@@ -83,7 +83,12 @@ Versions are set in each `package.json`. Publish in this order, each from a GitH
    `Client.defaultAcrValues`; `KvStore` gains a required `destroyIf(key, value)`, an atomic
    compare-and-delete, which `fromKv`'s grant merge releases its lock with; the conformance suite
    checks prune, grant expiry and replacing upserts; `PasskeyStore`, which `CredentialsAdapter` now
-   requires, the `passkey_challenge` kind, and the `passkeys` conformance checks (FR-I8).
+   requires, the `passkey_challenge` kind, and the `passkeys` conformance checks (FR-I8). Renamed to
+   ARCHITECTURE.md §9.3's vocabulary: `KvStore.insert` → `create`;
+   `ArtifactStore.revokeByGrantId`/`revokeByFamilyId`/`revokeByClientId` → `destroyBy…`;
+   `SessionStore.findByUpstreamSession` → `listByUpstreamSession`; `KeyStore.active` → `list`;
+   `LinkedIdentity.provider` → `upstream` and `linkedAt` → `createdAt`; `Client.upstreamProviders` →
+   `allowedUpstreams`.
 4. `@oidcraft/provider@0.5.0` — the review's security and correctness fixes; the family check inside
    `issueTokens`, for every grant; the `claims` parameter (FR-C22), whose consent answers must
    repeat `view.claims` in `consent.claims`; `onAudit` hears `token.replay` and
@@ -94,8 +99,14 @@ Versions are set in each `package.json`. Publish in this order, each from a GitH
    `./accounts`, behind its new `origin` option, accounts with no password and their recovery, and
    `regenerateRecoveryCodes` moved out of `totp` (FR-I8); `ttl.interaction` defaults to 1800 and
    `policy.passkeyTimeout` to 600, so a passkey made on a phone by scanning a code can finish.
+   Renamed to §9.3's vocabulary: `accounts.register` → `accounts.signUp` (`RegistrationResult` →
+   `SignUpResult`); `setPassword` refuses with a `reason`, `password` with its `problem` or
+   `unknown`; `management.clients.get` → `find`; `BrokeredIdentity.provider` → `upstream`; the
+   interaction view's `upstreamProviders` → `allowedUpstreams`; `management.identities.unlink` takes
+   an upstream and its audit detail says `upstream`.
 5. `@oidcraft/drizzle@0.3.0`, `@oidcraft/kysely@0.3.0`, `@oidcraft/redis@0.3.0` — peer on `adapter`
-   ^0.3.0; Redis implements `destroyIf` as one script; the SQL ones enforce `Grant.expiresAt` and
+   ^0.3.0; Redis implements `destroyIf` as one script; every adapter follows `adapter`'s renames,
+   with no migration, as the columns keep their names; the SQL ones enforce `Grant.expiresAt` and
    prune by expiry at the delete, and store passkeys, with migration `0006_passkeys`;
    `0002_credentials` makes `password_hash` nullable, edited in place, so a database migrated by
    0.2.0 refuses a passwordless sign-up until altered by hand (`alter column password_hash drop not

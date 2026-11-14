@@ -49,10 +49,10 @@ describe('management', () => {
   test('creates, reads, updates and lists clients', async () => {
     const created = await provider.management.clients.create(input())
     expect(created.clientId).toBe('rp')
-    expect((await provider.management.clients.get('rp'))?.redirectUris).toEqual(['https://rp.example.com/cb'])
+    expect((await provider.management.clients.find('rp'))?.redirectUris).toEqual(['https://rp.example.com/cb'])
 
     await provider.management.clients.update('rp', { clientName: 'Renamed' })
-    expect((await provider.management.clients.get('rp'))?.clientName).toBe('Renamed')
+    expect((await provider.management.clients.find('rp'))?.clientName).toBe('Renamed')
 
     expect((await provider.management.clients.list()).clients.map(client => client.clientId)).toEqual(['rp'])
   })
@@ -106,7 +106,7 @@ describe('management', () => {
   test('never hands out the hash of a secret or of a registration access token', async () => {
     await provider.management.clients.create(input({ tokenEndpointAuthMethod: 'client_secret_basic' }))
     await adapter.clients.upsert?.({ ...((await adapter.clients.find('rp')) as Client), registrationAccessToken: 'hashed' })
-    for (const client of [await provider.management.clients.get('rp'), ...(await provider.management.clients.list()).clients]) {
+    for (const client of [await provider.management.clients.find('rp'), ...(await provider.management.clients.list()).clients]) {
       expect(client).not.toHaveProperty('clientSecretHash')
       expect(client).not.toHaveProperty('registrationAccessToken')
     }
@@ -144,7 +144,7 @@ describe('management', () => {
   test('an update cannot opt a public client out of PKCE either', async () => {
     await provider.management.clients.create(input())
     await expect(provider.management.clients.update('rp', { requirePkce: false })).rejects.toThrow('PKCE')
-    expect((await provider.management.clients.get('rp'))?.requirePkce).toBe(true)
+    expect((await provider.management.clients.find('rp'))?.requirePkce).toBe(true)
   })
 
   // FR-C18: stored, such a client is a 500 at the token endpoint, where nobody can fix it.
@@ -277,7 +277,7 @@ describe('management', () => {
   test('every write emits an audit event and reads emit none', async () => {
     await provider.management.clients.create(input())
     await provider.management.clients.update('rp', { clientName: 'x' })
-    await provider.management.clients.get('rp')
+    await provider.management.clients.find('rp')
     await provider.management.clients.list()
     await provider.management.clients.destroy('rp')
 

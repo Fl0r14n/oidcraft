@@ -39,23 +39,32 @@ describe('TOTP', () => {
 })
 
 describe('passwords', () => {
-  test('a registered account signs in, by any spelling of its username', async () => {
+  test('a signed-up account signs in, by any spelling of its username', async () => {
     const { accounts } = await setup()
-    expect(await accounts.register({ username: '  Ada ', password: 'correct horse' })).toEqual({ ok: true, accountId: 'id-ada' })
+    expect(await accounts.signUp({ username: '  Ada ', password: 'correct horse' })).toEqual({ ok: true, accountId: 'id-ada' })
     expect(await accounts.authenticate('ADA', 'correct horse')).toEqual({ ok: true, accountId: 'id-ada', secondFactor: false })
     expect(await accounts.authenticate('ada', 'wrong horse')).toEqual({ ok: false, reason: 'invalid' })
   })
 
+  // §9.3: a refusal names its reason, and a field rule's problem beside it.
+  test('setting a password refuses a weak one, or an account that is not there, by reason', async () => {
+    const { accounts } = await setup()
+    await accounts.signUp({ username: 'ada', password: 'correct horse' })
+    expect(await accounts.setPassword('id-ada', 'short')).toEqual({ ok: false, reason: 'password', problem: 'tooShort' })
+    expect(await accounts.setPassword('nobody', 'long enough')).toEqual({ ok: false, reason: 'unknown' })
+    expect(await accounts.setPassword('id-ada', 'long enough')).toEqual({ ok: true })
+  })
+
   test('a username is taken once, and a short password is refused', async () => {
     const { accounts } = await setup()
-    await accounts.register({ username: 'ada', password: 'correct horse' })
-    expect(await accounts.register({ username: 'Ada', password: 'another one' })).toEqual({ ok: false, reason: 'taken' })
-    expect(await accounts.register({ username: 'grace', password: 'short' })).toEqual({
+    await accounts.signUp({ username: 'ada', password: 'correct horse' })
+    expect(await accounts.signUp({ username: 'Ada', password: 'another one' })).toEqual({ ok: false, reason: 'taken' })
+    expect(await accounts.signUp({ username: 'grace', password: 'short' })).toEqual({
       ok: false,
       reason: 'password',
       problem: 'tooShort'
     })
-    expect(await accounts.register({ username: ' ', password: 'long enough' })).toEqual({
+    expect(await accounts.signUp({ username: ' ', password: 'long enough' })).toEqual({
       ok: false,
       reason: 'username',
       problem: 'required'
@@ -72,7 +81,7 @@ describe('passwords', () => {
   test('a locked account costs a verification too, so a quick answer does not reveal the username', async () => {
     const calls: string[] = []
     const { accounts } = await setup(calls)
-    await accounts.register({ username: 'ada', password: 'correct horse' })
+    await accounts.signUp({ username: 'ada', password: 'correct horse' })
     for (let i = 0; i < 5; i++) await accounts.authenticate('ada', 'nope nope')
     const before = calls.length
     expect(await accounts.authenticate('ada', 'nope nope')).toMatchObject({ ok: false, reason: 'locked' })
@@ -84,7 +93,7 @@ describe('passwords', () => {
     test(`parallel guesses are counted before they are checked${context.clientIp ? ', per address' : ''}`, async () => {
       const calls: string[] = []
       const { accounts } = await setup(calls, 5)
-      await accounts.register({ username: 'ada', password: 'correct horse' })
+      await accounts.signUp({ username: 'ada', password: 'correct horse' })
       const answers = await Promise.all(Array.from({ length: 200 }, () => accounts.authenticate('ada', 'nope nope', context)))
       expect(calls.filter(hash => hash === 'h:correct horse')).toHaveLength(5)
       expect(answers.filter(answer => answer.ok === false && answer.reason === 'locked')).toHaveLength(196)
@@ -94,7 +103,7 @@ describe('passwords', () => {
 
   test('five failures lock the account, and the right password does not open it early', async () => {
     const { accounts } = await setup()
-    await accounts.register({ username: 'ada', password: 'correct horse' })
+    await accounts.signUp({ username: 'ada', password: 'correct horse' })
     for (let i = 0; i < 4; i++) expect((await accounts.authenticate('ada', 'nope nope'))?.ok).toBe(false)
     expect(await accounts.authenticate('ada', 'nope nope')).toMatchObject({ ok: false, reason: 'locked' })
     expect(await accounts.authenticate('ada', 'correct horse')).toMatchObject({ ok: false, reason: 'locked' })
@@ -106,7 +115,7 @@ describe('passwords', () => {
 
     test('five failures lock that address out, and the owner elsewhere still signs in', async () => {
       const { accounts } = await setup()
-      await accounts.register({ username: 'ada', password: 'correct horse' })
+      await accounts.signUp({ username: 'ada', password: 'correct horse' })
       for (let i = 0; i < 4; i++)
         expect(await accounts.authenticate('ada', 'nope nope', at('203.0.113.6'))).toEqual({ ok: false, reason: 'invalid' })
       expect(await accounts.authenticate('ada', 'nope nope', at('203.0.113.6'))).toMatchObject({ ok: false, reason: 'locked' })
@@ -116,7 +125,7 @@ describe('passwords', () => {
 
     test('a guess spread over many addresses still locks the account for everyone', async () => {
       const { accounts } = await setup()
-      await accounts.register({ username: 'ada', password: 'correct horse' })
+      await accounts.signUp({ username: 'ada', password: 'correct horse' })
       for (let address = 0; address < 25; address++) {
         for (let i = 0; i < 2; i++) await accounts.authenticate('ada', 'nope nope', at(`192.0.2.${address}`))
       }
@@ -125,7 +134,7 @@ describe('passwords', () => {
 
     test('the owner signing in does not restart a guess spread over many addresses', async () => {
       const { accounts } = await setup()
-      await accounts.register({ username: 'ada', password: 'correct horse' })
+      await accounts.signUp({ username: 'ada', password: 'correct horse' })
       for (let address = 0; address < 49; address++) await accounts.authenticate('ada', 'nope nope', at(`192.0.2.${address}`))
       expect(await accounts.authenticate('ada', 'correct horse', at('198.51.100.1'))).toMatchObject({ ok: true })
       expect(await accounts.authenticate('ada', 'nope nope', at('192.0.2.200'))).toMatchObject({ ok: false, reason: 'locked' })
@@ -133,7 +142,7 @@ describe('passwords', () => {
 
     test('an IPv6 guesser is counted by its /64, not address by address', async () => {
       const { accounts } = await setup()
-      await accounts.register({ username: 'ada', password: 'correct horse' })
+      await accounts.signUp({ username: 'ada', password: 'correct horse' })
       for (let host = 1; host <= 4; host++) await accounts.authenticate('ada', 'nope nope', at(`2001:db8:1:2::${host}`))
       expect(await accounts.authenticate('ada', 'nope nope', at('2001:db8:1:2:ffff::9'))).toMatchObject({ ok: false, reason: 'locked' })
       expect(await accounts.authenticate('ada', 'correct horse', at('2001:db8:1:3::1'))).toMatchObject({ ok: true })
@@ -141,7 +150,7 @@ describe('passwords', () => {
 
     test('signing in clears that address’s count', async () => {
       const { accounts } = await setup()
-      await accounts.register({ username: 'ada', password: 'correct horse' })
+      await accounts.signUp({ username: 'ada', password: 'correct horse' })
       for (let i = 0; i < 4; i++) await accounts.authenticate('ada', 'nope nope', at('203.0.113.6'))
       expect(await accounts.authenticate('ada', 'correct horse', at('203.0.113.6'))).toMatchObject({ ok: true })
       for (let i = 0; i < 4; i++)
@@ -152,7 +161,7 @@ describe('passwords', () => {
 
   test('released claims follow the scopes, and preferred_username is the username', async () => {
     const { accounts } = await setup()
-    await accounts.register({ username: 'ada', password: 'correct horse', claims: { name: 'Ada', email: 'ada@example.test', secret: 'x' } })
+    await accounts.signUp({ username: 'ada', password: 'correct horse', claims: { name: 'Ada', email: 'ada@example.test', secret: 'x' } })
     expect(await accounts.store.claims('id-ada', ['openid', 'profile'], [])).toEqual({ preferred_username: 'ada', name: 'Ada' })
     expect(await accounts.store.claims('id-ada', ['openid', 'email'], [])).toEqual({ email: 'ada@example.test' })
   })
@@ -161,7 +170,7 @@ describe('passwords', () => {
 describe('second factor', () => {
   const enrolled = async () => {
     const context = await setup()
-    await context.accounts.register({ username: 'ada', password: 'correct horse' })
+    await context.accounts.signUp({ username: 'ada', password: 'correct horse' })
     const begun = await context.accounts.totp.begin('id-ada')
     if (!begun?.ok) throw new Error('enrolment did not begin')
     const confirmed = await context.accounts.totp.confirm('id-ada', await codeFor(begun.secret))
@@ -234,7 +243,7 @@ describe('password reset', () => {
   // FR-T7: a reset is what someone does after a compromise, and an offline token that outlives it is the compromise continuing.
   test('revokes every token issued to the account and keeps its consents', async () => {
     const { adapter, accounts } = await setup()
-    await accounts.register({ username: 'ada', password: 'correct horse' })
+    await accounts.signUp({ username: 'ada', password: 'correct horse' })
     const grant = { id: 'g1', accountId: 'id-ada', clientId: 'rp', scopes: ['openid'], claims: [], resources: {}, createdAt: new Date() }
     await adapter.grants.upsert(grant)
     await adapter.grants.upsert({ ...grant, id: 'g2', accountId: 'someone-else' })
@@ -258,7 +267,7 @@ describe('password reset', () => {
 
   test('a token sets the password once and ends the sessions the old one opened', async () => {
     const { adapter, accounts } = await setup()
-    await accounts.register({ username: 'ada', password: 'correct horse' })
+    await accounts.signUp({ username: 'ada', password: 'correct horse' })
     await adapter.sessions.upsert({
       id: 's1',
       accountId: 'id-ada',
@@ -278,7 +287,7 @@ describe('password reset', () => {
   // G-9: the lock was against guesses at a password the reset just replaced.
   test('lifts the locks, account-wide and of the address completing it', async () => {
     const { accounts } = await setup()
-    await accounts.register({ username: 'ada', password: 'correct horse' })
+    await accounts.signUp({ username: 'ada', password: 'correct horse' })
     for (let address = 0; address < 50; address++) await accounts.authenticate('ada', 'nope nope', { clientIp: `192.0.2.${address}` })
     for (let i = 0; i < 5; i++) await accounts.authenticate('ada', 'nope nope', { clientIp: '198.51.100.1' })
     for (let i = 0; i < 5; i++) await accounts.authenticate('ada', 'nope nope')
@@ -293,7 +302,7 @@ describe('password reset', () => {
 
   test('the token itself is not what is stored', async () => {
     const { adapter, accounts } = await setup()
-    await accounts.register({ username: 'ada', password: 'correct horse' })
+    await accounts.signUp({ username: 'ada', password: 'correct horse' })
     const issued = await accounts.reset.issue('ada')
     expect(await adapter.artifacts.find('password_reset', issued?.token as string)).toBeUndefined()
   })

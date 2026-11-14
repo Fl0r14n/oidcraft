@@ -56,7 +56,7 @@ export const adminApi = async (
     if (resource === 'clients') {
       if (request.method === 'GET' && !id) return json(await management.clients.list())
       if (request.method === 'GET' && id) {
-        const client = await management.clients.get(id)
+        const client = await management.clients.find(id)
         return client ? json(management.clients.describe(client)) : json({ error: 'not_found' }, 404)
       }
       if (request.method === 'POST') return json(await management.clients.create(await request.json()), 201)

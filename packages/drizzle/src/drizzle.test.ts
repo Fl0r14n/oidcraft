@@ -27,7 +27,9 @@ const fresh = async () => {
 
 describe('drizzle adapter', () => {
   // The same suite the memory adapter runs: passing both is what "interchangeable" means (FR-A4).
-  for (const check of adapterConformance(async () => (await fresh()).adapter, { implements: ['identities', 'credentials', 'realms'] })) {
+  for (const check of adapterConformance(async () => (await fresh()).adapter, {
+    implements: ['identities', 'credentials', 'passkeys', 'realms']
+  })) {
     test(`drizzle/sqlite: ${check.name}`, check.run)
   }
 

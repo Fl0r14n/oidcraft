@@ -1,4 +1,4 @@
-import type { Account, Artifact, ArtifactKind, Client, Credential, Grant, LinkedIdentity, Realm, Seconds, Session } from './types'
+import type { Account, Artifact, ArtifactKind, Client, Credential, Grant, LinkedIdentity, Passkey, Realm, Seconds, Session } from './types'
 
 /** The seven stores every provider reads, plus the optional ones its features need; `fromKv` derives them all from one KV store. */
 export type Adapter = {
@@ -12,6 +12,8 @@ export type Adapter = {
   identities?: LinkedIdentityStore
   /** Only `@oidcraft/provider/accounts` reads this; a host with its own `AccountStore` never needs it (FR-I7). */
   credentials?: CredentialStore
+  /** Only `@oidcraft/provider/accounts` reads this, for passkeys (FR-I8). */
+  passkeys?: PasskeyStore
   /** Only `createRealms` reads this, from the control plane's adapter; a single issuer never needs it (FR-M4). */
   realms?: RealmStore
 }
@@ -22,8 +24,8 @@ export type BrokeringAdapter = Adapter & {
   sessions: SessionStore & Required<Pick<SessionStore, 'findByUpstreamSession'>>
 }
 
-/** What `@oidcraft/provider/accounts` requires (FR-I7). */
-export type CredentialsAdapter = Adapter & { credentials: CredentialStore }
+/** What `@oidcraft/provider/accounts` requires (FR-I7, FR-I8). */
+export type CredentialsAdapter = Adapter & { credentials: CredentialStore; passkeys: PasskeyStore }
 
 /** What a realm control plane's adapter holds (FR-M4). */
 export type RealmsAdapter = Adapter & { realms: RealmStore }
@@ -118,6 +120,13 @@ export type CredentialStore = EntityStore<Credential> & {
   findByUsername(username: string): Promise<Credential | undefined>
   /** Writes only when neither the account nor the username exists, atomically: two sign-ups racing for one name must not both win. */
   create(credential: Credential): Promise<boolean>
+}
+
+/** Keyed by credential id, which the authenticator chooses: an assertion names its credential, not its account. */
+export type PasskeyStore = EntityStore<Passkey> & {
+  listForAccount(accountId: string): Promise<Passkey[]>
+  /** Writes only when the credential id is free, atomically: a credential registered to one account is never moved to another (FR-I8). */
+  create(passkey: Passkey): Promise<boolean>
 }
 
 export type RealmStore = EntityStore<Realm> & {

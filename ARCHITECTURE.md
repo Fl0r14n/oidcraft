@@ -74,7 +74,7 @@ packages/provider/          @oidcraft/provider  the provider, eight entries
   src/index.ts              .                   the OP. fetch in, fetch out, no I/O
   src/broker/               ./broker            the relying-party leg — upstream brokering
   src/interaction/          ./interaction       login/consent policy types
-  src/accounts/             ./accounts          local accounts: passwords, TOTP, recovery codes, reset (FR-I7)
+  src/accounts/             ./accounts          local accounts: passwords, passkeys, TOTP, recovery codes, reset (FR-I7, FR-I8)
   src/runtimes/node/        ./runtimes/node     node:http bridge + request context
   src/runtimes/bun/         ./runtimes/bun      request context for Bun.serve
   src/runtimes/deno/        ./runtimes/deno     request context for Deno.serve
@@ -309,9 +309,9 @@ The record-holding stores — clients, artifacts, sessions, grants, identities �
 first, and one atomic claim.
 
 `Adapter` is what a custom adapter implements: the seven stores every provider reads, with
-`identities`, `credentials` and `realms` optional. An entry point that needs one says so in its type
+`identities`, `credentials`, `passkeys` and `realms` optional. An entry point that needs one says so in its type
 — `createBroker` and `linkIdentity` take a `BrokeringAdapter`, `createAccounts` a
-`CredentialsAdapter`, a realm control plane a `RealmsAdapter` — and every first-party adapter
+`CredentialsAdapter` (`credentials` and `passkeys`), a realm control plane a `RealmsAdapter` — and every first-party adapter
 returns `FullAdapter`, which satisfies each. `createProvider` takes a plain `Adapter` and refuses
 `upstreams` without the brokering stores at construction (NFR-D2).
 
@@ -485,6 +485,20 @@ however many arrive at once no more than the limit are checked; a failure also c
 account-wide bucket's (`G-9`). A second factor has a bucket of its own. The `sign_in_attempts`
 artifact holds only each bucket's generation, which a good sign-in renews, and its lock.
 
+**Passkeys (FR-I8)** are WebAuthn with attestation `none`, so the registration's key is the browser's
+word, taken from `getPublicKey()` as SubjectPublicKeyInfo: nothing decodes CBOR (NFR-D4), and an
+assertion is checked with WebCrypto alone — relying-party ID hash against the issuer's host
+(`origin` in `createAccounts`), client data origin, user-present and user-verified flags, the
+signature (an ES256 one converted from DER), and a counter that must rise unless both sides keep
+none. Each ceremony's challenge is a `passkey_challenge` artifact under its own value, bound to the
+interaction or, for a registration, the account, and taken by the atomic `consume` before any check
+can fail, so a challenge is spent whether its ceremony succeeds or not. `PasskeyStore` is keyed by
+credential id, which an assertion names, and its `create` is atomic, so a credential id registered to
+one account is refused rather than moved to another. The user handle is an HMAC of the account id
+under `secretKey`, stable and naming no one, since an account id may be a username. A passkey is a
+second factor only beside TOTP: an account with passkeys and no TOTP still signs in with a password
+alone, so losing a passkey never locks anyone out, and a password reset does not need one.
+
 Hashing is injected, because the fast hashers are runtime globals: `bunPasswordHasher` lives in
 `./runtimes/bun` and `nodePasswordHasher` in `./runtimes/node`, both writing PHC argon2id strings the
 other verifies. A Deno or workerd host passes its own.
@@ -545,15 +559,18 @@ baked in (G-6). A theme value that could close its `<style>` element is dropped.
 served from the OP's own origin: a sign-in page loading fonts from a third party tells it who signed
 in where.
 
-The **interaction screens** are rendered on the server with `renderToString` and ship no script:
-each is a form that posts. The conformance suite drives them with a browser that runs little
-JavaScript, and `packages/ui/src/screens.test.ts` pins the ids and texts its plan clicks on
-(NFR-C1). `assets.ts` builds the stylesheet once at startup, and `assets` serves it and its fonts by
-file name under whatever route mounts it — `/assets/*` in the demo, `urls.stylesheet` for another.
+The **interaction screens** are rendered on the server with `renderToString`, each a form that
+posts. The conformance suite drives them with a browser that runs little JavaScript, and
+`packages/ui/src/screens.test.ts` pins the ids and texts its plan clicks on (NFR-C1). The one script
+is `passkey.js`, loaded only by a screen offering passkeys: it unhides the passkey form, which stays
+hidden without it, so every other path still posts as before (FR-I8). `assets.ts` builds the
+stylesheet and the script once at startup, and `assets` serves them and the fonts by file name under
+whatever route mounts it — `/assets/*` in the demo, `urls.stylesheet` and `urls.script` for another.
+The account app imports the same WebAuthn JSON conversion from `@oidcraft/ui/passkeys`.
 
 The **admin UI** (`src/admin`) is a client-rendered app on the same components. Its table and dialog
 are `@oidcraft/ui`'s `UiDataTable` and `UiDialog`, which wrap the headless `@vuetify/v0`; the
-script-free interaction screens never use it.
+server-rendered interaction screens never use it.
 
 **The admin and account apps are clients of this OP.** Each signs in with `@oidcraft/vue` as its own
 public client (`oidcraft-admin`, `oidcraft-account`), and each API introspects the bearer token
@@ -561,9 +578,12 @@ in-process as the resource server `oidcraft-api`. The admin API also requires an
 `OIDCRAFT_ADMINS`, the decision FR-M1 leaves to the host; the account API acts only on the token's
 own subject. The interaction routes answer consent for these first-party clients themselves.
 
-**Sign-in is `@oidcraft/provider/accounts` (FR-I7).** A correct password for an account with TOTP
-sets a signed, five-minute cookie bound to the interaction, which only the code step can finish.
-`acr` is `mfa` after a second factor and `pwd` otherwise, with RFC 8176 `amr` values.
+**Sign-in is `@oidcraft/provider/accounts` (FR-I7, FR-I8).** A correct password for an account with
+TOTP sets a signed, five-minute cookie bound to the interaction, which only the code step can finish,
+with a TOTP code, a recovery code or one of that account's passkeys. A passkey alone signs in from
+the login screen's button or the username field's autofill. `acr` is `mfa` after a second factor or
+for a passkey and `pwd` otherwise, with RFC 8176 `amr` values: `hwk` and `user` for a passkey. The
+account app adds, renames and removes passkeys.
 `prompt=select_account` lists the accounts this browser signed in with, from another signed cookie.
 A reset link is printed to the console where a deployment would email it.
 
@@ -703,8 +723,8 @@ precedes typecheck because the apps resolve `@oidcraft/provider` through its exp
   by grant and by family removing that and nothing else, lookup by user code and by upstream
   session, prune, and the replay guard admitting a value once. An adapter that passes it is
   interchangeable with the others (FR-A4). It returns plain `{ name, run }` checks that throw, so a
-  third-party adapter runs it under any runner (FR-A6); checks for `identities`, `credentials` and
-  `realms` run only for the stores `implements` names.
+  third-party adapter runs it under any runner (FR-A6); checks for `identities`, `credentials`,
+  `passkeys` and `realms` run only for the stores `implements` names.
 - **Unit** — `bun test` per package. Every `FR-C*` gets a test that exercises the wire format, not
   just the function behind it (NFR-C3).
 - **Protocol conformance** — the OpenID Foundation suite's `basic`, `config` and FAPI 2.0 plans gate

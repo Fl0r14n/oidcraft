@@ -26,7 +26,7 @@ describe.skipIf(!POSTGRES_URL)('drizzle adapter on Postgres', () => {
       const { pool } = await freshSchema()
       return drizzleAdapter({ db: drizzle({ client: pool }), tables: postgresTables(), keys: await generatedKeyStore(), accounts })
     },
-    { implements: ['identities', 'credentials', 'realms'] }
+    { implements: ['identities', 'credentials', 'passkeys', 'realms'] }
   )) {
     test(`drizzle/postgres: ${check.name}`, check.run)
   }
@@ -74,7 +74,7 @@ describe.skipIf(!POSTGRES_URL)('drizzle adapter on Postgres through Bun.sql', ()
         accounts
       })
     },
-    { implements: ['identities', 'credentials', 'realms'] }
+    { implements: ['identities', 'credentials', 'passkeys', 'realms'] }
   )) {
     test(`drizzle/bun-sql: ${check.name}`, check.run)
   }

@@ -1,4 +1,4 @@
-export { ASSETS, assets, STYLESHEET } from './assets'
+export { ASSETS, assets, SCRIPT, STYLESHEET } from './assets'
 export type { Brand, Theme } from './brand'
 export {
   createScreens,

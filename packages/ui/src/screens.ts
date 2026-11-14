@@ -1,5 +1,5 @@
 import { DEFAULT_MAX_LENGTH, type InteractionRequest, type OAuthFieldError, type OAuthFieldErrors } from '@oidcraft/provider/interaction'
-import { STYLESHEET } from './assets'
+import { SCRIPT, STYLESHEET } from './assets'
 import type { Brand, Theme } from './brand'
 import { render } from './render'
 import ConsentScreen from './screens/ConsentScreen.vue'
@@ -25,9 +25,22 @@ export type ScreenUrls = {
   reset: string
   /** Where `assets` answers for `ui.css`; its fonts are fetched beside it. */
   stylesheet: string
+  /** Where `assets` answers for `passkey.js`, which only a screen offering passkeys loads. */
+  script: string
 }
 
-export type InteractionAction = 'login' | 'upstream' | 'consent' | 'logout' | 'otp' | 'recovery' | 'choose' | 'register' | 'forgot'
+export type InteractionAction =
+  | 'login'
+  | 'upstream'
+  | 'consent'
+  | 'logout'
+  | 'otp'
+  | 'recovery'
+  | 'choose'
+  | 'register'
+  | 'forgot'
+  | 'passkey'
+  | 'passkey-options'
 
 /** The interaction as the provider describes it, plus the client's display name when the host has it. */
 export type ScreenView = InteractionRequest & { clientName?: string | undefined }
@@ -64,6 +77,8 @@ export type LoginOptions = {
   /** Shown only when the host mounts those flows. */
   forgot?: boolean
   register?: boolean
+  /** A passkey button and passkeys in the username's autofill, for a host that mounts the passkey routes (FR-I8). */
+  passkeys?: boolean
   status?: number
 }
 
@@ -90,16 +105,32 @@ export const createScreens = ({ brand, theme, urls: overrides }: ScreensOptions)
     deviceDecide: '/device/decide',
     reset: '/reset',
     stylesheet: STYLESHEET,
+    script: SCRIPT,
     ...overrides
   }
-  const page = (title: string, component: Parameters<typeof render>[1], props: Record<string, unknown>, status?: number) =>
-    render(title, component, props, { brand, theme, status, stylesheet: urls.stylesheet })
+  const page = (
+    title: string,
+    component: Parameters<typeof render>[1],
+    props: Record<string, unknown>,
+    status?: number,
+    script?: boolean
+  ) => render(title, component, props, { brand, theme, status, stylesheet: urls.stylesheet, script: script ? urls.script : undefined })
+
+  /** The form the script fills and submits; without the script it stays hidden and nothing else changes. */
+  const passkeyForm = (view: ScreenView, step: 'login' | 'second') => ({
+    action: urls.interaction(view.id, 'passkey'),
+    options: urls.interaction(view.id, 'passkey-options'),
+    step
+  })
 
   const messageScreen = (title: string, text: string, status?: number) => page(title, MessageScreen, { title, text }, status)
 
   return {
     // `required` and `maxlength` only mirror the rules; the POST re-checks them with `oauthFieldError`
-    login: (view: ScreenView, { attempt, upstreams = [], notice, forgot = false, register = false, status }: LoginOptions = {}) =>
+    login: (
+      view: ScreenView,
+      { attempt, upstreams = [], notice, forgot = false, register = false, passkeys = false, status }: LoginOptions = {}
+    ) =>
       page(
         'Sign in',
         LoginScreen,
@@ -113,15 +144,22 @@ export const createScreens = ({ brand, theme, urls: overrides }: ScreensOptions)
           upstreams,
           notice,
           forgotUrl: forgot ? urls.interaction(view.id, 'forgot') : undefined,
-          registerUrl: register ? urls.interaction(view.id, 'register') : undefined
+          registerUrl: register ? urls.interaction(view.id, 'register') : undefined,
+          passkey: passkeys ? passkeyForm(view, 'login') : undefined
         },
-        status
+        status,
+        passkeys
       ),
 
-    /** The second step after a password, for a TOTP code or, with `recovery`, a recovery code. */
+    /** The second step after a password, for a TOTP code or, with `recovery`, a recovery code; with `passkeys`, a passkey instead. */
     otp: (
       view: ScreenView,
-      { recovery = false, error, status }: { recovery?: boolean; error?: string | undefined; status?: number } = {}
+      {
+        recovery = false,
+        passkeys = false,
+        error,
+        status
+      }: { recovery?: boolean; passkeys?: boolean; error?: string | undefined; status?: number } = {}
     ) =>
       page(
         recovery ? 'Use a recovery code' : 'Enter your code',
@@ -131,9 +169,11 @@ export const createScreens = ({ brand, theme, urls: overrides }: ScreensOptions)
           switchUrl: urls.interaction(view.id, recovery ? 'otp' : 'recovery'),
           brandName: brand.name,
           recovery,
-          error
+          error,
+          passkey: passkeys ? passkeyForm(view, 'second') : undefined
         },
-        status
+        status,
+        passkeys
       ),
 
     register: (

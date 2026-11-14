@@ -1,7 +1,7 @@
-import type { Adapter, Artifact, Client, FullAdapter, Grant, Realm, Session } from '@oidcraft/adapter'
+import type { Adapter, Artifact, Client, FullAdapter, Grant, Passkey, Realm, Session } from '@oidcraft/adapter'
 
 /** The stores beyond the core seven; a check that needs one runs only when the adapter claims it. */
-export type OptionalStore = 'identities' | 'credentials' | 'realms'
+export type OptionalStore = 'identities' | 'credentials' | 'passkeys' | 'realms'
 
 export type ConformanceOptions = {
   /** The optional stores this adapter implements; each is then held to the same checks as the core. */
@@ -95,6 +95,17 @@ const credential = (accountId: string, username: string) => ({
   failedAttempts: 0,
   createdAt: new Date(1_000),
   updatedAt: new Date(2_000)
+})
+
+const passkey = (credentialId: string, accountId: string): Passkey => ({
+  credentialId,
+  accountId,
+  publicKey: 'MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE',
+  algorithm: -7,
+  counter: 0,
+  transports: ['internal', 'hybrid'],
+  name: 'Laptop',
+  createdAt: new Date(1_000)
 })
 
 const realm = (id: string): Realm => ({
@@ -624,6 +635,47 @@ export const adapterConformance = (create: () => Adapter | Promise<Adapter>, opt
         same(await adapter.credentials.find('a1'), undefined, 'a destroyed credential by account')
         same(await adapter.credentials.findByUsername('ada'), undefined, 'a destroyed credential by username')
         same(await adapter.credentials.create(credential('a2', 'ada')), true, 'reusing a freed username')
+      }
+    },
+    {
+      // FR-I8: the authenticator picks the credential id, so a second registration of one must never take it from its account.
+      name: 'a passkey is created once per credential id, atomically',
+      needs: 'passkeys',
+      run: async () => {
+        const adapter = await full()
+        same(winners(await parallel(8, index => adapter.passkeys.create(passkey('cred-1', `a${index}`)))), 1, 'creates that won')
+        const owner = (await adapter.passkeys.find('cred-1'))?.accountId as string
+        same(await adapter.passkeys.create(passkey('cred-1', 'someone-else')), false, 'a second create of the same credential id')
+        same((await adapter.passkeys.find('cred-1'))?.accountId, owner, 'the owner after a refused create')
+        same(await adapter.passkeys.listForAccount('someone-else'), [], 'the refused account’s passkeys')
+      }
+    },
+    {
+      name: 'a passkey round-trips, lists by account and is removed',
+      needs: 'passkeys',
+      run: async () => {
+        const adapter = await full()
+        same(await adapter.passkeys.find('nope'), undefined, 'an unknown credential id')
+        await adapter.passkeys.create(passkey('cred-1', 'a1'))
+        await adapter.passkeys.create(passkey('cred/2+x', 'a1'))
+        await adapter.passkeys.create(passkey('cred-3', 'a2'))
+        same(await adapter.passkeys.find('cred-1'), passkey('cred-1', 'a1'), 'the passkey, without a last use')
+        same((await adapter.passkeys.listForAccount('a1')).map(found => found.credentialId).sort(), ['cred-1', 'cred/2+x'], 'a1’s passkeys')
+        const used = { ...passkey('cred-1', 'a1'), counter: 4_294_967_295, name: 'Work laptop', lastUsedAt: new Date(5_000) }
+        await adapter.passkeys.upsert(used)
+        same(await adapter.passkeys.find('cred-1'), used, 'the passkey after an upsert')
+        await adapter.passkeys.destroy('cred/2+x')
+        same(await adapter.passkeys.find('cred/2+x'), undefined, 'a destroyed passkey')
+        same(
+          (await adapter.passkeys.listForAccount('a1')).map(found => found.credentialId),
+          ['cred-1'],
+          'a1’s passkeys left'
+        )
+        same(
+          (await adapter.passkeys.listForAccount('a2')).map(found => found.credentialId),
+          ['cred-3'],
+          'a2’s passkeys'
+        )
       }
     },
     {

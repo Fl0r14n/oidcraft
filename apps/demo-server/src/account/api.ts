@@ -1,8 +1,11 @@
 /// <reference types="bun" />
+import type { RegistrationResponseJSON } from '@oidcraft/provider/accounts'
 import { PASSWORD_MESSAGES } from '@oidcraft/ui'
 import { renderSVG } from 'uqr'
 import { ACCOUNT_CLIENT_ID, callerOf, json } from '../op/first-party'
 import { accounts, provider } from '../op/provider'
+
+const PASSKEY_NAME_MESSAGES = { required: 'Give the passkey a name.', tooLong: 'Use at most 64 characters.' } as const
 
 const body = async (request: Request) => (await request.json().catch(() => ({}))) as Record<string, string | undefined>
 
@@ -30,7 +33,42 @@ export const accountApi = async (request: Request, url: URL): Promise<Response |
   }
 
   if (request.method === 'GET' && path === '/me') {
-    return json({ username: credential.username, claims: credential.claims, totp: await accounts.totp.status(accountId) })
+    return json({
+      username: credential.username,
+      claims: credential.claims,
+      totp: await accounts.totp.status(accountId),
+      passkeys: await accounts.passkeys.list(accountId)
+    })
+  }
+
+  if (request.method === 'POST' && path === '/passkeys/options') return json(await accounts.passkeys.registrationOptions(accountId))
+
+  if (request.method === 'POST' && path === '/passkeys') {
+    const { credential: response, name } = (await request.json().catch(() => ({}))) as {
+      credential: RegistrationResponseJSON
+      name?: string
+    }
+    const added = await accounts.passkeys.register(accountId, response, name ?? '')
+    if (added.ok) return json(added.passkey)
+    if (added.reason === 'name') return json({ error: 'invalid_name', error_description: PASSKEY_NAME_MESSAGES[added.problem] }, 400)
+    return added.reason === 'taken'
+      ? json({ error: 'taken', error_description: 'That passkey is already registered.' }, 409)
+      : json({ error: 'invalid_passkey', error_description: 'That passkey could not be added. Try again.' }, 400)
+  }
+
+  const passkey = /^\/passkeys\/([^/]+)$/.exec(path)?.[1]
+  if (passkey && request.method === 'PATCH') {
+    const renamed = await accounts.passkeys.rename(accountId, decodeURIComponent(passkey), (await body(request)).name ?? '')
+    if (renamed.ok) return json({ ok: true })
+    return renamed.reason === 'name'
+      ? json({ error: 'invalid_name', error_description: PASSKEY_NAME_MESSAGES[renamed.problem] }, 400)
+      : json({ error: 'not_found', error_description: 'No such passkey.' }, 404)
+  }
+
+  if (passkey && request.method === 'DELETE') {
+    return (await accounts.passkeys.remove(accountId, decodeURIComponent(passkey)))
+      ? json({ ok: true })
+      : json({ error: 'not_found', error_description: 'No such passkey.' }, 404)
   }
 
   if (request.method === 'POST' && path === '/totp') {

@@ -151,6 +151,20 @@ recovery code are each accepted once (NFR-S5). Failed codes are counted apart fr
 passwords, so knowing the password does not reset them, and both count towards the account-wide
 limit.
 
+### Passkeys
+
+A passkey signs in on its own or stands in for the code (FR-I8). The screen needs a script for it,
+and only for it: fetch `accounts.passkeys.authenticationOptions(interactionId)` — with
+`{ accountId }` for the second step — hand them to `navigator.credentials.get`, and post the result
+to a route that calls `accounts.passkeys.authenticate(interactionId, response)`. Its challenge is
+single-use, lives five minutes and answers only for the interaction that asked. A passkey sign-in
+reports `acr: 'mfa'` and `amr: ['hwk', 'user']`; after a password, add `pwd` and `mfa` to the `amr`.
+Give the username field `autocomplete="username webauthn"` and start a `get` with
+`mediation: 'conditional'` when the page loads, and the browser offers passkeys in its autofill.
+Keep the password form posting without script; the reference screens hide the passkey button until
+the script shows it. `reason: 'counter'` means the authenticator's counter went backwards, so the
+key may be cloned: refuse it, and tell someone.
+
 ## Resuming
 
 After a login, the browser goes back to the authorization endpoint with the new session, and the
@@ -302,13 +316,19 @@ validates.
 
 **`@oidcraft/provider/accounts`** (FR-I7) is optional local accounts over the adapter's `credentials`
 store. A host with its own user store skips it, and nothing in the provider assumes it.
-`createAccounts({ adapter, hasher, secretKey, issuer })` returns the functions below. `secretKey`
-seals TOTP secrets and keys the recovery-code hashes, so changing it invalidates both.
+`createAccounts({ adapter, hasher, secretKey, issuer, origin })` returns the functions below. `secretKey`
+seals TOTP secrets and keys the recovery-code hashes and passkey user handles, so changing it
+invalidates all three. `origin` is the issuer's URL; passkeys need it, as their relying party is its
+host.
 
 - `store` — the `AccountStore` to pass as the adapter's `accounts`
 - `register`, `authenticate`, `verifySecondFactor`, `setPassword`
 - `totp.begin`, `totp.confirm` (which returns the recovery codes, once), `totp.remove`,
   `totp.status`, `totp.regenerateRecoveryCodes`
+- `passkeys.registrationOptions` and `passkeys.register`, `passkeys.authenticationOptions` and
+  `passkeys.authenticate`, and `passkeys.list`, `rename`, `remove` — WebAuthn with attestation
+  `none` and no CBOR: the key is what the browser's `getPublicKey()` reports, and a credential id
+  already registered to anyone is refused
 - `reset.issue` and `reset.complete` — single-use reset tokens. Delivering one is I/O, so you send
   it (FR-A1); `issue` returns nothing for an unknown username, and your page must answer both cases
   the same way. Completing a reset ends the account's sessions and lifts its locks: the account's

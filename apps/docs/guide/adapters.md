@@ -129,11 +129,12 @@ an object of stores:
 | `replay`     | yes      | one-time values                                                           |
 | `identities` | no       | `(provider, subject) → account` links, for brokering                      |
 | `credentials`| no       | passwords and second factors, for `@oidcraft/provider/accounts`           |
+| `passkeys`   | no       | WebAuthn public keys, by credential id, for `@oidcraft/provider/accounts` |
 | `realms`     | no       | a realm control plane's realms                                            |
 
 An entry point that needs an optional store says so in its type: `createBroker` takes a
 `BrokeringAdapter` (`identities` and `sessions.findByUpstreamSession` present), `createAccounts` a
-`CredentialsAdapter`, and a realm control plane a `RealmsAdapter`. `createProvider` takes a plain
+`CredentialsAdapter` (`credentials` and `passkeys`), and a realm control plane a `RealmsAdapter`. `createProvider` takes a plain
 `Adapter` and refuses `upstreams` without the brokering stores when it is constructed (NFR-D2).
 
 Since an `Adapter` is a plain object, you can also start from `fromKv` or a first-party adapter and
@@ -214,10 +215,13 @@ trusts the answer rather than re-checking it.
 
 - Keyed by `(provider, subject)` and nothing else (FR-F5, NFR-S8).
 
-**`credentials`** and **`realms`**
+**`credentials`**, **`passkeys`** and **`realms`**
 
-- `create` writes only when neither the account nor the username exists (for a realm, the id), and
-  does so atomically: two sign-ups racing for one name must not both win.
+- `create` writes only when neither the account nor the username exists (for a passkey, the
+  credential id; for a realm, the id), and does so atomically: two sign-ups racing for one name must
+  not both win, and a credential id registered to one account is never moved to another (FR-I8).
+- `passkeys.listForAccount(accountId)` is an indexed lookup; migration `0006_passkeys` adds the
+  table and its index.
 
 ## Testing your adapter
 
@@ -236,7 +240,7 @@ That is the `Map` from the top of this page, held to the same checks as the firs
 They cover each guarantee above, and race parallel callers against `consume`, `claim`, `addClient`
 and the atomic `create`s. `create` is called once per check, so each runs against a fresh adapter —
 give it a fresh database schema or key prefix, as the first-party suites do. The checks for
-`identities`, `credentials` and `realms` run only for the stores you list in `implements`: an
+`identities`, `credentials`, `passkeys` and `realms` run only for the stores you list in `implements`: an
 adapter for the core protocol alone is held to the core checks alone (FR-A6).
 
 Run it against your real backend, with real concurrency. A suite that passes against one in-process

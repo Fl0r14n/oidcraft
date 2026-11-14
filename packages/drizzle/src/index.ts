@@ -8,6 +8,7 @@ import type {
   Grant,
   KeyStore,
   LinkedIdentity,
+  Passkey,
   Realm,
   Session
 } from '@oidcraft/adapter'
@@ -17,7 +18,7 @@ import type { PgQueryResultHKT } from 'drizzle-orm/pg-core'
 import type { PgAsyncDatabase } from 'drizzle-orm/pg-core/async'
 import type { SQLiteAsyncDatabase } from 'drizzle-orm/sqlite-core'
 import type { PostgresTables } from './postgres-schema'
-import { type artifacts, type credentials, type identities, type realms, schema } from './schema'
+import { type artifacts, type credentials, type identities, type passkeys, type realms, schema } from './schema'
 
 export type DrizzleDatabase = SQLiteAsyncDatabase<'sync' | 'async', unknown>
 
@@ -39,7 +40,8 @@ const live = (column: typeof artifacts.expiresAt) => gt(column, now())
 export const drizzleAdapter = (options: DrizzleAdapterOptions): FullAdapter => {
   // Typed as SQLite's: every query here is one both dialects accept, over the same columns and JS values (FR-A4).
   const db = options.db as DrizzleDatabase
-  const { clients, artifacts, sessions, grants, identities, replay, credentials, realms } = (options.tables ?? schema) as typeof schema
+  const { clients, artifacts, sessions, grants, identities, replay, credentials, passkeys, realms } = (options.tables ??
+    schema) as typeof schema
   // FR-T5: a grant may carry an expiry, which the query enforces as it does an artifact's.
   const grantLive = () => or(isNull(grants.expiresAt), gt(grants.expiresAt, now()))
 
@@ -387,6 +389,27 @@ export const drizzleAdapter = (options: DrizzleAdapterOptions): FullAdapter => {
       }
     },
 
+    passkeys: {
+      async find(credentialId: string) {
+        const [row] = await db.select().from(passkeys).where(eq(passkeys.credentialId, credentialId)).limit(1)
+        return row ? toPasskey(row) : undefined
+      },
+      async listForAccount(accountId: string) {
+        return (await db.select().from(passkeys).where(eq(passkeys.accountId, accountId))).map(toPasskey)
+      },
+      async create(passkey: Passkey) {
+        const won = await db.insert(passkeys).values(passkeyRow(passkey)).onConflictDoNothing().returning({ id: passkeys.credentialId })
+        return won.length === 1
+      },
+      async upsert(passkey: Passkey) {
+        const row = passkeyRow(passkey)
+        await db.insert(passkeys).values(row).onConflictDoUpdate({ target: passkeys.credentialId, set: row })
+      },
+      async destroy(credentialId: string) {
+        await db.delete(passkeys).where(eq(passkeys.credentialId, credentialId))
+      }
+    },
+
     realms: {
       async find(id: string) {
         const [row] = await db.select().from(realms).where(eq(realms.id, id)).limit(1)
@@ -466,6 +489,30 @@ const toCredential = (row: typeof credentials.$inferSelect): Credential => ({
   ...(row.lockedUntil && { lockedUntil: row.lockedUntil }),
   createdAt: row.createdAt,
   updatedAt: row.updatedAt
+})
+
+const passkeyRow = (passkey: Passkey) => ({
+  credentialId: passkey.credentialId,
+  accountId: passkey.accountId,
+  publicKey: passkey.publicKey,
+  algorithm: passkey.algorithm,
+  counter: passkey.counter,
+  transports: passkey.transports,
+  name: passkey.name,
+  createdAt: passkey.createdAt,
+  lastUsedAt: passkey.lastUsedAt ?? null
+})
+
+const toPasskey = (row: typeof passkeys.$inferSelect): Passkey => ({
+  credentialId: row.credentialId,
+  accountId: row.accountId,
+  publicKey: row.publicKey,
+  algorithm: row.algorithm,
+  counter: row.counter,
+  transports: row.transports as string[],
+  name: row.name,
+  createdAt: row.createdAt,
+  ...(row.lastUsedAt && { lastUsedAt: row.lastUsedAt })
 })
 
 const realmRow = (realm: Realm) => ({

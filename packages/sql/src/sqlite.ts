@@ -55,6 +55,14 @@ export const SQLITE_MIGRATIONS: Migration[] = [
       'alter table oidc_artifacts add column family_id text',
       'create index oidc_artifacts_family_idx on oidc_artifacts (family_id)'
     ]
+  },
+  {
+    // FR-I8: an assertion is looked up by its credential id, an account's passkeys by the account.
+    id: '0006_passkeys',
+    statements: [
+      'create table oidc_passkeys (credential_id text primary key not null, account_id text not null, public_key text not null, algorithm integer not null, counter integer not null, transports text not null, name text not null, created_at integer not null, last_used_at integer)',
+      'create index oidc_passkeys_account_idx on oidc_passkeys (account_id)'
+    ]
   }
 ]
 export type { Migration } from './migration'

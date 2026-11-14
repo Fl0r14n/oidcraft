@@ -103,8 +103,8 @@ Consent is remembered per application, so a returning user is not asked twice.
 
 ## Local accounts
 
-`@oidcraft/provider/accounts` gives you usernames and passwords, hashed with argon2id, plus TOTP authenticator
-apps, recovery codes, lockout after repeated failures, and password reset:
+`@oidcraft/provider/accounts` gives you usernames and passwords, hashed with argon2id, plus passkeys, TOTP
+authenticator apps, recovery codes, lockout after repeated failures, and password reset:
 
 ```ts
 import { createProvider } from '@oidcraft/provider'
@@ -115,7 +115,8 @@ const accounts = createAccounts({
   adapter: storage,
   hasher: bunPasswordHasher,
   secretKey: Bun.env.TOTP_KEY as string, // generateSecretKey() makes one; it seals TOTP secrets and keys recovery codes
-  issuer: 'My App' // the name an authenticator app shows
+  issuer: 'My App', // the name an authenticator app and a passkey prompt show
+  origin: 'https://auth.example.com' // passkeys only: the relying party is this host
 })
 
 const provider = createProvider({
@@ -134,13 +135,37 @@ if (result.ok && !result.secondFactor) {
 // result.secondFactor: ask for the code, then accounts.verifySecondFactor(result.accountId, code)
 ```
 
+Passkeys (WebAuthn) are a sign-in of their own, offered in the username field's autofill, and a
+second factor in place of a TOTP code. The library decodes no CBOR and asks for no attestation: it
+stores the key the browser's `getPublicKey()` reports and checks each assertion's relying party,
+origin, user verification, counter and signature with WebCrypto (ES256, RS256, EdDSA).
+
+```ts
+// the account page, signed in: hand the options to navigator.credentials.create, post back what it returns
+const options = await accounts.passkeys.registrationOptions(accountId)
+await accounts.passkeys.register(accountId, credential.toJSON(), 'Laptop')
+
+// the login screen: options for navigator.credentials.get, bound to this interaction
+const getOptions = await accounts.passkeys.authenticationOptions(interactionId) // { accountId } as a second factor
+const signedIn = await accounts.passkeys.authenticate(interactionId, assertion.toJSON())
+if (signedIn.ok) {
+  await provider.interactions.complete(
+    interactionId,
+    { login: { accountId: signedIn.accountId, acr: 'mfa', amr: ['hwk', 'user'] } },
+    request.headers.get('cookie')
+  )
+}
+```
+
+`list`, `rename` and `remove` manage them, each for one account only.
+
 If you already have users somewhere else, skip this entry and pass your own `accounts`: two
 functions, `find(accountId)` and `claims(accountId, scopes, claims)`, as in the smallest provider
 above. The third argument names claims the person consented to one by one, through the `claims`
 request parameter; release those too.
 
 How a person signed in reaches clients as `acr` and `amr`, which your login answer sets: the demo
-reports `acr: 'pwd'` for a password and `'mfa'` after a second factor. List the levels as
+reports `acr: 'pwd'` for a password and `'mfa'` after a second factor or for a passkey. List the levels as
 `acrValues` and discovery advertises them. A client asks for one with `acr_values`, and one login is
 asked to meet it. Its registered `default_acr_values` are a softer hint: a login that happens is
 shown them, but they never force one. To require a level, a client sends it as an essential `acr` in

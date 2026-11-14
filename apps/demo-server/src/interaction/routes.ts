@@ -28,15 +28,16 @@ const build = (site: Site) => {
   const { provider, accounts, screens } = site
 
   const loginScreen = (view: ScreenView, options: Parameters<typeof screens.login>[1] = {}) =>
-    screens.login(view, { upstreams: offeredUpstreams(view), forgot: true, register: signUp(), ...options })
+    screens.login(view, { upstreams: offeredUpstreams(view), forgot: true, register: signUp(), passkeys: true, ...options })
+
+  const secondStep = async (view: ScreenView, accountId: string, options: Parameters<typeof screens.otp>[1] = {}) =>
+    screens.otp(view, { passkeys: (await accounts.passkeys.list(accountId)).length > 0, ...options })
 
   /** The acr says what actually happened: a client that asked for more must not be told it got it (FR-F9, FR-C16, RFC 8176). */
-  const finish = async (request: Request, id: string, accountId: string, amr: string[]) => {
+  const finish = async (request: Request, id: string, accountId: string, amr: string[], acr = amr.includes('mfa') ? 'mfa' : 'pwd') => {
     const { redirectTo, setCookie } = await provider.interactions.complete(
       id,
-      {
-        login: { accountId, acr: amr.includes('mfa') ? 'mfa' : 'pwd', amr }
-      },
+      { login: { accountId, acr, amr } },
       request.headers.get('cookie')
     )
     return seeOther(redirectTo, setCookie, pendingSecondFactor.clear(), await knownAccounts.add(request, accountId))
@@ -123,11 +124,38 @@ const build = (site: Site) => {
         const accountId = await pendingSecondFactor.get(request, id)
         if (!accountId) return loginScreen(view, { notice: 'Sign in with your password first.' })
         const recovery = action === 'recovery'
-        if (request.method === 'GET') return screens.otp(view, { recovery })
+        if (request.method === 'GET') return secondStep(view, accountId, { recovery })
         const result = await accounts.verifySecondFactor(accountId, (await form(request)).get('code') ?? '', { clientIp })
         if (result.ok) return await finish(request, id, accountId, result.method === 'otp' ? ['pwd', 'otp', 'mfa'] : ['pwd', 'mfa'])
         if (result.reason === 'locked') return loginScreen(view, { notice: lockedNotice(result.until), status: 429 })
-        return screens.otp(view, { recovery, error: 'That code is not right, or it was already used.', status: 401 })
+        return secondStep(view, accountId, { recovery, error: 'That code is not right, or it was already used.', status: 401 })
+      }
+
+      // FR-I8: a sign-in of its own, or the second step after a password, when that account has a passkey.
+      if (request.method === 'POST' && (action === 'passkey-options' || action === 'passkey')) {
+        const body = await form(request)
+        const second = body.get('step') === 'second'
+        const pending = second ? await pendingSecondFactor.get(request, id) : undefined
+        if (second && !pending) return loginScreen(view, { notice: 'Sign in with your password first.', status: 401 })
+        if (action === 'passkey-options') {
+          return Response.json(await accounts.passkeys.authenticationOptions(id, pending ? { accountId: pending } : {}), {
+            headers: { 'cache-control': 'no-store' }
+          })
+        }
+        const credential = (() => {
+          try {
+            return JSON.parse(body.get('credential') ?? '')
+          } catch {
+            return undefined
+          }
+        })()
+        const result = await accounts.passkeys.authenticate(id, credential)
+        if (result.ok && (!pending || result.accountId === pending)) {
+          return await finish(request, id, result.accountId, pending ? ['pwd', 'hwk', 'user', 'mfa'] : ['hwk', 'user'], 'mfa')
+        }
+        if (!result.ok && result.reason === 'counter') console.warn(`[interaction] a passkey's counter went backwards: it may be cloned`)
+        const notice = 'That passkey could not sign you in.'
+        return pending ? secondStep(view, pending, { error: notice, status: 401 }) : loginScreen(view, { notice, status: 401 })
       }
 
       if (action === 'register' && signUp()) {

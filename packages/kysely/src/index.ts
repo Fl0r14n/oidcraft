@@ -1,4 +1,14 @@
-import type { AccountStore, Artifact, ArtifactKind, Credential, FullAdapter, KeyStore, LinkedIdentity, Realm } from '@oidcraft/adapter'
+import type {
+  AccountStore,
+  Artifact,
+  ArtifactKind,
+  Credential,
+  FullAdapter,
+  KeyStore,
+  LinkedIdentity,
+  Passkey,
+  Realm
+} from '@oidcraft/adapter'
 import { grantExpired, MERGE_ROUNDS, mergedGrant, noAccounts } from '@oidcraft/adapter'
 import {
   artifactRow,
@@ -7,6 +17,7 @@ import {
   grantRow,
   identityRow,
   json,
+  passkeyRow,
   realmRow,
   sessionRow,
   toArtifact,
@@ -14,6 +25,7 @@ import {
   toCredential,
   toGrant,
   toIdentity,
+  toPasskey,
   toRealm,
   toSession
 } from '@oidcraft/sql/rows'
@@ -347,6 +359,36 @@ export const kyselyAdapter = (options: KyselyAdapterOptions): FullAdapter => {
       },
       async destroy(accountId: string) {
         await db.deleteFrom('oidc_credentials').where('account_id', '=', accountId).execute()
+      }
+    },
+
+    passkeys: {
+      async find(credentialId: string) {
+        const row = await db.selectFrom('oidc_passkeys').selectAll().where('credential_id', '=', credentialId).executeTakeFirst()
+        return row ? toPasskey(row) : undefined
+      },
+      async listForAccount(accountId: string) {
+        return (await db.selectFrom('oidc_passkeys').selectAll().where('account_id', '=', accountId).execute()).map(toPasskey)
+      },
+      async create(passkey: Passkey) {
+        const won = await db
+          .insertInto('oidc_passkeys')
+          .values(passkeyRow(passkey))
+          .onConflict(conflict => conflict.doNothing())
+          .returning('credential_id')
+          .executeTakeFirst()
+        return won !== undefined
+      },
+      async upsert(passkey: Passkey) {
+        const row = passkeyRow(passkey)
+        await db
+          .insertInto('oidc_passkeys')
+          .values(row)
+          .onConflict(conflict => conflict.column('credential_id').doUpdateSet(row))
+          .execute()
+      },
+      async destroy(credentialId: string) {
+        await db.deleteFrom('oidc_passkeys').where('credential_id', '=', credentialId).execute()
       }
     },
 

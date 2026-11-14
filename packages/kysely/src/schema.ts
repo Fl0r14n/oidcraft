@@ -75,6 +75,19 @@ export type CredentialsTable = {
   updated_at: Millis
 }
 
+export type PasskeysTable = {
+  credential_id: string
+  account_id: string
+  public_key: string
+  algorithm: number
+  /** Up to 2^32 - 1, so `bigint` on Postgres, which reads it back as a string. */
+  counter: ColumnType<number | string, number, number>
+  transports: string
+  name: string
+  created_at: Millis
+  last_used_at: Millis | null
+}
+
 export type RealmsTable = {
   id: string
   display_name: string | null
@@ -93,6 +106,7 @@ export type OidcraftDatabase = {
   oidc_identities: IdentitiesTable
   oidc_replay: ReplayTable
   oidc_credentials: CredentialsTable
+  oidc_passkeys: PasskeysTable
   oidc_realms: RealmsTable
 }
 

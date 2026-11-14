@@ -27,7 +27,9 @@ const fresh = async (options: Pick<DataSourceOptions, 'invalidWhereValuesBehavio
 
 describe('typeorm adapter', () => {
   // The identical suite the memory, Drizzle and Kysely adapters run (FR-A6).
-  for (const check of adapterConformance(async () => (await fresh()).adapter, { implements: ['identities', 'credentials', 'realms'] })) {
+  for (const check of adapterConformance(async () => (await fresh()).adapter, {
+    implements: ['identities', 'credentials', 'passkeys', 'realms']
+  })) {
     test(`typeorm/sqlite: ${check.name}`, check.run)
   }
 

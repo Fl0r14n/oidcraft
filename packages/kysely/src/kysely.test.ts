@@ -27,7 +27,9 @@ const fresh = async () => {
 
 describe('kysely adapter', () => {
   // The identical suite the memory and Drizzle adapters run (FR-A4).
-  for (const check of adapterConformance(async () => (await fresh()).adapter, { implements: ['identities', 'credentials', 'realms'] })) {
+  for (const check of adapterConformance(async () => (await fresh()).adapter, {
+    implements: ['identities', 'credentials', 'passkeys', 'realms']
+  })) {
     test(`kysely/sqlite: ${check.name}`, check.run)
   }
 

@@ -1,4 +1,4 @@
-import type { Artifact, ArtifactKind, Client, Credential, Grant, LinkedIdentity, Realm, Session } from '@oidcraft/adapter'
+import type { Artifact, ArtifactKind, Client, Credential, Grant, LinkedIdentity, Passkey, Realm, Session } from '@oidcraft/adapter'
 
 export type ClientRow = { client_id: string; data: string; created_at: number; updated_at: number }
 
@@ -70,6 +70,18 @@ export type CredentialRow = {
   locked_until: number | null
   created_at: number
   updated_at: number
+}
+
+export type PasskeyRow = {
+  credential_id: string
+  account_id: string
+  public_key: string
+  algorithm: number
+  counter: number
+  transports: string
+  name: string
+  created_at: number
+  last_used_at: number | null
 }
 
 /** A row as read back: Postgres returns a `bigint` as a string. */
@@ -210,6 +222,30 @@ export const toCredential = (row: Read<CredentialRow>): Credential => ({
   ...(row.locked_until && { lockedUntil: at(row.locked_until) }),
   createdAt: at(row.created_at),
   updatedAt: at(row.updated_at)
+})
+
+export const passkeyRow = (passkey: Passkey): PasskeyRow => ({
+  credential_id: passkey.credentialId,
+  account_id: passkey.accountId,
+  public_key: passkey.publicKey,
+  algorithm: passkey.algorithm,
+  counter: passkey.counter,
+  transports: json(passkey.transports),
+  name: passkey.name,
+  created_at: passkey.createdAt.getTime(),
+  last_used_at: passkey.lastUsedAt?.getTime() ?? null
+})
+
+export const toPasskey = (row: Read<PasskeyRow>): Passkey => ({
+  credentialId: row.credential_id,
+  accountId: row.account_id,
+  publicKey: row.public_key,
+  algorithm: Number(row.algorithm),
+  counter: Number(row.counter),
+  transports: parse<string[]>(row.transports),
+  name: row.name,
+  createdAt: at(row.created_at),
+  ...(row.last_used_at !== null && { lastUsedAt: at(row.last_used_at) })
 })
 
 export const realmRow = (realm: Realm): RealmRow => ({

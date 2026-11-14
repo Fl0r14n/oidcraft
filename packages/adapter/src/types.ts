@@ -118,6 +118,7 @@ export type ArtifactKind =
   | 'sign_in_attempts'
   | 'password_reset'
   | 'revoked_family'
+  | 'passkey_challenge'
 
 export type Artifact = Entity &
   Partial<AccountOwned> &
@@ -143,6 +144,23 @@ export type Credential = AccountOwned &
     failedAttempts: number
     lockedUntil?: Date
   }
+
+/** A local account's WebAuthn credential (FR-I8): only what verifying an assertion needs, no attestation. */
+export type Passkey = AccountOwned & {
+  /** base64url, as the authenticator chose it; unique across the store. */
+  credentialId: string
+  /** base64url SubjectPublicKeyInfo, as the browser's `getPublicKey()` reports it. */
+  publicKey: string
+  /** COSE: -7 ES256, -257 RS256, -8 EdDSA. */
+  algorithm: number
+  /** The authenticator's signature counter; 0 for one that keeps none. */
+  counter: number
+  transports: string[]
+  /** The person's label for it. */
+  name: string
+  createdAt: Date
+  lastUsedAt?: Date
+}
 
 /** One issuer among several in a process (FR-M4); its `id` is a DNS label, because it ends up in an issuer's host or path. */
 export type Realm = Entity &

@@ -26,7 +26,7 @@ const keys = () => {
 
 const storage = await openStorage({ keys: keys() })
 
-export const accounts = createDemoAccounts(storage, optional('OIDCRAFT_BRAND_NAME') ?? 'oidcraft')
+export const accounts = createDemoAccounts(storage, optional('OIDCRAFT_BRAND_NAME') ?? 'oidcraft', issuer())
 await seedDemoAccounts(accounts, storage)
 
 const forgetConsent = optional('OIDCRAFT_FORGET_CONSENT') === 'on'

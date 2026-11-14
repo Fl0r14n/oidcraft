@@ -27,7 +27,7 @@ describe.skipIf(!POSTGRES_URL)('kysely adapter on Postgres', () => {
   afterAll(dropSchemas)
 
   // The identical suite every adapter runs, on the shipped Postgres schema (FR-A4).
-  for (const check of adapterConformance(adapterIn, { implements: ['identities', 'credentials', 'realms'] })) {
+  for (const check of adapterConformance(adapterIn, { implements: ['identities', 'credentials', 'passkeys', 'realms'] })) {
     test(`kysely/postgres: ${check.name}`, check.run)
   }
 

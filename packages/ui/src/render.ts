@@ -15,9 +15,15 @@ const themeStyle = (theme: Theme) => {
   return declarations.length ? `<style>:root{${declarations.join(';')}}</style>` : ''
 }
 
-export type RenderOptions = { brand: Brand; theme?: Theme | undefined; status?: number | undefined; stylesheet: string }
+export type RenderOptions = {
+  brand: Brand
+  theme?: Theme | undefined
+  status?: number | undefined
+  stylesheet: string
+  script?: string | undefined
+}
 
-/** Plain server-rendered HTML with no script, every screen a form that posts: the conformance suite's browser runs little (NFR-C1). */
+/** Plain server-rendered HTML, every screen a form that posts: the conformance suite's browser runs little (NFR-C1). Only passkeys add a script (FR-I8). */
 export const render = async (title: string, component: Component, props: Record<string, unknown>, options: RenderOptions) => {
   const app = createSSRApp({ render: () => h(component, props) })
   app.provide(BRAND, options.brand)
@@ -25,7 +31,9 @@ export const render = async (title: string, component: Component, props: Record<
   return new Response(
     `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light dark"><title>${escapeHtml(title)} · ${escapeHtml(options.brand.name)}</title>
-<link rel="stylesheet" href="${escapeHtml(options.stylesheet)}">${themeStyle(options.theme ?? {})}</head>
+<link rel="stylesheet" href="${escapeHtml(options.stylesheet)}">${themeStyle(options.theme ?? {})}${
+      options.script ? `<script type="module" src="${escapeHtml(options.script)}"></script>` : ''
+    }</head>
 <body>${body}</body></html>`,
     { status: options.status ?? 200, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } }
   )

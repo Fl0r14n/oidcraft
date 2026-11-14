@@ -19,6 +19,8 @@ export type {
   KeyStore,
   LinkedIdentity,
   LinkedIdentityStore,
+  Passkey,
+  PasskeyStore,
   Realm,
   RealmStore,
   RealmsAdapter,

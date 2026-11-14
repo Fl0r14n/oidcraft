@@ -18,12 +18,13 @@ const totpKey = () => {
   return generatedTotpKey
 }
 
-export const createDemoAccounts = (adapter: CredentialsAdapter, issuerName: string) =>
+export const createDemoAccounts = (adapter: CredentialsAdapter, issuerName: string, issuerUrl: string) =>
   createAccounts({
     adapter,
     hasher: bunPasswordHasher,
     secretKey: totpKey(),
     issuer: issuerName,
+    origin: issuerUrl,
     // The demo's subjects are its usernames, so OIDCRAFT_ADMINS can name people rather than random ids.
     newAccountId: username => username
   })

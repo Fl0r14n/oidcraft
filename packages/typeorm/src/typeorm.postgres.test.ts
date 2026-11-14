@@ -40,7 +40,9 @@ describe.skipIf(!POSTGRES_URL)('typeorm adapter on Postgres', () => {
   })
 
   // The identical suite every adapter runs (FR-A4, FR-A6).
-  for (const check of adapterConformance(async () => (await fresh()).adapter, { implements: ['identities', 'credentials', 'realms'] })) {
+  for (const check of adapterConformance(async () => (await fresh()).adapter, {
+    implements: ['identities', 'credentials', 'passkeys', 'realms']
+  })) {
     test(`typeorm/postgres: ${check.name}`, check.run)
   }
 

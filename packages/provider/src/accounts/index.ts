@@ -1,9 +1,18 @@
 import { DEFAULT_MAX_LENGTH, oauthFieldError, randomString } from '@oidcraft/core'
 import type { AccountStore, Credential, CredentialsAdapter, Seconds } from '@oidcraft/provider'
 import { base64url } from 'jose'
+import { createPasskeys } from './passkeys'
 import { importHashingKey, importSecretKey, open, seal } from './sealed'
 import { base32, matchingCounter, otpauthUri, TOTP_PERIOD } from './totp'
 
+export type {
+  AuthenticationResponseJSON,
+  PasskeyAuthenticationResult,
+  PasskeyNameProblem,
+  PasskeyRegistrationResult,
+  PasskeySummary,
+  RegistrationResponseJSON
+} from './passkeys'
 export { generateSecretKey } from './sealed'
 export { hotp } from './totp'
 
@@ -28,6 +37,8 @@ export type AccountsPolicy = {
   resetTtl: Seconds
   /** @default 10 */
   recoveryCodes: number
+  /** How long a passkey ceremony's challenge lives (FR-I8). @default 300 */
+  passkeyTimeout: Seconds
 }
 
 export type AccountsOptions = {
@@ -35,8 +46,10 @@ export type AccountsOptions = {
   hasher: PasswordHasher
   /** 32 random bytes, base64url, that seal TOTP secrets at rest. `generateSecretKey()` makes one. */
   secretKey: string
-  /** The name an authenticator app shows beside the code. */
+  /** The name an authenticator app shows beside the code, and a passkey prompt shows for the site. */
   issuer: string
+  /** The issuer's URL. Passkeys need it: their relying party ID is its host name, and an assertion must come from its origin (FR-I8). */
+  origin?: string
   policy?: Partial<AccountsPolicy>
   /** scope → the stored claims it releases. @default OIDC Core §5.4's standard scopes */
   claims?: Record<string, string[]>
@@ -150,6 +163,7 @@ export const createAccounts = (options: AccountsOptions) => {
     lockout: 900,
     resetTtl: 1800,
     recoveryCodes: 10,
+    passkeyTimeout: 300,
     ...options.policy
   }
   const scopes = options.claims ?? STANDARD_CLAIMS
@@ -257,6 +271,14 @@ export const createAccounts = (options: AccountsOptions) => {
       )
     )
 
+  const passkeys = createPasskeys({
+    adapter,
+    origin: options.origin,
+    name: options.issuer,
+    hashingKey,
+    ttl: policy.passkeyTimeout
+  })
+
   const issueRecoveryCodes = async (accountId: string) => {
     const codes = Array.from({ length: policy.recoveryCodes }, recoveryCode)
     return { codes, hashes: await Promise.all(codes.map(code => recoveryHash(accountId, code))) }
@@ -360,6 +382,9 @@ export const createAccounts = (options: AccountsOptions) => {
     },
 
     setPassword,
+
+    /** WebAuthn: a sign-in of its own, by autofill, or a second factor beside TOTP (FR-I8). */
+    passkeys,
 
     totp: {
       /** Starts enrolment. The secret only takes effect once `confirm` sees a code generated from it. */

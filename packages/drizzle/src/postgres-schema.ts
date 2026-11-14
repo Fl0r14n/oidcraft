@@ -1,4 +1,4 @@
-import { customType, index, integer, pgSchema, pgTable, primaryKey, text, uniqueIndex } from 'drizzle-orm/pg-core'
+import { bigint, customType, index, integer, pgSchema, pgTable, primaryKey, text, uniqueIndex } from 'drizzle-orm/pg-core'
 
 // These map to the same JS values as the SQLite schema's columns, so one adapter body serves both dialects.
 const millis = customType<{ data: Date; driverData: string | number }>({
@@ -128,6 +128,22 @@ export const postgresTables = (schema?: string) => {
     t => [uniqueIndex('oidc_credentials_username_idx').on(t.username)]
   )
 
+  const passkeys = table(
+    'oidc_passkeys',
+    {
+      credentialId: text('credential_id').primaryKey(),
+      accountId: text('account_id').notNull(),
+      publicKey: text('public_key').notNull(),
+      algorithm: integer('algorithm').notNull(),
+      counter: bigint('counter', { mode: 'number' }).notNull(),
+      transports: json('transports').notNull(),
+      name: text('name').notNull(),
+      createdAt: millis('created_at').notNull(),
+      lastUsedAt: millis('last_used_at')
+    },
+    t => [index('oidc_passkeys_account_idx').on(t.accountId)]
+  )
+
   const realms = table('oidc_realms', {
     id: text('id').primaryKey(),
     displayName: text('display_name'),
@@ -137,7 +153,7 @@ export const postgresTables = (schema?: string) => {
     updatedAt: millis('updated_at').notNull()
   })
 
-  return { clients, artifacts, sessions, grants, identities, replay, credentials, realms }
+  return { clients, artifacts, sessions, grants, identities, replay, credentials, passkeys, realms }
 }
 
 export type PostgresTables = ReturnType<typeof postgresTables>

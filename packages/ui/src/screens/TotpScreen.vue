@@ -30,6 +30,7 @@
       <UiButton type="submit" class="w-full">Continue</UiButton>
       <p class="text-sm"><UiLink :href="switchUrl">{{ recovery ? 'Use your authenticator app instead' : 'Lost your phone? Use a recovery code' }}</UiLink></p>
     </form>
+    <PasskeyForm v-if="passkey" v-bind="passkey" />
   </UiCard>
 </template>
 
@@ -39,6 +40,7 @@ import UiButton from '../UiButton.vue'
 import UiCard from '../UiCard.vue'
 import UiField from '../UiField.vue'
 import UiLink from '../UiLink.vue'
+import PasskeyForm from './PasskeyForm.vue'
 
 const { recovery = false } = defineProps<{
   action: string
@@ -46,5 +48,6 @@ const { recovery = false } = defineProps<{
   switchUrl: string
   recovery?: boolean
   error?: string | undefined
+  passkey?: { action: string; options: string; step: 'second' } | undefined
 }>()
 </script>

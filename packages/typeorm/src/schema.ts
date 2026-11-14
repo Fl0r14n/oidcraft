@@ -1,9 +1,19 @@
 import { POSTGRES_MIGRATIONS } from '@oidcraft/sql/postgres'
-import type { ArtifactRow, ClientRow, CredentialRow, GrantRow, IdentityRow, RealmRow, ReplayRow, SessionRow } from '@oidcraft/sql/rows'
+import type {
+  ArtifactRow,
+  ClientRow,
+  CredentialRow,
+  GrantRow,
+  IdentityRow,
+  PasskeyRow,
+  RealmRow,
+  ReplayRow,
+  SessionRow
+} from '@oidcraft/sql/rows'
 import { type Migration, SQLITE_MIGRATIONS } from '@oidcraft/sql/sqlite'
 import { EntitySchema, type EntitySchemaColumnOptions, type MigrationInterface, type QueryRunner } from 'typeorm'
 
-export type { ArtifactRow, ClientRow, CredentialRow, GrantRow, IdentityRow, RealmRow, ReplayRow, SessionRow }
+export type { ArtifactRow, ClientRow, CredentialRow, GrantRow, IdentityRow, PasskeyRow, RealmRow, ReplayRow, SessionRow }
 
 const text = (options: Partial<EntitySchemaColumnOptions> = {}): EntitySchemaColumnOptions => ({ type: 'text', ...options })
 
@@ -132,6 +142,24 @@ const entitiesFor = (millisType: 'integer' | 'bigint') => {
     indices: [{ name: 'oidc_credentials_username_idx', columns: ['username'], unique: true }]
   })
 
+  const PasskeyEntity = new EntitySchema<PasskeyRow>({
+    name: 'oidc_passkeys',
+    tableName: 'oidc_passkeys',
+    columns: {
+      credential_id: text({ primary: true }),
+      account_id: text(),
+      public_key: text(),
+      algorithm: { type: 'integer' },
+      // Up to 2^32 - 1, which outgrows Postgres's `integer`: the type the timestamps get.
+      counter: millis(),
+      transports: text(),
+      name: text(),
+      created_at: millis(),
+      last_used_at: millis({ nullable: true })
+    },
+    indices: [{ name: 'oidc_passkeys_account_idx', columns: ['account_id'] }]
+  })
+
   const RealmEntity = new EntitySchema<RealmRow>({
     name: 'oidc_realms',
     tableName: 'oidc_realms',
@@ -145,7 +173,17 @@ const entitiesFor = (millisType: 'integer' | 'bigint') => {
     }
   })
 
-  return [ClientEntity, ArtifactEntity, SessionEntity, GrantEntity, IdentityEntity, ReplayEntity, CredentialEntity, RealmEntity]
+  return [
+    ClientEntity,
+    ArtifactEntity,
+    SessionEntity,
+    GrantEntity,
+    IdentityEntity,
+    ReplayEntity,
+    CredentialEntity,
+    PasskeyEntity,
+    RealmEntity
+  ]
 }
 
 /** For a `DataSource` on SQLite, beside `TYPEORM_SQLITE_MIGRATIONS`; the adapter refuses one that lacks them. */

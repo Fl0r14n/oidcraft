@@ -9,12 +9,13 @@ import type {
   GrantStore,
   KeyStore,
   LinkedIdentityStore,
+  PasskeyStore,
   RealmStore,
   ReplayGuard
 } from './adapter'
 import { mergedGrant } from './grants'
 import { page } from './page'
-import type { Artifact, Client, Credential, Grant, LinkedIdentity, Realm, Seconds, Session } from './types'
+import type { Artifact, Client, Credential, Grant, LinkedIdentity, Passkey, Realm, Seconds, Session } from './types'
 
 export type KvEntry = { key: string; value: string; ttl?: Seconds }
 
@@ -369,6 +370,37 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
     }
   }
 
+  // The credential id is the authenticator's choice, so it is escaped like any other id that is not ours.
+  const passkeyKey = (credentialId: string) => `passkey/${part(credentialId)}`
+  const accountPasskeys = (accountId: string) => `account-passkey/${part(accountId)}/`
+  const readPasskey = async (credentialId: string) => {
+    const passkey = dec<Passkey>(await read(passkeyKey(credentialId)))
+    return passkey ? revive(passkey, ['createdAt', 'lastUsedAt']) : undefined
+  }
+
+  const passkeys: PasskeyStore = {
+    find: readPasskey,
+    async listForAccount(accountId) {
+      return present(await Promise.all((await under(accountPasskeys(accountId))).map(readPasskey))).filter(
+        passkey => passkey.accountId === accountId
+      )
+    },
+    async create(passkey) {
+      if (!(await kv.insert({ key: passkeyKey(passkey.credentialId), value: enc(passkey) }))) return false
+      await kv.upsert({ key: `${accountPasskeys(passkey.accountId)}${part(passkey.credentialId)}`, value: '' })
+      return true
+    },
+    async upsert(passkey) {
+      await kv.upsert({ key: passkeyKey(passkey.credentialId), value: enc(passkey) })
+      await kv.upsert({ key: `${accountPasskeys(passkey.accountId)}${part(passkey.credentialId)}`, value: '' })
+    },
+    async destroy(credentialId) {
+      const passkey = await readPasskey(credentialId)
+      await kv.destroy(passkeyKey(credentialId))
+      if (passkey) await kv.destroy(`${accountPasskeys(passkey.accountId)}${part(credentialId)}`)
+    }
+  }
+
   const realmKey = (id: string) => `realm/${id}`
   const reviveRealm = (raw: string) => revive(JSON.parse(raw) as Realm, ['createdAt', 'updatedAt'])
   const realms: RealmStore = {
@@ -393,6 +425,7 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
     grants,
     accounts: options.accounts ?? noAccounts,
     credentials,
+    passkeys,
     realms,
     keys: options.keys,
     replay,

@@ -93,6 +93,8 @@ export type Payloads = {
   password_reset: Empty
   /** Written before a family's tokens are deleted, so a token written into it after the sweep is caught (FR-T3). */
   revoked_family: Empty
+  /** A WebAuthn challenge, under its own value, for one ceremony bound to an interaction or, for a registration, an account (FR-I8). */
+  passkey_challenge: { ceremony: 'create' | 'get'; binding: string }
 }
 
 /** One record per kind, so a union of kinds narrows on `kind`. */

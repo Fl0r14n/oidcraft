@@ -151,8 +151,8 @@ function. oidcraft's `AccountStore` has the same two jobs, as `find(accountId)` 
 (FR-C5).
 
 The difference is that oidcraft can be the account system as well. `@oidcraft/provider/accounts`
-implements `AccountStore` with argon2id passwords, TOTP, recovery codes, throttling, password reset
-and sign-up (FR-I7). It is optional: bring your own `AccountStore` and none of it is loaded.
+implements `AccountStore` with argon2id passwords, passkeys, TOTP, recovery codes, throttling,
+password reset and sign-up (FR-I7, FR-I8). It is optional: bring your own `AccountStore` and none of it is loaded.
 
 ### Administration
 

@@ -1,6 +1,6 @@
 <template>
   <UiCard v-if="!isAuthorized" title="Your account">
-    <template #subtitle>Sign in to change your password and set up two-step verification.</template>
+    <template #subtitle>Sign in to change your password, add passkeys and set up two-step verification.</template>
     <UiAlert v-if="hasError">{{ errorDescription || 'The sign-in did not complete. Try again.' }}</UiAlert>
     <UiButton class="w-full" @click="signIn">Sign in</UiButton>
   </UiCard>
@@ -9,6 +9,7 @@
     <template #actions><UiButton variant="secondary" @click="signOut">Sign out</UiButton></template>
     <UiAlert v-if="error">{{ error }}</UiAlert>
     <template v-if="me">
+      <PasskeysPanel :passkeys="me.passkeys" @changed="load" />
       <TwoStepPanel :totp="me.totp" @changed="load" />
       <PasswordPanel />
     </template>
@@ -20,10 +21,16 @@ import { UiAlert, UiButton, UiCard, UiShell } from '@oidcraft/ui/components'
 import { useOAuth } from '@oidcraft/vue'
 import { onMounted, shallowRef } from 'vue'
 import { failureMessage, useApi } from '../shared/api'
+import PasskeysPanel from './PasskeysPanel.vue'
 import PasswordPanel from './PasswordPanel.vue'
 import TwoStepPanel from './TwoStepPanel.vue'
 
-type Me = { username: string; claims: Record<string, unknown>; totp: { enrolled: boolean; recoveryCodesLeft: number } }
+type Me = {
+  username: string
+  claims: Record<string, unknown>
+  totp: { enrolled: boolean; recoveryCodesLeft: number }
+  passkeys: { credentialId: string; name: string; createdAt: string; lastUsedAt?: string }[]
+}
 
 const { isAuthorized, hasError, errorDescription, login, logout } = useOAuth()
 const api = useApi('/account/api')

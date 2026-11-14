@@ -5,7 +5,7 @@ import { fromKv } from '../kv'
 import { memoryAdapter, memoryKv } from './index'
 
 describe('memory adapter', () => {
-  for (const check of adapterConformance(() => memoryAdapter(), { implements: ['identities', 'credentials', 'realms'] }))
+  for (const check of adapterConformance(() => memoryAdapter(), { implements: ['identities', 'credentials', 'passkeys', 'realms'] }))
     test(check.name, check.run)
 
   test('an entry expires by its ttl without a sweep', async () => {

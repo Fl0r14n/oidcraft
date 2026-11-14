@@ -1,6 +1,26 @@
-import type { AccountStore, Artifact, ArtifactKind, Credential, FullAdapter, KeyStore, LinkedIdentity, Realm } from '@oidcraft/adapter'
+import type {
+  AccountStore,
+  Artifact,
+  ArtifactKind,
+  Credential,
+  FullAdapter,
+  KeyStore,
+  LinkedIdentity,
+  Passkey,
+  Realm
+} from '@oidcraft/adapter'
 import { grantExpired, MERGE_ROUNDS, mergedGrant, noAccounts } from '@oidcraft/adapter'
-import type { ArtifactRow, ClientRow, CredentialRow, GrantRow, IdentityRow, RealmRow, ReplayRow, SessionRow } from '@oidcraft/sql/rows'
+import type {
+  ArtifactRow,
+  ClientRow,
+  CredentialRow,
+  GrantRow,
+  IdentityRow,
+  PasskeyRow,
+  RealmRow,
+  ReplayRow,
+  SessionRow
+} from '@oidcraft/sql/rows'
 import {
   artifactRow,
   clientRow,
@@ -9,6 +29,7 @@ import {
   identityRow,
   json,
   parse,
+  passkeyRow,
   realmRow,
   sessionRow,
   toArtifact,
@@ -16,6 +37,7 @@ import {
   toCredential,
   toGrant,
   toIdentity,
+  toPasskey,
   toRealm,
   toSession
 } from '@oidcraft/sql/rows'
@@ -100,6 +122,7 @@ export const typeormAdapter = (options: TypeormAdapterOptions): FullAdapter => {
   const identities = dataSource.getRepository<IdentityRow>('oidc_identities')
   const replay = dataSource.getRepository<ReplayRow>('oidc_replay')
   const credentials = dataSource.getRepository<CredentialRow>('oidc_credentials')
+  const passkeys = dataSource.getRepository<PasskeyRow>('oidc_passkeys')
   const realms = dataSource.getRepository<RealmRow>('oidc_realms')
 
   const artifacts = {
@@ -319,6 +342,25 @@ export const typeormAdapter = (options: TypeormAdapterOptions): FullAdapter => {
       },
       async destroy(accountId: string) {
         await credentials.delete(by({ account_id: accountId }))
+      }
+    },
+
+    passkeys: {
+      async find(credentialId: string) {
+        const row = await passkeys.findOneBy(by({ credential_id: credentialId }))
+        return row ? toPasskey(row) : undefined
+      },
+      async listForAccount(accountId: string) {
+        return (await passkeys.findBy(by({ account_id: accountId }))).map(toPasskey)
+      },
+      async create(passkey: Passkey) {
+        return insertIfAbsent(passkeys, passkeyRow(passkey), async () => passkeys.existsBy(by({ credential_id: passkey.credentialId })))
+      },
+      async upsert(passkey: Passkey) {
+        await upsert(passkeys, passkeyRow(passkey), ['credential_id'])
+      },
+      async destroy(credentialId: string) {
+        await passkeys.delete(by({ credential_id: credentialId }))
       }
     },
 

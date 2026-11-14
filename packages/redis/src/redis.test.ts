@@ -41,7 +41,7 @@ afterAll(async () => {
 
 describe.skipIf(!client)('redis adapter', () => {
   for (const check of adapterConformance(async () => redisAdapter(send, { prefix: fresh(), keys: await generatedKeyStore(), accounts }), {
-    implements: ['identities', 'credentials', 'realms']
+    implements: ['identities', 'credentials', 'passkeys', 'realms']
   })) {
     test(`redis: ${check.name}`, check.run)
   }

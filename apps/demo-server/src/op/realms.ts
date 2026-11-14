@@ -63,7 +63,7 @@ export const realms = realmsEnabled
       configure: async (realm: Realm) => {
         const storage = await storageOf(realm.id)
         const name = realm.displayName ?? realm.id
-        const accounts = createDemoAccounts(storage, name)
+        const accounts = createDemoAccounts(storage, name, realmIssuer(realm.id))
         sites.set(realm.id, { accounts, screens: screensFor(name, realmIssuer(realm.id)), brokering: false })
         return {
           issuer: realmIssuer(realm.id),

@@ -6,7 +6,7 @@ was done.
 
 ## Status
 
-**Implemented, as of 2026-11-13**, with 1344 passing tests (215 more skip without Postgres and
+**Implemented, as of 2026-11-14**, with 1408 passing tests (235 more skip without Postgres and
 Redis) and `bun run verify` as the gate: every functional requirement in `REQUIREMENTS.md`.
 `metadata.test.ts` exercises every advertised discovery value rather than reading it. Published as
 `@oidcraft/*` — `core` 0.4.0, `client` 0.3.0, the provider 0.4.0, `adapter` and the four storage
@@ -22,7 +22,7 @@ DPoP with nonces, PAR, JAR by value, the `claims` parameter, dynamic client regi
 7592 management, the device grant, CIBA in poll and ping, token exchange, RAR, step-up, pairwise
 subjects, identity brokering with home-realm discovery chosen by the provider, five storage adapters
 (memory, Drizzle, Kysely, TypeORM, Redis) passing one conformance suite, four runtime context
-providers, a management API and an admin UI.
+providers, local accounts with passwords, passkeys and TOTP, a management API and an admin UI.
 
 ### What is NOT done, and will not be silently forgotten
 
@@ -68,58 +68,69 @@ Versions are set in each `package.json`. Publish in this order, each from a GitH
    answered late or after a rekey is kept; bindings see a token lapse.
 3. `@oidcraft/adapter@0.3.0` — the `revoked_family` artifact kind; `fromKv`'s identity key changed,
    so links a Redis store made before it are not found; `AccountStore.claims` documents its third
-   argument; `Client.defaultAcrValues`; the conformance suite checks prune, grant expiry and replacing upserts.
+   argument; `Client.defaultAcrValues`; the conformance suite checks prune, grant expiry and replacing upserts;
+   `PasskeyStore`, which `CredentialsAdapter` now requires, the `passkey_challenge` kind, and the
+   `passkeys` conformance checks (FR-I8).
 4. `@oidcraft/provider@0.5.0` — the review's security and correctness fixes; the `claims` parameter
    (FR-C22), whose consent answers must repeat `view.claims` in `consent.claims`; `onAudit` hears
    `token.replay` and `client.authentication_failed`; a body that is not form-encoded is a 415; a
    throwing logout or registration audit hook goes to `onError`; under a provider-wide FAPI profile
    dynamic registration names the profile's algorithm instead of failing on DCR's RS256 default;
-   a client's `default_acr_values` and the configured `acrValues`, advertised (FR-C23).
+   a client's `default_acr_values` and the configured `acrValues`, advertised (FR-C23); passkeys in
+   `./accounts`, behind its new `origin` option (FR-I8).
 5. `@oidcraft/drizzle@0.3.0`, `@oidcraft/kysely@0.3.0`, `@oidcraft/redis@0.3.0` — peer on `adapter`
-   ^0.3.0; the SQL ones enforce `Grant.expiresAt` and prune by expiry at the delete.
+   ^0.3.0; the SQL ones enforce `Grant.expiresAt` and prune by expiry at the delete, and store passkeys,
+   with migration `0006_passkeys`.
 6. `@oidcraft/typeorm@0.3.0` — the same, and `OIDCRAFT_ENTITIES` becomes `OIDCRAFT_SQLITE_ENTITIES`
    and `OIDCRAFT_POSTGRES_ENTITIES`.
 7. `@oidcraft/vue@10.0.0`, `@oidcraft/react@5.0.0`, `@oidcraft/angular@12.0.0` — majors for what
    `core` and `client` changed underneath them; every binding shows and dismisses an error that came
    without a description.
 
-## After the release: passkeys (FR-I8)
+## Passkeys, later
 
-Decided 2026-11-14: a sign-in of their own and a second factor; the browser's `getPublicKey()`, no
-CBOR; attestation `none`; `acr` `mfa` with `amr` `hwk`, `user`. In order:
+FR-I8 is in (2026-11-14). Not done, and not decided against:
 
-1. **Storage.** A `PasskeyStore` in the adapter contract — many per account, found by credential id:
-   public key, algorithm, counter, transports, name, created and last used. Migration `0004` for the
-   SQL adapters, `fromKv`, and checks in the shared suite.
-2. **Verification in `./accounts`.** `registrationOptions`, `register`, `authenticationOptions`,
-   `authenticate`; challenges as single-use artifacts bound to the interaction; WebCrypto checks of
-   the relying-party ID hash, origin, challenge, flags, counter and signature (ES256, RS256, EdDSA).
-   Tested against a software authenticator built from WebCrypto.
-3. **Demo.** The account app adds, renames and removes passkeys. The login screen gains the passkey
-   button and autofill, the screens' first script, without which the form still posts; the second
-   factor step offers a passkey beside TOTP.
-4. **Docs**, and the conformance plans rerun, though no OpenID plan covers WebAuthn.
+- **Accounts with no password.** `passwordHash` is required, so a passkey is added to an account that
+  has one. Passwordless sign-up needs that relaxed, and a way back in for an account whose only
+  passkey is lost.
+- **Attestation**, for an enterprise that admits only its own authenticators.
+- **The admin removing a person's passkeys.** The person can, from the account app.
 
-Later, not now: accounts with no password (`passwordHash` is required today), attestation for
-enterprise, the admin removing a person's passkeys. A realm on its own subdomain has its own passkeys,
-as the relying-party ID is the issuer's host.
+A realm on its own subdomain has its own passkeys, as the relying-party ID is the issuer's host.
 
 ## Planned: MySQL and MariaDB
 
 Wanted, not decided against: with Drizzle, Kysely and TypeORM all on Postgres and SQLite only, no
-MySQL deployment can use oidcraft today. FR-A4 gains the dialect when it lands, not before. What
-differs, from the code as it stands:
+MySQL deployment can use oidcraft today. FR-A4 gains the dialect when it lands, not before.
 
-- **Atomicity holds, by other means.** No `RETURNING` on MySQL (MariaDB has it for `INSERT` and
-  `DELETE`, not `UPDATE`), so a consume, a claim and a merge read the affected-row count of their
-  conditional `UPDATE`; insert-if-absent is `INSERT … ON DUPLICATE KEY UPDATE id = id`, whose count
-  says which won, never `INSERT IGNORE`, which swallows every other error too.
-- **Collation is a security setting.** MySQL's default collations compare case-insensitively, and
-  every id here is a case-sensitive hash or random string. Key columns are `utf8mb4_bin`, or a
-  lookup finds a token it should not. Keys are `VARCHAR`, since a `TEXT` primary key needs a prefix.
-- **Prune is simpler there.** MySQL refuses a `LIMIT` in an `IN` subquery on the table being
-  deleted from, but has `DELETE … WHERE expires_at <= ? LIMIT n` of its own.
-- **`MYSQL_MIGRATIONS`**, a third list in `@oidcraft/sql` with the same ids as the other two.
+**One dialect, not two.** Everything the adapters need is in what MySQL 8.4 and MariaDB 11 share, so
+they get one migration list, `MYSQL_MIGRATIONS`, one Drizzle table set and one Kysely dialect, all
+over `mysql2`, which talks to both. The rule is to write only the intersection; CI runs the shared
+suite against both servers, and that second container is what keeps it true. Where they differ, and
+the side taken:
+
+- **`RETURNING`.** MariaDB has it for `INSERT` and `DELETE`, MySQL not at all: never used.
+- **An upsert's new values.** MySQL 8.0.19+ names them with a row alias (`… AS new`), which MariaDB
+  rejects; MariaDB uses `VALUES(col)`, which MySQL deprecates. Neither: the values are bound again
+  in the `UPDATE` clause.
+- **JSON.** MariaDB's `JSON` is an alias for `LONGTEXT`. Already moot: JSON is stored as text here.
+- **TypeORM** names them `type: 'mysql'` and `type: 'mariadb'` but runs the same driver and entities;
+  the host picks, the adapter does not care.
+
+What differs from Postgres and SQLite, from the code as it stands:
+
+- **Atomicity holds, by other means.** A consume, a claim and a merge read the affected-row count of
+  their conditional `UPDATE`, whose `WHERE` excludes a row that would not change. Insert-if-absent
+  is a plain `INSERT` that catches duplicate-key error 1062, the same on both. Not `INSERT IGNORE`,
+  which swallows every other error too, and not the affected-row count of `ON DUPLICATE KEY UPDATE
+  id = id`: with `CLIENT_FOUND_ROWS`, which a host's connection may set, an insert and a duplicate
+  both report 1. Check `mysql2`'s default flags before relying on any count.
+- **Collation is a security setting.** The default collations compare case-insensitively, and every
+  id here is a case-sensitive hash or random string. Key columns are `utf8mb4_bin`, or a lookup finds
+  a token it should not. Keys are `VARCHAR`, since a `TEXT` primary key needs a prefix.
+- **Prune is simpler there.** Neither allows a `LIMIT` in an `IN` subquery on the table being
+  deleted from, but both have `DELETE … WHERE expires_at <= ? ORDER BY expires_at LIMIT n`.
 
 In order: Kysely first (one dialect switch, `@oidcraft/sql/rows` reused), then TypeORM, then Drizzle,
 whose `mysql-core` tables are a third definition. CI gains MySQL 8.4 and MariaDB 11 service

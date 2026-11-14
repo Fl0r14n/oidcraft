@@ -7,7 +7,7 @@
         id="u"
         name="username"
         label="Username"
-        autocomplete="username"
+        :autocomplete="passkey ? 'username webauthn' : 'username'"
         required
         :maxlength="maxLength"
         :value="username"
@@ -28,6 +28,7 @@
         <UiLink v-if="registerUrl" :href="registerUrl">Create an account</UiLink>
       </p>
     </form>
+    <PasskeyForm v-if="passkey" v-bind="passkey" />
     <form v-if="upstreams.length" method="post" :action="upstreamAction" class="space-y-3">
       <p class="flex items-center gap-3 text-sm text-muted before:h-px before:flex-1 before:bg-rule after:h-px after:flex-1 after:bg-rule">or</p>
       <UiButton
@@ -50,6 +51,7 @@ import UiButton from '../UiButton.vue'
 import UiCard from '../UiCard.vue'
 import UiField from '../UiField.vue'
 import UiLink from '../UiLink.vue'
+import PasskeyForm from './PasskeyForm.vue'
 
 defineProps<{
   action: string
@@ -62,5 +64,6 @@ defineProps<{
   notice?: string | undefined
   forgotUrl?: string | undefined
   registerUrl?: string | undefined
+  passkey?: { action: string; options: string; step: 'login' } | undefined
 }>()
 </script>

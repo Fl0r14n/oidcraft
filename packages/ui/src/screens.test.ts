@@ -123,3 +123,37 @@ test('the stylesheet and its fonts can be mounted under any prefix', async () =>
     expect(assets(new Request(url)).status).toBe(200)
   }
 })
+
+describe('passkeys', () => {
+  test('a screen without them loads no script', async () => {
+    for (const html of [await (await screens.login(view)).text(), await (await screens.otp(view)).text()]) {
+      expect(html).not.toContain('<script')
+      expect(html).not.toContain('data-passkey')
+    }
+  })
+
+  test('the login offers them hidden until the script shows them, and in the username’s autofill', async () => {
+    const html = await (await screens.login(view, { passkeys: true })).text()
+    expect(html).toContain('<script type="module" src="/assets/passkey.js"></script>')
+    expect(html).toContain('autocomplete="username webauthn"')
+    expect(html).toMatch(
+      /<form hidden method="post" action="\/interaction\/i1\/passkey" data-passkey data-options="\/interaction\/i1\/passkey-options" data-step="login" data-autofill/
+    )
+    expect(html).toContain('name="credential"')
+    expect(firstButton(html)).toContain('type="submit"')
+  })
+
+  test('the second step offers one beside the code, without autofill', async () => {
+    const html = await (await screens.otp(view, { passkeys: true })).text()
+    expect(html).toContain('data-step="second"')
+    expect(html).not.toContain('data-autofill')
+    expect(html).toContain('Use a passkey instead')
+  })
+
+  test('the script is served beside the stylesheet', async () => {
+    const response = assets(new Request('https://id.acme.test/t/acme/static/passkey.js'))
+    expect(response.status).toBe(200)
+    expect(response.headers.get('content-type')).toStartWith('text/javascript')
+    expect(await response.text()).toContain('data-passkey')
+  })
+})

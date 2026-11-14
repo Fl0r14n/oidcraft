@@ -165,8 +165,15 @@ export const createToken = (
           const t = token()
           if (t?.expires !== expires) return
           if (Date.now() < expires) return schedule(expires)
-          if (t.refresh_token) void checkToken().catch(() => undefined)
-          else if (t.access_token) setToken({ ...t })
+          const lapse = () => {
+            const still = token()
+            if (still?.expires === expires && still.access_token) setToken({ ...still })
+          }
+          if (t.refresh_token)
+            void checkToken()
+              .catch(() => undefined)
+              .finally(lapse)
+          else lapse()
         },
         Math.min(Math.max(0, expires - Date.now()), LONGEST_TIMER)
       )

@@ -109,6 +109,29 @@ describe('checkToken', () => {
     }
   })
 
+  // Offline at expiry, the refresh writes nothing; the readers must still learn the token is dead.
+  it('tells its readers when the token lapses and its refresh fails', async () => {
+    jest.useFakeTimers()
+    const start = Date.now()
+    try {
+      refresh.mockResolvedValue(undefined)
+      oauth.setToken({ access_token: 'a', refresh_token: 'r', token_type: 'Bearer', expires: start + 5_000 })
+      let notified = 0
+      const off = oauth.tokenStore.subscribe(() => notified++)
+      setSystemTime(start + 5_001)
+      jest.advanceTimersByTime(5_001)
+      for (let tick = 0; !refresh.mock.calls.length && tick < 100; tick++) await Promise.resolve()
+      for (let tick = 0; tick < 100; tick++) await Promise.resolve()
+      off()
+      expect(refresh).toHaveBeenCalled()
+      expect(notified).toBeGreaterThan(0)
+      expect(oauth.isAuthorized()).toBe(false)
+    } finally {
+      jest.useRealTimers()
+      setSystemTime()
+    }
+  })
+
   // FR-L5: the lock is let go after 30 s, but the request is not: its rotated refresh token is the only live one left.
   it('keeps a rotated token that arrives after the refresh was given up on', async () => {
     jest.useFakeTimers()

@@ -1,5 +1,8 @@
 # oidcraft
 
+[![ci](https://github.com/Fl0r14n/oidcraft/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Fl0r14n/oidcraft/actions/workflows/ci.yml)
+[![docs](https://img.shields.io/badge/docs-fl0r14n.github.io%2Foidcraft-blue)](https://fl0r14n.github.io/oidcraft/)
+
 An OpenID Provider library for TypeScript, and the client libraries that sign in against it.
 
 - **[`@oidcraft/provider`](packages/provider/README.md)**: the provider. Authorization, tokens, sessions,

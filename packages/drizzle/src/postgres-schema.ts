@@ -115,7 +115,7 @@ export const postgresTables = (schema?: string) => {
     {
       accountId: text('account_id').primaryKey(),
       username: text('username').notNull(),
-      passwordHash: text('password_hash').notNull(),
+      passwordHash: text('password_hash'),
       claims: json('claims').notNull(),
       totpSecret: text('totp_secret'),
       totpConfirmedAt: millis('totp_confirmed_at'),

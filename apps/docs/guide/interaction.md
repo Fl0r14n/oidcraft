@@ -165,6 +165,30 @@ Keep the password form posting without script; the reference screens hide the pa
 the script shows it. `reason: 'counter'` means the authenticator's counter went backwards, so the
 key may be cloned: refuse it, and tell someone.
 
+### Accounts without a password
+
+An account can be made with a passkey and no password at all (FR-I8). Ask for
+`accounts.passkeys.signUpOptions(interactionId, { username, claims })`, which refuses a taken
+username before the authenticator is asked, hand them to `navigator.credentials.create`, and post the
+result to a route that calls `accounts.passkeys.signUp(interactionId, response, name)`. It creates
+the account and its passkey and answers `recoveryCodes`: show them once, then send the person on to
+`redirectTo`, which re-enters the authorization endpoint and can wait while they write them down.
+
+Such an account never signs in with a password, takes no TOTP, as a passkey is already two factors,
+and refuses to remove its last passkey: `passkeys.remove` answers `reason: 'last'`. Someone who
+loses every passkey gets back in one of two ways, both ending in a reset token:
+
+- **A recovery code.** `accounts.recover(username, code, { clientIp })` spends it and answers a
+  `token`; it signs no one in. Failed codes count as second-factor failures do. Answer a lock as you
+  answer a wrong code.
+- **A link someone sends.** `reset.issueForAccount(accountId)` is for an administrator to send; who
+  may ask is yours to decide (FR-M1). `reset.issue(username)` behind a "forgot" form works too, and
+  makes the inbox the way back in.
+
+The token's page offers a new passkey — `reset.passkeyOptions(token)`, then
+`reset.completeWithPasskey(token, response, name)` — or a password, through `reset.complete`. Either
+ends the account's sessions and revokes its tokens, as a stolen device may be why it was needed.
+
 ## Resuming
 
 After a login, the browser goes back to the authorization endpoint with the new session, and the
@@ -322,17 +346,20 @@ invalidates all three. `origin` is the issuer's URL; passkeys need it, as their 
 host.
 
 - `store` — the `AccountStore` to pass as the adapter's `accounts`
-- `register`, `authenticate`, `verifySecondFactor`, `setPassword`
-- `totp.begin`, `totp.confirm` (which returns the recovery codes, once), `totp.remove`,
-  `totp.status`, `totp.regenerateRecoveryCodes`
+- `register`, `authenticate`, `verifySecondFactor`, `setPassword`, `recover`,
+  `regenerateRecoveryCodes`
+- `totp.begin` (refused for an account with no password), `totp.confirm` (which returns the
+  recovery codes, once), `totp.remove`, `totp.status`
 - `passkeys.registrationOptions` and `passkeys.register`, `passkeys.authenticationOptions` and
-  `passkeys.authenticate`, and `passkeys.list`, `rename`, `remove` — WebAuthn with attestation
-  `none` and no CBOR: the key is what the browser's `getPublicKey()` reports, and a credential id
-  already registered to anyone is refused
-- `reset.issue` and `reset.complete` — single-use reset tokens. Delivering one is I/O, so you send
-  it (FR-A1); `issue` returns nothing for an unknown username, and your page must answer both cases
-  the same way. Completing a reset ends the account's sessions and lifts its locks: the account's
-  own and, given `{ clientIp }`, that address's.
+  `passkeys.authenticate`, `passkeys.signUpOptions` and `passkeys.signUp` for an account with no
+  password, and `passkeys.list`, `rename`, `remove` — WebAuthn with attestation `none` and no CBOR:
+  the key is what the browser's `getPublicKey()` reports, and a credential id already registered to
+  anyone is refused
+- `reset.issue`, `reset.issueForAccount`, `reset.complete`, and `reset.passkeyOptions` with
+  `reset.completeWithPasskey` — single-use reset tokens. Delivering one is I/O, so you send it
+  (FR-A1); `issue` returns nothing for an unknown username, and your page must answer both cases
+  the same way. Completing a reset, with a password or a passkey, ends the account's sessions and
+  lifts its locks: the account's own and, given `{ clientIp }`, that address's.
 
 The hasher is injected: `bunPasswordHasher` from `@oidcraft/provider/runtimes/bun`,
 `nodePasswordHasher` from `@oidcraft/provider/runtimes/node`, or your own. Failed passwords, and

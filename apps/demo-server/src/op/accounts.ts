@@ -99,3 +99,7 @@ export const seedDemoAccounts = async (accounts: Accounts, adapter: Adapter) => 
   }
   console.log(`[oidcraft] demo accounts: ${people.map(person => person.username).join(', ')} — password from OIDCRAFT_DEMO_PASSWORD`)
 }
+
+/** The demo's mail: a deployment emails this link and never shows it, or the form hands accounts to anyone. */
+export const sendRecoveryLink = (accountId: string, token: string, issuer: string) =>
+  console.log(`[demo mail] to ${accountId}: get back into your account at ${new URL(`/reset?token=${token}`, issuer)}`)

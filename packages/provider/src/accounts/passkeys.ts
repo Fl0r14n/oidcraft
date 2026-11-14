@@ -63,13 +63,21 @@ const MAX_NAME = 64
 /** WebAuthn §5.4.3: the authenticator chooses the id, and the store keys on it. */
 const MAX_CREDENTIAL_ID = 1023
 
-const nameProblem = (name: string): PasskeyNameProblem | undefined => {
+export const nameProblem = (name: string): PasskeyNameProblem | undefined => {
   if (!name) return 'required'
   if (name.length > MAX_NAME) return 'tooLong'
   return undefined
 }
 
-type Challenge = { ceremony: 'create' | 'get'; binding: string }
+/** What a passkey sign-up asked for, held with its challenge until the browser answers. */
+export type PasskeySignUp = { username: string; claims: Record<string, unknown> }
+
+export type Challenge = { ceremony: 'create' | 'get'; binding: string; signUp?: PasskeySignUp }
+
+export type PasskeyRemoval = { ok: true } | { ok: false; reason: 'unknown' | 'last' }
+
+export const displayNameOf = (username: string, claims: Record<string, unknown>) =>
+  typeof claims.name === 'string' && claims.name ? claims.name : username
 
 type PasskeysOptions = {
   adapter: CredentialsAdapter
@@ -130,7 +138,7 @@ export const createPasskeys = ({ adapter, origin: configured, name, hashingKey, 
     const { origin } = relyingParty()
     const type = expected.ceremony === 'create' ? 'webauthn.create' : 'webauthn.get'
     if (clientData.type !== type || clientData.origin !== origin || clientData.crossOrigin) return undefined
-    return { bytes, accountId: artifact.accountId }
+    return { bytes, accountId: artifact.accountId, challenge }
   }
 
   const authenticatorDataOf = async (encoded: unknown) => {
@@ -147,70 +155,92 @@ export const createPasskeys = ({ adapter, origin: configured, name, hashingKey, 
 
   const invalid = { ok: false, reason: 'invalid' } as const
 
+  /** `PublicKeyCredentialCreationOptionsJSON` for `navigator.credentials.create`, its challenge bound as `challenge` says. */
+  const creationOptions = async (user: { accountId: string; username: string; displayName: string }, challenge: Challenge) => {
+    const rp = relyingParty()
+    const existing = await adapter.passkeys.listForAccount(user.accountId)
+    return {
+      rp: { id: rp.id, name },
+      user: { id: await userHandle(user.accountId), name: user.username, displayName: user.displayName },
+      challenge: await issueChallenge(challenge, user.accountId),
+      pubKeyCredParams: PASSKEY_ALGORITHMS.map(alg => ({ type: 'public-key' as const, alg })),
+      timeout: ttl * 1000,
+      excludeCredentials: existing.map(passkey => ({
+        type: 'public-key' as const,
+        id: passkey.credentialId,
+        transports: passkey.transports
+      })),
+      authenticatorSelection: { residentKey: 'required' as const, requireResidentKey: true, userVerification: 'required' as const },
+      attestation: 'none' as const
+    }
+  }
+
+  /** The credential `create()` returned, checked against the challenge `expected` names, and not yet stored. The browser's word for the key is enough: attestation is `none` (FR-I8). */
+  const verifyCreation = async (response: RegistrationResponseJSON, expected: Challenge) => {
+    const redeemed = await redeem(response?.response?.clientDataJSON, expected)
+    if (!redeemed?.accountId) return undefined
+    const authenticator = await authenticatorDataOf(response.response.authenticatorData)
+    const rawId = bytesOf(response.rawId)
+    const publicKey = bytesOf(response.response.publicKey)
+    const algorithm = response.response.publicKeyAlgorithm
+    if (
+      !authenticator ||
+      !rawId?.length ||
+      rawId.length > MAX_CREDENTIAL_ID ||
+      response.id !== response.rawId ||
+      !(authenticator.data.flags & FLAG_ATTESTED_CREDENTIAL) ||
+      !authenticator.data.credentialId ||
+      !equalBytes(authenticator.data.credentialId, rawId) ||
+      !publicKey ||
+      !supportedAlgorithm(algorithm) ||
+      !(await importPublicKey(publicKey, algorithm))
+    ) {
+      return undefined
+    }
+    const accountId = redeemed.accountId
+    const passkey = (passkeyName: string): Passkey => ({
+      credentialId: response.rawId,
+      accountId,
+      publicKey: response.response.publicKey,
+      algorithm,
+      counter: authenticator.data.counter,
+      transports: (Array.isArray(response.response.transports) ? response.response.transports : []).filter(transport =>
+        TRANSPORTS.has(transport)
+      ),
+      name: passkeyName,
+      createdAt: new Date()
+    })
+    return { accountId, signUp: redeemed.challenge.signUp, passkey }
+  }
+
+  /** WebAuthn §7.1 step 26: a credential id already registered, to anyone, is refused rather than reassigned. */
+  const keep = async (passkey: Passkey): Promise<PasskeyRegistrationResult> =>
+    (await adapter.passkeys.create(passkey)) ? { ok: true, passkey: summary(passkey) } : { ok: false, reason: 'taken' }
+
   return {
-    /** `PublicKeyCredentialCreationOptionsJSON` for `navigator.credentials.create`, or undefined for an account with no password. */
+    creationOptions,
+    verifyCreation,
+    keep,
+
+    /** Creation options for an account that exists, or undefined for one that does not. */
     async registrationOptions(accountId: string) {
       const credential = await adapter.credentials.find(accountId)
       if (!credential) return undefined
-      const rp = relyingParty()
-      const existing = await adapter.passkeys.listForAccount(accountId)
-      const displayName = typeof credential.claims.name === 'string' ? credential.claims.name : credential.username
-      return {
-        rp: { id: rp.id, name },
-        user: { id: await userHandle(accountId), name: credential.username, displayName },
-        challenge: await issueChallenge({ ceremony: 'create', binding: accountId }, accountId),
-        pubKeyCredParams: PASSKEY_ALGORITHMS.map(alg => ({ type: 'public-key' as const, alg })),
-        timeout: ttl * 1000,
-        excludeCredentials: existing.map(passkey => ({
-          type: 'public-key' as const,
-          id: passkey.credentialId,
-          transports: passkey.transports
-        })),
-        authenticatorSelection: { residentKey: 'required' as const, requireResidentKey: true, userVerification: 'required' as const },
-        attestation: 'none' as const
-      }
+      const { username, claims } = credential
+      return creationOptions(
+        { accountId, username, displayName: displayNameOf(username, claims) },
+        { ceremony: 'create', binding: accountId }
+      )
     },
 
-    /** Stores the credential `create()` returned for the options above. The browser's word for the key is enough: attestation is `none` (FR-I8). */
+    /** Stores the credential `create()` returned for the options above. */
     async register(accountId: string, response: RegistrationResponseJSON, label: string): Promise<PasskeyRegistrationResult> {
       const passkeyName = label.trim()
       const problem = nameProblem(passkeyName)
       if (problem) return { ok: false, reason: 'name', problem }
-      const redeemed = await redeem(response?.response?.clientDataJSON, { ceremony: 'create', binding: accountId })
-      if (!redeemed || redeemed.accountId !== accountId) return invalid
-      const authenticator = await authenticatorDataOf(response.response.authenticatorData)
-      const rawId = bytesOf(response.rawId)
-      const publicKey = bytesOf(response.response.publicKey)
-      const algorithm = response.response.publicKeyAlgorithm
-      if (
-        !authenticator ||
-        !rawId?.length ||
-        rawId.length > MAX_CREDENTIAL_ID ||
-        response.id !== response.rawId ||
-        !(authenticator.data.flags & FLAG_ATTESTED_CREDENTIAL) ||
-        !authenticator.data.credentialId ||
-        !equalBytes(authenticator.data.credentialId, rawId) ||
-        !publicKey ||
-        !supportedAlgorithm(algorithm) ||
-        !(await importPublicKey(publicKey, algorithm))
-      ) {
-        return invalid
-      }
-      const passkey: Passkey = {
-        credentialId: response.rawId,
-        accountId,
-        publicKey: response.response.publicKey,
-        algorithm,
-        counter: authenticator.data.counter,
-        transports: (Array.isArray(response.response.transports) ? response.response.transports : []).filter(transport =>
-          TRANSPORTS.has(transport)
-        ),
-        name: passkeyName,
-        createdAt: new Date()
-      }
-      // WebAuthn §7.1 step 26: a credential id already registered, to anyone, is refused rather than reassigned.
-      if (!(await adapter.passkeys.create(passkey))) return { ok: false, reason: 'taken' }
-      return { ok: true, passkey: summary(passkey) }
+      const created = await verifyCreation(response, { ceremony: 'create', binding: accountId })
+      if (created?.accountId !== accountId) return invalid
+      return keep(created.passkey(passkeyName))
     },
 
     /**
@@ -276,11 +306,19 @@ export const createPasskeys = ({ adapter, origin: configured, name, hashingKey, 
       return { ok: true } as const
     },
 
-    async remove(accountId: string, credentialId: string) {
+    /** Refuses the last passkey of an account with no password, which would leave it no way to sign in (FR-I8). */
+    async remove(accountId: string, credentialId: string): Promise<PasskeyRemoval> {
       const passkey = await adapter.passkeys.find(credentialId)
-      if (passkey?.accountId !== accountId) return false
+      if (passkey?.accountId !== accountId) return { ok: false, reason: 'unknown' }
+      const passwordless = !(await adapter.credentials.find(accountId))?.passwordHash
+      if (passwordless && (await adapter.passkeys.listForAccount(accountId)).length <= 1) return { ok: false, reason: 'last' }
       await adapter.passkeys.destroy(credentialId)
-      return true
+      // FR-I8: two removals racing past the count can take the last two between them; one that then finds none puts its own back.
+      if (passwordless && (await adapter.passkeys.listForAccount(accountId)).length === 0) {
+        await adapter.passkeys.create(passkey)
+        return { ok: false, reason: 'last' }
+      }
+      return { ok: true }
     }
   }
 }

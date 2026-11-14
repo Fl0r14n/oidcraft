@@ -150,10 +150,53 @@ describe('passkeys', () => {
     expect(html).toContain('Use a passkey instead')
   })
 
+  // FR-I8: sign-up and recovery still post as forms without the script; the passkey half only appears with it.
+  test('sign-up and the reset link offer a passkey inside their form, hidden until the script shows it', async () => {
+    const plain = await (await screens.register(view)).text()
+    expect(plain).not.toContain('<script')
+    expect(plain).not.toContain('data-passkey-create')
+
+    const register = await (await screens.register(view, { passkeys: true })).text()
+    expect(register).toContain('<script type="module" src="/assets/passkey.js"></script>')
+    expect(register).toMatch(/<div hidden data-passkey-create data-options="\/interaction\/i1\/register-options"/)
+    expect(register).toMatch(/<form method="post" action="\/interaction\/i1\/register"[\s\S]*data-passkey-create[\s\S]*<\/form>/)
+    expect(firstButton(register)).toContain('type="submit"')
+
+    const reset = await (await screens.reset('t0ken', { passkeys: true })).text()
+    expect(reset).toContain('Get back into your account')
+    expect(reset).toContain('data-options="/reset?step=passkey-options"')
+    expect(reset).toContain('value="t0ken"')
+  })
+
+  test('a lost passkey is a link from the login, to a form for a recovery code', async () => {
+    expect(await (await screens.login(view, { passkeys: true, recover: true })).text()).toContain('href="/interaction/i1/recover"')
+    expect(await (await screens.login(view, { recover: true })).text()).not.toContain('/recover')
+    const html = await (await screens.recover(view, { username: 'linus', error: 'No match.', forgot: true })).text()
+    expect(html).toContain('action="/interaction/i1/recover"')
+    expect(html).toContain('value="linus"')
+    expect(html).toContain('name="code"')
+    expect(html).toContain('No match.')
+    expect(html).toContain('href="/interaction/i1/forgot"')
+  })
+
+  test('recovery codes are shown once, with a way on that keeps the whole authorization URL', async () => {
+    const html = await (await screens.recoveryCodes(['abcde-fghij', 'klmno-pqrst'], '/authorize?client_id=c&state=s')).text()
+    expect(html).toContain('abcde-fghij')
+    expect(html).toContain('klmno-pqrst')
+    expect(html).toContain('href="/authorize?client_id=c&amp;state=s"')
+    expect(html).not.toContain('<script')
+    expect(html).toContain('A passkey on each')
+    expect(html).not.toContain('href="/account"')
+    const linked = await (await screens.recoveryCodes(['abcde-fghij'], '/authorize', { accountUrl: '/account' })).text()
+    expect(linked).toContain('href="/account" target="_blank" rel="noopener"')
+  })
+
   test('the script is served beside the stylesheet', async () => {
     const response = assets(new Request('https://id.acme.test/t/acme/static/passkey.js'))
     expect(response.status).toBe(200)
     expect(response.headers.get('content-type')).toStartWith('text/javascript')
-    expect(await response.text()).toContain('data-passkey')
+    const script = await response.text()
+    expect(script).toContain('data-passkey')
+    expect(script).toContain('data-passkey-create')
   })
 })

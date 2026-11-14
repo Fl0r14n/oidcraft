@@ -101,7 +101,7 @@ export const credentials = sqliteTable(
   {
     accountId: text('account_id').primaryKey(),
     username: text('username').notNull(),
-    passwordHash: text('password_hash').notNull(),
+    passwordHash: text('password_hash'),
     claims: text('claims', { mode: 'json' }).notNull(),
     totpSecret: text('totp_secret'),
     totpConfirmedAt: integer('totp_confirmed_at', { mode: 'timestamp_ms' }),

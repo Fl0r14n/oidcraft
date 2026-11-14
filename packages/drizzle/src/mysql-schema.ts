@@ -120,7 +120,7 @@ export const mysqlTables = (database?: string) => {
     {
       accountId: varchar('account_id', { length: 255 }).primaryKey(),
       username: varchar('username', { length: 255 }).notNull(),
-      passwordHash: text('password_hash').notNull(),
+      passwordHash: text('password_hash'),
       claims: json('claims').notNull(),
       totpSecret: text('totp_secret'),
       totpConfirmedAt: millis('totp_confirmed_at'),

@@ -509,13 +509,23 @@ assertion is checked with WebCrypto alone — relying-party ID hash against the 
 (`origin` in `createAccounts`), client data origin, user-present and user-verified flags, the
 signature (an ES256 one converted from DER), and a counter that must rise unless both sides keep
 none. Each ceremony's challenge is a `passkey_challenge` artifact under its own value, bound to the
-interaction or, for a registration, the account, and taken by the atomic `consume` before any check
-can fail, so a challenge is spent whether its ceremony succeeds or not. `PasskeyStore` is keyed by
+interaction, or for a registration to the account, a sign-up's interaction or a reset token's digest,
+and taken by the atomic `consume` before any check can fail, so a challenge is spent whether its
+ceremony succeeds or not. A sign-up's challenge carries the username, claims and a fresh account id,
+so the account and its passkey are written only once the authenticator has answered. `PasskeyStore` is keyed by
 credential id, which an assertion names, and its `create` is atomic, so a credential id registered to
 one account is refused rather than moved to another. The user handle is an HMAC of the account id
 under `secretKey`, stable and naming no one, since an account id may be a username. A passkey is a
 second factor only beside TOTP: an account with passkeys and no TOTP still signs in with a password
-alone, so losing a passkey never locks anyone out, and a password reset does not need one.
+alone, so losing a passkey never locks a password account out, and a password reset does not need one.
+
+An account made with a passkey has no `passwordHash`. `authenticate` pays the decoy hash for it and
+fails, `totp.begin` refuses it, and `passkeys.remove` refuses its last passkey; two removals that race
+past that count each re-list after deleting, and one that finds none left puts its passkey back. Its
+way back in is a reset token: `recover` spends a recovery code for one, and `reset.issueForAccount`
+issues one for an administrator. The token's page adds a passkey through a creation ceremony bound to
+the token's digest, spending the token only once the authenticator's answer verifies, or sets a
+password, and either ends the account's sessions and revokes its grants' tokens as a reset does (FR-T7).
 
 Hashing is injected, because the fast hashers are runtime globals: `bunPasswordHasher` lives in
 `./runtimes/bun` and `nodePasswordHasher` in `./runtimes/node`, both writing PHC argon2id strings the
@@ -602,7 +612,11 @@ TOTP sets a signed, five-minute cookie bound to the interaction, which only the 
 with a TOTP code, a recovery code or one of that account's passkeys. A passkey alone signs in from
 the login screen's button or the username field's autofill. `acr` is `mfa` after a second factor or
 for a passkey and `pwd` otherwise, with RFC 8176 `amr` values: `hwk` and `user` for a passkey. The
-account app adds, renames and removes passkeys.
+account app adds, renames and removes passkeys; the admin app lists and removes them, for a device
+that is lost or stolen, and sends a recovery link. Sign-up offers a passkey in place of the password,
+then shows the recovery codes once before continuing; the login screen links a lost passkey to a
+recovery-code form, whose answer is the reset screen. An account with no password manages its
+recovery codes in the account app with a fresh passkey assertion, as one with TOTP does with a code.
 `prompt=select_account` lists the accounts this browser signed in with, from another signed cookie.
 A reset link is printed to the console where a deployment would email it.
 

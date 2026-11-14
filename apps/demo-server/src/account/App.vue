@@ -9,9 +9,10 @@
     <template #actions><UiButton variant="secondary" @click="signOut">Sign out</UiButton></template>
     <UiAlert v-if="error">{{ error }}</UiAlert>
     <template v-if="me">
-      <PasskeysPanel :passkeys="me.passkeys" @changed="load" />
-      <TwoStepPanel :totp="me.totp" @changed="load" />
-      <PasswordPanel />
+      <PasskeysPanel :passkeys="me.passkeys" :passwordless="me.passwordless" @changed="load" />
+      <RecoveryPanel v-if="me.passwordless" :left="me.totp.recoveryCodesLeft" @changed="load" />
+      <TwoStepPanel v-else :totp="me.totp" @changed="load" />
+      <PasswordPanel :passwordless="me.passwordless" @changed="load" />
     </template>
   </UiShell>
 </template>
@@ -23,11 +24,13 @@ import { onMounted, shallowRef } from 'vue'
 import { failureMessage, useApi } from '../shared/api'
 import PasskeysPanel from './PasskeysPanel.vue'
 import PasswordPanel from './PasswordPanel.vue'
+import RecoveryPanel from './RecoveryPanel.vue'
 import TwoStepPanel from './TwoStepPanel.vue'
 
 type Me = {
   username: string
   claims: Record<string, unknown>
+  passwordless: boolean
   totp: { enrolled: boolean; recoveryCodesLeft: number }
   passkeys: { credentialId: string; name: string; createdAt: string; lastUsedAt?: string }[]
 }

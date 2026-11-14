@@ -8,6 +8,8 @@ import ForgotScreen from './screens/ForgotScreen.vue'
 import LoginScreen from './screens/LoginScreen.vue'
 import LogoutScreen from './screens/LogoutScreen.vue'
 import MessageScreen from './screens/MessageScreen.vue'
+import RecoverScreen from './screens/RecoverScreen.vue'
+import RecoveryCodesScreen from './screens/RecoveryCodesScreen.vue'
 import RegisterScreen from './screens/RegisterScreen.vue'
 import ResetScreen from './screens/ResetScreen.vue'
 import SelectAccountScreen from './screens/SelectAccountScreen.vue'
@@ -41,6 +43,8 @@ export type InteractionAction =
   | 'forgot'
   | 'passkey'
   | 'passkey-options'
+  | 'register-options'
+  | 'recover'
 
 /** The interaction as the provider describes it, plus the client's display name when the host has it. */
 export type ScreenView = InteractionRequest & { clientName?: string | undefined }
@@ -79,6 +83,8 @@ export type LoginOptions = {
   register?: boolean
   /** A passkey button and passkeys in the username's autofill, for a host that mounts the passkey routes (FR-I8). */
   passkeys?: boolean
+  /** With `passkeys`, a way in by recovery code for an account whose only passkey is lost. */
+  recover?: boolean
   status?: number
 }
 
@@ -129,7 +135,7 @@ export const createScreens = ({ brand, theme, urls: overrides }: ScreensOptions)
     // `required` and `maxlength` only mirror the rules; the POST re-checks them with `oauthFieldError`
     login: (
       view: ScreenView,
-      { attempt, upstreams = [], notice, forgot = false, register = false, passkeys = false, status }: LoginOptions = {}
+      { attempt, upstreams = [], notice, forgot = false, register = false, passkeys = false, recover = false, status }: LoginOptions = {}
     ) =>
       page(
         'Sign in',
@@ -145,6 +151,7 @@ export const createScreens = ({ brand, theme, urls: overrides }: ScreensOptions)
           notice,
           forgotUrl: forgot ? urls.interaction(view.id, 'forgot') : undefined,
           registerUrl: register ? urls.interaction(view.id, 'register') : undefined,
+          recoverUrl: passkeys && recover ? urls.interaction(view.id, 'recover') : undefined,
           passkey: passkeys ? passkeyForm(view, 'login') : undefined
         },
         status,
@@ -182,11 +189,14 @@ export const createScreens = ({ brand, theme, urls: overrides }: ScreensOptions)
         values = { name: '', email: '', username: '' },
         errors = {},
         notice,
+        passkeys = false,
         status
       }: {
         values?: { name: string; email: string; username: string }
         errors?: { username?: string | undefined; password?: string | undefined }
         notice?: string | undefined
+        /** Sign-up with a passkey and no password, for a host that mounts `register-options` (FR-I8). */
+        passkeys?: boolean
         status?: number
       } = {}
     ) =>
@@ -201,20 +211,67 @@ export const createScreens = ({ brand, theme, urls: overrides }: ScreensOptions)
           maxLength: DEFAULT_MAX_LENGTH,
           values,
           errors,
-          notice
+          notice,
+          passkey: passkeys ? { options: urls.interaction(view.id, 'register-options') } : undefined
         },
-        status
+        status,
+        passkeys
       ),
 
     forgot: (view: ScreenView) =>
-      page('Reset your password', ForgotScreen, {
+      page('Get back into your account', ForgotScreen, {
         action: urls.interaction(view.id, 'forgot'),
         loginUrl: urls.interaction(view.id, 'login'),
         maxLength: DEFAULT_MAX_LENGTH
       }),
 
-    reset: (token: string, { error, status }: { error?: string | undefined; status?: number } = {}) =>
-      page('Choose a new password', ResetScreen, { action: urls.reset, token, minLength: 8, maxLength: DEFAULT_MAX_LENGTH, error }, status),
+    /** With `passkeys`, the token may add a passkey instead; its options are a POST to `reset` with `step=passkey-options`. */
+    reset: (token: string, { error, passkeys = false, status }: { error?: string | undefined; passkeys?: boolean; status?: number } = {}) =>
+      page(
+        passkeys ? 'Get back into your account' : 'Choose a new password',
+        ResetScreen,
+        {
+          action: urls.reset,
+          token,
+          minLength: 8,
+          maxLength: DEFAULT_MAX_LENGTH,
+          error,
+          passkey: passkeys ? { options: `${urls.reset}${urls.reset.includes('?') ? '&' : '?'}step=passkey-options` } : undefined
+        },
+        status,
+        passkeys
+      ),
+
+    /** A recovery code for an account whose only passkey is lost; what it answers is a `reset` screen (FR-I8). */
+    recover: (
+      view: ScreenView,
+      {
+        username = '',
+        error,
+        forgot = false,
+        status
+      }: { username?: string; error?: string | undefined; forgot?: boolean; status?: number } = {}
+    ) =>
+      page(
+        'Use a recovery code',
+        RecoverScreen,
+        {
+          action: urls.interaction(view.id, 'recover'),
+          loginUrl: urls.interaction(view.id, 'login'),
+          forgotUrl: forgot ? urls.interaction(view.id, 'forgot') : undefined,
+          username,
+          maxLength: DEFAULT_MAX_LENGTH,
+          error
+        },
+        status
+      ),
+
+    /**
+     * Shown once, after a sign-up with a passkey alone; continuing goes where the finished interaction sends the person. With
+     * `accountUrl`, it points to where a passkey for another device is added, so one lost device does not lock the account out.
+     */
+    recoveryCodes: (codes: string[], continueUrl: string, { accountUrl }: { accountUrl?: string } = {}) =>
+      page('Save your recovery codes', RecoveryCodesScreen, { codes, continueUrl, accountUrl }),
 
     /** Accounts this browser has signed in with. Picking one asks for its password again. */
     selectAccount: (view: ScreenView, accounts: { accountId: string; label: string }[]) =>

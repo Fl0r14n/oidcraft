@@ -64,7 +64,7 @@ export type ReplayTable = {
 export type CredentialsTable = {
   account_id: string
   username: string
-  password_hash: string
+  password_hash: string | null
   claims: string
   totp_secret: string | null
   totp_confirmed_at: Millis | null

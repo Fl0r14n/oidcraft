@@ -667,6 +667,19 @@ export const adapterConformance = (create: () => Adapter | Promise<Adapter>, opt
       }
     },
     {
+      // FR-I8: an account that signs in with passkeys alone has no password, and must not come back with one.
+      name: 'a credential without a password round-trips, and gains one',
+      needs: 'credentials',
+      run: async () => {
+        const adapter = await full()
+        const { passwordHash: _, ...passwordless } = { ...credential('a1', 'ada'), recoveryCodes: ['h1'] }
+        same(await adapter.credentials.create(passwordless), true, 'the create')
+        same(await adapter.credentials.findByUsername('ada'), passwordless, 'read back without a password')
+        await adapter.credentials.upsert({ ...passwordless, passwordHash: '$argon2id$set' })
+        same((await adapter.credentials.find('a1'))?.passwordHash, '$argon2id$set', 'the password set later')
+      }
+    },
+    {
       // FR-I8: the authenticator picks the credential id, so a second registration of one must never take it from its account.
       name: 'a passkey is created once per credential id, atomically',
       needs: 'passkeys',

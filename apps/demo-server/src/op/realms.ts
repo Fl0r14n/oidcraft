@@ -92,6 +92,9 @@ export const realms = realmsEnabled
     })
   : undefined
 
+/** A realm's local accounts, once `realms.get` has configured it. */
+export const realmAccounts = (id: string) => sites.get(id)?.accounts
+
 /** Undefined for a subdomain that names no enabled realm. */
 export const siteOf = async (request: Request): Promise<Site | undefined> => {
   if (!realms) return control

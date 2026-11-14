@@ -557,7 +557,7 @@ export const drizzleAdapter = (options: DrizzleAdapterOptions): FullAdapter => {
 const credentialRow = (credential: Credential) => ({
   accountId: credential.accountId,
   username: credential.username,
-  passwordHash: credential.passwordHash,
+  passwordHash: credential.passwordHash ?? null,
   claims: credential.claims,
   totpSecret: credential.totp?.secret ?? null,
   totpConfirmedAt: credential.totp?.confirmedAt ?? null,
@@ -571,7 +571,7 @@ const credentialRow = (credential: Credential) => ({
 const toCredential = (row: typeof credentials.$inferSelect): Credential => ({
   accountId: row.accountId,
   username: row.username,
-  passwordHash: row.passwordHash,
+  ...(row.passwordHash && { passwordHash: row.passwordHash }),
   claims: row.claims as Record<string, unknown>,
   ...(row.totpSecret && { totp: { secret: row.totpSecret, ...(row.totpConfirmedAt && { confirmedAt: row.totpConfirmedAt }) } }),
   ...(row.recoveryCodes ? { recoveryCodes: row.recoveryCodes as string[] } : {}),

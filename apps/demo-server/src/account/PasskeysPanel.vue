@@ -5,6 +5,10 @@
       works as the step after your password.
     </template>
     <UiAlert v-if="error">{{ error }}</UiAlert>
+    <p v-if="passwordless && passkeys.length === 1" class="rounded-sheet border border-rule bg-sheet p-5 text-[0.9375rem]">
+      This is your only passkey, and your account has no password. Add one on another device, so losing this one does not lock
+      you out.
+    </p>
 
     <ul v-if="passkeys.length" class="divide-y divide-rule rounded-sheet border border-rule bg-sheet">
       <li v-for="passkey in passkeys" :key="passkey.credentialId" class="flex flex-wrap items-center gap-4 p-5">
@@ -42,7 +46,7 @@ import { failureMessage, useApi } from '../shared/api'
 
 type Passkey = { credentialId: string; name: string; createdAt: string; lastUsedAt?: string }
 
-defineProps<{ passkeys: Passkey[] }>()
+defineProps<{ passkeys: Passkey[]; passwordless?: boolean }>()
 const emit = defineEmits<{ changed: [] }>()
 
 const api = useApi('/account/api')

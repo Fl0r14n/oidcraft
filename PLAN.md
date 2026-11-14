@@ -52,6 +52,10 @@ in the `claims` parameter (FR-C22) refuses a login that reports less, but nothin
 - **A stateless DPoP nonce** — a nonce demand is a storage write a public client can trigger, but
   every proof already costs one for its `jti`, nonce rows live five minutes and are pruned, and a
   stateless nonce would put a new secret in the configuration of a feature off by default.
+- **Passkey attestation**, for an enterprise that admits only its own authenticators. Verifying one
+  means decoding the CBOR `attestationObject` and validating an X.509 chain, with no dependency but
+  `jose` (FR-I8, NFR-D4); an AAGUID allowlist without it checks only what the authenticator says of
+  itself. A host that needs attestation brings its own `AccountStore`.
 - **Renaming the demo's `/federation/callback`** — it is the redirect URI registered with Google
   (`.env.example`), and renaming a URL people have registered breaks their sign-in for a word.
 
@@ -67,7 +71,7 @@ Versions are set in each `package.json`. Publish in this order, each from a GitH
    only to allowed origins, `//host` URLs included; redirects are classified by parameter name; an ID
    token that does not verify is no profile, and discovery runs before it is checked; a refresh
    answered late or after a rekey is kept; bindings see a token lapse.
-3. `@oidcraft/adapter@0.3.0` — the `revoked_family` artifact kind; `fromKv`'s identity key changed,
+3. `@oidcraft/adapter@0.3.0` — `Credential.passwordHash` is optional, for an account with passkeys alone; the `revoked_family` artifact kind; `fromKv`'s identity key changed,
    so links a Redis store made before it are not found; `AccountStore.claims` documents its third
    argument; `Client.defaultAcrValues`; the conformance suite checks prune, grant expiry and replacing upserts;
    `PasskeyStore`, which `CredentialsAdapter` now requires, the `passkey_challenge` kind, and the
@@ -78,10 +82,11 @@ Versions are set in each `package.json`. Publish in this order, each from a GitH
    throwing logout or registration audit hook goes to `onError`; under a provider-wide FAPI profile
    dynamic registration names the profile's algorithm instead of failing on DCR's RS256 default;
    a client's `default_acr_values` and the configured `acrValues`, advertised (FR-C23); passkeys in
-   `./accounts`, behind its new `origin` option (FR-I8).
+   `./accounts`, behind its new `origin` option, accounts with no password and their recovery, and
+   `regenerateRecoveryCodes` moved out of `totp` (FR-I8).
 5. `@oidcraft/drizzle@0.3.0`, `@oidcraft/kysely@0.3.0`, `@oidcraft/redis@0.3.0` — peer on `adapter`
    ^0.3.0; the SQL ones enforce `Grant.expiresAt` and prune by expiry at the delete, and store passkeys,
-   with migration `0006_passkeys`. Drizzle and Kysely gain MySQL and MariaDB, one dialect over
+   with migration `0006_passkeys`; `0002_credentials` makes `password_hash` nullable, edited in place. Drizzle and Kysely gain MySQL and MariaDB, one dialect over
    `MYSQL_MIGRATIONS` (`mysqlTables()` for Drizzle, `MysqlDialect` for Kysely).
 6. `@oidcraft/typeorm@0.3.0` — the same, and `OIDCRAFT_ENTITIES` becomes `OIDCRAFT_SQLITE_ENTITIES`,
    `OIDCRAFT_POSTGRES_ENTITIES` and, for a `mysql` or `mariadb` `DataSource`, `OIDCRAFT_MYSQL_ENTITIES`.
@@ -89,17 +94,16 @@ Versions are set in each `package.json`. Publish in this order, each from a GitH
    `core` and `client` changed underneath them; every binding shows and dismisses an error that came
    without a description.
 
-## Passkeys, later
+## Passkeys
 
-FR-I8 is in (2026-11-14). Not done, and not decided against:
+FR-I8 is in (2026-11-14), accounts with no password included. A realm on its own subdomain has its
+own passkeys, as the relying-party ID is the issuer's host.
 
-- **Accounts with no password.** `passwordHash` is required, so a passkey is added to an account that
-  has one. Passwordless sign-up needs that relaxed, and a way back in for an account whose only
-  passkey is lost.
-- **Attestation**, for an enterprise that admits only its own authenticators.
-- **The admin removing a person's passkeys.** The person can, from the account app.
-
-A realm on its own subdomain has its own passkeys, as the relying-party ID is the issuer's host.
+**Changing an existing database.** `0002_credentials` was edited in place to make `password_hash`
+nullable, rather than adding a migration. A database migrated before that keeps `not null`, and a
+passwordless sign-up fails on it: the demo's `apps/demo-server/data` must be deleted, and any other
+database altered by hand (`alter column password_hash drop not null` on Postgres, `modify
+password_hash text null` on MySQL, a table rebuild on SQLite).
 
 ## Still open on the client libraries
 

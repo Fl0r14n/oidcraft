@@ -137,7 +137,7 @@ const entitiesFor = (dialect: 'sqlite' | 'postgres' | 'mysql') => {
     columns: {
       account_id: key(255, { primary: true }),
       username: key(255),
-      password_hash: text(),
+      password_hash: text({ nullable: true }),
       claims: document(),
       totp_secret: text({ nullable: true }),
       totp_confirmed_at: millis({ nullable: true }),

@@ -1,4 +1,11 @@
-import { autofillAvailable, getPasskey, passkeysAvailable, type RequestOptionsJSON } from './passkeys'
+import {
+  autofillAvailable,
+  type CreationOptionsJSON,
+  createPasskey,
+  getPasskey,
+  passkeysAvailable,
+  type RequestOptionsJSON
+} from './passkeys'
 
 const form = document.querySelector<HTMLFormElement>('form[data-passkey]')
 const field = form?.querySelector<HTMLInputElement>('input[name="credential"]')
@@ -38,4 +45,36 @@ if (form && field && passkeysAvailable()) {
       .then(available => (available ? signIn('conditional') : undefined))
       .catch(() => undefined)
   }
+}
+
+const creating = document.querySelector<HTMLElement>('[data-passkey-create]')
+const creatingForm = creating?.closest('form')
+const created = creating?.querySelector<HTMLInputElement>('input[name="credential"]')
+const createStatus = creating?.querySelector<HTMLElement>('[data-passkey-create-status]')
+
+/** Sign-up or recovery with a passkey: the form's own fields ask for the options, and the credential posts with them (FR-I8). */
+if (creating && creatingForm && created && passkeysAvailable()) {
+  const fail = (message?: string) => {
+    if (!createStatus) return
+    if (message) createStatus.textContent = message
+    createStatus.hidden = false
+  }
+
+  const create = async () => {
+    const fields = new URLSearchParams()
+    for (const [name, value] of new FormData(creatingForm)) {
+      if (name !== 'password' && name !== 'credential' && typeof value === 'string') fields.append(name, value)
+    }
+    const response = await fetch(creating.dataset.options ?? '', { method: 'POST', body: fields })
+    const answer = (await response.json().catch(() => ({}))) as CreationOptionsJSON & { error_description?: string }
+    if (!response.ok) return fail(answer.error_description)
+    created.value = JSON.stringify(await createPasskey(answer))
+    creatingForm.submit()
+  }
+
+  creating.hidden = false
+  creating.querySelector('[data-passkey-create-button]')?.addEventListener('click', () => {
+    if (createStatus) createStatus.hidden = true
+    create().catch(() => fail())
+  })
 }

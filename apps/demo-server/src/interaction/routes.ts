@@ -1,7 +1,8 @@
 import { OAuthError } from '@oidcraft/provider'
 import { type InteractionRequest, oauthFieldError } from '@oidcraft/provider/interaction'
 import { PASSWORD_MESSAGES, type ScreenView } from '@oidcraft/ui'
-import { optional } from '../op/env'
+import { sendRecoveryLink } from '../op/accounts'
+import { issuer, optional } from '../op/env'
 import { FIRST_PARTY } from '../op/first-party'
 import type { Site } from '../op/site'
 import { startUpstream, upstreamLabels } from './broker'
@@ -24,11 +25,22 @@ const lockedNotice = (until: Date) =>
 
 const form = async (request: Request) => new URLSearchParams(await request.text())
 
+const parsed = (text: string | null) => {
+  try {
+    return JSON.parse(text ?? '')
+  } catch {
+    return undefined
+  }
+}
+
+const usernameMessage = (problem: 'required' | 'tooLong' | 'taken') =>
+  problem === 'required' ? 'Choose a username' : problem === 'tooLong' ? 'That username is too long' : 'That username is taken'
+
 const build = (site: Site) => {
   const { provider, accounts, screens } = site
 
   const loginScreen = (view: ScreenView, options: Parameters<typeof screens.login>[1] = {}) =>
-    screens.login(view, { upstreams: offeredUpstreams(view), forgot: true, register: signUp(), passkeys: true, ...options })
+    screens.login(view, { upstreams: offeredUpstreams(view), forgot: true, register: signUp(), passkeys: true, recover: true, ...options })
 
   const secondStep = async (view: ScreenView, accountId: string, options: Parameters<typeof screens.otp>[1] = {}) =>
     screens.otp(view, { passkeys: (await accounts.passkeys.list(accountId)).length > 0, ...options })
@@ -142,14 +154,7 @@ const build = (site: Site) => {
             headers: { 'cache-control': 'no-store' }
           })
         }
-        const credential = (() => {
-          try {
-            return JSON.parse(body.get('credential') ?? '')
-          } catch {
-            return undefined
-          }
-        })()
-        const result = await accounts.passkeys.authenticate(id, credential)
+        const result = await accounts.passkeys.authenticate(id, parsed(body.get('credential')))
         if (result.ok && (!pending || result.accountId === pending)) {
           return await finish(request, id, result.accountId, pending ? ['pwd', 'hwk', 'user', 'mfa'] : ['hwk', 'user'], 'mfa')
         }
@@ -158,31 +163,71 @@ const build = (site: Site) => {
         return pending ? secondStep(view, pending, { error: notice, status: 401 }) : loginScreen(view, { notice, status: 401 })
       }
 
-      if (action === 'register' && signUp()) {
-        if (request.method === 'GET') return screens.register(view)
+      if ((action === 'register' || action === 'register-options') && signUp()) {
+        if (request.method === 'GET') return screens.register(view, { passkeys: true })
         const body = await form(request)
         const values = { name: body.get('name') ?? '', email: body.get('email') ?? '', username: body.get('username') ?? '' }
         const claims = { ...(values.name && { name: values.name }), ...(values.email && { email: values.email, email_verified: false }) }
+
+        // FR-I8: an account with a passkey and no password; the script asks for options with the form's fields, then posts.
+        if (action === 'register-options') {
+          const asked = await accounts.passkeys.signUpOptions(id, { username: values.username, claims })
+          if (asked.ok) return Response.json(asked.options, { headers: { 'cache-control': 'no-store' } })
+          const problem = asked.reason === 'taken' ? 'taken' : asked.problem
+          return Response.json({ error: 'invalid_username', error_description: `${usernameMessage(problem)}.` }, { status: 400 })
+        }
+        if (body.has('credential')) {
+          const created = await accounts.passkeys.signUp(id, parsed(body.get('credential')), 'Passkey')
+          if (created.ok) {
+            const { redirectTo, setCookie } = await provider.interactions.complete(
+              id,
+              { login: { accountId: created.accountId, acr: 'mfa', amr: ['hwk', 'user'] } },
+              request.headers.get('cookie')
+            )
+            // The account app manages the main issuer's accounts only, not a realm's.
+            const accountUrl = provider.config.issuer === issuer() ? new URL('/account', issuer()).toString() : undefined
+            const response = await screens.recoveryCodes(created.recoveryCodes, redirectTo, accountUrl ? { accountUrl } : {})
+            for (const cookie of [setCookie, pendingSecondFactor.clear(), await knownAccounts.add(request, created.accountId)]) {
+              if (cookie) response.headers.append('set-cookie', cookie)
+            }
+            return response
+          }
+          const notice = created.reason === 'taken' ? undefined : 'No account was created: the passkey could not be checked. Try again.'
+          const errors = created.reason === 'taken' ? { username: usernameMessage('taken') } : {}
+          return screens.register(view, { values, errors, notice, passkeys: true, status: 400 })
+        }
+
         const result = await accounts.register({ username: values.username, password: body.get('password') ?? '', claims })
         if (result.ok) return await finish(request, id, result.accountId, ['pwd'])
         const errors =
           result.reason === 'password'
             ? { password: PASSWORD_MESSAGES[result.problem] }
-            : result.reason === 'username'
-              ? { username: result.problem === 'required' ? 'Choose a username' : 'That username is too long' }
-              : { username: 'That username is taken' }
-        return screens.register(view, { values, errors, status: 400 })
+            : { username: usernameMessage(result.reason === 'taken' ? 'taken' : result.problem) }
+        return screens.register(view, { values, errors, passkeys: true, status: 400 })
       }
 
       if (action === 'forgot') {
         if (request.method === 'GET') return screens.forgot(view)
         const issued = await accounts.reset.issue((await form(request)).get('username') ?? '')
-        // Demo delivery. A deployment emails this; it never shows it, or the form hands accounts to anyone.
-        if (issued)
-          console.log(
-            `[demo mail] to ${issued.accountId}: reset your password at ${new URL(`/reset?token=${issued.token}`, provider.config.issuer)}`
-          )
-        return screens.message('Check your email', 'If that username has an account here, a link to reset its password is on its way.')
+        if (issued) sendRecoveryLink(issued.accountId, issued.token, provider.config.issuer)
+        return screens.message('Check your email', 'If that username has an account here, a link to get back in is on its way.')
+      }
+
+      // FR-I8: a recovery code in place of a lost passkey, for an account with no password. It signs no one in: it leads to
+      // the reset screen, which adds a passkey or sets a password and ends what the old credentials opened.
+      if (action === 'recover') {
+        if (request.method === 'GET') return screens.recover(view, { forgot: true })
+        const body = await form(request)
+        const username = body.get('username') ?? ''
+        const recovered = await accounts.recover(username, body.get('code') ?? '', { clientIp })
+        if (recovered.ok) return screens.reset(recovered.token, { passkeys: true })
+        // G-9: a lock answered differently from a wrong code would confirm the username exists.
+        return screens.recover(view, {
+          username,
+          forgot: true,
+          error: 'That username and recovery code do not match, or the code was already used.',
+          status: 401
+        })
       }
 
       if (request.method === 'POST' && action === 'upstream' && site.brokering) {
@@ -215,13 +260,34 @@ const build = (site: Site) => {
 
   /** Where a reset link lands. Outside any interaction, because the one that asked has long expired. */
   const resetRoutes = async (request: Request, url: URL, clientIp: string | undefined) => {
-    if (request.method === 'GET') return screens.reset(url.searchParams.get('token') ?? '')
+    if (request.method === 'GET') return screens.reset(url.searchParams.get('token') ?? '', { passkeys: true })
     const body = await form(request)
     const token = body.get('token') ?? ''
+    const expired = () =>
+      screens.message('This link no longer works', 'It expired or was already used. Ask for a new one from the sign-in screen.', 400)
+
+    if (url.searchParams.get('step') === 'passkey-options') {
+      const options = await accounts.reset.passkeyOptions(token)
+      return options
+        ? Response.json(options, { headers: { 'cache-control': 'no-store' } })
+        : Response.json({ error: 'invalid_token', error_description: 'This link expired or was already used.' }, { status: 400 })
+    }
+    if (body.has('credential')) {
+      const added = await accounts.reset.completeWithPasskey(token, parsed(body.get('credential')), 'Passkey', { clientIp })
+      if (added.ok) return screens.message('Passkey added', 'Sign in again with it, from the application you were using.')
+      const error =
+        added.reason === 'taken'
+          ? 'That passkey is already registered.'
+          : 'That passkey could not be added. Try again, or ask for a new link if this one has expired.'
+      return screens.reset(token, { error, passkeys: true, status: 400 })
+    }
+
     const result = await accounts.reset.complete(token, body.get('password') ?? '', { clientIp })
     if (result.ok) return screens.message('Password changed', 'Sign in again with your new password, from the application you were using.')
-    if (result.reason === 'password') return screens.reset(token, { error: PASSWORD_MESSAGES[result.problem], status: 400 })
-    return screens.message('This link no longer works', 'It expired or was already used. Ask for a new one from the sign-in screen.', 400)
+    if (result.reason === 'password') {
+      return screens.reset(token, { error: PASSWORD_MESSAGES[result.problem], passkeys: true, status: 400 })
+    }
+    return expired()
   }
 
   const deviceRoutes = async (request: Request, url: URL, clientIp: string | undefined) => {

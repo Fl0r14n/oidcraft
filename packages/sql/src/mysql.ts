@@ -30,7 +30,7 @@ export const MYSQL_MIGRATIONS: Migration[] = [
   {
     id: '0002_credentials',
     statements: [
-      `create table oidc_credentials (account_id varchar(255) primary key, username varchar(255) not null, password_hash text not null, claims mediumtext not null, totp_secret text, totp_confirmed_at bigint, recovery_codes text, failed_attempts integer not null default 0, locked_until bigint, created_at bigint not null, updated_at bigint not null) ${TABLE}`,
+      `create table oidc_credentials (account_id varchar(255) primary key, username varchar(255) not null, password_hash text, claims mediumtext not null, totp_secret text, totp_confirmed_at bigint, recovery_codes text, failed_attempts integer not null default 0, locked_until bigint, created_at bigint not null, updated_at bigint not null) ${TABLE}`,
       'create unique index oidc_credentials_username_idx on oidc_credentials (username)',
       'create index oidc_identities_account_idx on oidc_identities (account_id)',
       'create index oidc_replay_expiry_idx on oidc_replay (expires_at)'

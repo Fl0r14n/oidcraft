@@ -401,13 +401,15 @@ nothing in the core assumes it. It covers:
 - **TOTP** (RFC 6238) as a second factor: begin, confirm with a first code, verify, remove. A code is
   accepted once (NFR-S5). The secret is stored encrypted with AES-GCM under a key the host
   configures, bound to its account, so a database dump alone yields no second factor.
-- **Recovery codes**, issued when TOTP is confirmed, stored hashed and each usable once.
+- **Recovery codes**, issued when TOTP is confirmed or an account is made with a passkey alone
+  (FR-I8), stored hashed and each usable once.
 - **Throttling**: failed passwords and codes are counted per account and peer address, and lock
   that address out of that account for a while (NIST SP 800-63B §5.2.2); a higher count per account
   alone locks it for everyone, so a guess spread over many addresses still stops (`G-9`).
-- **Password reset**: single-use tokens with a short lifetime, stored hashed. Delivering one is I/O,
-  so the host sends it (FR-A1). Completing a reset ends sessions and revokes tokens (FR-T7).
-- **Self-service sign-up**, which the host may leave unmounted.
+- **Password reset**: single-use tokens with a short lifetime, stored hashed, which set a password
+  or add a passkey (FR-I8). Delivering one is I/O, so the host sends it (FR-A1), whether the person
+  asked or an administrator did for them. Completing a reset ends sessions and revokes tokens (FR-T7).
+- **Self-service sign-up**, with a password or a passkey, which the host may leave unmounted.
 
 **FR-I8 — Passkeys** (WebAuthn Level 3), in the same entry as FR-I7, as a sign-in of their own —
 username-less, offered through the browser's autofill — and as a second factor after a password.
@@ -420,6 +422,13 @@ user verification, and a signature counter that goes backwards refuses it. A pas
 `acr` `mfa` and `amr` `hwk` and `user` (RFC 8176): possession of the key, verified by the person. The
 login screens still work as posting forms without script; the passkey button is the one enhancement
 that needs it.
+
+An account may be made with a passkey and **no password**. It never signs in with a password, takes
+no TOTP, and cannot remove its last passkey, so it always has a way in. Its sign-up issues recovery
+codes; a recovery code, or a reset token the host delivers, leads only to adding a new passkey or
+setting a password, never to a session, and ends the sessions and tokens the lost credential opened
+(FR-T7). Unlocking an account by removing its passkeys so its next sign-in can enrol one is never a
+recovery path: until then, whoever names it first would.
 
 ## 8. Administration — `FR-M*`
 

@@ -137,7 +137,8 @@ export type Credential = AccountOwned &
   Timestamped & {
     /** Normalized, and unique across the store. */
     username: string
-    passwordHash: string
+    /** Absent on an account that signs in with passkeys alone (FR-I8). */
+    passwordHash?: string
     claims: Record<string, unknown>
     totp?: { secret: string; confirmedAt?: Date }
     recoveryCodes?: string[]

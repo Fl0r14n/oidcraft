@@ -1,6 +1,9 @@
 /// <reference types="bun" />
 import type { Provider, Realms } from '@oidcraft/provider'
+import { sendRecoveryLink } from '../op/accounts'
 import { ADMIN_CLIENT_ID, administrators, callerOf, FIRST_PARTY, json } from '../op/first-party'
+import { control } from '../op/provider'
+import { realmAccounts } from '../op/realms'
 
 const realmsApi = async (realms: Realms | undefined, request: Request, id: string | undefined, action: string | undefined) => {
   // The admin hides the panel on this answer, so a deployment without realms never shows one (FR-M4).
@@ -40,7 +43,7 @@ export const adminApi = async (
   }
 
   const segments = path.split('/').filter(Boolean)
-  const [resource, id, action] = segments
+  const [resource, id, action, item] = segments
 
   try {
     if (resource === 'realms') return (await realmsApi(realms, request, id, action)) ?? json({ error: 'not_found' }, 404)
@@ -80,6 +83,28 @@ export const adminApi = async (
       if (action === 'grants' && request.method === 'GET') return json(await management.grants.listForAccount(id))
       if (action === 'sessions' && request.method === 'GET') return json(await management.sessions.listForAccount(id))
       if (action === 'identities' && request.method === 'GET') return json(await management.identities.listForAccount(id))
+      const accounts = realm ? realmAccounts(realm) : control.accounts
+      if (action === 'passkeys' && accounts && request.method === 'GET' && !item) return json(await accounts.passkeys.list(id))
+      if (action === 'passkeys' && accounts && request.method === 'DELETE' && item) {
+        const removed = await accounts.passkeys.remove(id, item)
+        if (removed.ok) return json({ ok: true })
+        return removed.reason === 'last'
+          ? json(
+              {
+                error: 'last_passkey',
+                error_description: 'It is the only way this account signs in. Send a recovery link instead, so the person adds a new one.'
+              },
+              409
+            )
+          : json({ error: 'not_found', error_description: 'That account holds no such passkey.' }, 404)
+      }
+      // FR-I8: for a person who lost every way in. The link adds a passkey or sets a password; only its holder can use it.
+      if (action === 'recovery-link' && accounts && request.method === 'POST') {
+        const issued = await accounts.reset.issueForAccount(id)
+        if (!issued) return json({ error: 'not_found', error_description: 'There is no local account with that id.' }, 404)
+        sendRecoveryLink(issued.accountId, issued.token, target.config.issuer)
+        return json({ ok: true })
+      }
     }
 
     if (resource === 'grants' && id && request.method === 'DELETE') {

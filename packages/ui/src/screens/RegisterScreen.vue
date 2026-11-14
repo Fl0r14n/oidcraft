@@ -25,6 +25,7 @@
         :maxlength="maxLength"
         :error="errors.password" />
       <UiButton type="submit" class="w-full">Create account</UiButton>
+      <PasskeyCreate v-if="passkey" :options="passkey.options" label="Create it with a passkey instead" />
       <p class="text-sm"><UiLink :href="loginUrl">I already have an account</UiLink></p>
     </form>
   </UiCard>
@@ -36,6 +37,7 @@ import UiButton from '../UiButton.vue'
 import UiCard from '../UiCard.vue'
 import UiField from '../UiField.vue'
 import UiLink from '../UiLink.vue'
+import PasskeyCreate from './PasskeyCreate.vue'
 
 defineProps<{
   action: string
@@ -46,5 +48,6 @@ defineProps<{
   values: { name: string; email: string; username: string }
   errors: { username?: string | undefined; password?: string | undefined }
   notice?: string | undefined
+  passkey?: { options: string } | undefined
 }>()
 </script>

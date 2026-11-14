@@ -61,7 +61,7 @@ export type ReplayRow = { namespace: string; value: string; expires_at: number }
 export type CredentialRow = {
   account_id: string
   username: string
-  password_hash: string
+  password_hash: string | null
   claims: string
   totp_secret: string | null
   totp_confirmed_at: number | null
@@ -205,7 +205,7 @@ export const toIdentity = (row: Read<IdentityRow>): LinkedIdentity => ({
 export const credentialRow = (credential: Credential): CredentialRow => ({
   account_id: credential.accountId,
   username: credential.username,
-  password_hash: credential.passwordHash,
+  password_hash: credential.passwordHash ?? null,
   claims: json(credential.claims),
   totp_secret: credential.totp?.secret ?? null,
   totp_confirmed_at: credential.totp?.confirmedAt?.getTime() ?? null,
@@ -219,7 +219,7 @@ export const credentialRow = (credential: Credential): CredentialRow => ({
 export const toCredential = (row: Read<CredentialRow>): Credential => ({
   accountId: row.account_id,
   username: row.username,
-  passwordHash: row.password_hash,
+  ...(row.password_hash && { passwordHash: row.password_hash }),
   claims: parse<Record<string, unknown>>(row.claims),
   ...(row.totp_secret && {
     totp: { secret: row.totp_secret, ...(row.totp_confirmed_at && { confirmedAt: at(row.totp_confirmed_at) }) }

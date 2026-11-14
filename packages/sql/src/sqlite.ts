@@ -27,7 +27,7 @@ export const SQLITE_MIGRATIONS: Migration[] = [
   {
     id: '0002_credentials',
     statements: [
-      'create table oidc_credentials (account_id text primary key not null, username text not null, password_hash text not null, claims text not null, totp_secret text, totp_confirmed_at integer, recovery_codes text, failed_attempts integer not null default 0, locked_until integer, created_at integer not null, updated_at integer not null)',
+      'create table oidc_credentials (account_id text primary key not null, username text not null, password_hash text, claims text not null, totp_secret text, totp_confirmed_at integer, recovery_codes text, failed_attempts integer not null default 0, locked_until integer, created_at integer not null, updated_at integer not null)',
       'create unique index oidc_credentials_username_idx on oidc_credentials (username)',
       'create index oidc_identities_account_idx on oidc_identities (account_id)',
       'create index oidc_replay_expiry_idx on oidc_replay (expires_at)'

@@ -1,5 +1,5 @@
 /// <reference types="bun" />
-import type { RegistrationResponseJSON } from '@oidcraft/provider/accounts'
+import type { AuthenticationResponseJSON, RegistrationResponseJSON } from '@oidcraft/provider/accounts'
 import { PASSWORD_MESSAGES } from '@oidcraft/ui'
 import { renderSVG } from 'uqr'
 import { ACCOUNT_CLIENT_ID, callerOf, json } from '../op/first-party'
@@ -32,10 +32,15 @@ export const accountApi = async (request: Request, url: URL): Promise<Response |
     )
   }
 
+  const passwordless = !credential.passwordHash
+  // FR-I8: an account with no password proves a change to its recovery with its passkey, outside any interaction.
+  const proofBinding = `account:${accountId}`
+
   if (request.method === 'GET' && path === '/me') {
     return json({
       username: credential.username,
       claims: credential.claims,
+      passwordless,
       totp: await accounts.totp.status(accountId),
       passkeys: await accounts.passkeys.list(accountId)
     })
@@ -66,14 +71,23 @@ export const accountApi = async (request: Request, url: URL): Promise<Response |
   }
 
   if (passkey && request.method === 'DELETE') {
-    return (await accounts.passkeys.remove(accountId, decodeURIComponent(passkey)))
-      ? json({ ok: true })
+    const removed = await accounts.passkeys.remove(accountId, decodeURIComponent(passkey))
+    if (removed.ok) return json({ ok: true })
+    return removed.reason === 'last'
+      ? json(
+          { error: 'last_passkey', error_description: 'This is your only way to sign in. Add another passkey or a password first.' },
+          409
+        )
       : json({ error: 'not_found', error_description: 'No such passkey.' }, 404)
   }
 
   if (request.method === 'POST' && path === '/totp') {
     const begun = await accounts.totp.begin(accountId)
-    if (!begun?.ok) return json({ error: 'enrolled', error_description: 'An authenticator is already set up. Turn it off first.' }, 409)
+    if (!begun?.ok) {
+      return begun?.reason === 'passwordless'
+        ? json({ error: 'passwordless', error_description: 'Your passkey is already two steps: there is no password to add one to.' }, 409)
+        : json({ error: 'enrolled', error_description: 'An authenticator is already set up. Turn it off first.' }, 409)
+    }
     return json({ secret: begun.secret, uri: begun.uri, qr: renderSVG(begun.uri, { pixelSize: 6, border: 2 }) })
   }
 
@@ -94,16 +108,28 @@ export const accountApi = async (request: Request, url: URL): Promise<Response |
     return json({ ok: true })
   }
 
+  if (request.method === 'POST' && path === '/recovery-codes/options' && passwordless) {
+    return json(await accounts.passkeys.authenticationOptions(proofBinding, { accountId }))
+  }
+
   if (request.method === 'POST' && path === '/recovery-codes') {
-    const refused = await proveSecondFactor(accountId, (await body(request)).code)
-    if (refused) return refused
-    return json(await accounts.totp.regenerateRecoveryCodes(accountId))
+    if (passwordless) {
+      const { credential: response } = (await request.json().catch(() => ({}))) as { credential?: AuthenticationResponseJSON }
+      const proved = response && (await accounts.passkeys.authenticate(proofBinding, response))
+      if (!proved?.ok || proved.accountId !== accountId) {
+        return json({ error: 'invalid_passkey', error_description: 'That passkey did not confirm it is you.' }, 400)
+      }
+    } else {
+      const refused = await proveSecondFactor(accountId, (await body(request)).code)
+      if (refused) return refused
+    }
+    return json(await accounts.regenerateRecoveryCodes(accountId))
   }
 
   if (request.method === 'POST' && path === '/password') {
     const { current, next } = await body(request)
-    const checked = await accounts.authenticate(credential.username, current ?? '')
-    if (!checked.ok) {
+    const checked = passwordless ? undefined : await accounts.authenticate(credential.username, current ?? '')
+    if (checked && !checked.ok) {
       return json(
         {
           error: 'invalid_password',

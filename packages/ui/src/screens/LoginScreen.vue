@@ -27,6 +27,7 @@
         <UiLink v-if="forgotUrl" :href="forgotUrl">Forgot your password?</UiLink>
         <UiLink v-if="registerUrl" :href="registerUrl">Create an account</UiLink>
       </p>
+      <p v-if="recoverUrl" class="text-sm"><UiLink :href="recoverUrl">Lost your passkey?</UiLink></p>
     </form>
     <PasskeyForm v-if="passkey" v-bind="passkey" />
     <form v-if="upstreams.length" method="post" :action="upstreamAction" class="space-y-3">
@@ -64,6 +65,7 @@ defineProps<{
   notice?: string | undefined
   forgotUrl?: string | undefined
   registerUrl?: string | undefined
+  recoverUrl?: string | undefined
   passkey?: { action: string; options: string; step: 'login' } | undefined
 }>()
 </script>

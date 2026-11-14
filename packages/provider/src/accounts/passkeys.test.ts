@@ -391,9 +391,200 @@ describe('passkey management', () => {
     expect(await accounts.passkeys.rename('ada', device.credentialId, '')).toEqual({ ok: false, reason: 'name', problem: 'required' })
     expect(await accounts.passkeys.rename('ada', device.credentialId, 'Work laptop')).toEqual({ ok: true })
     expect((await accounts.passkeys.list('ada'))[0]?.name).toBe('Work laptop')
-    expect(await accounts.passkeys.remove('grace', device.credentialId)).toBe(false)
-    expect(await accounts.passkeys.remove('ada', device.credentialId)).toBe(true)
+    expect(await accounts.passkeys.remove('grace', device.credentialId)).toEqual({ ok: false, reason: 'unknown' })
+    expect(await accounts.passkeys.remove('ada', device.credentialId)).toEqual({ ok: true })
     expect(await accounts.passkeys.list('ada')).toEqual([])
+  })
+})
+
+/** An account made with a passkey and no password, through the sign-up ceremony. */
+const signedUp = async (username = 'linus') => {
+  const context = await setup()
+  const device = await authenticator()
+  const asked = await context.accounts.passkeys.signUpOptions('interaction-1', { username, claims: { name: 'Linus' } })
+  if (!asked.ok) throw new Error(asked.reason)
+  const created = await context.accounts.passkeys.signUp('interaction-1', await device.create(asked.options), 'Phone')
+  if (!created.ok) throw new Error(created.reason)
+  return { ...context, device, ...created }
+}
+
+describe('an account with passkeys alone', () => {
+  test('signs up with a passkey, no password, and recovery codes shown once', async () => {
+    const { adapter, accounts, device, accountId, recoveryCodes } = await signedUp()
+    expect(accountId).toBe('linus')
+    expect(recoveryCodes).toHaveLength(10)
+    const stored = await adapter.credentials.find('linus')
+    expect(stored?.passwordHash).toBeUndefined()
+    expect(stored?.recoveryCodes).toHaveLength(10)
+    expect(stored?.recoveryCodes).not.toContain(recoveryCodes[0])
+    const options = await accounts.passkeys.authenticationOptions('interaction-2')
+    expect(await accounts.passkeys.authenticate('interaction-2', await device.get(options))).toMatchObject({ ok: true, accountId: 'linus' })
+  })
+
+  test('sign-up options name the person, and refuse a taken or empty username before the authenticator is asked', async () => {
+    const { accounts } = await setup()
+    const asked = await accounts.passkeys.signUpOptions('interaction-1', { username: ' Linus ', claims: { name: 'Linus T' } })
+    expect(asked).toMatchObject({ ok: true, options: { user: { name: 'linus', displayName: 'Linus T' }, attestation: 'none' } })
+    expect(await accounts.passkeys.signUpOptions('interaction-1', { username: 'ADA' })).toEqual({ ok: false, reason: 'taken' })
+    expect(await accounts.passkeys.signUpOptions('interaction-1', { username: '  ' })).toEqual({
+      ok: false,
+      reason: 'username',
+      problem: 'required'
+    })
+  })
+
+  test('a sign-up is bound to its interaction, and a name taken in the meantime refuses it', async () => {
+    const { accounts } = await setup()
+    const device = await authenticator()
+    const asked = await accounts.passkeys.signUpOptions('interaction-1', { username: 'linus' })
+    if (!asked.ok) throw new Error(asked.reason)
+    const response = await device.create(asked.options)
+    expect(await accounts.passkeys.signUp('interaction-2', response, 'Phone')).toEqual({ ok: false, reason: 'invalid' })
+
+    const again = await accounts.passkeys.signUpOptions('interaction-1', { username: 'linus' })
+    if (!again.ok) throw new Error(again.reason)
+    const late = await device.create(again.options)
+    await accounts.register({ username: 'linus', password: 'correct horse' })
+    expect(await accounts.passkeys.signUp('interaction-1', late, 'Phone')).toEqual({ ok: false, reason: 'taken' })
+  })
+
+  test('a registration challenge cannot finish a sign-up, nor a sign-up challenge a registration', async () => {
+    const { accounts } = await setup()
+    const device = await authenticator()
+    const options = await accounts.passkeys.registrationOptions('ada')
+    if (!options) throw new Error('no options')
+    expect(await accounts.passkeys.signUp('ada', await device.create(options), 'Phone')).toEqual({ ok: false, reason: 'invalid' })
+    const asked = await accounts.passkeys.signUpOptions('interaction-1', { username: 'linus' })
+    if (!asked.ok) throw new Error(asked.reason)
+    expect(await accounts.passkeys.register('linus', await device.create(asked.options), 'Phone')).toEqual({ ok: false, reason: 'invalid' })
+  })
+
+  test('a credential id already registered leaves no account behind', async () => {
+    const { adapter, accounts, device } = await enrolled()
+    const asked = await accounts.passkeys.signUpOptions('interaction-1', { username: 'linus' })
+    if (!asked.ok) throw new Error(asked.reason)
+    expect(await accounts.passkeys.signUp('interaction-1', await device.create(asked.options), 'Phone')).toEqual({
+      ok: false,
+      reason: 'invalid'
+    })
+    expect(await adapter.credentials.findByUsername('linus')).toBeUndefined()
+  })
+
+  test('no password signs in, and the time it takes is a hash either way', async () => {
+    const { accounts } = await signedUp()
+    expect(await accounts.authenticate('linus', '')).toEqual({ ok: false, reason: 'invalid' })
+    expect(await accounts.authenticate('linus', 'anything at all')).toEqual({ ok: false, reason: 'invalid' })
+  })
+
+  test('takes no TOTP: a passkey is two factors already', async () => {
+    const { accounts } = await signedUp()
+    expect(await accounts.totp.begin('linus')).toEqual({ ok: false, reason: 'passwordless' })
+  })
+
+  test('its last passkey cannot be removed, by anyone; another can', async () => {
+    const { accounts, device } = await signedUp()
+    expect(await accounts.passkeys.remove('linus', device.credentialId)).toEqual({ ok: false, reason: 'last' })
+    const second = await authenticator()
+    const options = await accounts.passkeys.registrationOptions('linus')
+    if (!options) throw new Error('no options')
+    expect((await accounts.passkeys.register('linus', await second.create(options), 'Key')).ok).toBe(true)
+    expect(await accounts.passkeys.remove('linus', device.credentialId)).toEqual({ ok: true })
+    expect(await accounts.passkeys.remove('linus', second.credentialId)).toEqual({ ok: false, reason: 'last' })
+  })
+
+  test('two removals racing for the last two passkeys leave one', async () => {
+    const { accounts, device } = await signedUp()
+    const second = await authenticator()
+    const options = await accounts.passkeys.registrationOptions('linus')
+    if (!options) throw new Error('no options')
+    await accounts.passkeys.register('linus', await second.create(options), 'Key')
+    await Promise.all([accounts.passkeys.remove('linus', device.credentialId), accounts.passkeys.remove('linus', second.credentialId)])
+    expect((await accounts.passkeys.list('linus')).length).toBeGreaterThan(0)
+  })
+
+  test('a password set later makes it an ordinary account', async () => {
+    const { accounts, device } = await signedUp()
+    expect(await accounts.setPassword('linus', 'correct horse')).toEqual({ ok: true })
+    expect(await accounts.authenticate('linus', 'correct horse')).toMatchObject({ ok: true, accountId: 'linus' })
+    expect(await accounts.passkeys.remove('linus', device.credentialId)).toEqual({ ok: true })
+  })
+})
+
+describe('recovering an account with passkeys alone', () => {
+  test('a recovery code, once, answers a reset token that adds a new passkey and ends the old sessions', async () => {
+    const { adapter, accounts, recoveryCodes } = await signedUp()
+    const code = recoveryCodes[0] as string
+    await adapter.sessions.upsert({
+      id: 's1',
+      accountId: 'linus',
+      authTime: new Date(),
+      clients: [],
+      expiresAt: new Date(Date.now() + 60_000)
+    })
+
+    const recovered = await accounts.recover('Linus', code.toUpperCase())
+    if (!recovered.ok) throw new Error(recovered.reason)
+    expect(await accounts.recover('linus', code)).toEqual({ ok: false, reason: 'invalid' })
+    expect((await adapter.credentials.find('linus'))?.recoveryCodes).toHaveLength(9)
+
+    const replacement = await authenticator()
+    const options = await accounts.reset.passkeyOptions(recovered.token)
+    if (!options) throw new Error('no options')
+    expect(options.user.name).toBe('linus')
+    const response = await replacement.create(options)
+    expect(await accounts.reset.completeWithPasskey(recovered.token, response, 'New phone')).toEqual({ ok: true, accountId: 'linus' })
+    expect(await accounts.reset.completeWithPasskey(recovered.token, response, 'New phone')).toEqual({ ok: false, reason: 'invalid' })
+    expect(await accounts.reset.passkeyOptions(recovered.token)).toBeUndefined()
+    expect((await accounts.passkeys.list('linus')).map(passkey => passkey.name)).toEqual(['Phone', 'New phone'])
+    expect(await adapter.sessions.listForAccount('linus')).toEqual([])
+  })
+
+  test('a recovery code does nothing for an account with a password, or none at all', async () => {
+    const { accounts } = await setup()
+    expect(await accounts.recover('ada', 'aaaaa-bbbbb')).toEqual({ ok: false, reason: 'invalid' })
+    expect(await accounts.recover('nobody', 'aaaaa-bbbbb')).toEqual({ ok: false, reason: 'invalid' })
+  })
+
+  test('wrong codes lock the address out of recovering', async () => {
+    const { accounts, recoveryCodes } = await signedUp()
+    for (let attempt = 0; attempt < 4; attempt++) {
+      expect(await accounts.recover('linus', 'aaaaa-bbbbb', { clientIp: '203.0.113.9' })).toEqual({ ok: false, reason: 'invalid' })
+    }
+    expect(await accounts.recover('linus', 'aaaaa-bbbbb', { clientIp: '203.0.113.9' })).toMatchObject({ ok: false, reason: 'locked' })
+    expect(await accounts.recover('linus', recoveryCodes[0] as string, { clientIp: '203.0.113.9' })).toMatchObject({
+      ok: false,
+      reason: 'locked'
+    })
+    expect((await accounts.recover('linus', recoveryCodes[0] as string, { clientIp: '198.51.100.7' })).ok).toBe(true)
+  })
+
+  test('an administrator’s reset token is bound to its account, and its passkey challenge to it', async () => {
+    const { accounts } = await signedUp()
+    const issued = await accounts.reset.issueForAccount('linus')
+    if (!issued) throw new Error('no token')
+    expect(await accounts.reset.issueForAccount('nobody')).toBeUndefined()
+    expect(await accounts.reset.passkeyOptions('not-a-token')).toBeUndefined()
+
+    const other = await accounts.reset.issueForAccount('ada')
+    if (!other) throw new Error('no token')
+    const device = await authenticator()
+    const options = await accounts.reset.passkeyOptions(other.token)
+    if (!options) throw new Error('no options')
+    expect(await accounts.reset.completeWithPasskey(issued.token, await device.create(options), 'Phone')).toEqual({
+      ok: false,
+      reason: 'invalid'
+    })
+    expect(await accounts.reset.complete(issued.token, 'a new password')).toEqual({ ok: true, accountId: 'linus' })
+    expect(await accounts.authenticate('linus', 'a new password')).toMatchObject({ ok: true })
+  })
+
+  test('new recovery codes replace the old for an account with no password, and not for one with a password and no TOTP', async () => {
+    const { accounts, recoveryCodes } = await signedUp()
+    const fresh = await accounts.regenerateRecoveryCodes('linus')
+    expect(fresh?.recoveryCodes).toHaveLength(10)
+    expect(await accounts.recover('linus', recoveryCodes[0] as string)).toEqual({ ok: false, reason: 'invalid' })
+    expect((await accounts.recover('linus', fresh?.recoveryCodes[0] as string)).ok).toBe(true)
+    expect(await accounts.regenerateRecoveryCodes('ada')).toBeUndefined()
   })
 })
 

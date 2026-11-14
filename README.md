@@ -3,6 +3,9 @@
 [![ci](https://github.com/Fl0r14n/oidcraft/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Fl0r14n/oidcraft/actions/workflows/ci.yml)
 [![docs](https://img.shields.io/badge/docs-fl0r14n.github.io%2Foidcraft-blue)](https://fl0r14n.github.io/oidcraft/)
 [![npm](https://img.shields.io/npm/v/@oidcraft/provider?label=%40oidcraft%2Fprovider)](https://www.npmjs.com/package/@oidcraft/provider)
+[![npm](https://img.shields.io/npm/v/@oidcraft/vue?label=%40oidcraft%2Fvue)](https://www.npmjs.com/package/@oidcraft/vue)
+[![npm](https://img.shields.io/npm/v/@oidcraft/react?label=%40oidcraft%2Freact)](https://www.npmjs.com/package/@oidcraft/react)
+[![npm](https://img.shields.io/npm/v/@oidcraft/angular?label=%40oidcraft%2Fangular)](https://www.npmjs.com/package/@oidcraft/angular)
 
 An OpenID Provider library for TypeScript, and the client libraries that sign in against it.
 The documentation is at **[fl0r14n.github.io/oidcraft](https://fl0r14n.github.io/oidcraft/)**.

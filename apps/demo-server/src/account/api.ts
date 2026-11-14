@@ -27,7 +27,11 @@ export const accountApi = async (request: Request, url: URL): Promise<Response |
   const credential = await provider.config.adapter.credentials?.find(accountId)
   if (!credential) {
     return json(
-      { error: 'no_password', error_description: 'This account signs in through another provider, which manages its security.' },
+      {
+        error: 'no_password',
+        error_description:
+          'This account signs in through another provider, such as Google. Its password, passkeys and two-step verification are managed there.'
+      },
       409
     )
   }

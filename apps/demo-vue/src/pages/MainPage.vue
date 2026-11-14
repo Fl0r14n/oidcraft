@@ -16,9 +16,12 @@
         <dt class="text-neutral-500">email</dt>
         <dd class="font-mono break-words">{{ user?.email ?? '—' }}</dd>
       </dl>
-      <button type="button" class="mt-8 rounded-md bg-neutral-900 px-4 py-2 text-sm text-white hover:bg-neutral-700" @click="logout(logoutRedirectUri)">
-        Log out
-      </button>
+      <div class="mt-8 flex items-center justify-between gap-4">
+        <a :href="accountUrl" class="rounded-md border border-neutral-300 px-4 py-2 text-sm text-neutral-900 hover:border-neutral-500">Manage</a>
+        <button type="button" class="rounded-md bg-neutral-900 px-4 py-2 text-sm text-white hover:bg-neutral-700" @click="logout(logoutRedirectUri)">
+          Log out
+        </button>
+      </div>
     </template>
 
     <button v-else type="button" class="mt-8 rounded-md bg-neutral-900 px-4 py-2 text-sm text-white hover:bg-neutral-700" @click="login(parameters)">
@@ -36,6 +39,7 @@ const user = useOAuthUser()
 const issuerPath = process.env.OIDCRAFT_PUBLIC_ISSUER || 'http://localhost:3001'
 const origin = process.env.OIDCRAFT_PUBLIC_ORIGIN || globalThis.location?.origin
 const logoutRedirectUri = `${origin}/`
+const accountUrl = `${issuerPath}/account`
 
 const parameters: OAuthParameters = {
   responseType: 'code',

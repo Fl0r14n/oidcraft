@@ -4,13 +4,13 @@
       An application that signs you in through <strong class="font-semibold text-ink">{{ issuerPath }}</strong>.
     </template>
     <UiAlert v-if="hasError">The sign-in did not complete: {{ errorDescription ?? error ?? 'try again.' }}</UiAlert>
-    <UiButton class="w-full" @click="login(parameters)">Log in</UiButton>
+    <UiButton id="sign-in" class="w-full" @click="login(parameters)">Log in</UiButton>
   </UiCard>
 
   <UiShell v-else title="oidcraft demo client" :subtitle="issuerPath" narrow>
     <template #actions>
-      <UiButton :href="accountUrl" variant="secondary">Manage</UiButton>
-      <UiButton @click="logout(logoutRedirectUri)">Log out</UiButton>
+      <UiButton id="manage" :href="accountUrl" variant="secondary">Manage</UiButton>
+      <UiButton id="sign-out" @click="logout(logoutRedirectUri)">Log out</UiButton>
     </template>
     <UiAlert v-if="hasError">{{ errorDescription ?? error }}</UiAlert>
     <UiSection title="Signed in">

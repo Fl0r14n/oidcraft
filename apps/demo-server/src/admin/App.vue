@@ -2,13 +2,13 @@
   <UiCard v-if="!isAuthorized" title="Administer this server">
     <template #subtitle>Sign in with an account listed in <code class="font-semibold text-ink">OIDCRAFT_ADMINS</code>.</template>
     <UiAlert v-if="failedSignIn(signInError)">The sign-in did not complete: {{ errorDescription ?? signInError ?? 'try again.' }}</UiAlert>
-    <UiButton class="w-full" @click="signIn">Sign in</UiButton>
+    <UiButton id="sign-in" class="w-full" @click="signIn">Sign in</UiButton>
   </UiCard>
 
   <UiShell v-else title="oidcraft admin" :subtitle="managing">
     <template #actions>
       <span class="text-sm text-muted">Signed in as <strong class="font-semibold text-ink">{{ user?.name || user?.sub }}</strong></span>
-      <UiButton variant="secondary" @click="signOut">Sign out</UiButton>
+      <UiButton id="sign-out" variant="secondary" @click="signOut">Sign out</UiButton>
     </template>
     <UiAlert v-if="error">{{ error }}</UiAlert>
     <template v-else>

@@ -100,15 +100,11 @@ view.onNavigated = url => {
   if (Bun.env.SMOKE_TRACE) console.log(`  → ${url}`)
 }
 
-/** The page's own text, for the conditions below and for what a failure prints. */
+/** The page's own text, for what a failure prints and for the few checks whose point is the words. */
 const text = () => view.evaluate('document.body?.innerText ?? ""') as Promise<string>
 const path = () => view.evaluate('location.pathname + location.search') as Promise<string>
 
-const sees = (wanted: string | RegExp) =>
-  until(`the page to show ${wanted}`, async () => {
-    const shown = await text()
-    return typeof wanted === 'string' ? shown.includes(wanted) : wanted.test(shown)
-  })
+const sees = (wanted: string) => until(`the page to show "${wanted}"`, async () => (await text()).includes(wanted))
 
 const at = (wanted: string | RegExp) =>
   until(`the browser at ${wanted}`, async () => {
@@ -116,33 +112,33 @@ const at = (wanted: string | RegExp) =>
     return typeof wanted === 'string' ? where.startsWith(wanted) : wanted.test(where)
   })
 
-const buttons = () =>
-  view.evaluate(
-    `[...document.querySelectorAll('button, a')].filter(el => el.offsetParent !== null).map(el => el.textContent.trim())`
-  ) as Promise<string[]>
+/** Rendered and visible: a `hidden` passkey form or a `v-if` gone from the DOM is not there. */
+const shown = (selector: string) =>
+  view.evaluate(`(el => el !== null && el.offsetParent !== null)(document.querySelector(${JSON.stringify(selector)}))`) as Promise<boolean>
 
-/** A button or link by its visible label, marked so WebView can click it by selector once it is actionable. */
-const press = async (label: string) => {
-  const selector = await until(`a "${label}" button or link`, async () => {
-    const marked = await view.evaluate(`(() => {
-      const label = ${JSON.stringify(label)}
-      const found = [...document.querySelectorAll('button, a')].find(el => el.offsetParent !== null && el.textContent.trim() === label)
-      if (!found) return undefined
-      const id = 'smoke-' + Math.random().toString(36).slice(2)
-      found.setAttribute('data-smoke', id)
-      return '[data-smoke="' + id + '"]'
-    })()`)
-    return marked as string | undefined
-  })
+const appears = (selector: string) => until(selector, () => shown(selector))
+
+/**
+ * Elements are found by what the markup already promises — an id the conformance suite types into, a form's action, a
+ * decision's value, a `data-passkey-*` hook — never by their label, so rewording a button does not fail the run.
+ */
+const press = async (selector: string) => {
+  await appears(selector)
   await view.scrollTo(selector, { timeout: TIMEOUT })
   await view.click(selector, { timeout: TIMEOUT })
 }
 
+const submit = (action: string) => press(`form[action$="${action}"] button[type=submit]:not([name])`)
+
 const fill = async (selector: string, value: string) => {
-  await view.scrollTo(selector, { timeout: TIMEOUT })
-  await view.click(selector, { timeout: TIMEOUT })
+  await press(selector)
   await view.evaluate(`document.querySelector(${JSON.stringify(selector)}).select()`)
   await view.type(value)
+}
+
+const noAlert = async () => {
+  if (await shown('[role=alert]'))
+    throw new Error(`the page shows an error: ${await view.evaluate(`document.querySelector('[role=alert]').innerText`)}`)
 }
 
 /** RFC 6238 as an authenticator app computes it, written apart from the provider's so the two check each other. */
@@ -170,19 +166,33 @@ const totp = async (secret: string) => {
   return hotp(secret, lastCounter)
 }
 
+const LOGIN = /\/interaction\/[^/]+(\/login)?(\?.*)?$/
+
 const signInWithPassword = async (username: string, password: string) => {
-  await until('the login screen', async () => (await path()).match(/^\/interaction\/[^/]+(\/login)?/))
+  await at(LOGIN)
   await fill('#u', username)
   await fill('#p', password)
-  await press('Sign in')
+  await submit('/login')
 }
 
-const signOutOfAccount = async (app: '/account' | '/admin') => {
-  await press('Sign out')
+const enterCode = async () => {
+  await at(/\/interaction\/[^/]+\/otp$/)
+  await fill('#otp', await totp(secret))
+  await submit('/otp')
+}
+
+const signedIn = async (app: '/account' | '/admin', who: string) => {
+  await at(`${OP}${app}`)
+  await appears('#sign-out')
+  await sees(who)
+  await noAlert()
+}
+
+const signOut = async (app: '/account' | '/admin') => {
+  await press('#sign-out')
   await until('the sign-out to finish', async () => {
-    const shown = await buttons()
-    if ((await path()).startsWith('/interaction/') && shown.includes('Stay signed in')) await press('Sign out')
-    return (await path()) === app && shown.includes('Sign in') && !shown.includes('Sign out')
+    if (await shown('button[name=decision][value=yes]')) await press('button[name=decision][value=yes]')
+    return (await path()) === app && (await shown('#sign-in'))
   })
 }
 
@@ -199,23 +209,20 @@ const steps: [string, () => Promise<void>][] = [
     'demo-vue sends a new person to the provider, who signs up there',
     async () => {
       await view.navigate(`${RP}/`)
-      await press('Log in')
-      await at(`${OP}/interaction/`)
-      await sees('Sign in')
-      await press('Create an account')
-      await sees('Create an account')
+      await press('#sign-in')
+      await at(LOGIN)
+      await press('a[href$="/register"]')
       await fill('#name', 'Smoke Test')
       await fill('#email', `${USERNAME}@example.test`)
       await fill('#u', USERNAME)
       await fill('#p', PASSWORDS[0] as string)
-      await press('Create account')
+      await submit('/register')
     }
   ],
   [
     'consent to demo-vue, which shows the claims',
     async () => {
-      await sees('Allow')
-      await press('Allow')
+      await press('button[name=decision][value=allow]')
       await at(`${RP}/`)
       await sees('Smoke Test')
       await sees(`${USERNAME}@example.test`)
@@ -224,27 +231,22 @@ const steps: [string, () => Promise<void>][] = [
   [
     'Manage opens the account app signed in, without a click',
     async () => {
-      await press('Manage')
-      await at(`${OP}/account`)
-      await sees(`Signed in as ${USERNAME}`)
+      await press('#manage')
+      await signedIn('/account', USERNAME)
     }
   ],
   [
     'turn on TOTP with a code from the key it shows',
     async () => {
-      await press('Set up')
-      await sees("Can't scan it?")
-      secret = String(
-        await view.evaluate(
-          `[...document.querySelectorAll('span')].find(el => /^[A-Z2-7]{16,}$/.test(el.textContent.trim()))?.textContent.trim()`
-        )
-      )
-      if (!/^[A-Z2-7]{16,}$/.test(secret)) throw new Error(`no TOTP key on the page: ${secret}`)
+      await press('#totp-setup')
+      await appears('#totp-secret')
+      secret = String(await view.evaluate(`document.querySelector('#totp-secret').textContent.trim()`))
+      if (!/^[A-Z2-7]{16,}$/.test(secret)) throw new Error(`the TOTP key is not base32: ${secret}`)
       await fill('#confirm-code', await totp(secret))
-      await press('Turn on')
-      await sees('Save your recovery codes')
-      await press('I saved them')
-      await sees('On, with an authenticator app')
+      await press('form:has(#confirm-code) button[type=submit]')
+      await press('#codes-saved')
+      await appears('#manage-code')
+      await noAlert()
     }
   ],
   [
@@ -252,8 +254,9 @@ const steps: [string, () => Promise<void>][] = [
     async () => {
       await fill('#current', PASSWORDS[0] as string)
       await fill('#next', PASSWORDS[1] as string)
-      await press('Change password')
-      await sees('Password changed.')
+      await press('form:has(#next) button[type=submit]')
+      await appears('form:has(#next) [role=status]')
+      await noAlert()
     }
   ],
   [
@@ -261,81 +264,74 @@ const steps: [string, () => Promise<void>][] = [
     async () => {
       await touch(true)
       await fill('#passkey-name', 'Smoke authenticator')
-      await press('Add a passkey')
+      await press('form:has(#passkey-name) button[type=submit]')
       await sees('Smoke authenticator')
+      await noAlert()
       await touch(false)
     }
   ],
   [
-    'sign out of the account app, which then waits for a click rather than reporting a failure',
+    'sign out of the account app, which then offers a sign-in rather than reporting a failure',
     async () => {
-      await signOutOfAccount('/account')
-      if ((await text()).includes('did not complete')) throw new Error('a silent sign-in that found no session is shown as a failure')
+      await signOut('/account')
+      await noAlert()
     }
   ],
   [
     'sign in with the new password and a TOTP code',
     async () => {
-      await press('Sign in')
+      await press('#sign-in')
       await signInWithPassword(USERNAME, PASSWORDS[1] as string)
-      await sees('Enter your code')
-      await fill('#otp', await totp(secret))
-      await press('Continue')
-      await at(`${OP}/account`)
-      await sees(`Signed in as ${USERNAME}`)
-      await signOutOfAccount('/account')
+      await enterCode()
+      await signedIn('/account', USERNAME)
+      await signOut('/account')
     }
   ],
   [
     'sign in with the passkey alone',
     async () => {
-      await press('Sign in')
-      await until('the login screen', async () => (await path()).startsWith('/interaction/'))
-      await press('Sign in with a passkey')
+      await press('#sign-in')
+      await at(LOGIN)
+      await press('[data-passkey-button]')
       await touch(true)
-      await at(`${OP}/account`)
-      await sees(`Signed in as ${USERNAME}`)
+      await signedIn('/account', USERNAME)
       await touch(false)
-      await signOutOfAccount('/account')
+      await signOut('/account')
     }
   ],
   [
     'a password reset from the login screen leads back to that sign-in',
     async () => {
-      await press('Sign in')
-      await until('the login screen', async () => (await path()).startsWith('/interaction/'))
-      await press('Forgot your password?')
+      await press('#sign-in')
+      await at(LOGIN)
+      await press('a[href$="/forgot"]')
       await fill('#u', USERNAME)
-      await press('Send the link')
-      await sees('Check your email')
+      await submit('/forgot')
       const link = await until('the reset link in the demo mail', async () =>
         mail.map(line => line.match(/https?:\/\/\S+\/reset\?token=\S+/)?.[0]).find(Boolean)
       )
       await view.navigate(link)
       await fill('#p', PASSWORDS[2] as string)
-      await press('Change password')
-      await sees('Your password was changed. Sign in with the new one.')
+      await submit('/reset')
+      await at(/\/interaction\/[^/]+\/login\?changed=password$/)
+      // The notice is the point of this step, so its words are what is checked.
+      await sees('password was changed')
       await signInWithPassword(USERNAME, PASSWORDS[2] as string)
-      await sees('Enter your code')
-      await fill('#otp', await totp(secret))
-      await press('Continue')
-      await at(`${OP}/account`)
-      await sees(`Signed in as ${USERNAME}`)
-      await signOutOfAccount('/account')
+      await enterCode()
+      await signedIn('/account', USERNAME)
+      await signOut('/account')
     }
   ],
   [
     'the admin app signs an administrator in and loads every panel',
     async () => {
       await view.navigate(`${OP}/admin`)
-      await press('Sign in')
+      await press('#sign-in')
       await signInWithPassword(ADMIN, ADMIN_PASSWORD)
-      await at(`${OP}/admin`)
-      await sees(`Signed in as`)
-      await sees('Clients')
-      await sees('Signing keys')
-      await sees('Upstream providers')
-      await signOutOfAccount('/admin')
+      await signedIn('/admin', 'Ada Lovelace')
+      await sees('demo-client')
+      await noAlert()
+      await signOut('/admin')
     }
   ]
 ]

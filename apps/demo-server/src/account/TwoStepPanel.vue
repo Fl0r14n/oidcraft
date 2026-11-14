@@ -14,7 +14,7 @@
       <ul class="grid grid-cols-2 gap-2 font-semibold tabular-nums tracking-wider">
         <li v-for="code in codes" :key="code" class="rounded-control bg-paper px-3 py-2 text-center">{{ code }}</li>
       </ul>
-      <UiButton @click="done">I saved them</UiButton>
+      <UiButton id="codes-saved" @click="done">I saved them</UiButton>
     </div>
 
     <form v-else-if="setup" class="space-y-5 rounded-sheet border border-rule bg-sheet p-6" @submit.prevent="confirm">
@@ -22,7 +22,7 @@
       <!-- The SVG comes from this server's own QR encoder, never from user input. -->
       <div class="size-48 overflow-hidden rounded-control bg-white [&>svg]:size-full" role="img" aria-label="QR code for your authenticator app" v-html="setup.qr" />
       <p class="text-sm text-muted">
-        Can't scan it? Enter this key instead: <span class="font-semibold tracking-wider break-all text-ink">{{ setup.secret }}</span>
+        Can't scan it? Enter this key instead: <span id="totp-secret" class="font-semibold tracking-wider break-all text-ink">{{ setup.secret }}</span>
       </p>
       <UiField id="confirm-code" v-model="code" label="Code" code inputmode="numeric" autocomplete="one-time-code" maxlength="7" required />
       <div class="flex gap-3">
@@ -48,7 +48,7 @@
 
     <div v-else class="flex flex-wrap items-center gap-4 rounded-sheet border border-rule bg-sheet p-6">
       <p class="text-[0.9375rem]">Off. Your password alone signs you in.</p>
-      <UiButton class="ml-auto" @click="begin">Set up</UiButton>
+      <UiButton id="totp-setup" class="ml-auto" @click="begin">Set up</UiButton>
     </div>
   </UiSection>
 </template>

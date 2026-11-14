@@ -2,11 +2,11 @@
   <UiCard v-if="!isAuthorized" title="Your account">
     <template #subtitle>Sign in to change your password, add passkeys and set up two-step verification.</template>
     <UiAlert v-if="failedSignIn(signInError)">The sign-in did not complete: {{ errorDescription ?? signInError ?? 'try again.' }}</UiAlert>
-    <UiButton class="w-full" @click="signIn">Sign in</UiButton>
+    <UiButton id="sign-in" class="w-full" @click="signIn">Sign in</UiButton>
   </UiCard>
 
   <UiShell v-else title="Your account" :subtitle="me ? `Signed in as ${me.username}` : undefined" narrow>
-    <template #actions><UiButton variant="secondary" @click="signOut">Sign out</UiButton></template>
+    <template #actions><UiButton id="sign-out" variant="secondary" @click="signOut">Sign out</UiButton></template>
     <UiAlert v-if="error">{{ error }}</UiAlert>
     <template v-if="me">
       <PasskeysPanel :passkeys="me.passkeys" :passwordless="me.passwordless" @changed="load" />

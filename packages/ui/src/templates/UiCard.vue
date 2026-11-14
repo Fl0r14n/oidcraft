@@ -24,7 +24,7 @@
 
 <script setup lang="ts">
 import { inject } from 'vue'
-import { BRAND, type Brand } from './brand'
+import { BRAND, type Brand } from '../brand'
 
 defineProps<{ title: string }>()
 const brand = inject(BRAND) as Brand

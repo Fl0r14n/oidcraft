@@ -8,7 +8,7 @@
 </template>
 
 <script setup lang="ts">
-import UiInput from './UiInput.vue'
+import UiInput from '../atoms/UiInput.vue'
 
 defineOptions({ inheritAttrs: false })
 // `value` is a server-rendered screen's starting text; `v-model` is a client app's binding.

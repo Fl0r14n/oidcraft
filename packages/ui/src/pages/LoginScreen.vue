@@ -47,12 +47,12 @@
 </template>
 
 <script setup lang="ts">
-import UiAlert from '../UiAlert.vue'
-import UiButton from '../UiButton.vue'
-import UiCard from '../UiCard.vue'
-import UiField from '../UiField.vue'
-import UiLink from '../UiLink.vue'
-import PasskeyForm from './PasskeyForm.vue'
+import UiAlert from '../atoms/UiAlert.vue'
+import UiButton from '../atoms/UiButton.vue'
+import UiLink from '../atoms/UiLink.vue'
+import UiField from '../molecules/UiField.vue'
+import PasskeyForm from '../organisms/PasskeyForm.vue'
+import UiCard from '../templates/UiCard.vue'
 
 defineProps<{
   action: string

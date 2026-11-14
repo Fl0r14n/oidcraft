@@ -22,10 +22,10 @@
 </template>
 
 <script setup lang="ts">
-import UiButton from '../UiButton.vue'
-import UiCard from '../UiCard.vue'
-import UiField from '../UiField.vue'
-import PasskeyCreate from './PasskeyCreate.vue'
+import UiButton from '../atoms/UiButton.vue'
+import UiField from '../molecules/UiField.vue'
+import PasskeyCreate from '../organisms/PasskeyCreate.vue'
+import UiCard from '../templates/UiCard.vue'
 
 defineProps<{
   action: string

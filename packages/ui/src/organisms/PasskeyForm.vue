@@ -9,7 +9,7 @@
 </template>
 
 <script setup lang="ts">
-import UiButton from '../UiButton.vue'
+import UiButton from '../atoms/UiButton.vue'
 
 defineProps<{ action: string; options: string; step: 'login' | 'second' }>()
 </script>

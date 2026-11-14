@@ -22,9 +22,9 @@
 </template>
 
 <script setup lang="ts">
-import UiButton from '../UiButton.vue'
-import UiCard from '../UiCard.vue'
-import UiLink from '../UiLink.vue'
+import UiButton from '../atoms/UiButton.vue'
+import UiLink from '../atoms/UiLink.vue'
+import UiCard from '../templates/UiCard.vue'
 
 defineProps<{ action: string; loginUrl: string; clientName: string; accounts: { accountId: string; label: string }[] }>()
 </script>

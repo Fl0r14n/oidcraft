@@ -49,8 +49,8 @@
 <script setup lang="ts" generic="T extends Record<string, unknown>">
 import { createDataTable } from '@vuetify/v0'
 import { watch } from 'vue'
-import UiButton from './UiButton.vue'
-import UiInput from './UiInput.vue'
+import UiButton from '../atoms/UiButton.vue'
+import UiInput from '../atoms/UiInput.vue'
 
 const {
   items,

@@ -581,6 +581,14 @@ components and the interaction screens. It is private and has no build: the app 
 `@oidcraft/provider/interaction` ships rules and no markup, so no consumer of the library inherits a
 UI dependency (FR-I3).
 
+The components are grouped by atomic-design level, each importing only from the levels below it:
+`atoms/` are single elements (`UiButton`, `UiInput`, `UiLink`, `UiAlert`), `molecules/` a few working
+as one (`UiField`), `organisms/` a distinct section of an interface (`UiSection`, `UiDataTable`,
+`UiDialog`, the passkey forms), `templates/` a page's layout with slots (`UiCard` for the interaction
+screens, `UiShell` for the admin and account apps), and `pages/` the interaction screens, a template
+filled in. `@oidcraft/ui/components` exports the reusable levels and `createScreens` the pages, so
+where a component sits is not part of either API.
+
 **The design is a handful of CSS variables** (`--oc-accent`, `--oc-accent-ink`, `--oc-radius`,
 `--oc-font`) that Tailwind's theme reads. `createScreens({ brand, theme, urls })` takes them per
 issuer, with the brand's name and host and where each form posts, so nothing about one deployment is

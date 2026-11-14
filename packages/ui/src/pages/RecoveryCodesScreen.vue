@@ -22,8 +22,8 @@
 </template>
 
 <script setup lang="ts">
-import UiCard from '../UiCard.vue'
-import UiLink from '../UiLink.vue'
+import UiLink from '../atoms/UiLink.vue'
+import UiCard from '../templates/UiCard.vue'
 
 defineProps<{ codes: string[]; continueUrl: string; accountUrl?: string | undefined }>()
 </script>

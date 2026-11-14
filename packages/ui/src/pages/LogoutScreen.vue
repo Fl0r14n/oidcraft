@@ -9,8 +9,8 @@
 </template>
 
 <script setup lang="ts">
-import UiButton from '../UiButton.vue'
-import UiCard from '../UiCard.vue'
+import UiButton from '../atoms/UiButton.vue'
+import UiCard from '../templates/UiCard.vue'
 
 defineProps<{ action: string; brandName: string; clientName: string | undefined }>()
 </script>

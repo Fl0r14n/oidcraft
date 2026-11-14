@@ -8,7 +8,7 @@
 </template>
 
 <script setup lang="ts">
-import UiButton from '../UiButton.vue'
+import UiButton from '../atoms/UiButton.vue'
 
 defineProps<{ options: string; label: string }>()
 </script>

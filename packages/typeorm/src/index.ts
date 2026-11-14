@@ -31,6 +31,7 @@ import {
   parse,
   passkeyRow,
   realmRow,
+  replayDigest,
   sessionRow,
   toArtifact,
   toClient,
@@ -45,7 +46,7 @@ import { type DataSource, type FindOptionsWhere, IsNull, MoreThan, QueryFailedEr
 import { OIDCRAFT_TABLES } from './schema'
 
 export type TypeormAdapterOptions = {
-  /** Initialized, with `OIDCRAFT_SQLITE_ENTITIES` or `OIDCRAFT_POSTGRES_ENTITIES` among its entities and the migrations already run. */
+  /** Initialized, with `OIDCRAFT_SQLITE_ENTITIES`, `OIDCRAFT_POSTGRES_ENTITIES` or `OIDCRAFT_MYSQL_ENTITIES` among its entities and the migrations already run. */
   dataSource: DataSource
   keys: KeyStore
   /** Omitted, every account lookup misses: the host composes one in later, as `@oidcraft/provider/accounts` does. */
@@ -57,6 +58,7 @@ const now = () => Date.now()
 // FR-A6: the DataSource is the host's, and its `invalidWhereValuesBehavior` can drop a missing value, so a lookup matches any row and a delete every one.
 /** A bounded sweep in one statement: the key's rows among the first `limit` expired, still expired at the delete (NFR-P3). */
 const pruneWhere = async (rows: Repository<any>, key: string[], before: Date, limit: number) => {
+  if (isMysql(rows.manager.connection)) return pruneMysql(rows, before, limit)
   const doomed = rows
     .createQueryBuilder('doomed')
     .select(key.map(column => `doomed.${column}`))
@@ -85,6 +87,11 @@ const grantLive = (where: FindOptionsWhere<GrantRow>) => [
   { ...where, expires_at: MoreThan(now()) }
 ]
 
+/**
+ * On MySQL, TypeORM writes `VALUES(col)`, which MySQL deprecates and MariaDB alone keeps, and MySQL's row alias MariaDB
+ * rejects: so the values are bound again. A clash on any unique key updates there, so only a table whose one unique
+ * key is `conflict` may use this.
+ */
 const upsert = async <T extends object>(
   repository: Repository<T>,
   row: T,
@@ -92,7 +99,40 @@ const upsert = async <T extends object>(
   overwrite?: (keyof T & string)[]
 ) => {
   const columns = overwrite ?? (Object.keys(row) as (keyof T & string)[]).filter(column => !conflict.includes(column))
-  await repository.createQueryBuilder().insert().values(row).orUpdate(columns, conflict).execute()
+  if (!isMysql(repository.manager.connection)) {
+    await repository.createQueryBuilder().insert().values(row).orUpdate(columns, conflict).execute()
+    return
+  }
+  const { driver } = repository.manager.connection
+  const names = Object.keys(row) as (keyof T & string)[]
+  const table = repository.metadata.tablePath
+    .split('.')
+    .map(part => driver.escape(part))
+    .join('.')
+  await repository.query(
+    `insert into ${table} (${names.map(name => driver.escape(name)).join(', ')}) values (${names.map(() => '?').join(', ')}) ` +
+      `on duplicate key update ${columns.map(column => `${driver.escape(column)} = ?`).join(', ')}`,
+    [...names.map(name => row[name]), ...columns.map(column => row[column])]
+  )
+}
+
+/** MySQL and MariaDB, one dialect (FR-A4). */
+const isMysql = (dataSource: DataSource) => ['mysql', 'mariadb'].includes(dataSource.driver.options.type)
+
+/** MySQL refuses a `LIMIT` in an `IN` subquery on the table being deleted from, and has `DELETE … LIMIT` instead. */
+const pruneMysql = async (rows: Repository<any>, before: Date, limit: number) => {
+  const { driver } = rows.manager.connection
+  const table = rows.metadata.tablePath
+    .split('.')
+    .map(part => driver.escape(part))
+    .join('.')
+  const result = (await rows.query(`delete from ${table} where expires_at <= ? order by expires_at limit ?`, [
+    before.getTime(),
+    limit
+  ])) as {
+    affectedRows?: number
+  }
+  return result.affectedRows ?? 0
 }
 
 /** `orIgnore` hides whether it wrote, so a failed insert is a lost race only if `collided` finds the row; else rethrown (FR-A3, NFR-S4). */
@@ -112,7 +152,7 @@ export const typeormAdapter = (options: TypeormAdapterOptions): FullAdapter => {
   const missing = OIDCRAFT_TABLES.filter(table => !dataSource.hasMetadata(table))
   if (missing.length) {
     throw new Error(
-      `the DataSource does not know ${missing.join(', ')}: add OIDCRAFT_SQLITE_ENTITIES or OIDCRAFT_POSTGRES_ENTITIES to its entities`
+      `the DataSource does not know ${missing.join(', ')}: add OIDCRAFT_SQLITE_ENTITIES, OIDCRAFT_POSTGRES_ENTITIES or OIDCRAFT_MYSQL_ENTITIES to its entities`
     )
   }
   const clients = dataSource.getRepository<ClientRow>('oidc_clients')
@@ -297,6 +337,8 @@ export const typeormAdapter = (options: TypeormAdapterOptions): FullAdapter => {
             continue
           }
           const merged = grantRow(mergedGrant(held, grant))
+          // Nothing new: an update that changes nothing counts no row without CLIENT_FOUND_ROWS, and would look like a lost race.
+          if (merged.scopes === row.scopes && merged.claims === row.claims && merged.resources === row.resources) return held
           const swapped = await grants
             .createQueryBuilder()
             .update()
@@ -338,7 +380,18 @@ export const typeormAdapter = (options: TypeormAdapterOptions): FullAdapter => {
         )
       },
       async upsert(credential: Credential) {
-        await upsert(credentials, credentialRow(credential), ['account_id'])
+        const row = credentialRow(credential)
+        if (!isMysql(dataSource)) {
+          await upsert(credentials, row, ['account_id'])
+          return
+        }
+        // ON DUPLICATE KEY UPDATE answers a clash on the username too, by rewriting the other account's row; this throws.
+        if (!(await credentials.existsBy(by({ account_id: row.account_id })))) {
+          await credentials.insert(row)
+          return
+        }
+        const { account_id, ...rest } = row
+        await credentials.update(by({ account_id }), rest)
       },
       async destroy(accountId: string) {
         await credentials.delete(by({ account_id: accountId }))
@@ -386,7 +439,9 @@ export const typeormAdapter = (options: TypeormAdapterOptions): FullAdapter => {
     keys: options.keys,
 
     replay: {
-      async claim(namespace, value, ttl) {
+      async claim(namespace, claimed, ttl) {
+        // NFR-S5: a client chooses its jti's length, and a MySQL key's is fixed.
+        const value = isMysql(dataSource) ? await replayDigest(claimed) : claimed
         // Only a lapsed claim is cleared, so the insert below is what decides between racing claimers.
         await replay
           .createQueryBuilder()
@@ -420,6 +475,7 @@ export const typeormAdapter = (options: TypeormAdapterOptions): FullAdapter => {
   }
 }
 
+export { MYSQL_MIGRATIONS } from '@oidcraft/sql/mysql'
 export { POSTGRES_MIGRATIONS } from '@oidcraft/sql/postgres'
 export { type Migration, SQLITE_MIGRATIONS } from '@oidcraft/sql/sqlite'
 export * from './schema'

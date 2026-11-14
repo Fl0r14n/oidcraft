@@ -15,8 +15,9 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-latest
-    # The Redis and Postgres adapter suites skip without REDIS_URL and POSTGRES_URL; here they run
-    # against real ones, the same images compose.yml starts locally.
+    # The Redis, Postgres, MySQL and MariaDB adapter suites skip without their URLs; here they run
+    # against real ones, the same images compose.yml starts locally. MySQL and MariaDB are one dialect,
+    # and both servers are what keeps the adapters to the subset they share (FR-A4).
     services:
       redis:
         image: redis:alpine
@@ -30,9 +31,27 @@ jobs:
         ports:
           - 5432:5432
         options: --health-cmd "pg_isready -U postgres" --health-interval 2s --health-retries 15
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: oidcraft
+          MYSQL_DATABASE: oidcraft
+        ports:
+          - 3306:3306
+        options: --health-cmd "mysqladmin ping -h 127.0.0.1 -poidcraft" --health-interval 2s --health-retries 30
+      mariadb:
+        image: mariadb:11
+        env:
+          MARIADB_ROOT_PASSWORD: oidcraft
+          MARIADB_DATABASE: oidcraft
+        ports:
+          - 3307:3306
+        options: --health-cmd "healthcheck.sh --connect --innodb_initialized" --health-interval 2s --health-retries 30
     env:
       REDIS_URL: redis://localhost:6379
       POSTGRES_URL: postgres://postgres:oidcraft@localhost:5432/oidcraft
+      MYSQL_URL: mysql://root:oidcraft@127.0.0.1:3306/oidcraft
+      MARIADB_URL: mysql://root:oidcraft@127.0.0.1:3307/oidcraft
     steps:
       - uses: actions/checkout@v6
       - uses: oven-sh/setup-bun@v2

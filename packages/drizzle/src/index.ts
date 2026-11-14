@@ -13,10 +13,13 @@ import type {
   Session
 } from '@oidcraft/adapter'
 import { grantExpired, MERGE_ROUNDS, mergedGrant, noAccounts } from '@oidcraft/adapter'
-import { type AnyRelations, and, eq, gt, inArray, isNull, lte, or, sql } from 'drizzle-orm'
+import { replayDigest } from '@oidcraft/sql/rows'
+import { type AnyRelations, and, eq, gt, inArray, is, isNull, lte, or, type SQL, sql } from 'drizzle-orm'
+import { MySqlTable } from 'drizzle-orm/mysql-core'
 import type { PgQueryResultHKT } from 'drizzle-orm/pg-core'
 import type { PgAsyncDatabase } from 'drizzle-orm/pg-core/async'
 import type { SQLiteAsyncDatabase } from 'drizzle-orm/sqlite-core'
+import type { MysqlTables } from './mysql-schema'
 import type { PostgresTables } from './postgres-schema'
 import { type artifacts, type credentials, type identities, type passkeys, type realms, schema } from './schema'
 
@@ -30,7 +33,24 @@ export type DrizzleAdapterOptions = {
   | { db: DrizzleDatabase; tables?: undefined }
   /** Postgres: the tables come from `postgresTables(schema?)`, which is where a realm's schema is chosen (G-6). */
   | { db: PgAsyncDatabase<PgQueryResultHKT, AnyRelations>; tables: PostgresTables }
+  /** MySQL or MariaDB, one dialect, through `drizzle-orm/mysql2`: the tables come from `mysqlTables(database?)` (G-6). */
+  | { db: unknown; tables: MysqlTables }
 )
+
+type Affected = [{ affectedRows: number }]
+
+/** The writes MySQL spells its own way: no `RETURNING`, no `ON CONFLICT`, and `DELETE … LIMIT`. Reads are the same everywhere. */
+type MysqlWrites = {
+  insert(table: unknown): { values(row: unknown): Promise<unknown> & { onDuplicateKeyUpdate(config: { set: unknown }): Promise<unknown> } }
+  update(table: unknown): { set(values: unknown): { where(condition: SQL | undefined): Promise<Affected> } }
+  delete(table: unknown): { where(condition: SQL | undefined): { orderBy(column: unknown): { limit(limit: number): Promise<Affected> } } }
+}
+
+/** ER_DUP_ENTRY, the same on MySQL and MariaDB; Drizzle wraps the driver's error as its `cause`. */
+const duplicateKey = (error: unknown): boolean =>
+  typeof error === 'object' &&
+  error !== null &&
+  ((error as { errno?: unknown }).errno === 1062 || duplicateKey((error as { cause?: unknown }).cause))
 
 const now = () => new Date()
 
@@ -44,6 +64,30 @@ export const drizzleAdapter = (options: DrizzleAdapterOptions): FullAdapter => {
     schema) as typeof schema
   // FR-T5: a grant may carry an expiry, which the query enforces as it does an artifact's.
   const grantLive = () => or(isNull(grants.expiresAt), gt(grants.expiresAt, now()))
+  // A host's connection may count matched rows as affected (CLIENT_FOUND_ROWS, mysql2's default): no count read here depends on which.
+  const mysql = is(clients, MySqlTable) ? (options.db as MysqlWrites) : undefined
+
+  /** Atomic: true for exactly one of racing writers (FR-A3). */
+  const insertIfAbsentMysql = async (writes: MysqlWrites, table: unknown, row: unknown) => {
+    try {
+      await writes.insert(table).values(row)
+      return true
+    } catch (error) {
+      if (duplicateKey(error)) return false
+      throw error
+    }
+  }
+
+  /** MySQL refuses a `LIMIT` in an `IN` subquery on the table being deleted from. */
+  const pruneMysql = async (
+    writes: MysqlWrites,
+    table: typeof artifacts | typeof sessions | typeof replay,
+    before: Date,
+    limit: number
+  ) => {
+    const [result] = await writes.delete(table).where(lte(table.expiresAt, before)).orderBy(table.expiresAt).limit(limit)
+    return result.affectedRows
+  }
 
   const toArtifact = (row: typeof artifacts.$inferSelect): Artifact => ({
     id: row.id,
@@ -100,10 +144,10 @@ export const drizzleAdapter = (options: DrizzleAdapterOptions): FullAdapter => {
           : undefined
       },
       async upsert(client) {
-        await db
-          .insert(clients)
-          .values({ clientId: client.clientId, data: client, createdAt: client.createdAt, updatedAt: client.updatedAt })
-          .onConflictDoUpdate({ target: clients.clientId, set: { data: client, updatedAt: client.updatedAt } })
+        const row = { clientId: client.clientId, data: client, createdAt: client.createdAt, updatedAt: client.updatedAt }
+        const set = { data: client, updatedAt: client.updatedAt }
+        if (mysql) await mysql.insert(clients).values(row).onDuplicateKeyUpdate({ set })
+        else await db.insert(clients).values(row).onConflictDoUpdate({ target: clients.clientId, set })
       },
       async destroy(clientId) {
         await db.delete(clients).where(eq(clients.clientId, clientId))
@@ -140,10 +184,13 @@ export const drizzleAdapter = (options: DrizzleAdapterOptions): FullAdapter => {
           consumedAt: artifact.consumedAt ?? null,
           expiresAt: artifact.expiresAt
         }
-        await db
-          .insert(artifacts)
-          .values(row)
-          .onConflictDoUpdate({ target: [artifacts.kind, artifacts.id], set: { ...row, consumedAt: undefined } })
+        const set = { ...row, consumedAt: undefined }
+        if (mysql) await mysql.insert(artifacts).values(row).onDuplicateKeyUpdate({ set })
+        else
+          await db
+            .insert(artifacts)
+            .values(row)
+            .onConflictDoUpdate({ target: [artifacts.kind, artifacts.id], set })
       },
       async find(kind, id) {
         const [row] = await db
@@ -162,11 +209,9 @@ export const drizzleAdapter = (options: DrizzleAdapterOptions): FullAdapter => {
         return row ? toArtifact(row) : undefined
       },
       async consume(kind, id) {
-        const won = await db
-          .update(artifacts)
-          .set({ consumedAt: now() })
-          .where(and(eq(artifacts.kind, kind), eq(artifacts.id, id), isNull(artifacts.consumedAt), live(artifacts.expiresAt)))
-          .returning({ id: artifacts.id })
+        const unconsumed = and(eq(artifacts.kind, kind), eq(artifacts.id, id), isNull(artifacts.consumedAt), live(artifacts.expiresAt))
+        if (mysql) return (await mysql.update(artifacts).set({ consumedAt: now() }).where(unconsumed))[0].affectedRows === 1
+        const won = await db.update(artifacts).set({ consumedAt: now() }).where(unconsumed).returning({ id: artifacts.id })
         return won.length === 1
       },
       async destroy(kind, id) {
@@ -183,6 +228,7 @@ export const drizzleAdapter = (options: DrizzleAdapterOptions): FullAdapter => {
         await db.delete(artifacts).where(eq(artifacts.clientId, clientId))
       },
       async prune(before, limit) {
+        if (mysql) return pruneMysql(mysql, artifacts, before, limit)
         const doomed = db
           .select({ kind: artifacts.kind, id: artifacts.id })
           .from(artifacts)
@@ -232,7 +278,8 @@ export const drizzleAdapter = (options: DrizzleAdapterOptions): FullAdapter => {
           clients: session.clients,
           expiresAt: session.expiresAt
         }
-        await db.insert(sessions).values(row).onConflictDoUpdate({ target: sessions.id, set: row })
+        if (mysql) await mysql.insert(sessions).values(row).onDuplicateKeyUpdate({ set: row })
+        else await db.insert(sessions).values(row).onConflictDoUpdate({ target: sessions.id, set: row })
       },
       // Compare-and-swap, retried while another writer wins, so concurrent sign-ins are all recorded (FR-C11).
       async addClient(id, clientId) {
@@ -241,11 +288,13 @@ export const drizzleAdapter = (options: DrizzleAdapterOptions): FullAdapter => {
           if (!row) return
           const current = row.clients as string[]
           if (current.includes(clientId)) return
-          const updated = await db
-            .update(sessions)
-            .set({ clients: [...current, clientId] })
-            .where(and(eq(sessions.id, id), eq(sessions.clients, current)))
-            .returning({ id: sessions.id })
+          const unchanged = and(eq(sessions.id, id), eq(sessions.clients, current))
+          const added = [...current, clientId]
+          if (mysql) {
+            if ((await mysql.update(sessions).set({ clients: added }).where(unchanged))[0].affectedRows) return
+            continue
+          }
+          const updated = await db.update(sessions).set({ clients: added }).where(unchanged).returning({ id: sessions.id })
           if (updated.length) return
         }
         throw new Error(`session ${id} kept changing; its client list could not be updated`)
@@ -254,6 +303,7 @@ export const drizzleAdapter = (options: DrizzleAdapterOptions): FullAdapter => {
         await db.delete(sessions).where(eq(sessions.id, id))
       },
       async prune(before, limit) {
+        if (mysql) return pruneMysql(mysql, sessions, before, limit)
         const doomed = db.select({ id: sessions.id }).from(sessions).where(lte(sessions.expiresAt, before)).limit(limit)
         const gone = await db
           .delete(sessions)
@@ -291,10 +341,12 @@ export const drizzleAdapter = (options: DrizzleAdapterOptions): FullAdapter => {
       async upsert(grant) {
         const row = grantRow(grant)
         const { id: _id, createdAt: _createdAt, ...changed } = row
-        await db
-          .insert(grants)
-          .values(row)
-          .onConflictDoUpdate({ target: [grants.accountId, grants.clientId], set: changed })
+        if (mysql) await mysql.insert(grants).values(row).onDuplicateKeyUpdate({ set: changed })
+        else
+          await db
+            .insert(grants)
+            .values(row)
+            .onConflictDoUpdate({ target: [grants.accountId, grants.clientId], set: changed })
       },
       // FR-I4: compare-and-swap on what was read, so a consent landing between the read and the write is never overwritten.
       async merge(grant) {
@@ -305,8 +357,10 @@ export const drizzleAdapter = (options: DrizzleAdapterOptions): FullAdapter => {
             .where(and(eq(grants.accountId, grant.accountId), eq(grants.clientId, grant.clientId)))
             .limit(1)
           if (!row) {
-            const won = await db.insert(grants).values(grantRow(grant)).onConflictDoNothing().returning({ id: grants.id })
-            if (won.length) return grant
+            const won = mysql
+              ? await insertIfAbsentMysql(mysql, grants, grantRow(grant))
+              : (await db.insert(grants).values(grantRow(grant)).onConflictDoNothing().returning({ id: grants.id })).length === 1
+            if (won) return grant
             continue
           }
           const held = toGrant(row)
@@ -315,14 +369,20 @@ export const drizzleAdapter = (options: DrizzleAdapterOptions): FullAdapter => {
             continue
           }
           const merged = mergedGrant(held, grant)
-          const swapped = await db
-            .update(grants)
-            .set({ scopes: merged.scopes, claims: merged.claims, resources: merged.resources })
-            .where(
-              and(eq(grants.id, held.id), eq(grants.scopes, row.scopes), eq(grants.claims, row.claims), eq(grants.resources, row.resources))
-            )
-            .returning({ id: grants.id })
-          if (swapped.length) return merged
+          const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
+          // Nothing new: an update that changes nothing counts no row without CLIENT_FOUND_ROWS, and would look like a lost race.
+          if (same(merged.scopes, held.scopes) && same(merged.claims, held.claims) && same(merged.resources, held.resources)) return held
+          const set = { scopes: merged.scopes, claims: merged.claims, resources: merged.resources }
+          const unchanged = and(
+            eq(grants.id, held.id),
+            eq(grants.scopes, row.scopes),
+            eq(grants.claims, row.claims),
+            eq(grants.resources, row.resources)
+          )
+          const swapped = mysql
+            ? (await mysql.update(grants).set(set).where(unchanged))[0].affectedRows
+            : (await db.update(grants).set(set).where(unchanged).returning({ id: grants.id })).length
+          if (swapped) return merged
         }
         throw new Error(`the grant for ${grant.accountId} and ${grant.clientId} kept changing under the merge`)
       },
@@ -340,6 +400,13 @@ export const drizzleAdapter = (options: DrizzleAdapterOptions): FullAdapter => {
     replay: {
       async claim(namespace, value, ttl) {
         const expiresAt = new Date(Date.now() + ttl * 1000)
+        if (mysql) {
+          // NFR-S5: a client chooses its jti's length, and a MySQL key's is fixed.
+          const key = await replayDigest(value)
+          // Only a lapsed claim is cleared, so the insert is what decides between racing claimers.
+          await db.delete(replay).where(and(eq(replay.namespace, namespace), eq(replay.value, key), lte(replay.expiresAt, now())))
+          return insertIfAbsentMysql(mysql, replay, { namespace, value: key, expiresAt })
+        }
         // One statement: a fresh row is inserted, a lapsed one is taken over, a live one is left alone.
         const won = await db
           .insert(replay)
@@ -349,6 +416,7 @@ export const drizzleAdapter = (options: DrizzleAdapterOptions): FullAdapter => {
         return won.length === 1
       },
       async prune(before, limit) {
+        if (mysql) return pruneMysql(mysql, replay, before, limit)
         const doomed = db
           .select({ namespace: replay.namespace, value: replay.value })
           .from(replay)
@@ -373,6 +441,7 @@ export const drizzleAdapter = (options: DrizzleAdapterOptions): FullAdapter => {
       },
       // Both the key and the username are unique, and DO NOTHING without a target covers either.
       async create(credential: Credential) {
+        if (mysql) return insertIfAbsentMysql(mysql, credentials, credentialRow(credential))
         const won = await db
           .insert(credentials)
           .values(credentialRow(credential))
@@ -382,7 +451,22 @@ export const drizzleAdapter = (options: DrizzleAdapterOptions): FullAdapter => {
       },
       async upsert(credential: Credential) {
         const row = credentialRow(credential)
-        await db.insert(credentials).values(row).onConflictDoUpdate({ target: credentials.accountId, set: row })
+        if (!mysql) {
+          await db.insert(credentials).values(row).onConflictDoUpdate({ target: credentials.accountId, set: row })
+          return
+        }
+        // ON DUPLICATE KEY UPDATE answers a clash on the username too, by rewriting the other account's row; this throws.
+        const [held] = await db
+          .select({ accountId: credentials.accountId })
+          .from(credentials)
+          .where(eq(credentials.accountId, row.accountId))
+          .limit(1)
+        if (!held) {
+          await mysql.insert(credentials).values(row)
+          return
+        }
+        const { accountId, ...rest } = row
+        await mysql.update(credentials).set(rest).where(eq(credentials.accountId, accountId))
       },
       async destroy(accountId: string) {
         await db.delete(credentials).where(eq(credentials.accountId, accountId))
@@ -398,12 +482,14 @@ export const drizzleAdapter = (options: DrizzleAdapterOptions): FullAdapter => {
         return (await db.select().from(passkeys).where(eq(passkeys.accountId, accountId))).map(toPasskey)
       },
       async create(passkey: Passkey) {
+        if (mysql) return insertIfAbsentMysql(mysql, passkeys, passkeyRow(passkey))
         const won = await db.insert(passkeys).values(passkeyRow(passkey)).onConflictDoNothing().returning({ id: passkeys.credentialId })
         return won.length === 1
       },
       async upsert(passkey: Passkey) {
         const row = passkeyRow(passkey)
-        await db.insert(passkeys).values(row).onConflictDoUpdate({ target: passkeys.credentialId, set: row })
+        if (mysql) await mysql.insert(passkeys).values(row).onDuplicateKeyUpdate({ set: row })
+        else await db.insert(passkeys).values(row).onConflictDoUpdate({ target: passkeys.credentialId, set: row })
       },
       async destroy(credentialId: string) {
         await db.delete(passkeys).where(eq(passkeys.credentialId, credentialId))
@@ -419,12 +505,14 @@ export const drizzleAdapter = (options: DrizzleAdapterOptions): FullAdapter => {
         return (await db.select().from(realms)).map(toRealm)
       },
       async create(realm: Realm) {
+        if (mysql) return insertIfAbsentMysql(mysql, realms, realmRow(realm))
         const won = await db.insert(realms).values(realmRow(realm)).onConflictDoNothing().returning({ id: realms.id })
         return won.length === 1
       },
       async upsert(realm: Realm) {
         const row = realmRow(realm)
-        await db.insert(realms).values(row).onConflictDoUpdate({ target: realms.id, set: row })
+        if (mysql) await mysql.insert(realms).values(row).onDuplicateKeyUpdate({ set: row })
+        else await db.insert(realms).values(row).onConflictDoUpdate({ target: realms.id, set: row })
       },
       async destroy(id: string) {
         await db.delete(realms).where(eq(realms.id, id))
@@ -452,10 +540,12 @@ export const drizzleAdapter = (options: DrizzleAdapterOptions): FullAdapter => {
           claims: identity.claims,
           linkedAt: identity.linkedAt
         }
-        await db
-          .insert(identities)
-          .values(row)
-          .onConflictDoUpdate({ target: [identities.provider, identities.subject], set: row })
+        if (mysql) await mysql.insert(identities).values(row).onDuplicateKeyUpdate({ set: row })
+        else
+          await db
+            .insert(identities)
+            .values(row)
+            .onConflictDoUpdate({ target: [identities.provider, identities.subject], set: row })
       },
       async destroy(provider: string, subject: string) {
         await db.delete(identities).where(and(eq(identities.provider, provider), eq(identities.subject, subject)))
@@ -542,8 +632,10 @@ const toIdentity = (row: typeof identities.$inferSelect): LinkedIdentity => ({
   linkedAt: row.linkedAt
 })
 
+export { MYSQL_MIGRATIONS } from '@oidcraft/sql/mysql'
 export { POSTGRES_MIGRATIONS } from '@oidcraft/sql/postgres'
 export { type Migration, SQLITE_MIGRATIONS } from '@oidcraft/sql/sqlite'
+export { type MysqlTables, mysqlTables } from './mysql-schema'
 export { type PostgresTables, postgresTables } from './postgres-schema'
 export * from './schema'
 export { schema } from './schema'

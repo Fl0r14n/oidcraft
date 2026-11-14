@@ -289,8 +289,8 @@ derive a complete `Adapter`. `insert` must write only if the key is absent, atom
 (FR-T3, FR-T4, NFR-S4) cannot be built from a read followed by a write, so an eventually consistent
 store cannot back a provider.
 
-**FR-A4** — First-party adapters ship for **Drizzle** (Postgres and SQLite), **Kysely**
-(Postgres, SQLite) and **TypeORM** (FR-A6), **Redis** through one command function the host
+**FR-A4** — First-party adapters ship for **Drizzle**, **Kysely** and **TypeORM** (FR-A6), each on
+Postgres, SQLite and MySQL, where MySQL means MySQL and MariaDB alike, held to both; **Redis** through one command function the host
 supplies, plus an in-memory one for tests. Each SQL adapter ships its schema as migrations the host
 runs, never as something the library applies at boot.
 

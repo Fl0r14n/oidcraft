@@ -14,11 +14,16 @@
       "types": "./dist/postgres.d.mts",
       "import": "./dist/postgres.mjs"
     },
+    "./mysql": {
+      "types": "./dist/mysql.d.mts",
+      "import": "./dist/mysql.mjs"
+    },
     "./rows": {
       "types": "./dist/rows.d.mts",
       "import": "./dist/rows.mjs"
     },
     "./testing": "./testing/postgres.ts",
+    "./testing/mysql": "./testing/mysql.ts",
     "./package.json": "./package.json"
   },
   "scripts": {
@@ -28,6 +33,7 @@
   "devDependencies": {
     "@oidcraft/adapter": "workspace:*",
     "@types/pg": "^8.23.1",
+    "mysql2": "^3.24.6",
     "pg": "^8.23.1"
   }
 }

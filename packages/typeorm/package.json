@@ -1,7 +1,7 @@
 {
   "name": "@oidcraft/typeorm",
   "version": "0.3.0",
-  "description": "A TypeORM storage adapter for @oidcraft/provider, over a DataSource on Postgres or SQLite.",
+  "description": "A TypeORM storage adapter for @oidcraft/provider, over a DataSource on Postgres, SQLite, MySQL or MariaDB.",
   "license": "MIT",
   "author": "Fl0r14n <florian.chis@gmail.com>",
   "homepage": "https://github.com/Fl0r14n/oidcraft/tree/main/packages/typeorm",
@@ -48,6 +48,7 @@
     "@oidcraft/adapter": "workspace:^",
     "@oidcraft/sql": "workspace:*",
     "@types/pg": "^8.23.1",
+    "mysql2": "^3.24.6",
     "pg": "^8.23.1",
     "sql.js": "^1.16.0",
     "typeorm": "^1.1.2"

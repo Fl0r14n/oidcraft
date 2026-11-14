@@ -22,9 +22,9 @@ in [ARCHITECTURE.md §4](/reference/architecture#_4-the-adapter-layer).
 | --------------------------- | ------------------------------------------------------------ | ------------------------------------ |
 | `@oidcraft/adapter/memory`  | a `Map` in this process                                      | the process being single-threaded    |
 | `@oidcraft/redis`           | any Redis client, through one `send(command, args)` function | `SET NX`                             |
-| `@oidcraft/drizzle`         | Drizzle v1 (`drizzle-orm@>=1.0.0-rc.5`), SQLite or Postgres  | `UPDATE … WHERE consumed_at IS NULL` |
-| `@oidcraft/kysely`          | Kysely, SQLite or Postgres                                   | `UPDATE … WHERE consumed_at IS NULL` |
-| `@oidcraft/typeorm`         | an initialized TypeORM `DataSource` with `OIDCRAFT_SQLITE_ENTITIES` or `OIDCRAFT_POSTGRES_ENTITIES` | `UPDATE … WHERE consumed_at IS NULL` |
+| `@oidcraft/drizzle`         | Drizzle v1 (`drizzle-orm@>=1.0.0-rc.5`), SQLite, Postgres, MySQL or MariaDB | `UPDATE … WHERE consumed_at IS NULL` |
+| `@oidcraft/kysely`          | Kysely, SQLite, Postgres, MySQL or MariaDB                   | `UPDATE … WHERE consumed_at IS NULL` |
+| `@oidcraft/typeorm`         | an initialized TypeORM `DataSource` with `OIDCRAFT_SQLITE_ENTITIES`, `OIDCRAFT_POSTGRES_ENTITIES` or `OIDCRAFT_MYSQL_ENTITIES` | `UPDATE … WHERE consumed_at IS NULL` |
 
 How to pick:
 
@@ -37,11 +37,18 @@ How to pick:
   issuers.
 - **The SQL adapters** use real columns and indexes for what the core looks up: `grant_id`,
   `user_code`, `expires_at`, `account_id`, the upstream session id (FR-A5). They ship their schema
-  as `SQLITE_MIGRATIONS` and `POSTGRES_MIGRATIONS`, exported from each of the three packages because
-  all three query the same tables (TypeORM also gets them as migration classes,
-  `TYPEORM_SQLITE_MIGRATIONS` and `TYPEORM_POSTGRES_MIGRATIONS`). You run them
+  as `SQLITE_MIGRATIONS`, `POSTGRES_MIGRATIONS` and `MYSQL_MIGRATIONS`, exported from each of the
+  three packages because all three query the same tables (TypeORM also gets them as migration
+  classes, `TYPEORM_SQLITE_MIGRATIONS`, `TYPEORM_POSTGRES_MIGRATIONS` and
+  `TYPEORM_MYSQL_MIGRATIONS`). You run them
   with your own tooling: the library never creates or alters a table at startup (FR-A4,
   [ARCHITECTURE.md §4.2](/reference/architecture#_4-2-schema-ownership)).
+- **MySQL and MariaDB are one dialect.** `MYSQL_MIGRATIONS` serves both, and every adapter writes
+  only what both servers accept, over `mysql2` (Kysely's `MysqlDialect`, `drizzle-orm/mysql2` with
+  `tables: mysqlTables()`, or a TypeORM `DataSource` of type `mysql` or `mariadb`). The tables are
+  `utf8mb4_bin`, because every id compares case-sensitively; keep that collation if you create them
+  some other way. Whether your connection counts matched or changed rows does not matter: no
+  adapter reads a count that the setting would change.
 
 Every first-party adapter returns a `FullAdapter`, so it satisfies every entry point: brokering,
 local accounts and realms included. Each takes a `keys` store; the memory adapter generates one
@@ -225,7 +232,7 @@ trusts the answer rather than re-checking it.
 
 ## Testing your adapter
 
-Every first-party adapter — memory, Drizzle, Kysely, TypeORM, Redis, on SQLite and Postgres — passes
+Every first-party adapter — memory, Drizzle, Kysely, TypeORM, Redis, on SQLite, Postgres, MySQL and MariaDB — passes
 one shared suite, and so can yours. `@oidcraft/adapter/conformance` exports it as plain
 checks rather than tests: `adapterConformance(create, options)` returns a list of `{ name, run }`,
 where `run` resolves when the adapter keeps that guarantee and throws a `ConformanceError` naming

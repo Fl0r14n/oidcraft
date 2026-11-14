@@ -65,10 +65,11 @@ packages/adapter/           @oidcraft/adapter   the storage contract (§4)
 packages/sql/               @oidcraft/sql       private: the schema the SQL adapters share, compiled into each (§4.2)
   src/sqlite.ts             ./sqlite            SQLITE_MIGRATIONS
   src/postgres.ts           ./postgres          POSTGRES_MIGRATIONS
-  testing/                  ./testing           Postgres schemas for the adapters' tests
-packages/drizzle/           @oidcraft/drizzle   Postgres, SQLite
-packages/kysely/            @oidcraft/kysely    Postgres, SQLite
-packages/typeorm/           @oidcraft/typeorm   a TypeORM DataSource; Postgres, SQLite
+  src/mysql.ts              ./mysql             MYSQL_MIGRATIONS, for MySQL and MariaDB alike
+  testing/                  ./testing           Postgres schemas and MySQL databases for the adapters' tests
+packages/drizzle/           @oidcraft/drizzle   Postgres, SQLite, MySQL/MariaDB
+packages/kysely/            @oidcraft/kysely    Postgres, SQLite, MySQL/MariaDB
+packages/typeorm/           @oidcraft/typeorm   a TypeORM DataSource; Postgres, SQLite, MySQL/MariaDB
 packages/redis/             @oidcraft/redis     any Redis client, through one command function
 packages/provider/          @oidcraft/provider  the provider, eight entries
   src/index.ts              .                   the OP. fetch in, fetch out, no I/O
@@ -372,19 +373,36 @@ cannot revive a consumed code. The shared conformance suite races eight callers 
 An adapter ships migrations the host runs. The library never creates or alters a table at boot: one
 that migrates on import migrates during a rolling deploy, from several processes at once.
 
-`SQLITE_MIGRATIONS` and `POSTGRES_MIGRATIONS` come from the private `@oidcraft/sql` (§2.1) and are
-exported by `@oidcraft/drizzle`, `@oidcraft/kysely` and `@oidcraft/typeorm`, which query the same
-tables: ordered `{ id, statements }` records with the same ids in both, data rather than a runner, so
-the host applies them with its own tool. TypeORM gets them as migration classes too. Every adapter's
-tests build their database from them, so the shipped schema is the tested one — Postgres in CI's
-service container and through `compose.yml` locally; without `POSTGRES_URL` those suites skip, as
+`SQLITE_MIGRATIONS`, `POSTGRES_MIGRATIONS` and `MYSQL_MIGRATIONS` come from the private
+`@oidcraft/sql` (§2.1) and are exported by `@oidcraft/drizzle`, `@oidcraft/kysely` and
+`@oidcraft/typeorm`, which query the same tables: ordered `{ id, statements }` records with the same
+ids in all three, data rather than a runner, so the host applies them with its own tool. TypeORM gets
+them as migration classes too. Every adapter's tests build their database from them, so the shipped
+schema is the tested one — Postgres, MySQL 8.4 and MariaDB 11 in CI's service containers and through
+`compose.yml` locally; without `POSTGRES_URL`, `MYSQL_URL` or `MARIADB_URL` those suites skip, as
 Redis's do. `apps/demo-server` applies them at boot, safe only because it is one process.
 
 The Postgres tables keep milliseconds in `bigint` and JSON in `text`, so every adapter reads and
 writes what it does on SQLite; `pg` and Bun.sql return `bigint` as a string, so the adapters convert
 with `Number()`. Drizzle fixes a table's schema when the table is defined, so its Postgres tables come
-from `postgresTables(schema?)`. Table names are unqualified everywhere else, so a host picks the
-schema with the search path or Kysely's `withSchema`.
+from `postgresTables(schema?)`, and its MySQL ones from `mysqlTables(database?)`. Table names are
+unqualified everywhere else, so a host picks the schema with the search path or Kysely's `withSchema`.
+
+**MySQL and MariaDB are one dialect**, written to what both accept and held to both servers by the
+same suite (FR-A4). That rules out `RETURNING` (MariaDB's only) and both servers' names for an
+upsert's new values: MySQL's row alias, which MariaDB rejects, and `VALUES(col)`, which MySQL
+deprecates. An upsert binds its values again, and `@oidcraft/typeorm` writes that statement itself,
+since TypeORM's own is `VALUES(col)`. No row count is read where it could change meaning: `mysql2`
+counts matched rows as affected by default and a host may turn that off, so insert-if-absent catches
+duplicate-key error 1062, every conditional `UPDATE` excludes a row it would not change, and a merge
+that adds nothing returns before writing. `ON DUPLICATE KEY UPDATE` answers a clash on any unique
+key, so the one table with two, `oidc_credentials`, is upserted by key instead: a username taken by
+another account fails rather than rewriting that account's row. Every table is `utf8mb4_bin`, since
+every id compares case-sensitively and MySQL's default collations do not. Keys are sized `varchar`,
+each index under InnoDB's 3072 bytes; a passkey's credential id, up to 1364 characters, is `ascii`
+to fit, and the replay guard stores a SHA-256 of each value, since a client chooses its `jti`'s
+length. A prune is `DELETE … ORDER BY expires_at LIMIT n`, as MySQL refuses a `LIMIT` in an `IN`
+subquery.
 
 ## 5. Identity brokering
 
@@ -524,7 +542,8 @@ issuer never calls it.
   (NFR-S6).
 - **Storage is per realm.** `configure` hands each provider its own adapter — a SQLite file, a
   Postgres schema (`postgresTables(realm.id)`, `db.withSchema(realm.id)`, or the search path), a
-  Redis prefix. Each adapter's Postgres suite checks that two schemas share nothing. The
+  MySQL database (`mysqlTables(realm.id)`, `db.withSchema(realm.id)`), a Redis prefix. Each
+  adapter's Postgres and MySQL suites check that two schemas share nothing. The
   `oidc_realms` table (migration `0003`) is only the registry, in the control plane's storage; no
   other table gains a realm column (`G-6`).
 - **Keys are per realm, and checked.** A key two realms share would let one realm's token verify

@@ -1,7 +1,7 @@
 {
   "name": "@oidcraft/drizzle",
   "version": "0.3.0",
-  "description": "A Drizzle storage adapter for @oidcraft/provider, on Postgres or SQLite.",
+  "description": "A Drizzle storage adapter for @oidcraft/provider, on Postgres, SQLite, MySQL or MariaDB.",
   "license": "MIT",
   "author": "Fl0r14n <florian.chis@gmail.com>",
   "homepage": "https://github.com/Fl0r14n/oidcraft/tree/main/packages/drizzle",
@@ -49,6 +49,7 @@
     "@oidcraft/sql": "workspace:*",
     "@types/pg": "^8.23.1",
     "drizzle-orm": "1.0.0-rc.5",
+    "mysql2": "^3.24.6",
     "pg": "^8.23.1"
   },
   "publishConfig": {

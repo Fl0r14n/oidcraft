@@ -21,7 +21,8 @@ rotation and replay revocation, UserInfo, revocation, introspection, logout in b
 DPoP with nonces, PAR, JAR by value, the `claims` parameter, dynamic client registration with RFC
 7592 management, the device grant, CIBA in poll and ping, token exchange, RAR, step-up, pairwise
 subjects, identity brokering with home-realm discovery chosen by the provider, five storage adapters
-(memory, Drizzle, Kysely, TypeORM, Redis) passing one conformance suite, four runtime context
+(memory, Drizzle, Kysely, TypeORM, Redis) passing one conformance suite, the SQL ones on SQLite,
+Postgres, MySQL and MariaDB, four runtime context
 providers, local accounts with passwords, passkeys and TOTP, a management API and an admin UI.
 
 ### What is NOT done, and will not be silently forgotten
@@ -80,9 +81,10 @@ Versions are set in each `package.json`. Publish in this order, each from a GitH
    `./accounts`, behind its new `origin` option (FR-I8).
 5. `@oidcraft/drizzle@0.3.0`, `@oidcraft/kysely@0.3.0`, `@oidcraft/redis@0.3.0` — peer on `adapter`
    ^0.3.0; the SQL ones enforce `Grant.expiresAt` and prune by expiry at the delete, and store passkeys,
-   with migration `0006_passkeys`.
-6. `@oidcraft/typeorm@0.3.0` — the same, and `OIDCRAFT_ENTITIES` becomes `OIDCRAFT_SQLITE_ENTITIES`
-   and `OIDCRAFT_POSTGRES_ENTITIES`.
+   with migration `0006_passkeys`. Drizzle and Kysely gain MySQL and MariaDB, one dialect over
+   `MYSQL_MIGRATIONS` (`mysqlTables()` for Drizzle, `MysqlDialect` for Kysely).
+6. `@oidcraft/typeorm@0.3.0` — the same, and `OIDCRAFT_ENTITIES` becomes `OIDCRAFT_SQLITE_ENTITIES`,
+   `OIDCRAFT_POSTGRES_ENTITIES` and, for a `mysql` or `mariadb` `DataSource`, `OIDCRAFT_MYSQL_ENTITIES`.
 7. `@oidcraft/vue@10.0.0`, `@oidcraft/react@5.0.0`, `@oidcraft/angular@12.0.0` — majors for what
    `core` and `client` changed underneath them; every binding shows and dismisses an error that came
    without a description.
@@ -98,43 +100,6 @@ FR-I8 is in (2026-11-14). Not done, and not decided against:
 - **The admin removing a person's passkeys.** The person can, from the account app.
 
 A realm on its own subdomain has its own passkeys, as the relying-party ID is the issuer's host.
-
-## Planned: MySQL and MariaDB
-
-Wanted, not decided against: with Drizzle, Kysely and TypeORM all on Postgres and SQLite only, no
-MySQL deployment can use oidcraft today. FR-A4 gains the dialect when it lands, not before.
-
-**One dialect, not two.** Everything the adapters need is in what MySQL 8.4 and MariaDB 11 share, so
-they get one migration list, `MYSQL_MIGRATIONS`, one Drizzle table set and one Kysely dialect, all
-over `mysql2`, which talks to both. The rule is to write only the intersection; CI runs the shared
-suite against both servers, and that second container is what keeps it true. Where they differ, and
-the side taken:
-
-- **`RETURNING`.** MariaDB has it for `INSERT` and `DELETE`, MySQL not at all: never used.
-- **An upsert's new values.** MySQL 8.0.19+ names them with a row alias (`… AS new`), which MariaDB
-  rejects; MariaDB uses `VALUES(col)`, which MySQL deprecates. Neither: the values are bound again
-  in the `UPDATE` clause.
-- **JSON.** MariaDB's `JSON` is an alias for `LONGTEXT`. Already moot: JSON is stored as text here.
-- **TypeORM** names them `type: 'mysql'` and `type: 'mariadb'` but runs the same driver and entities;
-  the host picks, the adapter does not care.
-
-What differs from Postgres and SQLite, from the code as it stands:
-
-- **Atomicity holds, by other means.** A consume, a claim and a merge read the affected-row count of
-  their conditional `UPDATE`, whose `WHERE` excludes a row that would not change. Insert-if-absent
-  is a plain `INSERT` that catches duplicate-key error 1062, the same on both. Not `INSERT IGNORE`,
-  which swallows every other error too, and not the affected-row count of `ON DUPLICATE KEY UPDATE
-  id = id`: with `CLIENT_FOUND_ROWS`, which a host's connection may set, an insert and a duplicate
-  both report 1. Check `mysql2`'s default flags before relying on any count.
-- **Collation is a security setting.** The default collations compare case-insensitively, and every
-  id here is a case-sensitive hash or random string. Key columns are `utf8mb4_bin`, or a lookup finds
-  a token it should not. Keys are `VARCHAR`, since a `TEXT` primary key needs a prefix.
-- **Prune is simpler there.** Neither allows a `LIMIT` in an `IN` subquery on the table being
-  deleted from, but both have `DELETE … WHERE expires_at <= ? ORDER BY expires_at LIMIT n`.
-
-In order: Kysely first (one dialect switch, `@oidcraft/sql/rows` reused), then TypeORM, then Drizzle,
-whose `mysql-core` tables are a third definition. CI gains MySQL 8.4 and MariaDB 11 service
-containers, and every adapter runs the shared suite against both, as against Postgres.
 
 ## Still open on the client libraries
 

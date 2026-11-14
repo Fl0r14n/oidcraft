@@ -87,6 +87,13 @@ export type PasskeyRow = {
 /** A row as read back: Postgres returns a `bigint` as a string. */
 export type Read<T> = { [K in keyof T]: T[K] extends number ? number | string : T[K] extends number | null ? number | string | null : T[K] }
 
+/** MySQL's replay key: a claimed value is often a client's jti, whose length the client chooses, and a key's is fixed (NFR-S5). */
+export const replayDigest = async (value: string) =>
+  btoa(String.fromCharCode(...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value)))))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '')
+
 /** Never `new Date` on the raw value: a string there is read as a date, not as milliseconds. */
 export const at = (millis: number | string) => new Date(Number(millis))
 export const json = (value: unknown) => JSON.stringify(value)

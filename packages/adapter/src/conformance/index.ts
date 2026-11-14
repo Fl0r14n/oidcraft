@@ -503,6 +503,18 @@ export const adapterConformance = (create: () => Adapter | Promise<Adapter>, opt
       }
     },
     {
+      // FR-I4: a store that counts only changed rows reports none for a consent adding nothing, which is not a lost race.
+      name: 'a consent that adds nothing returns the grant as it is',
+      run: async () => {
+        const adapter = await full()
+        await adapter.grants.merge(grant({ createdAt: new Date(1_000) }))
+        const again = await adapter.grants.merge(grant({ id: 'g2', createdAt: new Date(2_000) }))
+        same(again.id, 'g1', 'the grant returned')
+        same(again.scopes, ['openid'], 'its scopes')
+        same((await adapter.grants.findByAccountAndClient('u1', 'c1'))?.id, 'g1', 'the grant stored')
+      }
+    },
+    {
       // FR-T5: tokens name their grant by id, so a consent after expiry must not bring the old id, and its tokens, back.
       name: 'a consent after a grant expired starts a new grant',
       run: async () => {
@@ -618,6 +630,23 @@ export const adapterConformance = (create: () => Adapter | Promise<Adapter>, opt
         const winner = (await adapter.credentials.findByUsername('ada'))?.accountId as string
         same(await adapter.credentials.create(credential(winner, 'grace')), false, 'a second credential for the same account')
         same(await adapter.credentials.findByUsername('grace'), undefined, 'the refused username')
+      }
+    },
+    {
+      // FR-I7: an upsert that would take a username another account holds must fail, never write into that account.
+      name: 'an upsert to a username another account holds leaves that account alone',
+      needs: 'credentials',
+      run: async () => {
+        const adapter = await full()
+        await adapter.credentials.create(credential('a1', 'ada'))
+        await adapter.credentials.create(credential('a2', 'grace'))
+        const refused = await adapter.credentials
+          .upsert({ ...credential('a2', 'ada'), passwordHash: '$argon2id$taken' })
+          .then(() => false)
+          .catch(() => true)
+        same(refused, true, 'the upsert refused')
+        same(await adapter.credentials.findByUsername('ada'), credential('a1', 'ada'), 'ada, untouched')
+        same((await adapter.credentials.find('a2'))?.username, 'grace', 'a2, still grace')
       }
     },
     {

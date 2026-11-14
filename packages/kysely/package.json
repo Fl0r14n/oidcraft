@@ -1,7 +1,7 @@
 {
   "name": "@oidcraft/kysely",
   "version": "0.3.0",
-  "description": "A Kysely storage adapter for @oidcraft/provider, on Postgres or SQLite.",
+  "description": "A Kysely storage adapter for @oidcraft/provider, on Postgres, SQLite, MySQL or MariaDB.",
   "license": "MIT",
   "author": "Fl0r14n <florian.chis@gmail.com>",
   "homepage": "https://github.com/Fl0r14n/oidcraft/tree/main/packages/kysely",
@@ -18,7 +18,9 @@
     "oidcraft",
     "storage",
     "adapter",
-    "kysely"
+    "kysely",
+    "mysql",
+    "mariadb"
   ],
   "type": "module",
   "files": [
@@ -50,6 +52,7 @@
     "@types/pg": "^8.23.1",
     "kysely": "^0.29.8",
     "kysely-bun-sqlite": "^0.4.0",
+    "mysql2": "^3.24.6",
     "pg": "^8.23.1"
   },
   "publishConfig": {

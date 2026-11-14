@@ -320,7 +320,7 @@ and Keycloak are examples of the same generic path, not special cases.
 
 **FR-F2 — Brokering mode is per-deployment and per-client.** A deployment may hold local accounts
 only, broker only (no local credentials at all), or both. A client may be restricted to a subset
-of upstreams (`Client.upstreamProviders`).
+of upstreams (`Client.allowedUpstreams`).
 
 **FR-F3 — The upstream round trip suspends and resumes one interaction.** The handoff carries
 `state`, `nonce`, the PKCE verifier and the id of the downstream interaction it resumes. It is
@@ -331,7 +331,7 @@ those, the upstream is chosen by, in order: an explicit choice the person made, 
 entry naming one, the email domain of `login_hint`, being the only candidate left. When none
 decides it, the person is asked to choose among the candidates; one is never guessed.
 
-**FR-F5 — Account linking is by `(provider, subject)` and nothing else, by default.** Other
+**FR-F5 — Account linking is by `(upstream, subject)` and nothing else, by default.** Other
 policies (`verified-email`, `interactive`) exist and must be chosen deliberately, because they
 are the difference between a safe broker and an account-takeover primitive (NFR-S8).
 
@@ -570,7 +570,7 @@ listed that long is the host's to do; the library signs with the first key of an
 verifies against all of them (FR-C10), and cannot see a key removed too early.
 
 **NFR-S8** — No implicit account linking on an unverified email address. The default linking
-policy matches on `(provider, subject)` only.
+policy matches on `(upstream, subject)` only.
 
 **NFR-S9** — Upstream access and refresh tokens leave the broker only when a provider opts in, and
 only to the host (FR-F10). The library never stores them and never returns them to a downstream

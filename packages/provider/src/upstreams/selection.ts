@@ -13,7 +13,7 @@ export type UpstreamDescriptor = {
 export type SelectionHints = {
   loginHint?: string | undefined
   acrValues?: string[] | undefined
-  /** What the client restricts itself to, from `Client.upstreamProviders` (FR-F2). */
+  /** What the client restricts itself to, from `Client.allowedUpstreams` (FR-F2). */
   allowed?: string[] | undefined
 }
 

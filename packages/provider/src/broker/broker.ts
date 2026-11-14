@@ -303,7 +303,7 @@ export const createBroker = (config: BrokerConfig) => {
       const email = typeof mapped.email === 'string' ? mapped.email : undefined
 
       const identity: BrokeredIdentity = {
-        provider: provider.id,
+        upstream: provider.id,
         subject: claims.sub as string,
         ...(email && { email }),
         claims: mapped,

@@ -533,12 +533,12 @@ export const drizzleAdapter = (options: DrizzleAdapterOptions): FullAdapter => {
       },
       async upsert(identity: LinkedIdentity) {
         const row = {
-          provider: identity.provider,
+          provider: identity.upstream,
           subject: identity.subject,
           accountId: identity.accountId,
           email: identity.email ?? null,
           claims: identity.claims,
-          linkedAt: identity.linkedAt
+          linkedAt: identity.createdAt
         }
         if (mysql) await mysql.insert(identities).values(row).onDuplicateKeyUpdate({ set: row })
         else
@@ -625,11 +625,11 @@ const toRealm = (row: typeof realms.$inferSelect): Realm => ({
 
 const toIdentity = (row: typeof identities.$inferSelect): LinkedIdentity => ({
   accountId: row.accountId,
-  provider: row.provider,
+  upstream: row.provider,
   subject: row.subject,
   ...(row.email && { email: row.email }),
   claims: row.claims as Record<string, unknown>,
-  linkedAt: row.linkedAt
+  createdAt: row.linkedAt
 })
 
 export { MYSQL_MIGRATIONS } from '@oidcraft/sql/mysql'

@@ -139,7 +139,7 @@ an object of stores:
 | `accounts`   | yes      | your users, read only                                                     |
 | `keys`       | yes      | signing keys                                                              |
 | `replay`     | yes      | one-time values                                                           |
-| `identities` | no       | `(provider, subject) → account` links, for brokering                      |
+| `identities` | no       | `(upstream, subject) → account` links, for brokering                      |
 | `credentials`| no       | passwords and second factors, for `@oidcraft/provider/accounts`           |
 | `passkeys`   | no       | WebAuthn public keys, by credential id, for `@oidcraft/provider/accounts` |
 | `realms`     | no       | a realm control plane's realms                                            |
@@ -229,7 +229,7 @@ trusts the answer rather than re-checking it.
 
 **`identities`**
 
-- Keyed by `(provider, subject)` and nothing else (FR-F5, NFR-S8).
+- Keyed by `(upstream, subject)` and nothing else (FR-F5, NFR-S8).
 
 **`credentials`**, **`passkeys`** and **`realms`**
 

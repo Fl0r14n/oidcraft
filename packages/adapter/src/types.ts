@@ -53,8 +53,8 @@ export type Client = ClientCredentials &
     /** OIDC Front-Channel Logout 1.0 §2: whether the iframe URL must carry `iss` and `sid`. */
     frontchannelLogoutSessionRequired?: boolean
     subjectType?: 'public' | 'pairwise'
-    // Which upstream providers this client may broker to; empty means all enabled ones (FR-F4).
-    upstreamProviders?: string[]
+    /** The upstreams this client may be brokered to; unset or empty means every enabled one (FR-F4). */
+    allowedUpstreams?: string[]
     backchannelLogoutUri?: string
     /** OIDC CIBA 1.0 §7.1. `push` is out of scope (FR-C17). */
     backchannelTokenDeliveryMode?: 'poll' | 'ping'
@@ -173,11 +173,11 @@ export type Realm = Entity &
     settings: Record<string, unknown>
   }
 
-/** An account's link to an upstream provider — the brokering key (FR-F5). */
+/** An account's link to an upstream — the brokering key (FR-F5). */
 export type LinkedIdentity = AccountOwned & {
-  provider: string
+  upstream: string
   subject: string
   email?: string
   claims: Record<string, unknown>
-  linkedAt: Date
+  createdAt: Date
 }

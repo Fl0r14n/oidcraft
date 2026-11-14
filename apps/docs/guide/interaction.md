@@ -96,7 +96,7 @@ abandoned one; it expires, and the client never hears back.
 | `uiLocales` | `ui_locales`, in preference order, to choose the screen's language (FR-I6) |
 | `redirectUri` | Where the person goes afterwards. Show its host on a consent screen: a client registered by metadata document can call itself anything |
 | `authorizationDetails` | RFC 9396 details for the consent screen to render (FR-C15) |
-| `upstream`, `upstreamProviders` | Home-realm discovery's answer and the client's allowed upstreams, for brokering (FR-F4, FR-F2) |
+| `upstream`, `allowedUpstreams` | Home-realm discovery's answer and the client's allowed upstreams, for brokering (FR-F4, FR-F2) |
 | `expiresAt` | When the interaction stops being answerable |
 
 An unknown, expired or already-answered id makes `find` and `complete` throw an `OAuthError` with
@@ -321,7 +321,7 @@ end-session, which ends the session it was asked about and no other:
   home-realm discovery settled on one, and `upstream.candidates` when the screen has to offer a
   choice. The round trip and the account linking are in
   [Sign in with Google or Microsoft](/guide/provider#sign-in-with-google-or-microsoft); linking is by
-  `(provider, subject)` unless you choose otherwise (FR-F5, NFR-S8).
+  `(upstream, subject)` unless you choose otherwise (FR-F5, NFR-S8).
 
 ## What the entries give you
 

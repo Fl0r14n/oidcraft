@@ -12,7 +12,7 @@ export type LinkOptions = {
 }
 
 /**
- * Attaches a brokered identity to a local account (FR-F5). `subject`, the default, matches `(provider, subject)` only;
+ * Attaches a brokered identity to a local account (FR-F5). `subject`, the default, matches `(upstream, subject)` only;
  * `verified-email` demands `email_verified`, as an unverified address is account takeover (NFR-S8).
  */
 export const linkIdentity = async (
@@ -20,7 +20,7 @@ export const linkIdentity = async (
   identity: BrokeredIdentity,
   options: LinkOptions = {}
 ): Promise<LinkResult> => {
-  const existing = await adapter.identities.find(identity.provider, identity.subject)
+  const existing = await adapter.identities.find(identity.upstream, identity.subject)
   if (existing) return { accountId: existing.accountId, created: false }
 
   const policy: LinkPolicy = options.policy ?? 'subject'
@@ -39,7 +39,7 @@ export const linkIdentity = async (
   }
 
   if (!options.createAccount) {
-    throw new Error(`no local account matches ${identity.provider}:${identity.subject} and no createAccount was supplied`)
+    throw new Error(`no local account matches ${identity.upstream}:${identity.subject} and no createAccount was supplied`)
   }
 
   const accountId = await options.createAccount(identity)
@@ -50,11 +50,11 @@ export const linkIdentity = async (
 const link = async (adapter: BrokeringAdapter, identity: BrokeredIdentity, accountId: string) => {
   const record: LinkedIdentity = {
     accountId,
-    provider: identity.provider,
+    upstream: identity.upstream,
     subject: identity.subject,
     ...(identity.email && { email: identity.email }),
     claims: identity.claims,
-    linkedAt: new Date()
+    createdAt: new Date()
   }
   await adapter.identities.upsert(record)
 }

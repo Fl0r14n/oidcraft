@@ -301,7 +301,7 @@ is **a set of narrow capability stores**, not one table keyed by a model-name st
 | `AccountStore`        | The host's users. Claims are resolved per request, never cached at login (FR-C5).                             |
 | `KeyStore`            | Signing keys, newest first (FR-C10).                                                                          |
 | `ReplayGuard`         | One-shot values (NFR-S5).                                                                                     |
-| `LinkedIdentityStore` | `(provider, subject) → account` links. Optional; only brokering deployments need it.                          |
+| `LinkedIdentityStore` | `(upstream, subject) → account` links. Optional; only brokering deployments need it.                          |
 
 The record-holding stores — clients, artifacts, sessions, grants, identities — share one shape,
 `EntityStore<T, Id>`: `find`, `upsert` and `destroy`, with a composite key passed as arguments
@@ -457,13 +457,13 @@ Four things reach into the protocol core and cannot be bolted on from outside:
 
 With no local credentials, oidcraft is a protocol-normalising proxy: one issuer, one set of client
 registrations, one token format, several upstreams behind it. `sub` is then derived from
-`(provider, subject)` and stable per account — never the upstream's, which is only unique within
+`(upstream, subject)` and stable per account — never the upstream's, which is only unique within
 that upstream.
 
 ### 5.5 The linking hazard
 
 Matching a brokered identity to a local account by email address is account takeover the moment an
-upstream does not verify addresses, or lets a user change one. The default is `(provider, subject)`
+upstream does not verify addresses, or lets a user change one. The default is `(upstream, subject)`
 and nothing else (FR-F5, NFR-S8). `verified-email` requires `email_verified` from the upstream and is
 still a deliberate operator decision; `interactive` — prove control of the existing account, then
 link — is the honest answer for a consumer-facing deployment.
@@ -776,14 +776,14 @@ One word per meaning across every package, so a name says what a call does befor
 **Storage** (`@oidcraft/adapter`, and every store a host or adapter implements) uses storage verbs
 only; a protocol verb such as _revoke_ is the provider's, which decides what a deletion means.
 
-| Verb                               | Does                                   | Resolves            |
-| ---------------------------------- | -------------------------------------- | ------------------- |
-| `find(id)`, `findBy<Key>(…)`       | one record                             | it, or `undefined`  |
-| `list()`, `listBy<Key>(…)`         | every match (`list` may page)          | an array, or a page |
-| `upsert(record)`                   | writes, unconditionally                | nothing             |
-| `create(record)`                   | writes only what is absent, atomically | whether it wrote    |
-| `destroy(id)`, `destroyBy<Key>(…)` | deletes, unconditionally               | nothing             |
-| `destroyIf(key, value)`            | deletes only that value, atomically    | whether it deleted  |
+| Verb                                             | Does                                   | Resolves            |
+| ------------------------------------------------ | -------------------------------------- | ------------------- |
+| `find(id)`, `findBy<Key>(…)`                     | one record                             | it, or `undefined`  |
+| `list()`, `listBy<Key>(…)`, `listForAccount(id)` | every match (`list` may page)          | an array, or a page |
+| `upsert(record)`                                 | writes, unconditionally                | nothing             |
+| `create(record)`                                 | writes only what is absent, atomically | whether it wrote    |
+| `destroy(id)`, `destroyBy<Key>(…)`               | deletes, unconditionally               | nothing             |
+| `destroyIf(key, value)`                          | deletes only that value, atomically    | whether it deleted  |
 
 The atomic operations one store's job needs keep their own verb — `consume`, `claim`, `merge`,
 `addClient` — and `prune(before, limit)` is every bounded sweep. A conditional operation is its own
@@ -791,9 +791,11 @@ required method, never an optional argument to an unconditional one: an implemen
 the argument would still type-check and do the unconditional thing.
 
 **Words.** _Provider_ is oidcraft, the OP. An external identity provider is an _upstream_
-(`upstream`, `upstreams`, `upstreamSessionId`). A point in time is `<event>At`, a `Date`; a duration
-is `Seconds`. _Sign up_ creates an account, with a password or a passkey; _register_ is WebAuthn's
-word for adding a credential to an account that exists; _link_ joins an upstream identity to one.
+(`upstream`, `allowedUpstreams`, `upstreamSessionId`). A field that becomes a token claim keeps the
+claim's name (`acr`, `amr`, `idp`), whatever the vocabulary says. A point in time is `<event>At`, a
+`Date`; a duration is `Seconds`. _Sign up_ creates an account, with a password or a passkey;
+_register_ is WebAuthn's word for adding a credential to an account that exists; _link_ joins an
+upstream identity to one.
 
 **Results.** An operation that can refuse resolves `{ ok: true, … }` or `{ ok: false, reason }`:
 `reason` is a short word (`invalid`, `locked`, `taken`, `unknown` for a record that is not there),

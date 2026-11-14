@@ -12,11 +12,11 @@ export const identityManagement = (config: ResolvedConfig) => ({
   async listForAccount(accountId: string) {
     return config.adapter.identities?.listForAccount(accountId) ?? []
   },
-  async unlink(accountId: string, provider: string) {
+  async unlink(accountId: string, upstream: string) {
     const linked = (await config.adapter.identities?.listForAccount(accountId)) ?? []
     for (const identity of linked) {
-      if (identity.provider === provider) await config.adapter.identities?.destroy(identity.provider, identity.subject)
+      if (identity.upstream === upstream) await config.adapter.identities?.destroy(identity.upstream, identity.subject)
     }
-    await audit(config, 'identity.unlink', { accountId, detail: { provider } })
+    await audit(config, 'identity.unlink', { accountId, detail: { upstream } })
   }
 })

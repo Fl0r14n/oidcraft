@@ -14,7 +14,7 @@ const provider = (over: Partial<UpstreamProvider> = {}): UpstreamProvider => ({
 })
 
 const identity = (over: Partial<BrokeredIdentity> = {}): BrokeredIdentity => ({
-  provider: 'entra',
+  upstream: 'entra',
   subject: 'up-1',
   claims: {},
   ...over
@@ -108,9 +108,9 @@ describe('claim mapping', () => {
 describe('account linking', () => {
   const fresh = () => memoryAdapter()
 
-  test('an existing (provider, subject) link is reused', async () => {
+  test('an existing (upstream, subject) link is reused', async () => {
     const adapter = await fresh()
-    await adapter.identities.upsert({ accountId: 'u1', provider: 'entra', subject: 'up-1', claims: {}, linkedAt: new Date() })
+    await adapter.identities.upsert({ accountId: 'u1', upstream: 'entra', subject: 'up-1', claims: {}, createdAt: new Date() })
     expect(await linkIdentity(adapter, identity())).toEqual({ accountId: 'u1', created: false })
   })
 
@@ -232,7 +232,7 @@ describe('the provider choosing an upstream', () => {
 
   // FR-F2: a client may restrict which upstreams it will accept.
   test("a client's allowed list narrows the candidates, and one left decides it", async () => {
-    const view = await viewFor({}, { client: { upstreamProviders: ['google'] } })
+    const view = await viewFor({}, { client: { allowedUpstreams: ['google'] } })
     expect(view.upstream?.chosen).toBe('google')
   })
 

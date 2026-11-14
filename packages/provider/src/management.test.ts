@@ -267,7 +267,7 @@ describe('management', () => {
   })
 
   test('unlinks a linked identity', async () => {
-    await adapter.identities.upsert({ accountId: 'u1', provider: 'entra', subject: 'up-1', claims: {}, linkedAt: new Date() })
+    await adapter.identities.upsert({ accountId: 'u1', upstream: 'entra', subject: 'up-1', claims: {}, createdAt: new Date() })
     expect(await provider.management.identities.listForAccount('u1')).toHaveLength(1)
     await provider.management.identities.unlink('u1', 'entra')
     expect(await provider.management.identities.listForAccount('u1')).toHaveLength(0)

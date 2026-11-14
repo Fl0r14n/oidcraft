@@ -51,7 +51,7 @@ export type BrokerCallback = {
   setCookie: string
 }
 
-export type BrokeredIdentity = Omit<LinkedIdentity, 'accountId' | 'linkedAt'> & {
+export type BrokeredIdentity = Omit<LinkedIdentity, 'accountId' | 'createdAt'> & {
   /** Present only when the upstream issued one and `retainTokens` is set. */
   upstreamTokens?: { accessToken: string; refreshToken?: string; expiresAt?: Date }
   upstreamSessionId?: string

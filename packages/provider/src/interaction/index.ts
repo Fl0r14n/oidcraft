@@ -28,7 +28,7 @@ export type InteractionRequest = {
   /** Seconds, when the client capped session age; with `prompt`, what an upstream leg must pass through (FR-F9). */
   maxAge: number | undefined
   /** Which upstreams this client may be brokered to, when it restricts them (FR-F2). */
-  upstreamProviders: string[] | undefined
+  allowedUpstreams: string[] | undefined
   /** Home-realm discovery's answer (FR-F4): `chosen` when one upstream is unambiguous, else `candidates` for the screen to offer. */
   upstream: { chosen: string | undefined; candidates: string[] } | undefined
   /** What the client asks to be allowed to do, for the consent screen to show (RFC 9396 §7, FR-C15). */

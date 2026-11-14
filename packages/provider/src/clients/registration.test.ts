@@ -509,7 +509,7 @@ describe('registration management (RFC 7592)', () => {
     const operator = {
       requirePushedAuthorizationRequests: true,
       dpopBoundAccessTokens: true,
-      upstreamProviders: ['corp'],
+      allowedUpstreams: ['corp'],
       accessTokenFormat: 'jwt' as const,
       frontchannelLogoutUri: 'https://rp.example.com/fc'
     }

@@ -141,7 +141,7 @@ stops working immediately and a revoked JWT does not.
 **Configurable?** You can choose JWT access tokens. You cannot enable implicit, hybrid, `password`
 or unsigned ID tokens.
 
-### Account linking by `(provider, subject)`, never by email
+### Account linking by `(upstream, subject)`, never by email
 
 FR-F5 and NFR-S8: when the provider brokers to an upstream, a returning identity is linked to a local
 account by the upstream's issuer and `sub`, and nothing else. Matching by email address hands over

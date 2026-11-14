@@ -35,8 +35,9 @@ Read the relevant one before anything else.
 - **A file using a Bun global carries `/// <reference types="bun" />` itself.**
 - **One word per meaning (ARCHITECTURE.md §9.3).** Storage verbs: `find`/`findBy*` (one or
   `undefined`), `list`/`listBy*`, `upsert` and `destroy` (unconditional), `create` and `destroyIf`
-  (atomic, resolve a boolean). _Provider_ is oidcraft; an external IdP is an _upstream_. _Sign up_
-  makes an account, _register_ adds a WebAuthn credential. A refusal is `{ ok: false, reason }`.
+  (atomic, resolve a boolean). _Provider_ is oidcraft; an external IdP is an _upstream_, though a
+  field named for a token claim keeps the claim's name (`idp`). _Sign up_ makes an account,
+  _register_ adds a WebAuthn credential. A refusal is `{ ok: false, reason }`.
 - Formatting is settled by `biome.json` and applied by `bun run format`. Do not argue with it.
 
 ## Hard rules
@@ -55,7 +56,7 @@ These are the ones where a plausible-looking change is a security bug:
   registered one the host's `onRegister` did not vouch for. Refresh tokens rotate — the only exception
   is a client under the FAPI 2.0 profile, confidential and sender-constrained — and replaying a
   single-use artifact revokes its grant; neither is a configuration flag (FR-C3, FR-T3, FR-T4, FR-C21).
-- **Account linking defaults to `(provider, subject)`.** Never add email matching as a default —
+- **Account linking defaults to `(upstream, subject)`.** Never add email matching as a default —
   it is an account-takeover primitive against any upstream that does not verify addresses
   (FR-F5, NFR-S8).
 - **The library never decides who is an administrator** (FR-M1).

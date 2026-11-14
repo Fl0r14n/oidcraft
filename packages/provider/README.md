@@ -208,7 +208,7 @@ const { url, setCookie } = await broker.start(id, 'google', { prompt: view.promp
 // GET /broker/callback
 const back = await broker.complete(new URL(request.url), request.headers.get('cookie'))
 const linked = await linkIdentity(storage, back.identity, {
-  createAccount: async identity => localSubject(identity.provider, identity.subject)
+  createAccount: async identity => localSubject(identity.upstream, identity.subject)
 })
 if ('accountId' in linked) {
   await provider.interactions.complete(
@@ -216,7 +216,7 @@ if ('accountId' in linked) {
     {
       login: {
         accountId: linked.accountId,
-        idp: back.identity.provider,
+        idp: back.identity.upstream,
         // what an upstream back-channel logout names, and what its own logout is found by
         upstreamSessionId: back.identity.upstreamSessionId,
         // when the person signed in upstream, which max_age is measured against (FR-F6, FR-F9)
@@ -232,7 +232,7 @@ Microsoft Entra ID is the same shape with `issuer: 'https://login.microsoftonlin
 The login screen offers the upstreams in `view.upstream`, already narrowed by the email domain or
 login hint where one is known.
 
-An upstream identity is linked to a local account by `(provider, subject)` and nothing else. Linking
+An upstream identity is linked to a local account by `(upstream, subject)` and nothing else. Linking
 by email address is not the default, because an upstream that does not verify addresses would let
 anyone take over the local account with that address.
 

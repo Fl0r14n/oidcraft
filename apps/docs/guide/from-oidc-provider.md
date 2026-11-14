@@ -178,7 +178,7 @@ These are the places where code that worked against `oidc-provider` can be refus
 - **Request objects.** oidcraft accepts JAR by value and PAR, and refuses unsigned request objects
   (FR-C12).
 - **Linking brokered identities.** No equivalent exists in `oidc-provider`, but if you built
-  brokering on top of it, note that oidcraft links by `(provider, subject)` only, by default (FR-F5,
+  brokering on top of it, note that oidcraft links by `(upstream, subject)` only, by default (FR-F5,
   NFR-S8).
 
 The reasons for each are on the [security posture](/guide/security) page.

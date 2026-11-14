@@ -29,13 +29,13 @@ export const startUpstream = async (interactionId: string, request: Request) => 
   return seeOther(url, [setCookie])
 }
 
-/** Linking is by `(provider, subject)` alone (FR-F5); the local id names its provider, so it never collides with a typed username. */
+/** Linking is by `(upstream, subject)` alone (FR-F5); the local id names its provider, so it never collides with a typed username. */
 export const brokerCallback = async (request: Request, url: URL) => {
   if (!broker) return undefined
   try {
     const { interactionId, identity, setCookie: clearBinding } = await broker.complete(url, request.headers.get('cookie'))
     const linked = await linkIdentity(controlAdapter, identity, {
-      createAccount: async brokered => localSubject(brokered.provider, brokered.subject)
+      createAccount: async brokered => localSubject(brokered.upstream, brokered.subject)
     })
     if (!('accountId' in linked)) return screens.error('access_denied', 'this account needs linking by hand')
 
@@ -44,7 +44,7 @@ export const brokerCallback = async (request: Request, url: URL) => {
       {
         login: {
           accountId: linked.accountId,
-          idp: identity.provider,
+          idp: identity.upstream,
           ...(identity.acr && { acr: identity.acr }),
           ...(identity.amr && { amr: identity.amr }),
           ...(identity.upstreamSessionId && { upstreamSessionId: identity.upstreamSessionId }),

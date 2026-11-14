@@ -145,8 +145,9 @@ describe('passkeys', () => {
 
   test('the login divides the other ways in from the password once, and still divides a passkey alone', async () => {
     const dividers = async (options: Parameters<typeof screens.login>[1]) => {
-      const page = new DOMParser().parseFromString(await (await screens.login(view, options)).text(), 'text/html')
-      return [...page.querySelectorAll('p')].filter(p => p.textContent?.trim() === 'or').length
+      const page = document.createElement('template')
+      page.innerHTML = await (await screens.login(view, options)).text()
+      return [...page.content.querySelectorAll('p')].filter(p => p.textContent?.trim() === 'or').length
     }
     expect(await dividers({ passkeys: true, upstreams: [{ id: 'google', label: 'Google' }] })).toBe(1)
     expect(await dividers({ passkeys: true })).toBe(1)

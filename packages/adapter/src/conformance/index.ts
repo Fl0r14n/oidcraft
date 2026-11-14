@@ -596,28 +596,28 @@ export const adapterConformance = (create: () => Adapter | Promise<Adapter>, opt
       }
     },
     {
-      // FR-F5: linking is by (provider, subject) and nothing else.
-      name: 'a linked identity is kept and removed by provider and subject',
+      // FR-F5: linking is by (upstream, subject) and nothing else.
+      name: 'a linked identity is kept and removed by upstream and subject',
       needs: 'identities',
       run: async () => {
         const adapter = await full()
-        await adapter.identities.upsert({ accountId: 'u1', provider: 'google', subject: 'g-1', claims: {}, linkedAt: new Date() })
-        same((await adapter.identities.find('google', 'g-1'))?.accountId, 'u1', 'the identity by provider and subject')
-        same(await adapter.identities.find('entra', 'g-1'), undefined, 'the same subject at another provider')
+        await adapter.identities.upsert({ accountId: 'u1', upstream: 'google', subject: 'g-1', claims: {}, createdAt: new Date() })
+        same((await adapter.identities.find('google', 'g-1'))?.accountId, 'u1', 'the identity by upstream and subject')
+        same(await adapter.identities.find('entra', 'g-1'), undefined, 'the same subject at another upstream')
         await adapter.identities.destroy('google', 'g-1')
         same(await adapter.identities.find('google', 'g-1'), undefined, 'a destroyed identity')
       }
     },
     {
-      // FR-F5: a subject is the upstream's to choose, so one holding a separator must not reach another provider's identity.
-      name: 'a provider and subject that join to the same text are still two identities',
+      // FR-F5: a subject is the upstream's to choose, so one holding a separator must not reach another upstream's identity.
+      name: 'an upstream and subject that join to the same text are still two identities',
       needs: 'identities',
       run: async () => {
         const adapter = await full()
-        await adapter.identities.upsert({ accountId: 'u1', provider: 'corp', subject: 'eu/42', claims: {}, linkedAt: new Date() })
-        same(await adapter.identities.find('corp/eu', '42'), undefined, 'provider corp/eu, subject 42')
-        await adapter.identities.upsert({ accountId: 'u2', provider: 'corp/eu', subject: '42', claims: {}, linkedAt: new Date() })
-        same((await adapter.identities.find('corp', 'eu/42'))?.accountId, 'u1', 'provider corp, subject eu/42')
+        await adapter.identities.upsert({ accountId: 'u1', upstream: 'corp', subject: 'eu/42', claims: {}, createdAt: new Date() })
+        same(await adapter.identities.find('corp/eu', '42'), undefined, 'upstream corp/eu, subject 42')
+        await adapter.identities.upsert({ accountId: 'u2', upstream: 'corp/eu', subject: '42', claims: {}, createdAt: new Date() })
+        same((await adapter.identities.find('corp', 'eu/42'))?.accountId, 'u1', 'upstream corp, subject eu/42')
       }
     },
     {

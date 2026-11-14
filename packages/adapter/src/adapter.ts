@@ -66,7 +66,7 @@ export type SessionStore = EntityStore<Session> & {
   /** Atomically adds a client: concurrent sign-ins must all reach the logout list (FR-C11); a session that is gone stays gone. */
   addClient(id: string, clientId: string): Promise<void>
   /** Upstream back-channel logout arrives keyed by the upstream session, not ours (FR-F8). */
-  listByUpstreamSession?(provider: string, upstreamSessionId: string): Promise<Session[]>
+  listByUpstreamSession?(upstream: string, upstreamSessionId: string): Promise<Session[]>
   /** Bounded sweep of expired sessions, as `ArtifactStore.prune`; storage with its own expiry omits it (NFR-P3). */
   prune?(before: Date, limit: number): Promise<number>
 }
@@ -112,7 +112,7 @@ export type ReplayGuard = {
   prune?(before: Date, limit: number): Promise<number>
 }
 
-export type LinkedIdentityStore = EntityStore<LinkedIdentity, [provider: string, subject: string]> & {
+export type LinkedIdentityStore = EntityStore<LinkedIdentity, [upstream: string, subject: string]> & {
   listForAccount(accountId: string): Promise<LinkedIdentity[]>
 }
 

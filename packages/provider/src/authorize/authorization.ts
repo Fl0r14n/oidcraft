@@ -362,7 +362,7 @@ const suspend = async (
       ? selectUpstream(config.upstreams, {
           loginHint: request.loginHint,
           acrValues: requestedAcrValues(request),
-          allowed: client.upstreamProviders
+          allowed: client.allowedUpstreams
         })
       : undefined
 

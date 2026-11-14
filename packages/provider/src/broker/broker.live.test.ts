@@ -112,7 +112,7 @@ describe('brokering to a live upstream', () => {
 
     // FR-F3: the handoff is what makes this a resume of one downstream request.
     expect(interactionId).toBe('downstream-interaction-1')
-    expect(identity.provider).toBe('self')
+    expect(identity.upstream).toBe('self')
     expect(identity.subject).toBe('ada')
     // FR-F7: mapped, not passed through wholesale.
     expect(identity.email).toBe('ada@upstream.test')

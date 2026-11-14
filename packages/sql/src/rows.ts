@@ -185,21 +185,21 @@ export const toGrant = (row: Read<GrantRow>): Grant => ({
 })
 
 export const identityRow = (identity: LinkedIdentity): IdentityRow => ({
-  provider: identity.provider,
+  provider: identity.upstream,
   subject: identity.subject,
   account_id: identity.accountId,
   email: identity.email ?? null,
   claims: json(identity.claims),
-  linked_at: identity.linkedAt.getTime()
+  linked_at: identity.createdAt.getTime()
 })
 
 export const toIdentity = (row: Read<IdentityRow>): LinkedIdentity => ({
   accountId: row.account_id,
-  provider: row.provider,
+  upstream: row.provider,
   subject: row.subject,
   ...(row.email && { email: row.email }),
   claims: parse<Record<string, unknown>>(row.claims),
-  linkedAt: at(row.linked_at)
+  createdAt: at(row.linked_at)
 })
 
 export const credentialRow = (credential: Credential): CredentialRow => ({

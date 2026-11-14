@@ -6,13 +6,14 @@ was done.
 
 ## Status
 
-**Implemented, as of 2026-11-14**, with 1451 passing tests (550 more skip without Postgres, MySQL,
+**Implemented, as of 2026-11-14**, with 1453 passing tests (550 more skip without Postgres, MySQL,
 MariaDB and Redis), `bun run verify` as the gate and `bun run smoke` clicking through the demo in CI:
 every functional requirement in `REQUIREMENTS.md`.
 `metadata.test.ts` exercises every advertised discovery value rather than reading it. Published as
-`@oidcraft/*` — `core` 0.4.0, `client` 0.3.0, the provider 0.4.0, `adapter` and the four storage
-adapters 0.2.0, `vue` 9.0.0, `react` 4.0.0, `angular` 11.0.0 — with the docs site at
-https://fl0r14n.github.io/oidcraft/. `main` carries the next release (below).
+`@oidcraft/*` on 2026-11-14, each from a GitHub release with provenance — `core` 0.5.0, `client`
+0.4.0, the provider 0.5.0, `adapter` and the four storage adapters 0.3.0, `vue` 10.0.0, `react`
+5.0.0, `angular` 12.0.0 — with the docs site at https://fl0r14n.github.io/oidcraft/. Each release's
+notes, the renames to ARCHITECTURE.md §9.3 included, are on its GitHub release.
 
 **Provider 0.3.0 and earlier are not to be put in front of real identities**: they ship a session
 takeover through `sid` and the other security faults fixed in 0.4.0.
@@ -62,63 +63,6 @@ in the `claims` parameter (FR-C22) refuses a login that reports less, but nothin
   screens after a recovery say to remove it.
 - **Renaming the demo's `/federation/callback`** — it is the redirect URI registered with Google
   (`.env.example`), and renaming a URL people have registered breaks their sign-in for a word.
-
-## Next: the release on `main`
-
-Versions are set in each `package.json`. Publish in this order, each from a GitHub release tagged
-`<name>@<version>` (ARCHITECTURE.md §11), waiting for one to reach npm before the next that names it:
-
-1. `@oidcraft/core@0.5.0` — a callback answer without an `access_token` fails a new `token` check;
-   `CallbackCheck` gains `'token'`; `authorize` returns `undefined` when nothing answered; in a page
-   the JWKS is fetched past the HTTP cache, so a rotated-in `kid` is found (OIDC Core §10.1.1).
-2. `@oidcraft/client@0.4.0` — a sign-in's handoff is keyed by its `state`, out of the shared token,
-   finishable in any tab; a failed or stray callback never ends a live session; the bearer goes only
-   to allowed origins, `//host` URLs included; redirects are classified by parameter name; an ID
-   token that does not verify is no profile, and discovery runs before it is checked; a refresh
-   answered late or after a rekey is kept; bindings see a token lapse, a refresh that fails at
-   expiry included.
-3. `@oidcraft/adapter@0.3.0` — `Credential.passwordHash` is optional, for an account with passkeys
-   alone; the `revoked_family` artifact kind; `fromKv`'s identity key changed, so links a Redis
-   store made before it are not found; `AccountStore.claims` documents its third argument;
-   `Client.defaultAcrValues`; `KvStore` gains a required `destroyIf(key, value)`, an atomic
-   compare-and-delete, which `fromKv`'s grant merge releases its lock with; the conformance suite
-   checks prune, grant expiry and replacing upserts; `PasskeyStore`, which `CredentialsAdapter` now
-   requires, the `passkey_challenge` kind, and the `passkeys` conformance checks (FR-I8). Renamed to
-   ARCHITECTURE.md §9.3's vocabulary: `KvStore.insert` → `create`;
-   `ArtifactStore.revokeByGrantId`/`revokeByFamilyId`/`revokeByClientId` → `destroyBy…`;
-   `SessionStore.findByUpstreamSession` → `listByUpstreamSession`; `KeyStore.active` → `list`;
-   `LinkedIdentity.provider` → `upstream` and `linkedAt` → `createdAt`; `Client.upstreamProviders` →
-   `allowedUpstreams`.
-4. `@oidcraft/provider@0.5.0` — the review's security and correctness fixes; the family check inside
-   `issueTokens`, for every grant; the `claims` parameter (FR-C22), whose consent answers must
-   repeat `view.claims` in `consent.claims`; `onAudit` hears `token.replay` and
-   `client.authentication_failed`; a body that is not form-encoded is a 415; a throwing logout or
-   registration audit hook goes to `onError`; under a provider-wide FAPI profile dynamic
-   registration names the profile's algorithm instead of failing on DCR's RS256 default; a client's
-   `default_acr_values` and the configured `acrValues`, advertised (FR-C23); passkeys in
-   `./accounts`, behind its new `origin` option, accounts with no password and their recovery, and
-   `regenerateRecoveryCodes` moved out of `totp` (FR-I8); `ttl.interaction` defaults to 1800 and
-   `policy.passkeyTimeout` to 600, so a passkey made on a phone by scanning a code can finish.
-   Renamed to §9.3's vocabulary: `accounts.register` → `accounts.signUp` (`RegistrationResult` →
-   `SignUpResult`); `setPassword` refuses with a `reason`, `password` with its `problem` or
-   `unknown`; `management.clients.get` → `find`; `BrokeredIdentity.provider` → `upstream`; the
-   interaction view's `upstreamProviders` → `allowedUpstreams`; `management.identities.unlink` takes
-   an upstream and its audit detail says `upstream`.
-5. `@oidcraft/drizzle@0.3.0`, `@oidcraft/kysely@0.3.0`, `@oidcraft/redis@0.3.0` — peer on `adapter`
-   ^0.3.0; Redis implements `destroyIf` as one script; every adapter follows `adapter`'s renames,
-   with no migration, as the columns keep their names; the SQL ones enforce `Grant.expiresAt` and
-   prune by expiry at the delete, and store passkeys, with migration `0006_passkeys`;
-   `0002_credentials` makes `password_hash` nullable, edited in place, so a database migrated by
-   0.2.0 refuses a passwordless sign-up until altered by hand (`alter column password_hash drop not
-   null` on Postgres, `modify password_hash text null` on MySQL, a table rebuild on SQLite). Drizzle
-   and Kysely gain MySQL and MariaDB, one dialect over `MYSQL_MIGRATIONS` (`mysqlTables()` for
-   Drizzle, `MysqlDialect` for Kysely).
-6. `@oidcraft/typeorm@0.3.0` — the same, and `OIDCRAFT_ENTITIES` becomes `OIDCRAFT_SQLITE_ENTITIES`,
-   `OIDCRAFT_POSTGRES_ENTITIES` and, for a `mysql` or `mariadb` `DataSource`,
-   `OIDCRAFT_MYSQL_ENTITIES`.
-7. `@oidcraft/vue@10.0.0`, `@oidcraft/react@5.0.0`, `@oidcraft/angular@12.0.0` — majors for what
-   `core` and `client` changed underneath them; every binding shows and dismisses an error that came
-   without a description.
 
 ## Open
 

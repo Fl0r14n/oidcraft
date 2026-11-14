@@ -43,20 +43,30 @@ describe('createIdTokenVerifier', () => {
     const token = () => sign({ iss: 'https://provider.example', aud: CLIENT_ID, sub: 'u1' })
     const cacheOf = () => ((globalThis.fetch as any).mock.calls[0]?.[1] as RequestInit | undefined)?.cache
 
-    it('goes past the HTTP cache in a page', async () => {
-      ;(globalThis as any).document = {}
+    // The test process preloads a DOM for every file (scripts/test-dom.ts), so whatever stood here goes back.
+    const withDocument = async (document: object | undefined, run: () => Promise<void>) => {
+      const had = Object.getOwnPropertyDescriptor(globalThis, 'document')
+      if (document) Object.defineProperty(globalThis, 'document', { value: document, configurable: true, writable: true })
+      else delete (globalThis as any).document
       try {
+        await run()
+      } finally {
+        if (had) Object.defineProperty(globalThis, 'document', had)
+        else delete (globalThis as any).document
+      }
+    }
+
+    it('goes past the HTTP cache in a page', () =>
+      withDocument({}, async () => {
         await verifier('https://provider.example')(await token())
         expect(cacheOf()).toBe('no-cache')
-      } finally {
-        delete (globalThis as any).document
-      }
-    })
+      }))
 
-    it('sets no cache mode where there is no page, as workerd refuses one', async () => {
-      await verifier('https://provider.example')(await token())
-      expect(cacheOf()).toBeUndefined()
-    })
+    it('sets no cache mode where there is no page, as workerd refuses one', () =>
+      withDocument(undefined, async () => {
+        await verifier('https://provider.example')(await token())
+        expect(cacheOf()).toBeUndefined()
+      }))
   })
 
   describe('a literal issuer', () => {

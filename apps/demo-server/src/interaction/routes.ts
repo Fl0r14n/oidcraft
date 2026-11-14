@@ -6,7 +6,7 @@ import { issuer, optional } from '../op/env'
 import { FIRST_PARTY } from '../op/first-party'
 import type { Site } from '../op/site'
 import { startUpstream, upstreamLabels } from './broker'
-import { knownAccounts, pendingSecondFactor } from './cookies'
+import { knownAccounts, pendingSecondFactor, resumeAfterReset } from './cookies'
 
 const seeOther = (location: string, ...cookies: (string | undefined)[]) => {
   const headers = new Headers({ location, 'cache-control': 'no-store' })
@@ -22,6 +22,20 @@ const offeredUpstreams = (view: InteractionRequest) =>
 
 const lockedNotice = (until: Date) =>
   `Too many attempts. Try again after ${until.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}.`
+
+const withCookie = async (response: Promise<Response>, cookie: string) => {
+  const sent = await response
+  sent.headers.append('set-cookie', cookie)
+  return sent
+}
+
+/** What the sign-in a reset led back to says first, by a fixed key: the query names it, never words it. */
+const afterReset = (changed: string | null) =>
+  changed === 'password'
+    ? 'Your password was changed. Sign in with the new one.'
+    : changed === 'passkey'
+      ? 'Your passkey was added. Sign in with it.'
+      : undefined
 
 const form = async (request: Request) => new URLSearchParams(await request.text())
 
@@ -90,7 +104,7 @@ const build = (site: Site) => {
           : loginScreen(view)
       }
 
-      if (request.method === 'GET' && action === 'login') return loginScreen(view)
+      if (request.method === 'GET' && action === 'login') return loginScreen(view, { notice: afterReset(url.searchParams.get('changed')) })
 
       // Picking an account only fills in the form: being listed is not having proved anything.
       if (request.method === 'POST' && action === 'choose') {
@@ -210,7 +224,11 @@ const build = (site: Site) => {
         if (request.method === 'GET') return screens.forgot(view)
         const issued = await accounts.reset.issue((await form(request)).get('username') ?? '')
         if (issued) sendRecoveryLink(issued.accountId, issued.token, provider.config.issuer)
-        return screens.message('Check your email', 'If that username has an account here, a link to get back in is on its way.')
+        // Set whether or not the username exists, so the response does not tell them apart (G-9).
+        return withCookie(
+          screens.message('Check your email', 'If that username has an account here, a link to get back in is on its way.'),
+          await resumeAfterReset.set(id)
+        )
       }
 
       // FR-I8: a recovery code in place of a lost passkey, for an account with no password. It signs no one in: it leads to
@@ -220,7 +238,7 @@ const build = (site: Site) => {
         const body = await form(request)
         const username = body.get('username') ?? ''
         const recovered = await accounts.recover(username, body.get('code') ?? '', { clientIp })
-        if (recovered.ok) return screens.reset(recovered.token, { passkeys: true })
+        if (recovered.ok) return withCookie(screens.reset(recovered.token, { passkeys: true }), await resumeAfterReset.set(id))
         // G-9: a lock answered differently from a wrong code would confirm the username exists.
         return screens.recover(view, {
           username,
@@ -258,7 +276,21 @@ const build = (site: Site) => {
     }
   }
 
-  /** Where a reset link lands. Outside any interaction, because the one that asked has long expired. */
+  /** Back to the sign-in the reset was asked from when this browser asked and it is still open; otherwise only a message. */
+  const resumed = async (request: Request, changed: 'password' | 'passkey', title: string, text: string) => {
+    const id = await resumeAfterReset.get(request)
+    const open =
+      id &&
+      (await provider.interactions.find(id).then(
+        found => found.kind === 'login',
+        () => false
+      ))
+    return open
+      ? seeOther(`/interaction/${encodeURIComponent(id)}/login?changed=${changed}`, resumeAfterReset.clear())
+      : withCookie(screens.message(title, text), resumeAfterReset.clear())
+  }
+
+  /** Where a reset link lands. Outside any interaction, because the one that asked may have expired. */
   const resetRoutes = async (request: Request, url: URL, clientIp: string | undefined) => {
     if (request.method === 'GET') return screens.reset(url.searchParams.get('token') ?? '', { passkeys: true })
     const body = await form(request)
@@ -274,7 +306,7 @@ const build = (site: Site) => {
     }
     if (body.get('credential')) {
       const added = await accounts.reset.completeWithPasskey(token, parsed(body.get('credential')), 'Passkey', { clientIp })
-      if (added.ok) return screens.message('Passkey added', 'Sign in again with it, from the application you were using.')
+      if (added.ok) return resumed(request, 'passkey', 'Passkey added', 'Sign in again with it, from the application you were using.')
       const error =
         added.reason === 'taken'
           ? 'That passkey is already registered.'
@@ -283,7 +315,8 @@ const build = (site: Site) => {
     }
 
     const result = await accounts.reset.complete(token, body.get('password') ?? '', { clientIp })
-    if (result.ok) return screens.message('Password changed', 'Sign in again with your new password, from the application you were using.')
+    if (result.ok)
+      return resumed(request, 'password', 'Password changed', 'Sign in again with your new password, from the application you were using.')
     if (result.reason === 'password') {
       return screens.reset(token, { error: PASSWORD_MESSAGES[result.problem], passkeys: true, status: 400 })
     }

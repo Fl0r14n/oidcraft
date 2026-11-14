@@ -620,7 +620,10 @@ the dev cycle shows only in a browser.
 public client (`oidcraft-admin`, `oidcraft-account`), and each API introspects the bearer token
 in-process as the resource server `oidcraft-api`. The admin API also requires an account in
 `OIDCRAFT_ADMINS`, the decision FR-M1 leaves to the host; the account API acts only on the token's
-own subject. The interaction routes answer consent for these first-party clients themselves.
+own subject. The interaction routes answer consent for these first-party clients themselves. Each
+app tries `prompt=none` before it mounts, so a person with a provider session is signed in without a
+click, and shows its Sign in button only on `login_required`; a live session that must still be
+asked something is sent through an ordinary sign-in at once.
 
 **Sign-in is `@oidcraft/provider/accounts` (FR-I7, FR-I8).** A correct password for an account with
 TOTP sets a signed, ten-minute cookie bound to the interaction, as long as a passkey ceremony, which only the code step can finish,
@@ -633,7 +636,9 @@ then shows the recovery codes once before continuing; the login screen links a l
 recovery-code form, whose answer is the reset screen. An account with no password manages its
 recovery codes in the account app with a fresh passkey assertion, as one with TOTP does with a code.
 `prompt=select_account` lists the accounts this browser signed in with, from another signed cookie.
-A reset link is printed to the console where a deployment would email it.
+A reset link is printed to the console where a deployment would email it. Asking for one, or
+spending a recovery code, sets a signed cookie naming the interaction, so finishing the reset in the
+same browser returns to that sign-in rather than a dead end; a link opened elsewhere resumes nothing.
 
 `bundles.test.ts` bundles both browser apps the way `Bun.serve` does on first request, so a syntax
 only the type checker accepts fails there rather than in a browser. `src/op` is the provider's
@@ -786,6 +791,11 @@ precedes typecheck because the apps resolve `@oidcraft/provider` through its exp
   certification.
 - **Brokering** — a second oidcraft instance is the upstream in tests, so both legs run without
   depending on Google being up.
+- **Smoke** — `bun run smoke` (`scripts/smoke.ts`, the `smoke` job in `ci.yml`) starts a fresh
+  in-memory demo-server and demo-vue and clicks through them in `Bun.WebView`: sign-up, consent, the
+  account app, TOTP, a passkey on a CDP virtual authenticator, a reset and the admin app. It is what
+  catches a page that bundles but does not work, which `verify` cannot see. It needs the packages
+  built and a Chromium-family browser (`BUN_CHROME_PATH` when Bun does not find one).
 
 ## 11. Publishing
 

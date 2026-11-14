@@ -74,6 +74,7 @@ bun run test
 bun run lint             # biome check .
 bun run format           # biome check --write .
 bun run conformance      # OpenID Foundation suite against apps/demo-server
+bun run smoke            # the demo apps clicked through in a headless browser (Bun.WebView)
 bun run docs             # the docs site, VitePress on :5173
 ```
 

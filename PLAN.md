@@ -109,21 +109,19 @@ password_hash text null` on MySQL, a table rebuild on SQLite).
 
 ## Found by clicking through the demo (2026-11-14)
 
-A browser run of a password account found two bugs, fixed in `0e99fb7`. Still open:
+A browser run of a password account found two bugs, fixed in `0e99fb7`, and three small UI points,
+fixed since. `bun run smoke` now clicks through the demo on every push, TOTP and a passkey included.
+What it does with a CDP virtual authenticator and codes it computes itself, a person still has to do
+once with real ones:
 
 - **Passkeys with a real password manager.** Creating one with Google Password Manager and with Proton
   Pass failed. The empty-`credential` bug fixed in `0e99fb7` refused every sign-up form, so that may have
-  been all of it; retest before looking further. Only a software authenticator has passed end to end.
-- **TOTP with a real authenticator app** has not been run in a browser, only in tests.
-- **No test runs the apps in a browser.** The `@vuetify/v0` import cycle under Bun's dev bundler and the
-  empty-`credential` bug both passed `verify` and showed only on a click. A headless-browser smoke run of
-  sign-up, sign-in and the account and admin apps would have caught both.
+  been all of it; retest before looking further. A software authenticator, and the smoke run's virtual
+  one, pass end to end.
+- **TOTP with a real authenticator app**, scanning the QR code: the smoke run types the key's codes,
+  which checks the secret and the arithmetic but not the `otpauth://` URI an app reads from the code.
 - **`@oidcraft/ui/bun-plugin` patches `@vuetify/v0`.** Drop it when upstream stops needing it; if it
   breaks again, Reka UI for the dialog and TanStack Table for the table are the replacements considered.
-- **Small UI points:** the account app asks for its own "Sign in" click even with a live session (it
-  could start the sign-in itself); "Password changed" leaves the person with no way back to the
-  application; the login screen shows two "or" dividers, before the passkey button and before the
-  upstreams.
 
 ## Still open on the client libraries
 

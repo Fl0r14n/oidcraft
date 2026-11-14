@@ -73,6 +73,21 @@ jobs:
           node-version: "24.7"
       - run: node scripts/load-entries.mjs
 
+  # The demo apps clicked through in a headless browser: what `verify` cannot see shows only on a click.
+  # Bun.WebView drives the Chrome the runner image ships, and a virtual authenticator stands in for a passkey.
+  smoke:
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - run: bun run --filter=@oidcraft/core --filter=@oidcraft/client --filter=@oidcraft/adapter --filter=@oidcraft/provider --filter=@oidcraft/sql --filter=@oidcraft/drizzle --filter=@oidcraft/vue build
+      - run: bun run smoke
+
   # NFR-C1: the OpenID Foundation suite's basic and config plans gate the build. Anything not listed
   # in conformance/expected-failures.json or expected-skips.json fails the job.
   conformance:

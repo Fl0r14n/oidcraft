@@ -58,3 +58,15 @@ export const knownAccounts = {
     return serialize(KNOWN, await sign(known), 30 * 24 * 3600, '/interaction')
   }
 }
+
+const RESUME = 'oidcraft.demo.resume'
+
+/** The sign-in a reset was asked from, so finishing it leads back there; a cookie, so a link opened elsewhere resumes nothing. */
+export const resumeAfterReset = {
+  set: async (interactionId: string) => serialize(RESUME, await sign({ interactionId, until: Date.now() + 1_800_000 }), 1800, '/reset'),
+  get: async (request: Request) => {
+    const resume = await verified<{ interactionId: string; until: number }>(read(request, RESUME))
+    return resume && resume.until > Date.now() ? resume.interactionId : undefined
+  },
+  clear: () => serialize(RESUME, '', 0, '/reset')
+}

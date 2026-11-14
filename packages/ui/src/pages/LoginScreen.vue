@@ -29,26 +29,30 @@
       </p>
       <p v-if="recoverUrl" class="text-sm"><UiLink :href="recoverUrl">Lost your passkey?</UiLink></p>
     </form>
-    <PasskeyForm v-if="passkey" v-bind="passkey" />
-    <form v-if="upstreams.length" method="post" :action="upstreamAction" class="space-y-3">
-      <p class="flex items-center gap-3 text-sm text-muted before:h-px before:flex-1 before:bg-rule after:h-px after:flex-1 after:bg-rule">or</p>
-      <UiButton
-        v-for="upstream in upstreams"
-        :key="upstream.id"
-        type="submit"
-        variant="secondary"
-        name="provider"
-        :value="upstream.id"
-        class="w-full">
-        Continue with {{ upstream.label }}
-      </UiButton>
-    </form>
+    <div v-if="passkey || upstreams.length" class="space-y-3">
+      <!-- the passkey form stays hidden without WebAuthn, so its own divider serves only when nothing follows it -->
+      <UiDivider v-if="upstreams.length" />
+      <PasskeyForm v-if="passkey" v-bind="passkey" :divider="!upstreams.length" />
+      <form v-if="upstreams.length" method="post" :action="upstreamAction" class="space-y-3">
+        <UiButton
+          v-for="upstream in upstreams"
+          :key="upstream.id"
+          type="submit"
+          variant="secondary"
+          name="provider"
+          :value="upstream.id"
+          class="w-full">
+          Continue with {{ upstream.label }}
+        </UiButton>
+      </form>
+    </div>
   </UiCard>
 </template>
 
 <script setup lang="ts">
 import UiAlert from '../atoms/UiAlert.vue'
 import UiButton from '../atoms/UiButton.vue'
+import UiDivider from '../atoms/UiDivider.vue'
 import UiLink from '../atoms/UiLink.vue'
 import UiField from '../molecules/UiField.vue'
 import PasskeyForm from '../organisms/PasskeyForm.vue'

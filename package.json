@@ -14,6 +14,7 @@
     "typecheck": "bun run --filter='*' typecheck",
     "test": "bun test",
     "conformance": "bun run ./scripts/conformance.ts",
+    "smoke": "bun run ./scripts/smoke.ts",
     "lint": "biome check .",
     "format": "biome check --write .",
     "db:up": "docker compose up -d postgres",

@@ -1,7 +1,7 @@
 <template>
   <UiCard v-if="!isAuthorized" title="Administer this server">
     <template #subtitle>Sign in with an account listed in <code class="font-semibold text-ink">OIDCRAFT_ADMINS</code>.</template>
-    <UiAlert v-if="hasError">The sign-in did not complete: {{ errorDescription ?? signInError ?? 'try again.' }}</UiAlert>
+    <UiAlert v-if="failedSignIn(signInError)">The sign-in did not complete: {{ errorDescription ?? signInError ?? 'try again.' }}</UiAlert>
     <UiButton class="w-full" @click="signIn">Sign in</UiButton>
   </UiCard>
 
@@ -30,6 +30,7 @@
 import { UiAlert, UiButton, UiCard, UiShell } from '@oidcraft/ui/components'
 import { useOAuth, useOAuthUser } from '@oidcraft/vue'
 import { computed, onMounted, shallowRef } from 'vue'
+import { failedSignIn, useSignIn } from '../shared/session'
 import AccountPanel from './AccountPanel.vue'
 import ClientsPanel from './ClientsPanel.vue'
 import { currentRealm, failureMessage, useAdminApi } from './client'
@@ -43,12 +44,12 @@ const managing = computed(() => {
   const control = new URL(issuer)
   return `Realm ${currentRealm.value} — ${control.protocol}//${currentRealm.value}.${control.host}`
 })
-const { isAuthorized, hasError, error: signInError, errorDescription, login, logout } = useOAuth()
+const { isAuthorized, error: signInError, errorDescription, logout } = useOAuth()
 const user = useOAuthUser()
 const api = useAdminApi()
 const error = shallowRef('')
 
-const signIn = () => login({ responseType: 'code', redirectUri: `${location.origin}/admin/callback`, state: crypto.randomUUID() })
+const signIn = useSignIn('/admin')
 const signOut = () => logout(`${location.origin}/admin`)
 
 // One call up front, so an operator who is signed in but not listed sees why before anything else.

@@ -143,6 +143,15 @@ describe('passkeys', () => {
     expect(firstButton(html)).toContain('type="submit"')
   })
 
+  test('the login divides the other ways in from the password once, and still divides a passkey alone', async () => {
+    const dividers = async (options: Parameters<typeof screens.login>[1]) =>
+      ((await (await screens.login(view, options)).text()).replace(/<!--.*?-->/g, '').match(/>or<\/p>/g) ?? []).length
+    expect(await dividers({ passkeys: true, upstreams: [{ id: 'google', label: 'Google' }] })).toBe(1)
+    expect(await dividers({ passkeys: true })).toBe(1)
+    expect(await dividers({ upstreams: [{ id: 'google', label: 'Google' }] })).toBe(1)
+    expect(await dividers({})).toBe(0)
+  })
+
   test('the second step offers one beside the code, without autofill', async () => {
     const html = await (await screens.otp(view, { passkeys: true })).text()
     expect(html).toContain('data-step="second"')

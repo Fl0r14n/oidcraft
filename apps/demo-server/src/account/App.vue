@@ -1,7 +1,7 @@
 <template>
   <UiCard v-if="!isAuthorized" title="Your account">
     <template #subtitle>Sign in to change your password, add passkeys and set up two-step verification.</template>
-    <UiAlert v-if="hasError">The sign-in did not complete: {{ errorDescription ?? signInError ?? 'try again.' }}</UiAlert>
+    <UiAlert v-if="failedSignIn(signInError)">The sign-in did not complete: {{ errorDescription ?? signInError ?? 'try again.' }}</UiAlert>
     <UiButton class="w-full" @click="signIn">Sign in</UiButton>
   </UiCard>
 
@@ -22,6 +22,7 @@ import { UiAlert, UiButton, UiCard, UiShell } from '@oidcraft/ui/components'
 import { useOAuth } from '@oidcraft/vue'
 import { onMounted, shallowRef } from 'vue'
 import { failureMessage, useApi } from '../shared/api'
+import { failedSignIn, useSignIn } from '../shared/session'
 import PasskeysPanel from './PasskeysPanel.vue'
 import PasswordPanel from './PasswordPanel.vue'
 import RecoveryPanel from './RecoveryPanel.vue'
@@ -35,12 +36,12 @@ type Me = {
   passkeys: { credentialId: string; name: string; createdAt: string; lastUsedAt?: string }[]
 }
 
-const { isAuthorized, hasError, error: signInError, errorDescription, login, logout } = useOAuth()
+const { isAuthorized, error: signInError, errorDescription, logout } = useOAuth()
 const api = useApi('/account/api')
 const me = shallowRef<Me>()
 const error = shallowRef('')
 
-const signIn = () => login({ responseType: 'code', redirectUri: `${location.origin}/account/callback`, state: crypto.randomUUID() })
+const signIn = useSignIn('/account')
 const signOut = () => logout(`${location.origin}/account`)
 
 const load = async () => {

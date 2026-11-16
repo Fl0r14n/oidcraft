@@ -6,13 +6,13 @@ was done.
 
 ## Status
 
-**Implemented, as of 2026-11-14**, with 1453 passing tests (550 more skip without Postgres, MySQL,
+**Implemented, as of 2026-11-16**, with 1471 passing tests (551 more skip without Postgres, MySQL,
 MariaDB and Redis), `bun run verify` as the gate and `bun run smoke` clicking through the demo in CI:
 every functional requirement in `REQUIREMENTS.md`.
 `metadata.test.ts` exercises every advertised discovery value rather than reading it. Published as
 `@oidcraft/*` on 2026-11-14, each from a GitHub release with provenance — `core` 0.5.0, `client`
-0.4.0, the provider 0.5.0, `adapter` and the four storage adapters 0.3.0, `vue` 10.0.0, `react`
-5.0.0, `angular` 12.0.0 — with the docs site at https://fl0r14n.github.io/oidcraft/. Each release's
+0.4.0, `adapter` and the four storage adapters 0.3.0, `vue` 10.0.0, `react` 5.0.0, `angular` 12.0.0,
+and the provider 0.6.0 on 2026-11-16 — with the docs site at https://fl0r14n.github.io/oidcraft/. Each release's
 notes, the renames to ARCHITECTURE.md §9.3 included, are on its GitHub release.
 
 **Provider 0.3.0 and earlier are not to be put in front of real identities**: they ship a session
@@ -24,7 +24,7 @@ DPoP with nonces, PAR, JAR by value, the `claims` parameter, dynamic client regi
 7592 management, the device grant, CIBA in poll and ping, token exchange, RAR, step-up, pairwise
 subjects, identity brokering with home-realm discovery chosen by the provider, five storage adapters
 (memory, Drizzle, Kysely, TypeORM, Redis) passing one conformance suite, the SQL ones on SQLite,
-Postgres, MySQL and MariaDB, four runtime context providers, local accounts with passwords, passkeys
+Postgres, MySQL and MariaDB, four runtime context providers and a Fastify plugin, local accounts with passwords, passkeys
 and TOTP, a management API and an admin UI.
 
 ### What is NOT done, and will not be silently forgotten
@@ -65,13 +65,6 @@ in the `claims` parameter (FR-C22) refuses a login that reports less, but nothin
   (`.env.example`), and renaming a URL people have registered breaks their sign-in for a word.
 
 ## Open
-
-- **Fastify and `onSessionEnd`**, from the first host to run the provider behind Nest's Fastify adapter
-  (RegHedge): `@oidcraft/provider/runtimes/fastify`, a plugin over the Node bridge (FR-R3), and the
-  `onSessionEnd` hook (FR-C11). Tested under Bun against a real Fastify app; not yet released.
-  With it: `ProviderConfig` is `ProviderSettings & ProviderHooks & ProviderEvents`, management runs
-  every event before a failure reaches its caller (FR-M3), and Express is documented and tested on
-  the Node bridge, which reads `originalUrl`.
 
 - **Brave's own password manager** refused a passkey under `localhost`, through a phone by QR code, and
   was not retried under another name, as Proton Pass was (`.cert/README.md`). Google Password Manager

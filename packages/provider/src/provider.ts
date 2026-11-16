@@ -151,10 +151,11 @@ export type LogoutDelivery = (notifications: LogoutNotification[]) => void | Pro
 
 const endSessionHandler: Handler = async (config, request) => {
   const session = await readSession(config, request)
-  const { response, notifications, frontChannel } = await endSessionEndpoint(config, request, session)
+  const { response, notifications, frontChannel, ended } = await endSessionEndpoint(config, request, session)
   // From the resolved config, never module state: two providers in one process must not reach each other's callback (FR-A1).
   if (notifications.length) await guarded(config, request, () => config.onLogout?.(notifications))
   if (frontChannel.length) await guarded(config, request, () => config.onFrontChannelLogout?.(frontChannel))
+  if (ended) await guarded(config, request, () => config.onSessionEnd?.(ended, 'logout'))
   return response
 }
 

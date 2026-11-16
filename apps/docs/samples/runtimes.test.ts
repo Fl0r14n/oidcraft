@@ -5,8 +5,11 @@ import { memoryAdapter } from '@oidcraft/adapter/memory'
 import { ConfigurationError, createProvider } from '@oidcraft/provider'
 import { bunContext, bunPasswordHasher } from '@oidcraft/provider/runtimes/bun'
 import { denoContext } from '@oidcraft/provider/runtimes/deno'
+import { toFastifyPlugin } from '@oidcraft/provider/runtimes/fastify'
 import { nodePasswordHasher, toNodeHandler } from '@oidcraft/provider/runtimes/node'
 import { type IncomingCf, workerdContext } from '@oidcraft/provider/runtimes/workerd'
+import express from 'express'
+import Fastify from 'fastify'
 
 const adapter = await memoryAdapter()
 
@@ -63,6 +66,60 @@ describe('node', () => {
     const url = `http://127.0.0.1:${port}/.well-known/openid-configuration`
     expect(await discovery(fetch(url))).toBe(issuer)
     expect(await discovery(fetch(url, { headers: hostile }))).toBe(issuer)
+  })
+})
+
+describe('express', () => {
+  const oidcIssuer = 'https://example.com/oidc'
+  const oidc = createProvider({ issuer: oidcIssuer, adapter, interactionUrl: `${oidcIssuer}/interaction` })
+  // #region express
+  const app = express()
+  app.use('/oidc', toNodeHandler(oidc.handle, oidcIssuer))
+  app.use(express.json(), express.urlencoded())
+  app.post('/api/echo', (request, response) => {
+    response.json(request.body)
+  })
+  // #endregion express
+  const server = app.listen(0, '127.0.0.1')
+  const base = async () => {
+    if (!server.listening) await new Promise(resolve => server.once('listening', resolve))
+    return `http://127.0.0.1:${(server.address() as { port: number }).port}`
+  }
+
+  afterAll(() => server.close())
+
+  test('serves the provider under its mount path', async () => {
+    expect(await discovery(fetch(`${await base()}/oidc/.well-known/openid-configuration`, { headers: hostile }))).toBe(oidcIssuer)
+  })
+
+  test('the provider reads a form body no parser has consumed', async () => {
+    const response = await fetch(`${await base()}/oidc/token`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: 'grant_type=authorization_code&client_id=ghost'
+    })
+    expect((await response.json()).error).toBe('invalid_client')
+  })
+
+  test("the app's own routes keep their parsers", async () => {
+    const response = await fetch(`${await base()}/api/echo`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: '{"x":1}'
+    })
+    expect(await response.json()).toEqual({ x: 1 })
+  })
+})
+
+describe('fastify', () => {
+  test('serves the provider beside the app routes', async () => {
+    // #region fastify
+    const app = Fastify()
+    await app.register(toFastifyPlugin(provider.handle, issuer))
+    // #endregion fastify
+    const base = await app.listen({ port: 0, host: '127.0.0.1' })
+    expect(await discovery(fetch(`${base}/.well-known/openid-configuration`, { headers: hostile }))).toBe(issuer)
+    await app.close()
   })
 })
 

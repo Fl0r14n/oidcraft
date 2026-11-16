@@ -87,7 +87,7 @@ bun run docs             # the docs site, VitePress on :5173
 
 - **Every published package is `@oidcraft/<directory>`.** `packages/provider` is `@oidcraft/provider`,
   `packages/vue` is `@oidcraft/vue`. `bun run --filter` matches package names, not directories.
-- **The provider is eight subpath entries; storage is its own packages** (ARCHITECTURE.md §2.1–2.2).
+- **The provider is nine subpath entries; storage is its own packages** (ARCHITECTURE.md §2.1–2.2).
   `@oidcraft/adapter` is the contract the provider depends on; `@oidcraft/drizzle`, `kysely`, `typeorm`
   and `redis` peer on it and **never on the provider** — do not add that edge. Each package's
   `verify-entries.ts` runs in its `build` and fails on an undeclared import, an inlined sibling, a

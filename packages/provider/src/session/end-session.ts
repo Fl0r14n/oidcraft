@@ -47,7 +47,13 @@ const verifyHint = async (config: ResolvedConfig, hint: string) => {
   }
 }
 
-export type EndSessionResult = { response: Response; notifications: LogoutNotification[]; frontChannel: FrontChannelLogout[] }
+export type EndSessionResult = {
+  response: Response
+  notifications: LogoutNotification[]
+  frontChannel: FrontChannelLogout[]
+  /** The session this request ended, if it ended one. */
+  ended?: Session | undefined
+}
 
 export const endSessionEndpoint = async (
   config: ResolvedConfig,
@@ -91,10 +97,10 @@ export const endSessionEndpoint = async (
 
   if (!location) {
     headers.set('content-type', 'text/plain; charset=utf-8')
-    return { response: new Response('You are signed out.', { status: 200, headers }), notifications, frontChannel }
+    return { response: new Response('You are signed out.', { status: 200, headers }), notifications, frontChannel, ended: session }
   }
   headers.set('location', location)
-  return { response: new Response(null, { status: 303, headers }), notifications, frontChannel }
+  return { response: new Response(null, { status: 303, headers }), notifications, frontChannel, ended: session }
 }
 
 // FR-C11: the session is already gone, so a failing host hook must not cost the notifications that end it at its clients.

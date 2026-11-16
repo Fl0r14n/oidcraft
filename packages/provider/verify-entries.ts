@@ -12,8 +12,12 @@ const ENTRIES = {
   'runtimes/node': 'node',
   'runtimes/bun': 'bun',
   'runtimes/deno': 'deno',
-  'runtimes/workerd': 'workerd'
+  'runtimes/workerd': 'workerd',
+  'runtimes/fastify': 'fastify'
 } as const
+
+/** An optional peer belongs to the one entry it serves; imported anywhere else it stops being optional (ARCHITECTURE.md §2.2). */
+const OPTIONAL_PEERS = { fastify: 'runtimes/fastify' } as const
 
 /** The storage libraries belong to the adapter packages. One imported here would make every host install it (ARCHITECTURE.md §2.1). */
 const STORAGE_LIBRARIES = ['drizzle-orm', 'kysely', 'typeorm', 'pg'] as const
@@ -111,6 +115,14 @@ for (const [entry, runtime] of Object.entries(ENTRIES)) {
     check(
       !new RegExp(`(^|[^.\\w])${global}\\.`).test(js),
       `${entry} reaches for the ${global} global — only the /runtimes/${owner} entry may, or the package stops running anywhere else (FR-R1)`
+    )
+  }
+
+  for (const [peer, owner] of Object.entries(OPTIONAL_PEERS)) {
+    if (entry === owner) continue
+    check(
+      !importsPackage(js, peer) && !importsPackage(dts, peer),
+      `${entry} imports ${peer} — an optional peer of the ${owner} entry alone; anywhere else every host must install it`
     )
   }
 

@@ -15,7 +15,7 @@ How oidcraft is built. `REQUIREMENTS.md` says what it must do; every section her
 | **jose**             | ^6         | The only third-party runtime dependency. WebCrypto-backed, runtime-agnostic (NFR-D4).                                                                    |
 | **@oidcraft/core**   | workspace  | The protocol, shared by the provider and every client binding (§2.1). Published; a dependency of each.                                                   |
 | **@oidcraft/client** | workspace  | The stateful client runtime, shared by the client bindings only (§2.1). Published; never the server's.                                                   |
-| **tsdown**           | 0.23.x     | Library build: the provider's eight ESM entries and every package's, with `.d.mts` types (§2.2).                                                         |
+| **tsdown**           | 0.23.x     | Library build: the provider's nine ESM entries and every package's, with `.d.mts` types (§2.2).                                                          |
 | **Drizzle / Kysely** | 1.0 / 0.29 | First-party adapters (FR-A4). Optional peers, never bundled (§2.2).                                                                                      |
 | **TypeORM**          | 1.1        | First-party adapter (FR-A6) over the host's `DataSource`, with `EntitySchema`s rather than decorators. Optional peer, never bundled.                     |
 
@@ -71,7 +71,7 @@ packages/drizzle/           @oidcraft/drizzle   Postgres, SQLite, MySQL/MariaDB
 packages/kysely/            @oidcraft/kysely    Postgres, SQLite, MySQL/MariaDB
 packages/typeorm/           @oidcraft/typeorm   a TypeORM DataSource; Postgres, SQLite, MySQL/MariaDB
 packages/redis/             @oidcraft/redis     any Redis client, through one command function
-packages/provider/          @oidcraft/provider  the provider, eight entries
+packages/provider/          @oidcraft/provider  the provider, nine entries
   src/index.ts              .                   the OP. fetch in, fetch out, no I/O
   src/broker/               ./broker            the relying-party leg — upstream brokering
   src/interaction/          ./interaction       login/consent policy types
@@ -80,6 +80,7 @@ packages/provider/          @oidcraft/provider  the provider, eight entries
   src/runtimes/bun/         ./runtimes/bun      request context for Bun.serve
   src/runtimes/deno/        ./runtimes/deno     request context for Deno.serve
   src/runtimes/workerd/     ./runtimes/workerd  request context for Cloudflare Workers
+  src/runtimes/fastify/     ./runtimes/fastify  a Fastify plugin over the Node bridge
 apps/
   demo-server               the reference OP: mounts the core, the login screens and the admin UI
   demo-vue                  demo relying party: Vue 3 + @oidcraft/vue
@@ -119,7 +120,7 @@ Everything published is under the `@oidcraft` npm org, and each package is named
 | `@oidcraft/core`     | `packages/core`     | the protocol: discovery, PKCE, the authorization round trip, ID token verification       |
 | `@oidcraft/client`   | `packages/client`   | the stateful client on top: storage, token lifecycle, refresh, authorized fetch, profile |
 | `@oidcraft/adapter`  | `packages/adapter`  | the storage contract: stores, records, `fromKv`, key stores, memory, conformance         |
-| `@oidcraft/provider` | `packages/provider` | the OpenID Provider, eight subpath entries                                               |
+| `@oidcraft/provider` | `packages/provider` | the OpenID Provider, nine subpath entries                                                |
 | `@oidcraft/drizzle`  | `packages/drizzle`  | the Drizzle adapter                                                                      |
 | `@oidcraft/kysely`   | `packages/kysely`   | the Kysely adapter                                                                       |
 | `@oidcraft/typeorm`  | `packages/typeorm`  | the TypeORM adapter                                                                      |
@@ -225,7 +226,9 @@ limits it applies (NFR-S12).
 > Netlify Edge and Fastly Compute.
 
 **Only Node needs an HTTP bridge.** Bun, Deno and workerd hand over a `Request` and take a
-`Response`, so the handler mounts into their servers directly.
+`Response`, so the handler mounts into their servers directly. `./runtimes/fastify` is a plugin over
+the Node bridge, which it imports by package name rather than compiling a second copy in; its scope
+leaves the body unread because Fastify parses it before a route runs (FR-R3).
 
 **Every runtime needs a context provider.** Nothing in `RequestContext` is carried by `Request`,
 and each runtime exposes it differently: `server.requestIP(request)` on Bun, `info.remoteAddr` on
@@ -253,9 +256,13 @@ verified client certificate for mTLS and the client IP (FR-R4). The issuer is no
 configuration, never derived from a request (NFR-S6).
 
 Where a request ends, an unexpected failure goes to `onError` and is answered `server_error`
-(NFR-D5), and a refusal that answers an attack carries an audit event to `onAudit` (FR-M3). Host
-hooks called after something already happened — logout delivery, an audit after a registration —
-are guarded the same way: a failure is reported, never answered (`src/hooks.ts`).
+(NFR-D5), and a refusal that answers an attack carries an audit event to `onAudit` (FR-M3).
+
+`ProviderConfig` is three types by contract: `ProviderSettings` (data), `ProviderHooks` (asked
+during a request; the answer, or a throw, is the outcome) and `ProviderEvents` (told after the
+fact). An event at an endpoint is guarded the same way as a failure: reported, never answered.
+Through the management API there is no request to report against, so every event still runs and
+the first failure reaches the caller (FR-M3, `src/hooks.ts`).
 
 **CORS is decided by the registration, not by configuration.** Discovery and the key set are
 readable from any origin. A preflight on the token, UserInfo, revocation or introspection endpoint

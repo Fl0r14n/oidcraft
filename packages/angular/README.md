@@ -2,6 +2,10 @@
 
 A fully OAuth 2.1 compliant Angular library. It continues `ngx-oauth`, whose last version was 8.
 
+```sh
+bun add @oidcraft/angular jose
+```
+
 ```ts
 import { provideOAuthConfig } from '@oidcraft/angular'
 
@@ -23,7 +27,7 @@ const { isAuthorized, login, logout } = inject(OAUTH)
 
 |                          |                                                                                                         |
 | ------------------------ | ------------------------------------------------------------------------------------------------------- |
-| `@oidcraft/angular`      | the `OAUTH` instance and its providers. `@angular/core` is the only peer.                               |
+| `@oidcraft/angular`      | the `OAUTH` instance and its providers. `@angular/core` and `jose` are the peers.                       |
 | `@oidcraft/angular/core` | the protocol and runtime alone, with no Angular in its graph — usable from a route handler or a worker. |
 
 `verify-entries.ts` asserts both claims after every build, plus that **no decorator reaches the

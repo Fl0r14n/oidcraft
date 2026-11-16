@@ -14,7 +14,7 @@ Microsoft or any other OpenID provider. One build runs on Bun, Node, Deno and Cl
 - [Local accounts](#local-accounts)
 - [Sign in with Google or Microsoft](#sign-in-with-google-or-microsoft)
 - [Storage](#storage)
-- [Node, Deno and Workers](#node-deno-and-workers)
+- [Node, Express, Fastify, Deno and Workers](#node-express-fastify-deno-and-workers)
 - [Several issuers in one process](#several-issuers-in-one-process)
 - [For MCP servers](#for-mcp-servers)
 - [Before production](#before-production)
@@ -282,10 +282,10 @@ for (const statement of SQLITE_MIGRATIONS.flatMap(migration => migration.stateme
 const storage = drizzleAdapter({ db: drizzle({ client: sqlite }), keys })
 ```
 
-Another backend needs only a `KvStore`: five methods, one of them an atomic insert. `fromKv`, from
+Another backend needs only a `KvStore`: six methods, two of them atomic. `fromKv`, from
 `@oidcraft/adapter`, builds a complete adapter from it.
 
-## Node, Deno and Workers
+## Node, Express, Fastify, Deno and Workers
 
 `provider.handle` is the same everywhere. What differs is how a runtime tells you the client's IP
 address and TLS client certificate, which no runtime puts on `Request`, so each has a small helper:
@@ -295,10 +295,14 @@ address and TLS client certificate, which no runtime puts on `Request`, so each 
 import { bunContext } from '@oidcraft/provider/runtimes/bun'
 Bun.serve({ fetch: (request, server) => provider.handle(request, bunContext(server)(request)) })
 
-// Node: node:http, Express, anything with (req, res)
+// Node: node:http, Express (mounted before any body parser), anything with (req, res)
 import { createServer } from 'node:http'
 import { toNodeHandler } from '@oidcraft/provider/runtimes/node'
 createServer(toNodeHandler(provider.handle, issuer)).listen(3001)
+
+// Fastify, Nest's Fastify adapter included: a plugin over the Node bridge, under the issuer's path
+import { toFastifyPlugin } from '@oidcraft/provider/runtimes/fastify'
+await app.register(toFastifyPlugin(provider.handle, issuer), { prefix: new URL(issuer).pathname })
 
 // Deno
 import { denoContext } from '@oidcraft/provider/runtimes/deno'
@@ -403,8 +407,10 @@ register dynamically are served by `features: { dynamicRegistration: true }`, an
   `accounts.authenticate` and `verifySecondFactor`. Cap request body sizes there too: oidcraft reads
   whatever body arrives, refusing only one that is not form-encoded.
 - **Logout delivery.** oidcraft never makes outbound requests itself. Back-channel logout hands you
-  the notifications through `onLogout`, and you send them. A hook that throws is reported to
-  `onError`; the logout it followed stands.
+  the notifications through `onLogout`, and you send them. `onSessionEnd` hears every session the
+  provider ends, at the end-session endpoint or through the management API, for your own record of a
+  sign-out. At an endpoint, a hook that throws is reported to `onError` and the logout it followed
+  stands; through `provider.management`, every hook still runs and the first error reaches you.
 - **Administration.** `provider.management` has functions, not routes, for clients, grants,
   sessions, keys and linked identities, with audit events through `onAudit`. Who may call them is
   your decision: oidcraft never decides who is an administrator.

@@ -1,5 +1,6 @@
 import { audit } from '../audit'
 import type { ResolvedConfig } from '../config'
+import { settled } from '../hooks'
 import { logoutTokens } from './logout'
 
 export const sessionManagement = (config: ResolvedConfig) => ({
@@ -13,8 +14,11 @@ export const sessionManagement = (config: ResolvedConfig) => ({
     if (!session) return []
     const notifications = await logoutTokens(config, session)
     await config.adapter.sessions.destroy(sessionId)
-    await audit(config, 'session.destroy', { sessionId, accountId: session.accountId })
-    if (notifications.length && config.onLogout) await config.onLogout(notifications)
+    await settled([
+      () => audit(config, 'session.destroy', { sessionId, accountId: session.accountId }),
+      () => notifications.length && config.onLogout?.(notifications),
+      () => config.onSessionEnd?.(session, 'management')
+    ])
     return notifications
   }
 })

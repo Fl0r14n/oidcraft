@@ -4,7 +4,7 @@ import { createServer } from 'node:http'
 import { memoryAdapter } from '@oidcraft/adapter/memory'
 import { certificateThumbprint } from '../../binding/mtls'
 import { createProvider } from '../../provider'
-import { nodeContext, subjectAltNames, toNodeHandler } from './index'
+import { nodeContext, subjectAltNames, toNodeHandler, toRequest } from './index'
 import { CA_SIGNED, SAN_CERTIFICATE, SELF_SIGNED } from './test-certificates'
 
 const adapter = await memoryAdapter()
@@ -118,5 +118,12 @@ describe('nodeContext', () => {
   test('no certificate presented is none', () => {
     const plain = { headers: {}, socket: { authorized: false, getPeerCertificate: () => ({}) } } as never
     expect(nodeContext()(plain).clientCertificate).toBeUndefined()
+  })
+})
+
+describe('toRequest', () => {
+  test("rebuilds the whole path from Express's originalUrl when a mount stripped it", () => {
+    const incoming = { url: '/token', originalUrl: '/oidc/token', method: 'GET', headers: {} } as unknown as Parameters<typeof toRequest>[0]
+    expect(toRequest(incoming, 'https://op.example.com/oidc').url).toBe('https://op.example.com/oidc/token')
   })
 })

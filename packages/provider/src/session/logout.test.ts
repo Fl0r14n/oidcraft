@@ -156,3 +156,85 @@ test('a confirmed logout returns to the registered post_logout_redirect_uri', as
   const done = await provider.handle(new Request(redirectTo, { headers: { cookie: `${SESSION_COOKIE}=${newer.secret}` } }))
   expect(done.headers.get('location')).toBe('https://rp.example.com/bye?state=s1')
 })
+
+// FR-C11: the host learns of every session the provider ends, to keep its own record of a sign-out.
+describe('onSessionEnd', () => {
+  const recorder = () => {
+    const ended: { accountId: string; sessionId: string; cause: string }[] = []
+    return {
+      ended,
+      onSessionEnd: (session: { accountId: string; id: string }, cause: string) =>
+        void ended.push({ accountId: session.accountId, sessionId: session.id, cause })
+    }
+  }
+
+  test('hears the session the end-session endpoint ended', async () => {
+    const { ended, onSessionEnd } = recorder()
+    const provider = build({ onSessionEnd })
+    const issued = await tokensFor(provider)
+    const [session] = await adapter.sessions.listForAccount('ada')
+
+    expect((await endSession(provider, issued.secret, issued.id_token)).status).toBeLessThan(400)
+    expect(ended).toEqual([{ accountId: 'ada', sessionId: session?.id as string, cause: 'logout' }])
+  })
+
+  test('hears nothing while the person is still being asked to confirm', async () => {
+    const { ended, onSessionEnd } = recorder()
+    const provider = build({ onSessionEnd })
+    const older = await tokensFor(provider)
+    const newer = await tokensFor(provider)
+    const params = new URLSearchParams({ id_token_hint: older.id_token })
+    await provider.handle(new Request(`${ISSUER}/session/end?${params}`, { headers: { cookie: `${SESSION_COOKIE}=${newer.secret}` } }))
+    expect(ended).toEqual([])
+  })
+
+  test('hears a session ended through the management API', async () => {
+    const { ended, onSessionEnd } = recorder()
+    const provider = build({ onSessionEnd })
+    await adapter.sessions.upsert({
+      id: 's2',
+      accountId: 'ada',
+      authTime: new Date(),
+      clients: [],
+      expiresAt: new Date(Date.now() + 60_000)
+    })
+    await provider.management.sessions.destroy('s2')
+    expect(ended).toEqual([{ accountId: 'ada', sessionId: 's2', cause: 'management' }])
+  })
+
+  test('through the management API a failing event skips none after it and reaches the caller (FR-M3)', async () => {
+    const { ended, onSessionEnd } = recorder()
+    const provider = build({
+      onSessionEnd,
+      onAudit: () => {
+        throw new Error('the audit log is down')
+      }
+    })
+    await adapter.sessions.upsert({
+      id: 's3',
+      accountId: 'ada',
+      authTime: new Date(),
+      clients: [],
+      expiresAt: new Date(Date.now() + 60_000)
+    })
+    expect(await provider.management.sessions.destroy('s3').catch(error => error)).toEqual(new Error('the audit log is down'))
+    expect(ended).toEqual([{ accountId: 'ada', sessionId: 's3', cause: 'management' }])
+    expect(await adapter.sessions.find('s3')).toBeUndefined()
+  })
+
+  test('a failing hook is reported and the logout stands (NFR-D5)', async () => {
+    const errors: unknown[] = []
+    const provider = build({
+      onSessionEnd: () => {
+        throw new Error('the audit log is down')
+      },
+      onError: error => {
+        errors.push(error)
+      }
+    })
+    const issued = await tokensFor(provider)
+    expect((await endSession(provider, issued.secret, issued.id_token)).status).toBeLessThan(400)
+    expect(await adapter.sessions.listForAccount('ada')).toEqual([])
+    expect(errors).toEqual([new Error('the audit log is down')])
+  })
+})

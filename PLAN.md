@@ -66,6 +66,13 @@ in the `claims` parameter (FR-C22) refuses a login that reports less, but nothin
 
 ## Open
 
+- **Fastify and `onSessionEnd`**, from the first host to run the provider behind Nest's Fastify adapter
+  (RegHedge): `@oidcraft/provider/runtimes/fastify`, a plugin over the Node bridge (FR-R3), and the
+  `onSessionEnd` hook (FR-C11). Tested under Bun against a real Fastify app; not yet released.
+  With it: `ProviderConfig` is `ProviderSettings & ProviderHooks & ProviderEvents`, management runs
+  every event before a failure reaches its caller (FR-M3), and Express is documented and tested on
+  the Node bridge, which reads `originalUrl`.
+
 - **Brave's own password manager** refused a passkey under `localhost`, through a phone by QR code, and
   was not retried under another name, as Proton Pass was (`.cert/README.md`). Google Password Manager
   and Proton Pass pass end to end.

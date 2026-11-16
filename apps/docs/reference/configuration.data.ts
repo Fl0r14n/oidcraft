@@ -9,6 +9,7 @@ import {
   isFunctionTypeNode,
   isIdentifier,
   isIfStatement,
+  isIntersectionTypeNode,
   isObjectLiteralExpression,
   isPropertyAccessExpression,
   isPropertyAssignment,
@@ -50,6 +51,7 @@ export type Default = { text: string; name: string | undefined; perField: string
 export type Check = { message: Value; line: number }
 export type Field = {
   name: string
+  group: string | undefined
   type: string
   required: boolean
   doc: string | undefined
@@ -58,7 +60,8 @@ export type Field = {
   checks: Check[]
 }
 export type Shape = { name: string; path: string; line: number; doc: string | undefined; fields: Field[] | undefined; text: string }
-export type Configuration = { path: string; line: number; options: Field[]; types: Shape[] }
+export type Group = { name: string; doc: string | undefined; line: number }
+export type Configuration = { path: string; line: number; groups: Group[]; options: Field[]; types: Shape[] }
 
 export declare const data: Configuration
 
@@ -67,10 +70,23 @@ const load = () =>
     const source = sources.file(CONFIG)
     const constants = topLevelConstants(source)
     const config = resolveAlias(sources, source, 'ProviderConfig')
+    const parts = config && isIntersectionTypeNode(config.type) ? [...config.type.types] : config ? [config.type] : []
+    const groups = parts.map(part => (isTypeReferenceNode(part) ? resolveAlias(sources, source, textOf(part.typeName)) : config))
     const resolve = constants.get('resolveConfig')
-    if (!config || !isTypeLiteralNode(config.type) || !resolve || !isArrowFunction(resolve) || resolve.body.kind !== SyntaxKind.Block) {
-      throw new Error(`${CONFIG} no longer declares ProviderConfig as a type literal and resolveConfig as an arrow function`)
+    if (
+      !config ||
+      !groups.every(group => group && isTypeLiteralNode(group.type)) ||
+      !resolve ||
+      !isArrowFunction(resolve) ||
+      resolve.body.kind !== SyntaxKind.Block
+    ) {
+      throw new Error(`${CONFIG} no longer declares ProviderConfig as type literals and resolveConfig as an arrow function`)
     }
+    const members = groups.flatMap(group =>
+      group && isTypeLiteralNode(group.type)
+        ? group.type.members.filter(isPropertySignatureDeclaration).map(member => ({ group: group === config ? undefined : group, member }))
+        : []
+    )
     const body = resolve.body as Block
 
     const locals = new Map<string, Node[]>()
@@ -146,8 +162,9 @@ const load = () =>
 
     const nameOf = (node: Node) => ('name' in node && node.name ? textOf(node.name as Node) : undefined)
 
-    const field = (member: PropertySignatureDeclaration, fallback: Default | undefined, option = false): Field => ({
+    const field = (member: PropertySignatureDeclaration, fallback: Default | undefined, option = false, group?: string): Field => ({
       name: textOf(member.name),
+      group,
       type: blockOf(member.type),
       required: !member.postfixToken,
       doc: docOf(member),
@@ -156,7 +173,7 @@ const load = () =>
       checks: (option && checks.get(textOf(member.name))) || []
     })
 
-    const options = config.type.members.filter(isPropertySignatureDeclaration).map(member => {
+    const options = members.map(({ group, member }) => {
       const name = textOf(member.name)
       const property = returned.properties.find(candidate => nameOf(candidate) === name)
       const expression =
@@ -165,11 +182,11 @@ const load = () =>
           : property && isShorthandPropertyAssignment(property)
             ? property.name
             : undefined
-      return field(member, defaultOf(expression as Expression | undefined, name, member.type), true)
+      return field(member, defaultOf(expression as Expression | undefined, name, member.type), true, group?.name.text)
     })
 
     const referenced = new Map<string, Shape>()
-    for (const member of config.type.members.filter(isPropertySignatureDeclaration)) {
+    for (const { member } of members) {
       for (const reference of [member.type, ...descendants(member.type)].filter(isTypeReferenceNode)) {
         const name = textOf(reference.typeName)
         if (referenced.has(name)) continue
@@ -198,7 +215,10 @@ const load = () =>
       }
     }
 
-    return { path: CONFIG, line: lineOf(config), options, types: [...referenced.values()] }
+    const named = groups.flatMap(group =>
+      group && group !== config ? [{ name: group.name.text, doc: docOf(group), line: lineOf(group) }] : []
+    )
+    return { path: CONFIG, line: lineOf(config), groups: named, options, types: [...referenced.values()] }
   })
 
 export default {

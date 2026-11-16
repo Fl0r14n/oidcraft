@@ -1,5 +1,5 @@
 ---
-outline: [2, 3]
+outline: [2, 4]
 ---
 
 <script setup>
@@ -10,12 +10,14 @@ const at = (path, line) => `${repo}${path}#L${line}`
 const required = data.options.filter(option => option.required)
 const checked = data.options.filter(option => option.checks.length)
 const multiline = text => text.includes('\n')
+const inGroup = name => data.options.filter(option => option.group === name)
 </script>
 
 # Configuration
 
 Every option `createProvider` accepts: the members of `ProviderConfig` in
-`packages/provider/src/config.ts`, read from that file by the TypeScript compiler each time these
+`packages/provider/src/config.ts`, grouped by the type that declares them — settings, the hooks
+asked during a request, and the events told after one — read from that file by the TypeScript compiler each time these
 pages are built, so this page cannot disagree with the code it describes.
 
 For each option you get its type as declared, whether the type requires it, the default
@@ -32,8 +34,11 @@ declares it.
 
 ## Options
 
-<div v-for="option in data.options" :key="option.name" class="config-option">
-  <h3 :id="option.name"><code>{{ option.name }}</code><span class="config-badge ignore-header" :class="{ required: option.required }">{{ option.required ? 'required' : 'optional' }}</span></h3>
+<template v-for="group in data.groups" :key="group.name">
+  <h3 :id="`group-${group.name.toLowerCase()}`"><code>{{ group.name }}</code></h3>
+  <p v-if="group.doc"><SourceText :text="group.doc" /></p>
+<div v-for="option in inGroup(group.name)" :key="option.name" class="config-option">
+  <h4 :id="option.name"><code>{{ option.name }}</code><span class="config-badge ignore-header" :class="{ required: option.required }">{{ option.required ? 'required' : 'optional' }}</span></h4>
   <p v-if="option.doc"><SourceText :text="option.doc" /></p>
   <p v-else class="config-missing">No doc comment in the source.</p>
   <dl>
@@ -55,6 +60,7 @@ declares it.
   </dl>
   <p class="config-source"><a :href="at(data.path, option.line)" target="_blank" rel="noreferrer">{{ data.path }}:{{ option.line }}</a></p>
 </div>
+</template>
 
 ## Types
 
@@ -77,7 +83,8 @@ declares it.
 </div>
 
 <style scoped>
-.config-option h3 {
+.config-option h3,
+.config-option h4 {
   display: flex;
   align-items: center;
   gap: 8px;

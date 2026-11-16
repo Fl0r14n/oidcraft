@@ -127,6 +127,13 @@ of an algorithm signs, the rest only verify, so a rotation never invalidates liv
 Management 1.0's `check_session_iframe` is **not** implemented — third-party cookie blocking has
 made it non-functional in current browsers.
 
+Every session the provider ends, at the end-session endpoint or through the management API, is reported
+to the host's `onSessionEnd` with how it ended, for the host's own record of a sign-out. It is gone
+by then: at the endpoint a hook that throws is reported and the logout stands (NFR-D5); through the
+management API every event still runs and the first failure reaches the caller, as an audit
+failure does (FR-M3). The accounts entry's password reset ends sessions through the adapter and
+does not call it.
+
 At the end-session endpoint a `client_id` sent with an `id_token_hint` must be the client the hint
 was issued to, or the request is refused (OIDC RP-Initiated Logout 1.0 §2). A hint naming a session
 or subject other than the browser's own proves nothing about this browser, so the person is asked to
@@ -474,7 +481,9 @@ the first with argon2 in `node:crypto`, which `./runtimes/node`'s password hashe
 
 Only **Node** needs an HTTP bridge, because `node:http` speaks `IncomingMessage`/`ServerResponse`
 rather than `Request`/`Response`. Bun, Deno and workerd hand the core a `Request` and take a
-`Response`, so it mounts into their servers directly.
+`Response`, so it mounts into their servers directly. **Fastify**, a framework on `node:http`, gets a
+plugin over the Node bridge: it parses bodies before its routes run, so the plugin's scope leaves the
+body unread for the bridge, and `fastify` is an optional peer of that entry alone.
 
 Every runtime still needs a small **context provider**, because what FR-R4 requires is carried by
 `Request` on none of them and each exposes it differently. One entry per runtime under

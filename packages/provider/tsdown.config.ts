@@ -53,5 +53,14 @@ export default defineConfig([
     deps: { neverBundle: external },
     dts: true,
     clean: false
+  },
+  {
+    // a framework on Node's HTTP, so it reuses the node entry by name rather than compiling a second bridge in
+    entry: { 'runtimes/fastify': 'src/runtimes/fastify/index.ts' },
+    outDir: 'dist',
+    format: 'esm',
+    deps: { neverBundle: [...external, '@oidcraft/provider/runtimes/node', 'fastify'] },
+    dts: true,
+    clean: false
   }
 ])

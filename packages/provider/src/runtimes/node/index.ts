@@ -94,8 +94,9 @@ export const nodeContext =
   }
 
 /** `node:http` speaks IncomingMessage/ServerResponse; this is the only runtime needing that translated (FR-R3). */
-export const toRequest = (incoming: IncomingMessage, issuer: string) => {
-  const url = new URL(incoming.url ?? '/', issuer)
+export const toRequest = (incoming: IncomingMessage & { originalUrl?: string }, issuer: string) => {
+  // Express strips its mount path from `url` and keeps the whole path in `originalUrl`.
+  const url = new URL(incoming.originalUrl ?? incoming.url ?? '/', issuer)
   const headers = new Headers()
   for (const [name, value] of Object.entries(incoming.headers)) {
     if (value === undefined) continue

@@ -109,7 +109,7 @@ export const DEFAULT_FEATURES: Features = {
   ciba: false
 }
 
-export type ProviderConfig = {
+export type ProviderSettings = {
   issuer: string
   adapter: Adapter
   /**
@@ -146,6 +146,20 @@ export type ProviderConfig = {
   /** Default subject type for clients that declare none. @default 'public' */
   subjectType?: 'public' | 'pairwise'
   /**
+   * The `authorization_details` types this deployment understands (FR-C15). Only the host knows
+   * what its types mean, so an undeclared one is refused rather than silently granted.
+   */
+  authorizationDetailTypes?: string[]
+  /**
+   * Secret that scopes pairwise subjects. Without it the mapping is a pure function of account and
+   * sector, which two colluding relying parties can recompute and correlate (FR-C18, OIDC Core §8.1).
+   */
+  pairwiseSalt?: string
+}
+
+/** Asked during a request: the answer, or a throw, is the outcome. Each one that fetches does so for a URL the core will not fetch (FR-A1). */
+export type ProviderHooks = {
+  /**
    * Decides who may act as whom in a token exchange. There is no default, because a library cannot
    * know which impersonation a deployment considers legitimate (FR-C2, RFC 8693).
    */
@@ -158,25 +172,10 @@ export type ProviderConfig = {
     bindingMessage: string | undefined
   }) => Promise<{ accountId: string } | undefined> | { accountId: string } | undefined
   /**
-   * The `authorization_details` types this deployment understands (FR-C15). Only the host knows
-   * what its types mean, so an undeclared one is refused rather than silently granted.
-   */
-  authorizationDetailTypes?: string[]
-  /**
-   * Secret that scopes pairwise subjects. Without it the mapping is a pure function of account and
-   * sector, which two colluding relying parties can recompute and correlate (FR-C18, OIDC Core §8.1).
-   */
-  pairwiseSalt?: string
-  /** Delivers back-channel logout tokens. The core mints them; it never POSTs them (FR-A1, FR-C11). */
-  onLogout?: (notifications: { clientId: string; uri: string; logoutToken: string }[]) => void | Promise<void>
-  /** Front-channel logout URLs for the host to load in iframes; the core renders no HTML (FR-C11). */
-  onFrontChannelLogout?: (targets: { clientId: string; uri: string }[]) => void | Promise<void>
-  /**
    * Fetches the key set behind a client's `jwks_uri`, for request objects and private_key_jwt.
    * The core will not fetch it: that is outbound I/O to a URL the client chose (FR-A1, FR-R4).
    */
   resolveClientJwks?: (client: Client) => Promise<{ keys: unknown[] }>
-
   /**
    * RP-initiated logout of a brokered session, continued at its upstream (FR-F8): given the session
    * just ended and where the browser would go next, the URL to send it to instead, or undefined to
@@ -206,6 +205,19 @@ export type ProviderConfig = {
     request: Request,
     context: { existing: Client | undefined }
   ) => RegistrationDecision | undefined | Promise<RegistrationDecision | undefined>
+}
+
+/**
+ * Told after the fact; the return value is ignored. At an endpoint a throw is reported to `onError` and the answer
+ * stands (NFR-D5); through the management API every event still runs and the first throw reaches the caller (FR-M3).
+ */
+export type ProviderEvents = {
+  /** Delivers back-channel logout tokens. The core mints them; it never POSTs them (FR-A1, FR-C11). */
+  onLogout?: (notifications: { clientId: string; uri: string; logoutToken: string }[]) => void | Promise<void>
+  /** Front-channel logout URLs for the host to load in iframes; the core renders no HTML (FR-C11). */
+  onFrontChannelLogout?: (targets: { clientId: string; uri: string }[]) => void | Promise<void>
+  /** A session this provider ended, at the end-session endpoint or through the management API, for the host's own record of a sign-out (FR-C11). */
+  onSessionEnd?: (session: Session, cause: 'logout' | 'management') => void | Promise<void>
   /** Every write through registration or the management API, every replay and every failed client authentication (FR-M3). */
   onAudit?: (event: AuditEvent) => void | Promise<void>
   /**
@@ -215,6 +227,8 @@ export type ProviderConfig = {
    */
   onError?: (error: unknown, context: { request: Request }) => void | Promise<void>
 }
+
+export type ProviderConfig = ProviderSettings & ProviderHooks & ProviderEvents
 
 export type ResourceDescriptor = {
   /** The resource indicator exactly as clients send it: an absolute URI without a fragment. */

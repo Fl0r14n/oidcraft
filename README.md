@@ -62,7 +62,7 @@ Open http://localhost:3000 and sign in as `ada`, `grace` or `admin`; the passwor
 ## The repository
 
 ```
-packages/provider   @oidcraft/provider: the provider, published with eight entry points
+packages/provider   @oidcraft/provider: the provider, published with nine entry points
 packages/adapter    @oidcraft/adapter: the storage contract, fromKv, the memory adapter, the conformance suite
 packages/drizzle    @oidcraft/drizzle, packages/kysely, packages/typeorm, packages/redis: one adapter each
 packages/vue        @oidcraft/vue, which continues vue-oidc

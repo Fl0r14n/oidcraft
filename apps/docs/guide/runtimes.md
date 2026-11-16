@@ -21,6 +21,7 @@ in production.
 | ------------------ | ------------------ | --------------- | ----------------------------------------------- | -------------------------------------- | -------------------- |
 | Bun                | `runtimes/bun`     | none            | `server.requestIP(request)`                     | never (G-8)                            | `bunPasswordHasher`  |
 | Node               | `runtimes/node`    | `toNodeHandler` | the socket, or `X-Forwarded-For` if you opt in  | thumbprint only, if the TLS layer verified it | `nodePasswordHasher` |
+| Fastify            | `runtimes/fastify` | `toFastifyPlugin`, on the Node bridge | as Node                     | as Node                                | as Node              |
 | Deno               | `runtimes/deno`    | none            | the handler's `info.remoteAddr`                 | not supplied                           | none shipped         |
 | Cloudflare Workers | `runtimes/workerd` | none            | the `CF-Connecting-IP` header                   | from `request.cf`, if the edge verified it | none shipped     |
 
@@ -79,6 +80,14 @@ ways. It works with `node:http`, `node:https`, Express, or anything with that si
 
 The issuer you pass is also the base the bridge rebuilds each request's URL from.
 
+**Express** takes the same handler. Mount it under the issuer's path and **before** any body
+parser: `express.json()` or `express.urlencoded()` ahead of it reads the body first, and the
+provider then sees an empty form. Mounted with no path, the provider answers every route it does
+not know with its own 404, so with an issuer at the root, mount it after your own routes and give
+those their parsers per route:
+
+<<< @/samples/runtimes.test.ts#express{ts}
+
 **Behind a reverse proxy**, `toNodeHandler(provider.handle, issuer, { trustProxy: true })` takes the
 client address from `X-Forwarded-For`, and only the right-most entry, the one your proxy appended;
 everything to its left is whatever the client wrote. Turn it on only when the proxy is the only
@@ -108,6 +117,22 @@ clientCertificateSans: true }`. What each use needs:
 
 A certificate forwarded by a TLS-terminating proxy in a header is not read by any entry; behind one,
 build the context yourself.
+
+## Fastify
+
+Fastify, Nest's Fastify adapter included, parses a request's body before the route runs and replies
+through its own object. `toFastifyPlugin` mounts the provider as an encapsulated plugin that leaves
+the body unread and hands the raw request and response to the Node bridge, so the client address,
+the certificate and `trustProxy` work as on Node. Your app's other routes keep their own parsers:
+
+<<< @/samples/runtimes.test.ts#fastify{ts}
+
+With an issuer that has a path, register the plugin under it:
+`app.register(toFastifyPlugin(provider.handle, issuer), { prefix: new URL(issuer).pathname })`.
+The reply is the bridge's, so hooks that set headers on Fastify's reply, such as `@fastify/cors`,
+do not reach it; the provider sets the CORS headers its own endpoints need. Fastify's `bodyLimit`
+does not apply inside the plugin either, because nothing there reads the body: cap it in front of
+the app, as on any runtime. `fastify` is an optional peer of this entry alone.
 
 ## Deno
 

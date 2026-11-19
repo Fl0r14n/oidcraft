@@ -56,13 +56,14 @@ const withoutPort = (url: URL) => {
   return copy.href
 }
 
-// NFR-S2: exact match, save the port of a loopback IP literal and never `localhost` (RFC 8252 §7.3, RFC 9700 §2.1).
-export const redirectMatches = (registered: string, presented: string) => {
+// NFR-S2: exact match, save the port of a loopback IP literal, and of `localhost` for a native client only.
+export const redirectMatches = (registered: string, presented: string, native = false) => {
   if (registered === presented) return true
   if (!URL.canParse(registered) || !URL.canParse(presented)) return false
   const a = new URL(registered)
   const b = new URL(presented)
-  if (a.protocol !== 'http:' || !LOOPBACK_IPS.includes(a.hostname)) return false
+  if (a.protocol !== 'http:') return false
+  if (!LOOPBACK_IPS.includes(a.hostname) && !(native && a.hostname === 'localhost')) return false
   return withoutPort(a) === withoutPort(b)
 }
 
@@ -77,7 +78,8 @@ export const parseAuthorizationRequest = async (config: ResolvedConfig, params: 
   const redirectUri = params.get('redirect_uri')
   if (!redirectUri) throw new OAuthError('invalid_request', { description: 'redirect_uri is required', spec: 'RFC 6749 §4.1.1' })
 
-  if (!client.redirectUris.some(registered => redirectMatches(registered, redirectUri))) {
+  const native = client.applicationType === 'native'
+  if (!client.redirectUris.some(registered => redirectMatches(registered, redirectUri, native))) {
     throw new OAuthError('invalid_request', {
       description: `redirect_uri ${redirectUri} is not registered for ${clientId}`,
       spec: 'RFC 6749 §3.1.2.3, RFC 9700 §4.1.3'

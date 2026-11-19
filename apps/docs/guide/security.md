@@ -110,9 +110,10 @@ If you write your own adapter, run that suite against it.
 
 NFR-S2: redirect URIs are compared by exact string match. No wildcards, no prefix matching. The one
 exception is the port of an `http` loopback IP literal (`127.0.0.1`, `[::1]`), which a native app
-picks per request (RFC 8252 §7.3). The hostname `localhost` gets no port exception. A client
-registered as `application_type: native` may use `http://localhost` redirect URIs, matched exactly,
-because MCP clients do. A `web` client, the default, may not.
+picks per request (RFC 8252 §7.3). A client registered as `application_type: native` may also use
+`http://localhost` redirect URIs, with the same port exception, because MCP clients register a
+portless `http://localhost/callback` and listen on a port picked per sign-in. A `web` client, the
+default, may not use `localhost` at all.
 
 An unknown `client_id` or an unregistered `redirect_uri` produces an error page, never a redirect.
 Redirecting there would turn the provider into an open redirector.

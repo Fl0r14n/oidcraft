@@ -153,7 +153,7 @@ describe('dynamic client registration', () => {
   })
 
   // MCP 2026-07-28: an MCP client says which it is, and a native one commonly listens on localhost.
-  test('a native client may redirect to http://localhost, matched exactly; a web client may not', async () => {
+  test('a native client may redirect to http://localhost on any port; a web client may not', async () => {
     const native = await register({ ...valid, application_type: 'native', redirect_uris: ['http://localhost:8080/cb'] })
     expect(native.status).toBe(201)
     const body = await native.json()
@@ -174,8 +174,8 @@ describe('dynamic client registration', () => {
         )
       )
     expect((await authorize('8080')).status).toBe(303)
-    // The port is free only for an IP literal (NFR-S2); localhost is matched as registered.
-    expect((await authorize('9999')).status).toBe(400)
+    // NFR-S2: a native app picks its port per request, on localhost as on a loopback IP literal.
+    expect((await authorize('9999')).status).toBe(303)
   })
 
   test('application_type defaults to web and must be web or native', async () => {

@@ -33,7 +33,7 @@ export const browserUri = (raw: unknown, name: string, { native = false, fail = 
   // A fragment can never be matched: the browser never sends it (RFC 6749 §3.1.2).
   if (url.hash) throw fail(`${name} ${raw} must not carry a fragment`)
   if (FORBIDDEN_SCHEMES.includes(url.protocol)) throw fail(`${name} ${raw} uses a scheme that can run script`)
-  // A native app listens on this machine, and many say localhost: matched exactly, never by port (NFR-S2).
+  // A native app listens on this machine, and many say localhost: its port is free, as on a loopback IP (NFR-S2).
   const local = isLoopbackIp(url) || (native && url.hostname === 'localhost')
   if (url.protocol === 'http:' && !local) {
     throw fail(`${name} ${raw} must be https outside a loopback IP${native ? ' or localhost' : ''}`)

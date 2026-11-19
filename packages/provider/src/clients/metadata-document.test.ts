@@ -121,6 +121,15 @@ describe('client ID metadata documents (FR-C20)', () => {
     expect(response.headers.get('location')).toBeNull()
   })
 
+  // Claude Code's document lists `http://localhost/callback` and it listens on a port it picks per sign-in.
+  test('a portless localhost redirect matches any port for a native document, and none for a web one', async () => {
+    served = document({ redirect_uris: ['http://localhost/callback', 'http://127.0.0.1/callback'] })
+    expect((await authorize(CLIENT_ID, 'http://localhost:54321/callback')).status).toBe(303)
+    expect((await authorize(CLIENT_ID, 'http://localhost:54321/other')).status).toBe(400)
+    served = document({ application_type: 'web', redirect_uris: ['https://app.example.com/callback', 'http://127.0.0.1/callback'] })
+    expect((await authorize(CLIENT_ID, 'http://localhost:54321/callback')).status).toBe(400)
+  })
+
   const refusedWith = async (over: Record<string, unknown>) => {
     served = document(over)
     const response = await authorize()

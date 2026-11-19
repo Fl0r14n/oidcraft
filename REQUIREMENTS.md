@@ -245,7 +245,7 @@ instead, named in the registration response.
 server is configured for it, because a revoked opaque token stops working immediately and a revoked
 JWT does not. A resource may set its own access-token lifetime. The host may add claims to a JWT
 access token, such as the grant id a resource server looks an authorization up by, and never replace
-one the provider sets: `iss`, `sub`, `aud`, `exp`, `iat`, `jti`, `scope`, `client_id`, `cnf` and `act`
+one the provider sets: `iss`, `sub`, `aud`, `exp`, `nbf`, `iat`, `jti`, `scope`, `client_id`, `cnf` and `act`
 are the provider's. A JWT presented back to this provider is accepted only once its signature verifies,
 and its `jti` is an identifier, never a credential: presenting the `jti` alone finds nothing
 (NFR-S11).

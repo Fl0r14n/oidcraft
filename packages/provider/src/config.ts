@@ -171,7 +171,7 @@ export type ProviderHooks = {
   exchangePolicy?: ExchangePolicy
   /**
    * Claims added to a JWT access token, such as an id the resource server looks the authorization up by. The
-   * registered claims (`iss`, `sub`, `aud`, `exp`, `iat`, `jti`, `scope`, `client_id`, `cnf`, `act`) always win (FR-T2).
+   * registered claims (`iss`, `sub`, `aud`, `exp`, `nbf`, `iat`, `jti`, `scope`, `client_id`, `cnf`, `act`) always win (FR-T2).
    */
   accessTokenClaims?: (token: AccessTokenContext) => Record<string, unknown> | undefined | Promise<Record<string, unknown> | undefined>
   /** Turns a CIBA hint into an account. No default: guessing which hint means which account would invent an authentication (FR-C17). */

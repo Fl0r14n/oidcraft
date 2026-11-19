@@ -559,3 +559,32 @@ describe('what an exchanged token inherits', () => {
     expect(stored?.payload.subject).not.toBe('ada')
   })
 })
+
+describe('token exchange into a configured resource (FR-T2, FR-C19)', () => {
+  const API = 'https://api.example.com'
+  const toApi: ExchangePolicy = ({ subjectToken }) => ({
+    accountId: subjectToken.accountId as string,
+    scopes: (subjectToken.payload.scopes as string[]) ?? [],
+    audience: API
+  })
+  const exchange = (provider: Provider, subjectToken: string) =>
+    post(
+      provider,
+      '/token',
+      { grant_type: 'urn:ietf:params:oauth:grant-type:token-exchange', subject_token: subjectToken, subject_token_type: ACCESS },
+      { authorization: basic() }
+    )
+
+  test("the resource's lifetime caps an exchanged token", async () => {
+    const provider = build({ exchangePolicy: toApi, resources: [{ uri: API, accessTokenTtl: 60 }] })
+    const body = await (await exchange(provider, (await tokensFor(provider)).access_token)).json()
+    expect(body.expires_in).toBeLessThanOrEqual(60)
+    expect(body.expires_in).toBeGreaterThan(50)
+  })
+
+  test('a policy cannot hand a client a resource kept to other clients', async () => {
+    const provider = build({ exchangePolicy: toApi, resources: [{ uri: API, clients: ['web'] }] })
+    const body = await (await exchange(provider, (await tokensFor(provider)).access_token)).json()
+    expect(body.error).toBe('invalid_target')
+  })
+})

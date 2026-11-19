@@ -396,8 +396,8 @@ resources: [
 ],
 accessTokenClaims: ({ grantId }) => ({ grant_id: grantId })
 ```
-A production
-`resolveClientMetadata` should also refuse addresses inside your network after DNS resolution, and
+
+A production `resolveClientMetadata` should also refuse addresses inside your network after DNS resolution, and
 cache documents as their HTTP headers allow. oidcraft validates whatever it returns, and the consent
 screen shows the client's host and where the person will be sent back. Older MCP clients that
 register dynamically are served by `features: { dynamicRegistration: true }`, and may register

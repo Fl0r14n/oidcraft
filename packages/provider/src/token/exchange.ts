@@ -137,7 +137,7 @@ export const exchangeGrant = async (config: ResolvedConfig, client: Client, form
     sessionId: subject.payload.sessionId,
     subject: await subjectFor(config, client, decision.accountId),
     // An exchanged token never outlives the one it was exchanged for.
-    expiresAt: new Date(Math.min(Date.now() + config.ttl.accessToken * 1000, subject.expiresAt.getTime())),
+    expiresAt: subject.expiresAt,
     actor: decision.actor && { client_id: decision.actor.clientId },
     resource: decision.resource,
     audience: decision.audience

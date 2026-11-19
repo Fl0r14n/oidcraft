@@ -37,6 +37,7 @@ export { type DpopProof, type VerifyOptions, verifyDpopProof } from './binding/d
 export { certificateThumbprint } from './binding/mtls'
 export type { ManagedClient } from './clients/management'
 export type {
+  AccessTokenContext,
   AuditEvent,
   Capabilities,
   Features,

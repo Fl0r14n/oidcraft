@@ -2,6 +2,7 @@ import type { Client } from '@oidcraft/adapter'
 import { randomString } from '@oidcraft/core'
 import { createLocalJWKSet, type JSONWebKeySet, jwtVerify } from 'jose'
 import type { ResolvedConfig } from '../config'
+import { OAuthError } from '../errors'
 import { jwksResponseBody } from '../keys/keys'
 import { signerFor } from '../keys/signer'
 import { readArtifact, type Stored, writeArtifact } from '../payloads'
@@ -23,7 +24,7 @@ export type AccessTokenRequest = {
   sessionId?: string | undefined
   /** FR-C18: what this client was told the user is called. */
   subject?: string | undefined
-  /** Defaults to the access token lifetime; an exchange caps it at its subject token's. */
+  /** A cap on the access token lifetime; an exchange caps it at its subject token's. */
   expiresAt?: Date | undefined
   authorizationDetails?: unknown[] | undefined
   /** RFC 8693 §4.1: who is acting, so a resource server can tell delegation from the real thing. */
@@ -38,8 +39,21 @@ export type AccessTokenRequest = {
 export const issueAccessToken = async (config: ResolvedConfig, request: AccessTokenRequest) => {
   const id = randomString()
   const resource = config.resources.find(candidate => candidate.uri === request.audience)
+  // FR-C19: every grant reaches here, a token exchange whose policy chose the target included.
+  const barred = config.resources.find(
+    candidate =>
+      (candidate.uri === request.audience || candidate.uri === request.resource) &&
+      candidate.clients &&
+      !candidate.clients.includes(request.client.clientId)
+  )
+  if (barred)
+    throw new OAuthError('invalid_target', {
+      description: `client ${request.client.clientId} may not request resource ${barred.uri}`,
+      spec: 'RFC 8707 §2'
+    })
   const jwt = request.client.accessTokenFormat === 'jwt' || resource?.accessTokenFormat === 'jwt'
-  const expiresAt = request.expiresAt ?? new Date(Date.now() + (resource?.accessTokenTtl ?? config.ttl.accessToken) * 1000)
+  const lifetime = new Date(Date.now() + (resource?.accessTokenTtl ?? config.ttl.accessToken) * 1000)
+  const expiresAt = request.expiresAt && request.expiresAt < lifetime ? request.expiresAt : lifetime
   // RFC 9449 §6: the confirmation claim is what makes the token useless without the key.
   const cnf = confirmationOf(request.binding)
   await writeArtifact(config.adapter.artifacts, {

@@ -34,6 +34,11 @@ const knownAccount = async (config: ResolvedConfig, accountId: string) => {
   }
 }
 
+const extraParametersOf = (config: ResolvedConfig, raw: string) => {
+  const params = new URLSearchParams(raw)
+  return Object.fromEntries(config.extraParameters.flatMap(name => (params.has(name) ? [[name, params.get(name) as string]] : [])))
+}
+
 export const interactions = (config: ResolvedConfig) => ({
   async find(id: string): Promise<InteractionRequest> {
     const { artifact, payload } = await load(config, id)
@@ -56,6 +61,7 @@ export const interactions = (config: ResolvedConfig) => ({
       upstream: payload.upstream,
       authorizationDetails: request.authorizationDetails,
       redirectUri: request.redirectUri,
+      extraParameters: extraParametersOf(config, request.raw),
       expiresAt: artifact.expiresAt
     }
   },
@@ -196,6 +202,7 @@ const logoutView = (id: string, clientId: string, expiresAt: Date): InteractionR
   upstream: undefined,
   authorizationDetails: undefined,
   redirectUri: undefined,
+  extraParameters: {},
   expiresAt
 })
 

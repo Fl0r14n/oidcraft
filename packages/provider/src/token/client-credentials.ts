@@ -29,7 +29,7 @@ export const clientCredentialsGrant = async (config: ResolvedConfig, client: Cli
 
   const scopes = requested.length ? requested : client.scopes.filter(scope => scope !== 'openid' && scope !== 'offline_access')
   // No user consented to anything, so any configured resource may be named (FR-C19).
-  const audience = audienceFor(requestedResources(config, form), [])
+  const audience = audienceFor(requestedResources(config, form, client.clientId), [])
   const access = await issueAccessToken(config, { client, scopes, binding, audience })
   return { access_token: access.token, token_type: access.tokenType, expires_in: access.expiresIn, scope: scopes.join(' ') }
 }

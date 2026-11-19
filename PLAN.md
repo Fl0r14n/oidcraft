@@ -66,6 +66,9 @@ in the `claims` parameter (FR-C22) refuses a login that reports less, but nothin
 
 ## Open
 
+- **Unreleased in the provider:** per-resource `accessTokenFormat`, `accessTokenTtl` and `clients`, the
+  `accessTokenClaims` hook, and `extraParameters` on the interaction view (FR-T2, FR-C19, FR-I1). k2 needs
+  all five before it can move off `oidc-provider`; they go out with the next provider release.
 - **Brave's own password manager** refused a passkey under `localhost`, through a phone by QR code, and
   was not retried under another name, as Proton Pass was (`.cert/README.md`). Google Password Manager
   and Proton Pass pass end to end.

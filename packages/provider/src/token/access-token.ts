@@ -37,8 +37,9 @@ export type AccessTokenRequest = {
 // The one place an access token is made (FR-T2); the stored record is the authority, which keeps a JWT revocable.
 export const issueAccessToken = async (config: ResolvedConfig, request: AccessTokenRequest) => {
   const id = randomString()
-  const jwt = request.client.accessTokenFormat === 'jwt'
-  const expiresAt = request.expiresAt ?? new Date(Date.now() + config.ttl.accessToken * 1000)
+  const resource = config.resources.find(candidate => candidate.uri === request.audience)
+  const jwt = request.client.accessTokenFormat === 'jwt' || resource?.accessTokenFormat === 'jwt'
+  const expiresAt = request.expiresAt ?? new Date(Date.now() + (resource?.accessTokenTtl ?? config.ttl.accessToken) * 1000)
   // RFC 9449 §6: the confirmation claim is what makes the token useless without the key.
   const cnf = confirmationOf(request.binding)
   await writeArtifact(config.adapter.artifacts, {
@@ -64,10 +65,21 @@ export const issueAccessToken = async (config: ResolvedConfig, request: AccessTo
     expiresAt
   })
 
+  const extra = jwt
+    ? await config.accessTokenClaims?.({
+        clientId: request.client.clientId,
+        accountId: request.accountId,
+        grantId: request.grantId,
+        familyId: request.familyId,
+        resource: request.audience,
+        scopes: request.scopes
+      })
+    : undefined
   const token = jwt
     ? await mintJwtAccessToken(config, {
         client: request.client,
         id,
+        extra,
         subject: request.subject,
         scopes: request.scopes,
         expiresAt,
@@ -94,15 +106,23 @@ export type AccessTokenInput = {
   audience?: string | undefined
   confirmation?: Record<string, string> | undefined
   actor?: { client_id: string } | undefined
+  extra?: Record<string, unknown> | undefined
 }
 
-// RFC 9068, opt-in per client: a JWT verified offline outlives its revocation. Stored either way, so introspection still sees it.
+const REGISTERED = new Set(['iss', 'sub', 'aud', 'exp', 'nbf', 'iat', 'jti', 'scope', 'client_id', 'cnf', 'act'])
+
+// FR-T2: a host claim never stands in for one the provider sets, nor asserts a binding (`cnf`) the token does not have.
+const hostClaims = (extra: Record<string, unknown> | undefined) =>
+  extra ? Object.fromEntries(Object.entries(extra).filter(([name]) => !REGISTERED.has(name))) : {}
+
+// RFC 9068, opt-in per client or resource: a JWT verified offline outlives its revocation. Stored either way, so introspection still sees it.
 export const mintJwtAccessToken = async (config: ResolvedConfig, input: AccessTokenInput) => {
   const signer = await signerFor(config, input.client)
   if (!signer) throw new Error('no signing key is available for a JWT access token')
 
   return signer.sign(
     {
+      ...hostClaims(input.extra),
       sub: input.subject ?? input.client.clientId,
       aud: input.audience ?? config.issuer,
       iat: Math.floor(Date.now() / 1000),

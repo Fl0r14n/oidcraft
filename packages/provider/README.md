@@ -385,7 +385,18 @@ const metadata = protectedResourceMetadata(provider.config, MCP)
 ```
 
 The MCP server then checks each token: introspect it as the `mcp-server` client, which only sees
-tokens issued for its own resource, or verify a JWT access token's `aud`. A production
+tokens issued for its own resource, or verify a JWT access token's `aud`. A resource can ask for JWT
+access tokens whatever the client's own format, with a lifetime of its own, and be kept to the clients
+it names; `accessTokenClaims` adds claims such as the grant id to them:
+
+```ts
+resources: [
+  { uri: MCP, accessTokenFormat: 'jwt', accessTokenTtl: 900 },
+  { uri: API, accessTokenFormat: 'jwt', accessTokenTtl: 1800, clients: ['web'] } // a self-registered client cannot ask for it
+],
+accessTokenClaims: ({ grantId }) => ({ grant_id: grantId })
+```
+A production
 `resolveClientMetadata` should also refuse addresses inside your network after DNS resolution, and
 cache documents as their HTTP headers allow. oidcraft validates whatever it returns, and the consent
 screen shows the client's host and where the person will be sent back. Older MCP clients that

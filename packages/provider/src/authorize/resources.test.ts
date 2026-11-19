@@ -275,3 +275,89 @@ describe('protected-resource metadata (RFC 9728)', () => {
     expect(protectedResourceMetadataUrl(API)).toBe('https://api.example.com/.well-known/oauth-protected-resource')
   })
 })
+
+describe('per-resource settings (FR-T2, FR-C19)', () => {
+  const withResources = (
+    resources: NonNullable<Parameters<typeof createProvider>[0]['resources']>,
+    accessTokenClaims?: Parameters<typeof createProvider>[0]['accessTokenClaims']
+  ) => {
+    provider = createProvider({
+      issuer: ISSUER,
+      adapter,
+      interactionUrl: `${ISSUER}/interaction`,
+      scopes: ['openid', 'profile', 'offline_access', 'tools'],
+      resources,
+      ...(accessTokenClaims && { accessTokenClaims })
+    })
+  }
+
+  test('a resource kept to some clients refuses any other at authorization, back to the client', async () => {
+    withResources([{ uri: MCP }, { uri: API, clients: ['jwt-rp'] }])
+    const refused = new URL((await authorize([API])).headers.get('location') as string)
+    expect(refused.searchParams.get('error')).toBe('invalid_target')
+    const allowed = await (await redeem(await codeFor([API], 'jwt-rp'), API, 'jwt-rp')).json()
+    expect(decodeJwt(allowed.access_token).aud).toBe(API)
+  })
+
+  test('a resource kept to some clients refuses any other at the token endpoint, when the authorization named none', async () => {
+    withResources([{ uri: MCP }, { uri: API, clients: ['jwt-rp'] }])
+    const code = await codeFor([])
+    const refused = await redeem(code, API)
+    expect((await refused.json()).error).toBe('invalid_target')
+    expect((await redeem(code, MCP)).status).toBe(200)
+  })
+
+  test('a resource set to jwt gets JWT access tokens for a client that asked for none, with its own lifetime', async () => {
+    withResources([{ uri: MCP, accessTokenFormat: 'jwt', accessTokenTtl: 600 }])
+    const tokens = await (await redeem(await codeFor([MCP]), MCP)).json()
+    const claims = decodeJwt(tokens.access_token)
+    expect(claims.aud).toBe(MCP)
+    expect(tokens.expires_in).toBeLessThanOrEqual(600)
+    expect(tokens.expires_in).toBeGreaterThan(590)
+    expect((claims.exp as number) - (claims.iat as number)).toBe(600)
+  })
+
+  test("the host's claims ride on a JWT access token, and never replace one the provider sets", async () => {
+    const told: unknown[] = []
+    withResources([{ uri: MCP, accessTokenFormat: 'jwt' }], async token => {
+      told.push(token)
+      return { grant_id: token.grantId, sub: 'mallory', aud: 'elsewhere', cnf: { jkt: 'forged' }, scope: 'admin' }
+    })
+    const tokens = await (await redeem(await codeFor([MCP]), MCP)).json()
+    const claims = decodeJwt(tokens.access_token)
+    expect(claims.grant_id).toBeTruthy()
+    expect(claims.sub).toBe('ada')
+    expect(claims.aud).toBe(MCP)
+    expect(claims.cnf).toBeUndefined()
+    expect(claims.scope).toBe('openid offline_access tools')
+    expect(told).toEqual([
+      expect.objectContaining({
+        clientId: 'rp',
+        accountId: 'ada',
+        grantId: claims.grant_id,
+        resource: MCP,
+        scopes: ['openid', 'offline_access', 'tools']
+      })
+    ])
+  })
+
+  test("an opaque access token never asks for the host's claims", async () => {
+    let asked = false
+    withResources([{ uri: MCP }], () => {
+      asked = true
+      return { grant_id: 'g' }
+    })
+    const tokens = await (await redeem(await codeFor([MCP]), MCP)).json()
+    expect(tokens.access_token.split('.')).toHaveLength(1)
+    expect(asked).toBe(false)
+  })
+
+  test('a resource lifetime that is not a positive whole number, or an empty client list, is refused at construction', () => {
+    expect(() =>
+      resolveConfig({ issuer: ISSUER, adapter, interactionUrl: `${ISSUER}/i`, resources: [{ uri: MCP, accessTokenTtl: 0 }] })
+    ).toThrow(ConfigurationError)
+    expect(() => resolveConfig({ issuer: ISSUER, adapter, interactionUrl: `${ISSUER}/i`, resources: [{ uri: MCP, clients: [] }] })).toThrow(
+      ConfigurationError
+    )
+  })
+})

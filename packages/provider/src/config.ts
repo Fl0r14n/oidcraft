@@ -143,6 +143,11 @@ export type ProviderSettings = {
    * token whose audience is that resource alone; one naming anything else is refused (FR-C19).
    */
   resources?: ResourceDescriptor[]
+  /**
+   * Authorization request parameters, beyond the standard ones, carried to the interaction app in
+   * `InteractionRequest.extraParameters` (FR-I1). Only these names are carried; anything else stays unread.
+   */
+  extraParameters?: string[]
   /** Default subject type for clients that declare none. @default 'public' */
   subjectType?: 'public' | 'pairwise'
   /**
@@ -164,6 +169,11 @@ export type ProviderHooks = {
    * know which impersonation a deployment considers legitimate (FR-C2, RFC 8693).
    */
   exchangePolicy?: ExchangePolicy
+  /**
+   * Claims added to a JWT access token, such as an id the resource server looks the authorization up by. The
+   * registered claims (`iss`, `sub`, `aud`, `exp`, `iat`, `jti`, `scope`, `client_id`, `cnf`, `act`) always win (FR-T2).
+   */
+  accessTokenClaims?: (token: AccessTokenContext) => Record<string, unknown> | undefined | Promise<Record<string, unknown> | undefined>
   /** Turns a CIBA hint into an account. No default: guessing which hint means which account would invent an authentication (FR-C17). */
   resolveCibaUser?: (input: {
     client: Client
@@ -237,6 +247,22 @@ export type ResourceDescriptor = {
   resourceServer?: string
   /** Advertised in its protected-resource metadata (RFC 9728). */
   scopes?: string[]
+  /** `jwt` makes every access token for it a JWT, whatever the client's own format (FR-T2). */
+  accessTokenFormat?: 'opaque' | 'jwt'
+  /** Its access tokens' lifetime, in place of `ttl.accessToken` (FR-T2). */
+  accessTokenTtl?: Seconds
+  /** The clients that may name it; unset, any client may. Another client's request for it fails with `invalid_target` (FR-C19). */
+  clients?: string[]
+}
+
+/** What `accessTokenClaims` is told about the token being minted. */
+export type AccessTokenContext = {
+  clientId: string
+  accountId: string | undefined
+  grantId: string | undefined
+  familyId: string | undefined
+  resource: string | undefined
+  scopes: string[]
 }
 
 export type AuditEvent = {
@@ -260,6 +286,7 @@ type Defaulted = {
   capabilities: Capabilities
   upstreams: UpstreamDescriptor[]
   resources: ResourceDescriptor[]
+  extraParameters: string[]
   subjectType: 'public' | 'pairwise'
   authorizationDetailTypes: string[]
 }
@@ -334,11 +361,16 @@ export const resolveConfig = (config: ProviderConfig): ResolvedConfig => {
   if (!clientAuthMethods.length) problems.push('clientAuthMethods must not be empty')
 
   const resources = config.resources ?? []
-  for (const { uri } of resources) {
+  for (const { uri, accessTokenTtl, clients } of resources) {
     const url = URL.canParse(uri) ? new URL(uri) : undefined
     if (!url || url.hash) problems.push(`resource ${uri} must be an absolute URI without a fragment (RFC 8707 §2)`)
     else if (url.protocol !== 'https:' && !isLoopback(url)) problems.push(`resource ${uri} must be https outside loopback (NFR-S1)`)
+    if (accessTokenTtl !== undefined && (!Number.isInteger(accessTokenTtl) || accessTokenTtl <= 0))
+      problems.push(`resource ${uri} accessTokenTtl must be a positive whole number of seconds, got ${accessTokenTtl}`)
+    if (clients && !clients.length) problems.push(`resource ${uri} clients must not be empty; leave it unset to allow every client`)
   }
+  const extraParameters = config.extraParameters ?? []
+  if (extraParameters.some(name => typeof name !== 'string' || !name)) problems.push('extraParameters must be non-empty parameter names')
   if (config.acrValues?.some(value => typeof value !== 'string' || !value || /\s/.test(value)))
     problems.push('acrValues must be non-empty strings without spaces, as acr_values carries them space-separated (OIDC Core §3.1.2.1)')
 
@@ -402,6 +434,7 @@ export const resolveConfig = (config: ProviderConfig): ResolvedConfig => {
     capabilities,
     upstreams: config.upstreams ?? [],
     resources,
+    extraParameters,
     subjectType: config.subjectType ?? 'public',
     authorizationDetailTypes: config.authorizationDetailTypes ?? []
   }

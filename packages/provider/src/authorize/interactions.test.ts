@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { SESSION_COOKIE } from '../session/session'
-import { authorizeUrl, browserOf, go, ISSUER, loginAndConsent, provider, REDIRECT, useFlow } from '../test-flow'
+import { authorizeUrl, browserOf, build, go, ISSUER, loginAndConsent, provider, REDIRECT, useFlow } from '../test-flow'
 
 useFlow()
 
@@ -223,5 +223,20 @@ describe('interaction', () => {
 
   test('an unknown interaction is a 404, not a crash', async () => {
     expect(provider.interactions.find('nope')).rejects.toThrow()
+  })
+})
+
+describe('extra parameters (FR-I1)', () => {
+  test("the host's named parameters reach the interaction, and nothing else the request carried", async () => {
+    const custom = build({ extraParameters: ['invite', 'campaign'] })
+    const response = await custom.handle(new Request(authorizeUrl({ invite: 'tok-1', unnamed: 'x' })))
+    const id = new URL(response.headers.get('location') as string).pathname.split('/').pop() as string
+    expect((await custom.interactions.find(id)).extraParameters).toEqual({ invite: 'tok-1' })
+  })
+
+  test('without extraParameters, none are carried', async () => {
+    const response = await go(authorizeUrl({ invite: 'tok-1' }))
+    const id = new URL(response.headers.get('location') as string).pathname.split('/').pop() as string
+    expect((await provider.interactions.find(id)).extraParameters).toEqual({})
   })
 })

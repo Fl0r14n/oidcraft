@@ -38,6 +38,8 @@ export type InteractionRequest = {
    * a document-registered client can claim any name it likes (MCP 2026-07-28).
    */
   redirectUri: string | undefined
+  /** The request's values for the host's `extraParameters`, the ones it carried (FR-I1). */
+  extraParameters: Record<string, string>
   expiresAt: Date
 }
 

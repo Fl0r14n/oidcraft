@@ -178,7 +178,10 @@ for — an MCP server, an API — each optionally tied to the resource-server cl
 it. A `resource` on the authorization, token or refresh request must be one of them, or the request
 fails with `invalid_target`; the access token's audience is then that resource alone, and only its
 resource server may introspect it. A token request may narrow to any configured resource when the
-authorization named none, and only to those it named when it did. Without `resource`, nothing changes.
+authorization named none, and only to those it named when it did. A resource may name the clients
+allowed to request it; any other client naming it fails with `invalid_target`, so an API kept to the
+host's own application is out of reach of a client that registered itself. Without `resource`,
+nothing changes.
 So a token issued for one MCP server is useless at another, as an MCP authorization server owes an
 MCP server (MCP 2026-07-28).
 
@@ -240,7 +243,10 @@ instead, named in the registration response.
 
 **FR-T2** — Access tokens are opaque by default and JWT (RFC 9068) when a client or resource
 server is configured for it, because a revoked opaque token stops working immediately and a revoked
-JWT does not. A JWT presented back to this provider is accepted only once its signature verifies,
+JWT does not. A resource may set its own access-token lifetime. The host may add claims to a JWT
+access token, such as the grant id a resource server looks an authorization up by, and never replace
+one the provider sets: `iss`, `sub`, `aud`, `exp`, `iat`, `jti`, `scope`, `client_id`, `cnf` and `act`
+are the provider's. A JWT presented back to this provider is accepted only once its signature verifies,
 and its `jti` is an identifier, never a credential: presenting the `jti` alone finds nothing
 (NFR-S11).
 
@@ -374,7 +380,8 @@ upstream produces a well-formed error response to the downstream client and a lo
 ## 7. Interaction — `FR-I*`
 
 **FR-I1** — When the authorization endpoint cannot decide alone, it produces an
-`InteractionRequest` and redirects to the interaction app. The core renders no HTML beyond the
+`InteractionRequest` and redirects to the interaction app. Authorization parameters beyond the
+standard ones reach it only by name, from the host's `extraParameters`; the rest stay unread. The core renders no HTML beyond the
 self-submitting `form_post` response (FR-C1).
 
 **FR-I2** — The interaction app answers with an `InteractionResult`; the core re-evaluates the

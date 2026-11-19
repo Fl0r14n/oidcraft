@@ -97,6 +97,7 @@ abandoned one; it expires, and the client never hears back.
 | `redirectUri` | Where the person goes afterwards. Show its host on a consent screen: a client registered by metadata document can call itself anything |
 | `authorizationDetails` | RFC 9396 details for the consent screen to render (FR-C15) |
 | `upstream`, `allowedUpstreams` | Home-realm discovery's answer and the client's allowed upstreams, for brokering (FR-F4, FR-F2) |
+| `extraParameters` | The request's values for the parameters named in `extraParameters`, such as an invitation token (FR-I1) |
 | `expiresAt` | When the interaction stops being answerable |
 
 An unknown, expired or already-answered id makes `find` and `complete` throw an `OAuthError` with

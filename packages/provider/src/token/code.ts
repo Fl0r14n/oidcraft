@@ -81,7 +81,7 @@ export const authorizationCodeGrant = async (config: ResolvedConfig, client: Cli
   }
 
   await verifyChallenge(form.get('code_verifier'), artifact.payload.codeChallenge)
-  const audience = audienceFor(requestedResources(config, form), artifact.payload.resources ?? [])
+  const audience = audienceFor(requestedResources(config, form, client.clientId), artifact.payload.resources ?? [])
   // The read above can be stale by now; only the atomic consume decides who redeemed it (NFR-S4).
   if (!(await config.adapter.artifacts.consume('authorization_code', code)))
     await revokeOnReplay(config, artifact, 'authorization code', client.clientId)
@@ -119,7 +119,7 @@ export const refreshTokenGrant = async (config: ResolvedConfig, client: Client, 
   const widened = requested?.filter(scope => !granted.includes(scope)) ?? []
   if (widened.length)
     throw new OAuthError('invalid_scope', { description: `a refresh cannot add scopes: ${widened.join(', ')}`, spec: 'RFC 6749 §6' })
-  const audience = audienceFor(requestedResources(config, form), artifact.payload.resources ?? [])
+  const audience = audienceFor(requestedResources(config, form, client.clientId), artifact.payload.resources ?? [])
 
   // A bound refresh token may only be presented by the key it was bound to (RFC 9449 §5).
   const bound = artifact.payload.cnf

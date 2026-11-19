@@ -164,7 +164,7 @@ export const validateAuthorizationRequest = (
     defaultAcrValues: params.has('acr_values') || claims?.acrNamed ? undefined : client.defaultAcrValues,
     uiLocales: params.get('ui_locales') ? list(params.get('ui_locales')) : undefined,
     authorizationDetails: parseAuthorizationDetails(config, params.get('authorization_details')),
-    resources: requestedResources(config, params),
+    resources: requestedResources(config, params, client.clientId),
     dpopJkt: config.features.dpop ? dpopJktOf(params.get('dpop_jkt')) : undefined,
     claims,
     raw: params.toString()

@@ -6,13 +6,13 @@ was done.
 
 ## Status
 
-**Implemented, as of 2026-11-16**, with 1471 passing tests (551 more skip without Postgres, MySQL,
+**Implemented, as of 2026-11-19**, with 1472 passing tests (551 more skip without Postgres, MySQL,
 MariaDB and Redis), `bun run verify` as the gate and `bun run smoke` clicking through the demo in CI:
 every functional requirement in `REQUIREMENTS.md`.
 `metadata.test.ts` exercises every advertised discovery value rather than reading it. Published as
 `@oidcraft/*` on 2026-11-14, each from a GitHub release with provenance — `core` 0.5.0, `client`
 0.4.0, `adapter` and the four storage adapters 0.3.0, `vue` 10.0.0, `react` 5.0.0, `angular` 12.0.0,
-and the provider 0.6.0 on 2026-11-16 — with the docs site at https://fl0r14n.github.io/oidcraft/. Each release's
+and the provider 0.6.1 on 2026-11-19 — with the docs site at https://fl0r14n.github.io/oidcraft/. Each release's
 notes, the renames to ARCHITECTURE.md §9.3 included, are on its GitHub release.
 
 **Provider 0.3.0 and earlier are not to be put in front of real identities**: they ship a session

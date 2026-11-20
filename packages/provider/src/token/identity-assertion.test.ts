@@ -214,6 +214,11 @@ describe('the assertion is checked, each failure invalid_grant (FR-C24)', () => 
     await refused(idJag({}, { key: secret, alg: 'HS256' }))
   })
 
+  test('a trusted key set that is not a JWK Set', async () => {
+    trusted[IDP] = { issuer: IDP, jwks: { keys: 'not keys' } as unknown as TrustedIssuer['jwks'], upstream: 'idp' }
+    await refused(idJag())
+  })
+
   test('an algorithm the trust does not allow', async () => {
     trusted[IDP] = { issuer: IDP, jwks: IDP_KEYS, upstream: 'idp', algorithms: ['ES256'] }
     await refused(idJag({}, { key: RS256.privateKey, alg: 'RS256' }))

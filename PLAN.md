@@ -12,7 +12,7 @@ every functional requirement in `REQUIREMENTS.md`.
 `metadata.test.ts` exercises every advertised discovery value rather than reading it. Published as
 `@oidcraft/*` on 2026-11-14, each from a GitHub release with provenance — `core` 0.5.0, `client`
 0.4.0, `adapter` and the four storage adapters 0.3.0, `vue` 10.0.0, `react` 5.0.0, `angular` 12.0.0,
-and the provider 0.7.1 on 2026-11-20 — with the docs site at https://fl0r14n.github.io/oidcraft/. Each release's
+and the provider 0.8.0 on 2026-11-20 — with the docs site at https://fl0r14n.github.io/oidcraft/. Each release's
 notes, the renames to ARCHITECTURE.md §9.3 included, are on its GitHub release.
 
 **Provider 0.3.0 and earlier are not to be put in front of real identities**: they ship a session
@@ -26,7 +26,7 @@ subjects, identity brokering with home-realm discovery chosen by the provider, f
 (memory, Drizzle, Kysely, TypeORM, Redis) passing one conformance suite, the SQL ones on SQLite,
 Postgres, MySQL and MariaDB, four runtime context providers and a Fastify plugin, local accounts with passwords, passkeys
 and TOTP, a management API and an admin UI, and identity assertion grants for MCP's enterprise-managed
-authorization (FR-C24, not yet released).
+authorization (FR-C24).
 
 ### What is NOT done, and will not be silently forgotten
 

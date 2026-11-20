@@ -458,8 +458,9 @@ The authorization code grant with mandatory PKCE · consent remembered per appli
 tokens that rotate, with a replayed one revoking its family · UserInfo · revocation and introspection ·
 RP-initiated, back-channel and front-channel logout · DPoP with nonces · PAR and JAR · the `claims`
 parameter · dynamic client
-registration · the device grant · CIBA · token exchange · rich authorization requests · step-up ·
-pairwise subjects · brokering with home-realm discovery · a management API.
+registration · the device grant · CIBA · token exchange · identity assertion grants for MCP's
+enterprise-managed authorization · rich authorization requests · step-up · pairwise subjects · brokering
+with home-realm discovery · a management API.
 
 ## Why
 

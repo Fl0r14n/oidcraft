@@ -37,7 +37,12 @@ Read the relevant one before anything else.
   `undefined`), `list`/`listBy*`, `upsert` and `destroy` (unconditional), `create` and `destroyIf`
   (atomic, resolve a boolean). _Provider_ is oidcraft; an external IdP is an _upstream_, though a
   field named for a token claim keeps the claim's name (`idp`). _Sign up_ makes an account,
-  _register_ adds a WebAuthn credential. A refusal is `{ ok: false, reason }`.
+  _register_ adds a WebAuthn credential, _client registration_ is FR-C9's. A _grant_ is the consent
+  record; a _grant type_ is never shortened to _grant_ in a name. Above storage the verbs are fixed
+  too: `assert*` throws, `check*` returns a refusal, `verify*` is a signature or proof, `resolve*`
+  turns a reference into what it names, `redeem*` is every grant type; `xOf` never refuses, `xFor`
+  may, `xFrom` refuses malformed untrusted input. `on*` is only ever an event, never a hook. A
+  refusal is `{ ok: false, reason }`.
 - Formatting is settled by `biome.json` and applied by `bun run format`. Do not argue with it.
 
 ## Hard rules

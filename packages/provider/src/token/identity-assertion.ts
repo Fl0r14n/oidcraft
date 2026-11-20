@@ -49,7 +49,7 @@ const optionalString = (payload: JWTPayload, claim: string) => {
 }
 
 // FR-C24: createLocalJWKSet throws synchronously, so inlined into jwtVerify's call it would escape the catch as a 500.
-const keysOf = (trusted: TrustedIssuer) => {
+const keysFrom = (trusted: TrustedIssuer) => {
   try {
     return createLocalJWKSet(trusted.jwks as JSONWebKeySet)
   } catch {
@@ -115,7 +115,7 @@ const verifyAssertion = async (config: ResolvedConfig, client: Client, assertion
 
   // FR-C24: never HMAC, whatever the trust lists; a symmetric key in a published key set is a key anyone can sign with.
   const algorithms = (trusted.algorithms ?? DEFAULT_ALGORITHMS).filter(algorithm => CLIENT_SIGNING_ALGS.includes(algorithm))
-  const { payload } = await jwtVerify(assertion, keysOf(trusted), {
+  const { payload } = await jwtVerify(assertion, keysFrom(trusted), {
     issuer: iss,
     audience: config.issuer,
     algorithms,

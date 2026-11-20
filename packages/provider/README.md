@@ -413,7 +413,7 @@ per workspace, and so is fetching their keys:
 ```ts
 assertionTrust: async ({ iss }) => {
   const workspace = await workspaces.findByIssuer(iss) // the issuer it registered, matched exactly
-  return workspace && { issuer: workspace.issuer, jwks: await keysOf(workspace.issuer), upstream: workspace.upstream }
+  return workspace && { issuer: workspace.issuer, jwks: await resolveKeys(workspace.issuer), upstream: workspace.upstream }
 }
 ```
 

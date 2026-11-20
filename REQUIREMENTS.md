@@ -57,7 +57,8 @@ in the sense of OIDC Core §15.2, which must support `id_token` and `id_token to
 
 **FR-C2 — Token endpoint.** `authorization_code`, `refresh_token`, `client_credentials`,
 `urn:ietf:params:oauth:grant-type:device_code`, `urn:ietf:params:oauth:grant-type:token-exchange`
-(RFC 8693). `password` is **not** implemented, for the same reason as implicit.
+(RFC 8693), and `urn:ietf:params:oauth:grant-type:jwt-bearer` (RFC 7523 §2.1) for identity assertion
+grants only (FR-C24). `password` is **not** implemented, for the same reason as implicit.
 
 **FR-C3 — PKCE (RFC 7636) is required on the code grant**, with exactly the one exemption OAuth 2.1
 §7.5.1.1 and RFC 9700 §2.1.1 allow. `plain` is rejected; only `S256`.
@@ -192,10 +193,12 @@ with its own network policy, size limit, caching and trust policy, and the core 
 a canonical `https` URL with a path and nothing else, refused before any fetch otherwise; a document
 whose `client_id` is that URL exactly; no shared secret, so `none` or `private_key_jwt` only; redirect
 URIs that are the client's registration, `http://localhost` among them unless it says it is `web`.
-Its grants are the code and refresh grants it lists, and it must list the code grant. Any other
+Its grants are the code and refresh grants it lists, and the JWT bearer grant when it lists it and
+the provider serves identity assertion grants (FR-C24); it must list the code grant. Any other
 grant it lists is dropped, not refused: one document serves every server the client talks to, and
-`grant_types` bounds what the client will use, not what a server must offer (RFC 7591 §2). Claude's
-document lists the JWT bearer grant for its enterprise sign-in (G-10). PKCE is always required. A stored client with the same id wins. The consent screen shows the
+`grant_types` bounds what the client will use, not what a server must offer (RFC 7591 §2). Its code grant always requires PKCE, `private_key_jwt`
+included: FR-C3's exemption is the host vouching for a client, and a document is the client vouching
+for itself. A stored client with the same id wins. The consent screen shows the
 client's host and the host the person returns to, and warns when that is this computer.
 
 **FR-C21 — FAPI 2.0 Security Profile**, opt-in per provider or per client, never a change of the
@@ -234,6 +237,46 @@ they request `acr` as a voluntary claim: a login that happens is shown them, and
 reads them, but they never ask for a login a session would not otherwise need, nor refuse
 `prompt=none`. Asking for a level is `acr_values` (FR-C16); requiring one is an essential `acr` in
 `claims` (FR-C22). When the configuration lists values, a client defaulting to any other is refused.
+
+**FR-C24 — Identity assertion grants** (draft-ietf-oauth-identity-assertion-authz-grant, read at
+-06), redeemed with the JWT bearer grant (RFC 7523 §2.1): MCP's Enterprise-Managed Authorization, in
+which a person signs in to a client through their organization's IdP, the client gets an assertion
+for this provider from that IdP, and redeems it here with no screen in between. Off unless the host
+supplies `assertionTrust`, and only then served and advertised: the bearer grant in
+`grant_types_supported`, and `authorization_grant_profiles_supported` naming the ID-JAG profile
+(§7.2), which never lists the trusted issuers (§9.7).
+
+- **Trust is the host's, per issuer.** Accepting any well-formed JWT would be sign-in as anyone.
+  `assertionTrust` maps the assertion's unverified `iss`, `tenant` and `aud_tenant` to at most one
+  trusted issuer — its identifier, its key set, the upstream its subjects are linked under (FR-F5),
+  and for a multi-tenant issuer the tenant — or refuses it. The identifier must equal `iss` exactly
+  before a key is used. Fetching an issuer's metadata and keys is the host's (FR-A1).
+- **Each check fails `invalid_grant`:** the signature, by a key from that set and never one the
+  header names or carries; an asymmetric algorithm, `RS256` or `ES256` unless the trust says
+  otherwise, never `none` or HMAC; `typ` `oauth-id-jag+jwt`; `aud` this issuer, a string or a
+  one-element array; the `client_id` claim the authenticated client (§4.4.1); `sub`, `jti`, `iat` and
+  `exp` present; `exp` not passed, `iat` and `nbf` not in the future, within 60 s of skew, and a
+  lifetime of at most 300 s; the trusted tenant's `tenant` claim, for a multi-tenant issuer (§6.1);
+  no `cnf`, which this provider does not yet bind an assertion to (§9.11). The `jti` is single-use
+  per issuer until `exp` plus the skew (NFR-S5), stricter than the draft's "can" (§4.4.4).
+- **The client authenticates** (§4.4). A public client is `invalid_client`, whatever the
+  assertion: a leaked assertion is otherwise redeemable by anyone within its lifetime.
+- **The account is `(upstream, sub)` and nothing else** — the same link brokering makes, so a person
+  who signed in through that IdP as an upstream is the same account here, as §5.2 requires the IdP's
+  `sub` to be (FR-F5). Never `email` or `aud_sub`, which only the issuing tenant's administrators
+  vouch for (§9.8, NFR-S8). A valid assertion for a subject no account is linked to is
+  `access_denied` (§4.4.3); provisioning is the host's, by linking ahead of time. It needs the
+  `identities` store, refused at construction without it (NFR-D2).
+- **An access token, nothing else.** No refresh token (§4.4.4: the IdP decides each time) and no ID
+  token. Its scopes are the request's `scope`, else the assertion's, else the client's defaults,
+  within the client's scopes and, when the assertion names some, within those, `offline_access`
+  never; the granted ones are in the response. Its resource is the request's `resource`, which must
+  be among the assertion's when it names any, else the assertion's one; each is a configured
+  resource (FR-C19), and an assertion naming one that is not is `invalid_grant`. No `Grant` is
+  recorded (FR-I4): the organization authorized it, not the person on a screen here, and a remembered
+  consent would let a later browser sign-in skip its own. So the token is revoked with its client
+  (FR-T7) or by itself (FR-C8), not with the account's grants, and lives at most the access-token
+  lifetime. `authorization_details` in the assertion is not granted.
 
 ## 4. Tokens — `FR-T*`
 
@@ -578,7 +621,7 @@ short lifetime instead (RFC 8628 §5.1).
 **NFR-S4** — Replay of a single-use artifact revokes the family it belongs to, never the `Grant`
 (FR-T3, FR-T4).
 
-**NFR-S5** — Client assertion `jti`s, DPoP proofs, upstream logout tokens, TOTP codes, recovery
+**NFR-S5** — Client assertion and identity assertion `jti`s, DPoP proofs, upstream logout tokens, TOTP codes, recovery
 codes and single-use redemptions are checked against `ReplayGuard` within their validity window.
 
 **NFR-S6** — The issuer identifier is configuration. It is never derived from the `Host` or
@@ -716,7 +759,7 @@ extension, stable and offered by Claude to Team and Enterprise organizations sin
 person signs in to the MCP client through their company's IdP, the client gets an Identity
 Assertion JWT Authorization Grant (draft-ietf-oauth-identity-assertion-authz-grant) for this
 provider from that IdP, and redeems it here with the JWT bearer grant (RFC 7523 §2.1,
-`urn:ietf:params:oauth:grant-type:jwt-bearer`), with no screen in between. It is the same client, so
-a metadata-document client then needs that grant too (FR-C20). Open: not built. Accepting any
-well-formed JWT would be sign-in as anyone, so the host binds each tenant to one trusted issuer, and
-the core fetches no issuer's keys itself (FR-A1). `PLAN.md` holds what resuming it takes.
+`urn:ietf:params:oauth:grant-type:jwt-bearer`), with no screen in between. Answered by FR-C24.
+Where the sources disagree it follows the IETF draft: the client must authenticate, which Claude's
+`private_key_jwt` metadata-document client does, and the account is `(iss, sub)` through a link,
+never the email Claude's own beta assertions would need.

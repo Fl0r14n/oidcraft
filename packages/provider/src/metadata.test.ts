@@ -12,12 +12,11 @@ const CHALLENGE = 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM'
 const adapter = await memoryAdapter()
 
 /** A client registered for everything the metadata claims, so the claims can be tried. */
-const advertisedClient = async (provider: ReturnType<typeof createProvider>) => {
+const advertisedClient = async (provider: ReturnType<typeof createProvider>, clientId = 'advertised') => {
   const metadata = (await (await provider.handle(new Request(`${ISSUER}/.well-known/openid-configuration`))).json()) as Record<
     string,
     string[]
   >
-  const clientId = 'advertised'
   if (!(await adapter.clients.find(clientId))) {
     await adapter.clients.upsert?.({
       clientId,
@@ -170,10 +169,23 @@ describe('discovery metadata', () => {
     }
   })
 
-  test('every advertised grant type reaches its handler', async () => {
-    const provider = providerWith()
-    const client = await advertisedClient(provider)
+  // Every optional grant type on too, or only the three a default provider offers are ever tried (FR-C6).
+  const everyGrantType = () =>
+    providerWith({
+      features: { deviceFlow: true, ciba: true },
+      resolveCibaUser: () => undefined,
+      exchangePolicy: () => undefined,
+      assertionTrust: () => undefined
+    })
+
+  test.each([
+    ['a default provider', providerWith, 'advertised'],
+    ['every grant type on', everyGrantType, 'advertised-all']
+  ])('every advertised grant type reaches its handler: %s', async (_name, build, clientId) => {
+    const provider = build()
+    const client = await advertisedClient(provider, clientId)
     const metadata = await metadataOf(provider)
+    if (clientId === 'advertised-all') expect((metadata.grant_types_supported as string[]).length).toBe(7)
 
     for (const grantType of metadata.grant_types_supported as string[]) {
       const response = await provider.handle(

@@ -420,3 +420,61 @@ describe('resources (FR-C24, FR-C19)', () => {
     expect(await errorOf(await redeem(idJag({ resource: MCP })))).toBe('invalid_target')
   })
 })
+
+describe('a malformed scope claim (FR-C24)', () => {
+  // Read as absent, it would lift the IdP's limit to everything the client is registered for.
+  test('a scope that is not a string is invalid_grant, with or without a requested scope', async () => {
+    expect(await errorOf(await redeem(idJag({ scope: ['tools'] })))).toBe('invalid_grant')
+    expect(await errorOf(await redeem(idJag({ scope: ['tools'] }), { scope: 'profile' }))).toBe('invalid_grant')
+  })
+})
+
+describe('a refused request does not spend its assertion (FR-C24, NFR-S5)', () => {
+  let events: { action: string }[]
+
+  beforeEach(() => {
+    events = []
+    configure({ onAudit: event => void events.push(event) })
+  })
+
+  test('after invalid_scope, the same assertion with a corrected scope', async () => {
+    const assertion = await idJag()
+    expect(await errorOf(await redeem(assertion, { scope: 'profile' }))).toBe('invalid_scope')
+    expect((await redeem(assertion, { scope: 'tools' })).status).toBe(200)
+    expect(events.map(event => event.action)).not.toContain('token.replay')
+  })
+
+  test('after access_denied, the same assertion once the subject is linked', async () => {
+    const assertion = await idJag({ sub: 'idp-newcomer' })
+    expect(await errorOf(await redeem(assertion))).toBe('access_denied')
+    await link('idp-newcomer', 'ada')
+    expect((await redeem(assertion)).status).toBe(200)
+  })
+
+  test("after invalid_target for the assertion's own resource, the same assertion once the client may have it", async () => {
+    configure({ resources: [{ uri: MCP, resourceServer: 'mcp-server', clients: ['other'] }] })
+    const assertion = await idJag({ resource: MCP })
+    expect(await errorOf(await redeem(assertion))).toBe('invalid_target')
+    configure({ resources: [{ uri: MCP, resourceServer: 'mcp-server' }] })
+    expect((await redeem(assertion)).status).toBe(200)
+  })
+})
+
+describe('registration (FR-C24, FR-C9)', () => {
+  const register = (metadata: Record<string, unknown>) =>
+    provider.handle(
+      new Request(`${ISSUER}/register`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ redirect_uris: ['https://app.example.com/cb'], ...metadata })
+      })
+    )
+
+  test('a public client may not register for the bearer grant type it could never redeem', async () => {
+    configure({ features: { dynamicRegistration: true } })
+    const refused = await register({ grant_types: ['authorization_code', JWT_BEARER_GRANT_TYPE], token_endpoint_auth_method: 'none' })
+    expect(await errorOf(refused)).toBe('invalid_client_metadata')
+    const confidential = await register({ grant_types: ['authorization_code', JWT_BEARER_GRANT_TYPE] })
+    expect(confidential.status).toBe(201)
+  })
+})

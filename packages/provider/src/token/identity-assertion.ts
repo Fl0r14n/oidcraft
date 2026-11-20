@@ -56,7 +56,7 @@ const unverifiedClaims = (assertion: string) => {
   }
 }
 
-const resourcesOf = (config: ResolvedConfig, payload: JWTPayload) => {
+const resourcesFrom = (config: ResolvedConfig, payload: JWTPayload) => {
   const claimed = payload.resource
   const resources = claimed === undefined ? [] : typeof claimed === 'string' ? [claimed] : claimed
   if (!Array.isArray(resources) || resources.some(resource => typeof resource !== 'string')) {
@@ -68,7 +68,9 @@ const resourcesOf = (config: ResolvedConfig, payload: JWTPayload) => {
 }
 
 const scopesFor = (client: Client, payload: JWTPayload, form: URLSearchParams) => {
-  const asserted = typeof payload.scope === 'string' ? payload.scope.split(' ').filter(Boolean) : undefined
+  // FR-C24: a scope claim read as absent would lift the IdP's limit, so one of the wrong shape is refused.
+  if (payload.scope !== undefined && typeof payload.scope !== 'string') throw refuse('scope must be a space-separated string')
+  const asserted = payload.scope?.split(' ').filter(Boolean)
   const requested = (form.get('scope') ?? '').split(' ').filter(Boolean)
   if (!requested.length) {
     return (asserted ?? client.scopes).filter(scope => client.scopes.includes(scope) && scope !== 'offline_access')
@@ -85,7 +87,6 @@ const scopesFor = (client: Client, payload: JWTPayload, form: URLSearchParams) =
   return requested
 }
 
-// FR-C24: each check is the draft's §4.4.1 or Claude's, and fails invalid_grant before anything is issued.
 const verifyAssertion = async (config: ResolvedConfig, client: Client, assertion: string) => {
   const trust = config.assertionTrust
   if (!trust) throw new OAuthError('unsupported_grant_type', { description: 'identity assertions need an assertionTrust', spec: SPEC })
@@ -126,16 +127,20 @@ const verifyAssertion = async (config: ResolvedConfig, client: Client, assertion
   const exp = payload.exp as number
   if (iat > now + SKEW) throw refuse('the assertion was issued in the future')
   if (exp - iat > MAX_LIFETIME) throw refuse(`an assertion may not live longer than ${MAX_LIFETIME} seconds`)
+  return { payload, upstream: trusted.upstream }
+}
 
-  // NFR-S5: per issuer, remembered while it would still verify.
-  if (!(await config.adapter.replay.claim('identity-assertion', `${iss} ${payload.jti}`, Math.max(exp - now, 0) + SKEW))) {
+// NFR-S5: per issuer, remembered while it would still verify; spent last, so a refused request can be retried.
+const spend = async (config: ResolvedConfig, client: Client, payload: JWTPayload) => {
+  const issuer = payload.iss as string
+  const ttl = Math.max((payload.exp as number) - Math.floor(Date.now() / 1000), 0) + SKEW
+  if (!(await config.adapter.replay.claim('identity-assertion', `${issuer} ${payload.jti}`, ttl))) {
     throw new OAuthError('invalid_grant', {
       description: 'this assertion was already used',
       spec: `${SPEC}.4`,
-      event: { action: 'token.replay', clientId: client.clientId, detail: { kind: 'identity_assertion', issuer: iss } }
+      event: { action: 'token.replay', clientId: client.clientId, detail: { kind: 'identity_assertion', issuer } }
     })
   }
-  return { payload, upstream: trusted.upstream }
 }
 
 // FR-C24: (upstream, sub) and nothing else; email and aud_sub are only the issuing tenant's word (§9.8, NFR-S8).
@@ -155,10 +160,13 @@ export const redeemIdentityAssertion = async (config: ResolvedConfig, client: Cl
   if (!assertion) throw new OAuthError('invalid_request', { description: 'assertion is required', spec: 'RFC 7523 §2.1' })
 
   const { payload, upstream } = await verifyAssertion(config, client, assertion)
-  const asserted = resourcesOf(config, payload)
+  const asserted = resourcesFrom(config, payload)
   const accountId = await accountFor(config, upstream, payload.sub as string)
   const scopes = scopesFor(client, payload, form)
   const audience = audienceFor(requestedResources(config, form, client.clientId), asserted)
+  // Asked here as well as at issuance, which comes after the spend (FR-C19).
+  if (audience !== undefined) requestedResources(config, new URLSearchParams({ resource: audience }), client.clientId)
+  await spend(config, client, payload)
 
   const access = await issueAccessToken(config, {
     client,

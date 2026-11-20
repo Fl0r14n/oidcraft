@@ -9,6 +9,7 @@ import { OAuthError } from '../errors'
 import { guarded } from '../hooks'
 import { signingAlgorithms } from '../keys/keys'
 import { defaultSigningAlg, underFapi } from '../profile/fapi'
+import { JWT_BEARER_GRANT_TYPE } from '../token/identity-assertion'
 import { deleteClient } from './delete'
 import { secretKind, storableSecret } from './secret'
 import { clientProblems } from './validate'
@@ -140,6 +141,9 @@ const grantTypesFrom = (config: ResolvedConfig, body: Record<string, unknown>, m
   if (unknown.length) throw invalid(`grant_types ${unknown.join(', ')} not offered by this provider`)
   if (method === 'none' && grantTypes.includes('client_credentials')) {
     throw invalid('a public client cannot use client_credentials (RFC 6749 §4.4)')
+  }
+  if (method === 'none' && grantTypes.includes(JWT_BEARER_GRANT_TYPE)) {
+    throw invalid('a public client cannot redeem an identity assertion (FR-C24)')
   }
 
   const code = grantTypes.includes('authorization_code')

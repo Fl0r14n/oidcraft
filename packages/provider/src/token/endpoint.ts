@@ -13,6 +13,7 @@ import { underFapi } from '../profile/fapi'
 import { redeemClientCredentials } from './client-credentials'
 import { redeemAuthorizationCode, redeemRefreshToken } from './code'
 import { redeemSubjectToken, TOKEN_EXCHANGE_GRANT_TYPE } from './exchange'
+import { JWT_BEARER_GRANT_TYPE, redeemIdentityAssertion } from './identity-assertion'
 
 const NO_STORE = { 'cache-control': 'no-store', pragma: 'no-cache' }
 
@@ -77,6 +78,8 @@ export const tokenEndpoint = async (
         return redeemSubjectToken(config, client, form, binding)
       case CIBA_GRANT_TYPE:
         return redeemCibaRequest(config, client, form, binding)
+      case JWT_BEARER_GRANT_TYPE:
+        return redeemIdentityAssertion(config, client, form, binding)
       default:
         throw new OAuthError('unsupported_grant_type', { description: `${grantType} is not supported`, spec: 'RFC 6749 §5.2' })
     }

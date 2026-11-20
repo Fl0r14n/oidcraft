@@ -2,6 +2,7 @@ import type { Adapter, Client, ClientAuthMethod, Seconds, Session } from '@oidcr
 import { ConfigurationError } from '@oidcraft/adapter'
 import { fapiProviderProblems } from './profile/fapi'
 import type { ExchangePolicy } from './token/exchange'
+import type { AssertionTrust } from './token/identity-assertion'
 import type { UpstreamDescriptor } from './upstreams/selection'
 
 export type Routes = {
@@ -169,6 +170,12 @@ export type ProviderHooks = {
    * know which impersonation a deployment considers legitimate (FR-C2, RFC 8693).
    */
   exchangePolicy?: ExchangePolicy
+  /**
+   * The issuers whose identity assertions this provider redeems (FR-C24): from an assertion's unverified `iss`,
+   * `tenant` and `aud_tenant`, at most one trusted issuer, its keys and the upstream its subjects are linked under.
+   * Without it the JWT bearer grant type is neither supported nor advertised.
+   */
+  assertionTrust?: AssertionTrust
   /**
    * Claims added to a JWT access token, such as an id the resource server looks the authorization up by. The
    * registered claims (`iss`, `sub`, `aud`, `exp`, `nbf`, `iat`, `jti`, `scope`, `client_id`, `cnf`, `act`) always win (FR-T2).
@@ -401,6 +408,9 @@ export const resolveConfig = (config: ProviderConfig): ResolvedConfig => {
   }
   if (features.ciba && !config.resolveCibaUser) {
     problems.push('features.ciba needs a resolveCibaUser; the provider will not guess which hint means which account (FR-C17)')
+  }
+  if (config.assertionTrust && !config.adapter?.identities) {
+    problems.push("assertionTrust needs an adapter with an identities store: an assertion's subject is found through its link (FR-C24)")
   }
   if (config.upstreams?.length && (!config.adapter?.identities || !config.adapter.sessions.listByUpstreamSession)) {
     problems.push(

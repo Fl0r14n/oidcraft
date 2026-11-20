@@ -403,6 +403,29 @@ screen shows the client's host and where the person will be sent back. Older MCP
 register dynamically are served by `features: { dynamicRegistration: true }`, and may register
 `http://localhost` callbacks when they say they are `native`.
 
+### Enterprise-managed authorization
+
+An organization's IdP can sign a person in to an MCP client and hand the client an identity assertion
+for this provider, which it redeems here with no screen in between: MCP's Enterprise-Managed
+Authorization, draft-ietf-oauth-identity-assertion-authz-grant. Which issuers to trust is yours, one
+per workspace, and so is fetching their keys:
+
+```ts
+assertionTrust: async ({ iss }) => {
+  const workspace = await workspaces.findByIssuer(iss) // the issuer it registered, matched exactly
+  return workspace && { issuer: workspace.issuer, jwks: await keysOf(workspace.issuer), upstream: workspace.upstream }
+}
+```
+
+The person is the account linked to the assertion's `sub` under `upstream`, the same link signing in
+through that IdP as an upstream makes, and never the account an email matches (FR-C24). An assertion
+for a subject with no link is refused, so link accounts ahead of time. The client must authenticate:
+Claude redeems through its `https://claude.ai/oauth/mcp-oauth-client-metadata/confidential_client`
+document with `private_key_jwt`, so keep that method offered and supply `resolveClientJwks`, and it
+offers the sign-in only when the token endpoint is on the issuer's registrable domain. Assertions
+Claude signs itself, in beta, carry an opaque `sub` and are not accepted. Each redemption is an
+access token and nothing more: no refresh token, no ID token, no consent remembered for later.
+
 ## Before production
 
 - **Keys.** The memory adapter generates signing keys when you pass none, and every restart signs

@@ -62,4 +62,5 @@ export { authenticationOf, meetsRequirement, type StepUpRequirement, type StepUp
 export type { FrontChannelLogout, LogoutNotification } from './session/logout'
 export { resolveAccessToken } from './token/access-token'
 export type { ExchangeDecision, ExchangePolicy } from './token/exchange'
+export type { AssertionTrust, TrustedIssuer } from './token/identity-assertion'
 export { ACR_PREFIX, type SelectionHints, selectUpstream, type UpstreamDescriptor } from './upstreams/selection'

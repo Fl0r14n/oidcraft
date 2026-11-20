@@ -6,16 +6,18 @@ import { CLIENT_SECRET_ALGS, CLIENT_SIGNING_ALGS } from './keys/algorithms'
 import { signingAlgorithms } from './keys/keys'
 import { FAPI_ALGS, FAPI_AUTH_METHODS } from './profile/fapi'
 import { TOKEN_EXCHANGE_GRANT_TYPE } from './token/exchange'
+import { ID_JAG_PROFILE, JWT_BEARER_GRANT_TYPE } from './token/identity-assertion'
 import { supportedAcrValues } from './upstreams/selection'
 
 // Advertises only what this configuration can do (FR-C6), dropping methods the runtime cannot supply (FR-R5).
-export const supportedGrantTypes = ({ features, exchangePolicy }: ResolvedConfig) => [
+export const supportedGrantTypes = ({ features, exchangePolicy, assertionTrust }: ResolvedConfig) => [
   'authorization_code',
   'refresh_token',
   'client_credentials',
   ...(features.deviceFlow ? [DEVICE_CODE_GRANT_TYPE] : []),
   ...(exchangePolicy ? [TOKEN_EXCHANGE_GRANT_TYPE] : []),
-  ...(features.ciba ? [CIBA_GRANT_TYPE] : [])
+  ...(features.ciba ? [CIBA_GRANT_TYPE] : []),
+  ...(assertionTrust ? [JWT_BEARER_GRANT_TYPE] : [])
 ]
 
 export const metadata = (config: ResolvedConfig, signing: string[]) => {
@@ -56,6 +58,8 @@ export const metadata = (config: ResolvedConfig, signing: string[]) => {
     response_types_supported: ['code'],
     response_modes_supported: ['query', 'fragment', 'form_post'],
     grant_types_supported: supportedGrantTypes(config),
+    // FR-C24, draft-ietf-oauth-identity-assertion-authz-grant §7.2; never the trusted issuers (§9.7).
+    ...(config.assertionTrust && { authorization_grant_profiles_supported: [ID_JAG_PROFILE] }),
     subject_types_supported: config.pairwiseSalt ? ['public', 'pairwise'] : ['public'],
     id_token_signing_alg_values_supported: algorithms,
     token_endpoint_auth_methods_supported: authMethods,

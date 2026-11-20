@@ -6,7 +6,7 @@ was done.
 
 ## Status
 
-**Implemented, as of 2026-11-19**, with 1482 passing tests (551 more skip without Postgres, MySQL,
+**Implemented, as of 2026-11-20**, with 1542 passing tests (551 more skip without Postgres, MySQL,
 MariaDB and Redis), `bun run verify` as the gate and `bun run smoke` clicking through the demo in CI:
 every functional requirement in `REQUIREMENTS.md`.
 `metadata.test.ts` exercises every advertised discovery value rather than reading it. Published as
@@ -25,7 +25,8 @@ DPoP with nonces, PAR, JAR by value, the `claims` parameter, dynamic client regi
 subjects, identity brokering with home-realm discovery chosen by the provider, five storage adapters
 (memory, Drizzle, Kysely, TypeORM, Redis) passing one conformance suite, the SQL ones on SQLite,
 Postgres, MySQL and MariaDB, four runtime context providers and a Fastify plugin, local accounts with passwords, passkeys
-and TOTP, a management API and an admin UI.
+and TOTP, a management API and an admin UI, and identity assertion grants for MCP's enterprise-managed
+authorization (FR-C24, not yet released).
 
 ### What is NOT done, and will not be silently forgotten
 
@@ -70,22 +71,14 @@ in the `claims` parameter (FR-C22) refuses a login that reports less, but nothin
 - **Brave's own password manager** refused a passkey under `localhost`, through a phone by QR code, and
   was not retried under another name, as Proton Pass was (`.cert/README.md`). Google Password Manager
   and Proton Pass pass end to end.
-
-## Next, when a deployment asks for it
-
-- [ ] **Identity assertion grants (FR-C24, was G-10).** Requirement written 2026-11-20; code not
-      started. Sources: Claude's https://claude.com/docs/connectors/building/enterprise-managed-auth,
-      MCP's https://modelcontextprotocol.io/extensions/auth/enterprise-managed-authorization,
-      draft-ietf-oauth-identity-assertion-authz-grant-06, RFC 7523 §2.1 and §3. What it takes:
-  - A test against an issuer the test signs for, first, through the token endpoint (NFR-C3).
-  - `assertionTrust` in `ProviderHooks`, beside `exchangePolicy`; construction refuses it without
-    the `identities` store (NFR-D2).
-  - The grant in `src/token/`, its replay namespace in `ReplayGuard`, and its case in `endpoint.ts`.
-  - Discovery: the bearer grant and `authorization_grant_profiles_supported`, only when on.
-  - FR-C20: `metadata-document.ts` keeps the bearer grant when on.
-  - Docs: the hook, and what Claude needs — its `…/confidential_client` document, so
-    `private_key_jwt` offered and `resolveClientJwks`; the `token_endpoint` on the issuer's
-    registrable domain; Claude's own beta assertions are not served, their `sub` being opaque.
+- **A replayed client assertion is refused but not audited.** FR-M3 says every replay reaches
+  `onAudit`; a replayed code, refresh token or identity assertion does, and `clients/assertion.ts`'s
+  `private_key_jwt` and `client_secret_jwt` replays do not. Found 2026-11-20 while building FR-C24.
+- **What FR-C24 leaves out, on purpose until a deployment needs it:** an assertion bound by `cnf`
+  (draft §9.11, and its `jwt-dpop` grant type) is refused rather than checked; Claude's own beta
+  assertions, whose `sub` is opaque, are not accepted, since only an email would find their account;
+  and with no `Grant` recorded, a password reset or `grants.revoke` does not reach the tokens, which
+  live at most the access-token lifetime — `artifacts.destroyByAccountId` would close that.
 
 ## Still open on the client libraries
 

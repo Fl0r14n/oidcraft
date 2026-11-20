@@ -1,6 +1,7 @@
 import type { Adapter, Client, ClientAuthMethod } from '@oidcraft/adapter'
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
+import { JWT_BEARER_GRANT_TYPE } from '../token/identity-assertion'
 import { browserUri, keysFrom, objectFrom, serverUri, stringFrom, stringsFrom } from './registration'
 
 const SPEC = 'draft-ietf-oauth-client-id-metadata-document §4.1'
@@ -45,7 +46,8 @@ const clientFrom = (config: ResolvedConfig, clientId: string, document: unknown)
 
   const listed = stringsFrom(body.grant_types, 'grant_types', refuse) ?? ['authorization_code']
   // FR-C20: one document serves every server the client talks to, so a grant type this provider does not support is dropped, not refused.
-  const grantTypes = listed.filter(grant => DOCUMENT_GRANT_TYPES.includes(grant))
+  const supported = config.assertionTrust ? [...DOCUMENT_GRANT_TYPES, JWT_BEARER_GRANT_TYPE] : DOCUMENT_GRANT_TYPES
+  const grantTypes = listed.filter(grantType => supported.includes(grantType))
   if (!grantTypes.includes('authorization_code')) {
     const named = listed.length ? `grant_types ${listed.join(', ')} leave` : 'grant_types lists no grant, so it leaves'
     throw refuse(`${named} out authorization_code, the only way a metadata-document client signs in`)

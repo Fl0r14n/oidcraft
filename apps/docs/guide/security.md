@@ -191,6 +191,8 @@ not:
 
 - **CIBA:** which account a `login_hint` means. CIBA is refused without `resolveCibaUser` (FR-C17).
 - **Token exchange:** who may act as whom. `exchangePolicy` has no default (FR-C2).
+- **Identity assertions:** which issuer is trusted, for which workspace, with which keys. The JWT
+  bearer grant type is not supported without `assertionTrust` (FR-C24).
 - **Dynamic client registration:** disabled unless turned on (FR-C9).
 - **Upstream access and refresh tokens:** not stored unless a provider opts in. When stored, they are
   encrypted at rest by the adapter and never returned to a downstream client by default (FR-F10,

@@ -57,7 +57,7 @@ FR-C3 requires PKCE (RFC 7636) on the code grant, with exactly the one exemption
   `nonce` is the half that comes with each request. A request without a `nonce` is refused as if the
   client had never opted out.
 - **Required is the default on every path that creates a client.** A dynamically registered client
-  cannot opt itself out, because registering proves nothing about it. The host's `onRegister` may
+  cannot opt itself out, because registering proves nothing about it. The host's `registrationPolicy` may
   exempt a confidential client, which is the host vouching for it. A public client cannot be exempted
   even then.
 - **PKCE is required for every Client ID Metadata Document client** (FR-C20).

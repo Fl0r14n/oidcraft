@@ -61,7 +61,7 @@ const uriList = (value: unknown, name: string) => {
 }
 
 // The one endpoint that lets a stranger write to the client store, so its metadata is checked as strictly as an operator's (NFR-S2).
-const validateRedirectUris = (uris: unknown, native: boolean) => {
+const assertRedirectUris = (uris: unknown, native: boolean) => {
   if (!Array.isArray(uris) || uris.length === 0) throw invalidRedirect('redirect_uris is required and must be a non-empty array')
   return uris.map(each => browserUri(each, 'redirect_uri', { native, fail: invalidRedirect }))
 }
@@ -208,7 +208,7 @@ const tlsClientAuthFrom = (body: Record<string, unknown>) => {
 
 const metadataFrom = (config: ResolvedConfig, body: Record<string, unknown>, existing?: Client): Client => {
   const applicationType = applicationTypeFrom(body.application_type)
-  const redirectUris = validateRedirectUris(body.redirect_uris, applicationType === 'native')
+  const redirectUris = assertRedirectUris(body.redirect_uris, applicationType === 'native')
   const method = (stringFrom(body.token_endpoint_auth_method, 'token_endpoint_auth_method') ?? 'client_secret_basic') as ClientAuthMethod
   if (!config.clientAuthMethods.includes(method)) throw invalid(`token_endpoint_auth_method ${method} is not offered by this provider`)
 
@@ -244,7 +244,7 @@ const metadataFrom = (config: ResolvedConfig, body: Record<string, unknown>, exi
     ...(body.backchannel_logout_uri !== undefined && {
       backchannelLogoutUri: serverUri(body.backchannel_logout_uri, 'backchannel_logout_uri')
     }),
-    // FR-C3: registering itself gives no assurance; only the host's onRegister can exempt it.
+    // FR-C3: registering itself gives no assurance; only the host's registrationPolicy can exempt it.
     requirePkce: true,
     createdAt: now,
     updatedAt: now
@@ -321,7 +321,7 @@ const authorizeRegistrationAccess = async (config: ResolvedConfig, request: Requ
   return { client, presented }
 }
 
-/** FR-C3: only the host's onRegister can exempt a dynamically registered client, and never a public one. */
+/** FR-C3: only the host's registrationPolicy can exempt a dynamically registered client, and never a public one. */
 const applyDecision = (client: Client, decision: { requirePkce?: boolean } | undefined) => {
   if (decision?.requirePkce !== false) return
   if (client.tokenEndpointAuthMethod === 'none') throw invalid('a public client cannot be exempted from PKCE')
@@ -346,7 +346,7 @@ export const registrationEndpoint = async (config: ResolvedConfig, request: Requ
   const url = new URL(request.url)
 
   if (request.method === 'POST') {
-    const decision = config.onRegister ? await config.onRegister(request.clone(), { existing: undefined }) : undefined
+    const decision = config.registrationPolicy ? await config.registrationPolicy(request.clone(), { existing: undefined }) : undefined
     const body = objectFrom(
       await request.json().catch(() => {
         throw invalid('the registration request must be JSON')
@@ -381,7 +381,7 @@ export const registrationEndpoint = async (config: ResolvedConfig, request: Requ
   }
 
   // The host vets an update as it vetted the first registration; its answer, not the stored client, decides PKCE (FR-C3).
-  const decision = config.onRegister ? await config.onRegister(request.clone(), { existing: client }) : undefined
+  const decision = config.registrationPolicy ? await config.registrationPolicy(request.clone(), { existing: client }) : undefined
   const body = objectFrom(
     await request.json().catch(() => {
       throw invalid('the update must be JSON')

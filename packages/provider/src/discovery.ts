@@ -63,7 +63,7 @@ export const metadata = (config: ResolvedConfig, signing: string[]) => {
         ...(authMethods.includes('client_secret_jwt') ? CLIENT_SECRET_ALGS : [])
       ]
     }),
-    claims_supported: ['sub', 'iss', 'aud', 'exp', 'iat', 'auth_time', 'nonce', 'acr', 'amr', 'azp', ...claimsFrom(config)],
+    claims_supported: ['sub', 'iss', 'aud', 'exp', 'iat', 'auth_time', 'nonce', 'acr', 'amr', 'azp', ...configuredClaims(config)],
     claim_types_supported: ['normal'],
     // FR-C3: never `plain`.
     code_challenge_methods_supported: ['S256'],
@@ -89,8 +89,6 @@ export const metadata = (config: ResolvedConfig, signing: string[]) => {
     backchannel_logout_supported: true
   }
 }
-
-const claimsFrom = (config: ResolvedConfig) => [...configuredClaims(config)]
 
 export const discoveryEndpoint = async (config: ResolvedConfig) => {
   const keys = await config.adapter.keys.list()

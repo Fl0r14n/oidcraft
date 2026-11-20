@@ -60,7 +60,7 @@ const revive = <T>(value: T, dates: (keyof T & string)[]) => {
   return value
 }
 
-const ttlFrom = (expiresAt: Date): Seconds => Math.max(1, Math.ceil((expiresAt.getTime() - Date.now()) / 1000))
+const secondsUntil = (expiresAt: Date): Seconds => Math.max(1, Math.ceil((expiresAt.getTime() - Date.now()) / 1000))
 
 const collect = async <T>(kv: KvStore, prefix: string, revived: (raw: string) => T) => {
   const out: T[] = []
@@ -96,7 +96,7 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
   const artifacts: ArtifactStore = {
     async upsert(artifact) {
       const { consumedAt: _, ...stored } = artifact
-      const ttl = ttlFrom(artifact.expiresAt)
+      const ttl = secondsUntil(artifact.expiresAt)
       await kv.upsert({ key: artifactKey(artifact.kind, artifact.id), value: enc(stored), ttl })
       if (artifact.grantId) await kv.upsert({ key: `grant-index/${artifact.grantId}/${artifact.kind}/${artifact.id}`, value: '', ttl })
       if (artifact.familyId) await kv.upsert({ key: `family-index/${artifact.familyId}/${artifact.kind}/${artifact.id}`, value: '', ttl })
@@ -127,7 +127,7 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
       if (!artifact) return false
       const expiresAt = new Date(artifact.expiresAt)
       if (expiresAt.getTime() <= Date.now()) return false
-      if (!(await kv.create({ key: consumedKey(kind, id), value: new Date().toISOString(), ttl: ttlFrom(expiresAt) }))) return false
+      if (!(await kv.create({ key: consumedKey(kind, id), value: new Date().toISOString(), ttl: secondsUntil(expiresAt) }))) return false
       // Deleted between the read and the create, it is revoked, not redeemed (NFR-S4).
       return (await read(artifactKey(kind, id))) !== undefined
     },
@@ -213,10 +213,10 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
     async addClient(id, clientId) {
       const session = await readSession(id)
       if (!session) return
-      await kv.upsert({ key: `${sessionClientPrefix(id)}${clientId}`, value: '', ttl: ttlFrom(session.expiresAt) })
+      await kv.upsert({ key: `${sessionClientPrefix(id)}${clientId}`, value: '', ttl: secondsUntil(session.expiresAt) })
     },
     async upsert(session) {
-      const ttl = ttlFrom(session.expiresAt)
+      const ttl = secondsUntil(session.expiresAt)
       await kv.upsert({ key: `session/${session.id}`, value: enc(session), ttl })
       for (const key of sessionIndexes(session)) await kv.upsert({ key, value: '', ttl })
     },
@@ -250,7 +250,7 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
       return present(await Promise.all(ids.map(readGrant)))
     },
     async upsert(grant) {
-      const ttl = grant.expiresAt && { ttl: ttlFrom(grant.expiresAt) }
+      const ttl = grant.expiresAt && { ttl: secondsUntil(grant.expiresAt) }
       const claimed = await kv.create({ key: grantIndex(grant), value: grant.id, ...ttl })
       const id = claimed ? grant.id : ((await read(grantIndex(grant))) ?? grant.id)
       const held = id === grant.id ? undefined : await readGrant(id)

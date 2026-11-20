@@ -211,7 +211,7 @@ export type ProviderHooks = {
    * for a confidential client, the only PKCE exemption for a dynamic one (FR-C3). An RFC 7592 update runs it too,
    * with `existing` set and the registration access token in its `Authorization` header.
    */
-  onRegister?: (
+  registrationPolicy?: (
     request: Request,
     context: { existing: Client | undefined }
   ) => RegistrationDecision | undefined | Promise<RegistrationDecision | undefined>

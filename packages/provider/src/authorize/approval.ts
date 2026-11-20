@@ -4,7 +4,7 @@ import { OAuthError } from '../errors'
 const refuse = (description: string, spec = 'FR-I4') => new OAuthError('invalid_request', { description, spec, status: 400 })
 
 // Every scope asked and no other, as in the browser (FR-I4), and only for the person the session belongs to.
-export const checkApproval = async (
+export const assertApproval = async (
   config: ResolvedConfig,
   requested: string[],
   approval: { accountId: string; sessionId: string; scopes: string[] },

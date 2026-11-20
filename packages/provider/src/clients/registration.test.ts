@@ -376,14 +376,14 @@ describe('dynamic client registration', () => {
     })
   })
 
-  describe('onRegister exempting a client from PKCE (FR-C3)', () => {
+  describe('registrationPolicy exempting a client from PKCE (FR-C3)', () => {
     const vouching = (decision: { requirePkce: boolean }) =>
       createProvider({
         interactionUrl: 'https://op.example.com/interaction',
         issuer: ISSUER,
         adapter,
         features: { dynamicRegistration: true },
-        onRegister: () => decision
+        registrationPolicy: () => decision
       })
     const registerWith = (provider: ReturnType<typeof vouching>, body: Record<string, unknown>) =>
       provider.handle(new Request(`${ISSUER}/register`, { method: 'POST', body: JSON.stringify(body) }))
@@ -405,7 +405,7 @@ describe('dynamic client registration', () => {
         issuer: ISSUER,
         adapter,
         features: { dynamicRegistration: true },
-        onRegister: async request => {
+        registrationPolicy: async request => {
           seen = await request.json()
         }
       })
@@ -414,13 +414,13 @@ describe('dynamic client registration', () => {
     })
   })
 
-  test('onRegister can refuse an open registration', async () => {
+  test('registrationPolicy can refuse an open registration', async () => {
     const gated = createProvider({
       interactionUrl: 'https://op.example.com/interaction',
       issuer: ISSUER,
       adapter,
       features: { dynamicRegistration: true },
-      onRegister: request => {
+      registrationPolicy: request => {
         if (request.headers.get('authorization') !== 'Bearer initial') {
           throw new OAuthError('access_denied', { description: 'an initial access token is required' })
         }
@@ -435,7 +435,7 @@ describe('dynamic client registration', () => {
   })
 
   // RFC 7592: an update is new metadata; skipping the hook would let it bypass whatever the host vets.
-  test('an update runs onRegister too, which decides the PKCE exemption again', async () => {
+  test('an update runs registrationPolicy too, which decides the PKCE exemption again', async () => {
     const seen: (string | undefined)[] = []
     let exempt = true
     const vetted = createProvider({
@@ -443,7 +443,7 @@ describe('dynamic client registration', () => {
       issuer: ISSUER,
       adapter,
       features: { dynamicRegistration: true },
-      onRegister: (_request, { existing }) => {
+      registrationPolicy: (_request, { existing }) => {
         seen.push(existing?.clientId)
         return { requirePkce: !exempt }
       }

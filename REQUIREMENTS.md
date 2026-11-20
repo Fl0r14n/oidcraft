@@ -69,7 +69,7 @@ grants only (FR-C24). `password` is **not** implemented, for the same reason as 
   assurance, in the specific deployment" OAuth 2.1 asks for; the `nonce` is the per-request half. A
   request without one is refused as if the client had never opted out.
 - **Required is the default** on every path that creates a client. A dynamically registered client
-  cannot opt itself out (FR-C9), since registering assures nothing, but the host's `onRegister` may
+  cannot opt itself out (FR-C9), since registering assures nothing, but the host's `registrationPolicy` may
   exempt a confidential one, vouching for it.
 - A `code_challenge`, once sent, is enforced whether or not the client could have omitted it
   (RFC 9700 §2.1.1), and a `code_verifier` for a code issued without a challenge is refused — the

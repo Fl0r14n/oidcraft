@@ -3,7 +3,7 @@ import { randomString } from '@oidcraft/core'
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
 import { type Binding, issueTokens } from '../token/issue'
-import { checkApproval } from './approval'
+import { assertApproval } from './approval'
 import { recordConsent } from './consent'
 
 export const DEFAULT_INTERVAL = 5
@@ -107,7 +107,7 @@ export const answer = async <R extends Request, P extends Polled>(
     await flow.writeAnswer(config, request, requested, { status: 'denied', scopes: requested.scopes })
     return false
   }
-  const scopes = await checkApproval(config, requested.scopes, outcome, expectedAccountId)
+  const scopes = await assertApproval(config, requested.scopes, outcome, expectedAccountId)
   await config.adapter.sessions.addClient(outcome.sessionId, request.clientId)
   const grant = await recordConsent(config, outcome.accountId, request.clientId, scopes)
   await flow.writeAnswer(config, request, requested, {

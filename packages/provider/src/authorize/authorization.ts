@@ -165,7 +165,7 @@ export const validateAuthorizationRequest = (
     uiLocales: params.get('ui_locales') ? list(params.get('ui_locales')) : undefined,
     authorizationDetails: parseAuthorizationDetails(config, params.get('authorization_details')),
     resources: requestedResources(config, params, client.clientId),
-    dpopJkt: config.features.dpop ? dpopJktOf(params.get('dpop_jkt')) : undefined,
+    dpopJkt: config.features.dpop ? dpopJktFrom(params.get('dpop_jkt')) : undefined,
     claims,
     raw: params.toString()
   }
@@ -174,7 +174,7 @@ export const validateAuthorizationRequest = (
 // An RFC 7638 SHA-256 thumbprint: 32 bytes, base64url without padding.
 const JKT = /^[A-Za-z0-9_-]{43}$/
 
-const dpopJktOf = (value: string | null) => {
+const dpopJktFrom = (value: string | null) => {
   if (value === null) return undefined
   if (!JKT.test(value)) {
     throw new OAuthError('invalid_request', { description: 'dpop_jkt is not a SHA-256 JWK thumbprint', spec: 'RFC 9449 §10' })

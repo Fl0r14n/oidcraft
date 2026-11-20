@@ -20,7 +20,7 @@ const isObject = (value: unknown): value is Record<string, unknown> => typeof va
 
 type Individual = { essential?: boolean; value?: unknown; values?: unknown[] } | null
 
-const membersOf = (request: Record<string, unknown>, member: 'userinfo' | 'id_token') => {
+const membersFrom = (request: Record<string, unknown>, member: 'userinfo' | 'id_token') => {
   const claims = request[member]
   if (claims === undefined) return {}
   if (!isObject(claims)) throw invalid(`claims.${member} must be an object`)
@@ -51,8 +51,8 @@ export const parseClaimsRequest = (config: ResolvedConfig, client: Client, raw: 
   }
   if (!isObject(parsed)) throw invalid('claims must be a JSON object')
 
-  const userinfo = membersOf(parsed, 'userinfo')
-  const idToken = membersOf(parsed, 'id_token')
+  const userinfo = membersFrom(parsed, 'userinfo')
+  const idToken = membersFrom(parsed, 'id_token')
   // FR-C22: only what a scope this client may request releases; anything else is ignored, as §5.5 lets an OP ignore it.
   const known = releasedBy(config, client.scopes)
   const names = (claims: Record<string, Individual>) => Object.keys(claims).filter(name => known.has(name))

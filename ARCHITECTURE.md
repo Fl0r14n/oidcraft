@@ -822,8 +822,9 @@ name: `createPasskey` wraps `navigator.credentials.create`.
 | `redeem<Thing>(…)`          | spends what a caller presents for what it is worth: every grant type at the token endpoint      |
 | `with<Thing>(x)`            | wraps `x` and returns its shape                                                                 |
 | `to<Shape>(x)`              | the same thing in another representation: a row as a record, a handler as a plugin              |
-| `<x>Of(y)`, `<x>For(y)`     | `x` read off `y`; `x` computed for `y`                                                          |
-| `<x>From(raw)`              | `x` built out of untrusted input, checking it                                                   |
+| `<x>Of(y)`                  | `x` read off `y`; never refuses: garbage gives `undefined`                                      |
+| `<x>For(y)`                 | `x` worked out for `y`, refusing when there is none to give                                     |
+| `<x>From(raw)`              | `x` built out of untrusted input, refusing what is malformed                                    |
 
 A hook is named for what it answers — `exchangePolicy` a decision, `accessTokenClaims` claims,
 `resolveClientMetadata` a document — and `on<Event>` is only ever an event (§3.1): told, never asked.

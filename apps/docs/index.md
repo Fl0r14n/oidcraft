@@ -3,7 +3,7 @@ layout: home
 hero:
   name: oidcraft
   text: An OpenID Provider library for TypeScript
-  tagline: Passes the OpenID Foundation basic, config and FAPI 2.0 plans in CI — not certified. Not used in production.
+  tagline: Passes the OpenID Foundation basic, config and FAPI 2.0 plans in CI — not certified. In production in one deployment.
   actions:
     - theme: brand
       text: Start with the provider
@@ -27,7 +27,7 @@ features:
 
 **Early.** The OpenID Foundation conformance suite's `basic`, `config` and FAPI 2.0 plans pass in CI.
 That is a passing run, not a certification: a few modules end in REVIEW, which a person signs off only
-when certifying. No deployment has used oidcraft in production, against a relying party not written
-here, or under load. [The plan](/reference/plan) says what is not done, and why.
+when certifying. One deployment runs oidcraft in production and another in staging; nobody has
+load-tested it. [The plan](/reference/plan) says what is not done, and why.
 
 Every code sample on these pages comes from a file the test suite runs. These pages track `main`.

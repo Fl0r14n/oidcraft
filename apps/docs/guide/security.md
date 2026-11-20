@@ -19,12 +19,13 @@ Read this before anything else on the page.
   purpose. `conformance/README.md` lists each one with the clause behind the refusal. Others end in
   REVIEW, the suite's state for "a person must look at the screenshot". Certification means someone
   reviews those modules and signs them off. Nobody has.
-- **No production deployment.** No deployment has run oidcraft in production, against a relying
-  party not written in this repository, or under any load. Nobody has load-tested it.
+- **One production deployment, no load test.** One deployment runs oidcraft in production and
+  another in staging, each with its own web application as the relying party. Nobody has
+  load-tested it.
 - **No independent review.** No security firm or third party has reviewed the code. The one review
   so far was by agents reading the code against `REQUIREMENTS.md`, which narrowed the search rather
-  than ending it. In the plan's words, no `FR-*` "has been checked by anything but its author and its
-  tests".
+  than ending it. Beyond what those two deployments exercise, no `FR-*` has been checked by anything
+  but its author and its tests.
 - **Version `0.x`, tracking `main`.** The API will change, and these pages describe `main`, not a
   release.
 

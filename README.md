@@ -25,7 +25,7 @@ The documentation is at **[fl0r14n.github.io/oidcraft](https://fl0r14n.github.io
   the OpenID Connect client those are built on, for a framework without a binding here.
 
 > **Status: early.** The OpenID Foundation conformance suite's `basic`, `config` and FAPI 2.0 plans
-> pass in CI, which is a passing run, not a certification. No deployment has used it in production yet.
+> pass in CI, which is a passing run, not a certification. One deployment runs it in production, another in staging.
 >
 > **Security:** `@oidcraft/provider` 0.3.0 and earlier have a session takeover; use 0.4.0 or later.
 > Report a vulnerability privately, as [`SECURITY.md`](SECURITY.md) describes, never in a public issue.

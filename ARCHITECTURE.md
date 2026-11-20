@@ -801,8 +801,32 @@ the argument would still type-check and do the unconditional thing.
 (`upstream`, `allowedUpstreams`, `upstreamSessionId`). A field that becomes a token claim keeps the
 claim's name (`acr`, `amr`, `idp`), whatever the vocabulary says. A point in time is `<event>At`, a
 `Date`; a duration is `Seconds`. _Sign up_ creates an account, with a password or a passkey;
-_register_ is WebAuthn's word for adding a credential to an account that exists; _link_ joins an
-upstream identity to one.
+_register_ is WebAuthn's word for adding a credential to an account that exists, and _client
+registration_ is FR-C9's, never the bare word; _link_ joins an upstream identity to one. A _grant_
+is the `Grant` record, the consent remembered for an account and client (FR-I4), and `grantId` points
+at one; a _grant type_ is the OAuth flow the token endpoint serves, never shortened to _grant_ in a
+name. A wrapper over a platform or specification API keeps that API's word, as a claim keeps its
+name: `createPasskey` wraps `navigator.credentials.create`.
+
+**Functions.** Above storage, a verb means one thing:
+
+| Name                        | Does                                                                                            |
+| --------------------------- | ----------------------------------------------------------------------------------------------- |
+| `create<Thing>(…)`          | makes a `<Thing>`, a factory; only a store's `create` is the atomic insert above                |
+| `parse<Thing>(raw)`         | untrusted text or bytes into a typed value                                                      |
+| `assert<Rule>(…)`           | throws when the rule fails; returns nothing, or what it checked in its checked form             |
+| `check<Rule>(…)`            | the same, answered as a refusal rather than thrown, for a caller that reports instead of throws |
+| `verify<Thing>(…)`          | a signature or a proof: a JWT, a PKCE verifier, a DPoP proof                                    |
+| `resolve<Thing>(reference)` | what a reference names: a URL its document, a hint its account, a token value its record        |
+| `issue<Thing>(…)`           | mints a credential and stores it                                                                |
+| `redeem<Thing>(…)`          | spends what a caller presents for what it is worth: every grant type at the token endpoint      |
+| `with<Thing>(x)`            | wraps `x` and returns its shape                                                                 |
+| `to<Shape>(x)`              | the same thing in another representation: a row as a record, a handler as a plugin              |
+| `<x>Of(y)`, `<x>For(y)`     | `x` read off `y`; `x` computed for `y`                                                          |
+| `<x>From(raw)`              | `x` built out of untrusted input, checking it                                                   |
+
+A hook is named for what it answers — `exchangePolicy` a decision, `accessTokenClaims` claims,
+`resolveClientMetadata` a document — and `on<Event>` is only ever an event (§3.1): told, never asked.
 
 **Results.** An operation that can refuse resolves `{ ok: true, … }` or `{ ok: false, reason }`:
 `reason` is a short word (`invalid`, `locked`, `taken`, `unknown` for a record that is not there),

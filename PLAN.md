@@ -35,9 +35,10 @@ modules and five FAPI ones end in REVIEW, which a person signs off with screensh
 certifying. Each was pre-checked from its page source on 2026-11-13 and shows the page its module
 asks for.
 
-**No deployment has run this in production**, against a real relying party that was not also written
-here, or under any load. Implemented is not certified: no `FR-*` has been checked by anything but
-its author and its tests.
+**One deployment runs it in production and another in staging**, each serving its own web application
+through the bindings here, one brokering to upstreams and the other serving MCP clients through
+metadata documents. Nothing has run it under measured load. Implemented is not certified: beyond what
+those two exercise, no `FR-*` has been checked by anything but its author and its tests.
 
 **The `acr` a login reports is the host's word.** The host is the authenticator: an essential `acr`
 in the `claims` parameter (FR-C22) refuses a login that reports less, but nothing checks the report.

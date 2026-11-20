@@ -24,7 +24,7 @@ The honest answer comes first.
   RP-Initiated Logout, FAPI 1.0, FAPI CIBA and FAPI 2.0. oidcraft passes the `basic`, `config` and
   FAPI 2.0 conformance plans in CI and is not certified ([security posture](/guide/security)).
 - **You need something proven in production.** `oidc-provider` is on its ninth major version.
-  oidcraft has never run in production, has not been load-tested, and has had no third-party review.
+  oidcraft runs in production in one deployment, has not been load-tested, and has had no third-party review.
   Its API will change before 1.0.
 - **You need implicit or hybrid flows.** `oidc-provider` supports them, with `code id_token` and
   `id_token` among its default `responseTypes`. oidcraft implements only `code`, so it is not a

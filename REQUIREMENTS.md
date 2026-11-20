@@ -194,7 +194,7 @@ a canonical `https` URL with a path and nothing else, refused before any fetch o
 whose `client_id` is that URL exactly; no shared secret, so `none` or `private_key_jwt` only; redirect
 URIs that are the client's registration, `http://localhost` among them unless it says it is `web`.
 Its grants are the code and refresh grants it lists, and the JWT bearer grant when it lists it and
-the provider serves identity assertion grants (FR-C24); it must list the code grant. Any other
+the provider supports identity assertion grants (FR-C24); it must list the code grant. Any other
 grant it lists is dropped, not refused: one document serves every server the client talks to, and
 `grant_types` bounds what the client will use, not what a server must offer (RFC 7591 §2). Its code grant always requires PKCE, `private_key_jwt`
 included: FR-C3's exemption is the host vouching for a client, and a document is the client vouching
@@ -242,7 +242,7 @@ reads them, but they never ask for a login a session would not otherwise need, n
 -06), redeemed with the JWT bearer grant (RFC 7523 §2.1): MCP's Enterprise-Managed Authorization, in
 which a person signs in to a client through their organization's IdP, the client gets an assertion
 for this provider from that IdP, and redeems it here with no screen in between. Off unless the host
-supplies `assertionTrust`, and only then served and advertised: the bearer grant in
+supplies `assertionTrust`, and only then supported and advertised: the bearer grant in
 `grant_types_supported`, and `authorization_grant_profiles_supported` naming the ID-JAG profile
 (§7.2), which never lists the trusted issuers (§9.7).
 

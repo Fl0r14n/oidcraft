@@ -5,7 +5,7 @@ import { OAuthError } from '../errors'
 import { type Binding, issueAccessToken } from './access-token'
 
 // RFC 6749 §4.4: no user, so no ID token, no refresh token (§4.4.3) and no `openid`.
-export const clientCredentialsGrant = async (config: ResolvedConfig, client: Client, form: URLSearchParams, binding: Binding) => {
+export const redeemClientCredentials = async (config: ResolvedConfig, client: Client, form: URLSearchParams, binding: Binding) => {
   if (client.tokenEndpointAuthMethod === 'none') {
     throw new OAuthError('invalid_client', {
       description: 'a public client has no credentials of its own to present',

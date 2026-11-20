@@ -5,7 +5,7 @@ import { type Binding, findPresented, issueAccessToken } from './access-token'
 import { outlivedItsSession } from './issue'
 import { subjectFor } from './subjects'
 
-export const TOKEN_EXCHANGE = 'urn:ietf:params:oauth:grant-type:token-exchange'
+export const TOKEN_EXCHANGE_GRANT_TYPE = 'urn:ietf:params:oauth:grant-type:token-exchange'
 
 const ACCESS_TOKEN_TYPE = 'urn:ietf:params:oauth:token-type:access_token'
 const REFRESH_TOKEN_TYPE = 'urn:ietf:params:oauth:token-type:refresh_token'
@@ -50,7 +50,7 @@ const resolveToken = async (config: ResolvedConfig, value: string, declaredType:
 }
 
 // RFC 8693: no default policy; without an `exchangePolicy` the grant is refused rather than inventing an authorization rule.
-export const tokenExchange = async (config: ResolvedConfig, client: Client, form: URLSearchParams) => {
+const decideExchange = async (config: ResolvedConfig, client: Client, form: URLSearchParams) => {
   if (!config.exchangePolicy) {
     throw new OAuthError('unsupported_grant_type', {
       description: 'token exchange needs an exchangePolicy; the provider will not decide who may act as whom',
@@ -115,8 +115,8 @@ export const tokenExchange = async (config: ResolvedConfig, client: Client, form
   return { decision, requestedType, subject }
 }
 
-export const exchangeGrant = async (config: ResolvedConfig, client: Client, form: URLSearchParams, binding: Binding) => {
-  const { decision, subject } = await tokenExchange(config, client, form)
+export const redeemSubjectToken = async (config: ResolvedConfig, client: Client, form: URLSearchParams, binding: Binding) => {
+  const { decision, subject } = await decideExchange(config, client, form)
 
   // A sender-constrained token is only usable by its holder; exchanging it must not launder that away.
   const bound = subject.payload.cnf

@@ -1,17 +1,18 @@
 import type { Client } from '@oidcraft/adapter'
-import { CIBA_GRANT, cibaGrant } from '../authorize/ciba'
-import { deviceCodeGrant } from '../authorize/device'
+import { CIBA_GRANT_TYPE, redeemCibaRequest } from '../authorize/ciba'
+import { DEVICE_CODE_GRANT_TYPE, redeemDeviceCode } from '../authorize/device'
 import { proofOptions, verifyDpopProof } from '../binding/dpop'
 import { authenticateClient } from '../clients/authenticate'
 import type { ResolvedConfig } from '../config'
 import type { ClientCertificate } from '../context'
 import type { Caller } from '../cors'
+import { supportedGrantTypes } from '../discovery'
 import { OAuthError } from '../errors'
 import { readForm } from '../form'
 import { underFapi } from '../profile/fapi'
-import { clientCredentialsGrant } from './client-credentials'
-import { authorizationCodeGrant, refreshTokenGrant } from './code'
-import { exchangeGrant, TOKEN_EXCHANGE } from './exchange'
+import { redeemClientCredentials } from './client-credentials'
+import { redeemAuthorizationCode, redeemRefreshToken } from './code'
+import { redeemSubjectToken, TOKEN_EXCHANGE_GRANT_TYPE } from './exchange'
 
 const NO_STORE = { 'cache-control': 'no-store', pragma: 'no-cache' }
 
@@ -40,6 +41,10 @@ export const tokenEndpoint = async (
 
   const grantType = form.get('grant_type')
   if (!grantType) throw new OAuthError('invalid_request', { description: 'grant_type is required', spec: 'RFC 6749 §5.2' })
+  // FR-C6: what discovery does not advertise is not dispatched, whatever a stored client lists.
+  if (!supportedGrantTypes(config).includes(grantType)) {
+    throw new OAuthError('unsupported_grant_type', { description: `${grantType} is not supported`, spec: 'RFC 6749 §5.2' })
+  }
   if (!client.grantTypes.includes(grantType)) {
     throw new OAuthError('unauthorized_client', {
       description: `client ${client.clientId} may not use grant_type ${grantType}`,
@@ -61,17 +66,17 @@ export const tokenEndpoint = async (
   const body = await (async () => {
     switch (grantType) {
       case 'authorization_code':
-        return authorizationCodeGrant(config, client, form, binding)
+        return redeemAuthorizationCode(config, client, form, binding)
       case 'refresh_token':
-        return refreshTokenGrant(config, client, form, binding)
+        return redeemRefreshToken(config, client, form, binding)
       case 'client_credentials':
-        return clientCredentialsGrant(config, client, form, binding)
-      case 'urn:ietf:params:oauth:grant-type:device_code':
-        return deviceCodeGrant(config, client, form, binding)
-      case TOKEN_EXCHANGE:
-        return exchangeGrant(config, client, form, binding)
-      case CIBA_GRANT:
-        return cibaGrant(config, client, form, binding)
+        return redeemClientCredentials(config, client, form, binding)
+      case DEVICE_CODE_GRANT_TYPE:
+        return redeemDeviceCode(config, client, form, binding)
+      case TOKEN_EXCHANGE_GRANT_TYPE:
+        return redeemSubjectToken(config, client, form, binding)
+      case CIBA_GRANT_TYPE:
+        return redeemCibaRequest(config, client, form, binding)
       default:
         throw new OAuthError('unsupported_grant_type', { description: `${grantType} is not supported`, spec: 'RFC 6749 §5.2' })
     }

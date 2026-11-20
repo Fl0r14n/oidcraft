@@ -283,8 +283,20 @@ describe('token endpoint', () => {
     expect((await response.json()).error_description).toContain('both')
   })
 
+  // RFC 6749 §5.2: not served at all is unsupported_grant_type, before whether this client may use it.
   test('an unknown grant_type is refused', async () => {
     const response = await post('/token', { grant_type: 'password', username: 'a', password: 'b' }, { authorization: basic() })
-    expect((await response.json()).error).toBe('unauthorized_client')
+    expect((await response.json()).error).toBe('unsupported_grant_type')
+  })
+
+  // FR-C6: off is neither advertised nor routed, whatever a stored client lists.
+  test.each([
+    'urn:ietf:params:oauth:grant-type:device_code',
+    'urn:openid:params:grant-type:ciba',
+    'urn:ietf:params:oauth:grant-type:token-exchange'
+  ])('%s, off, is unsupported_grant_type', async grantType => {
+    await adapter.clients.upsert?.({ ...((await adapter.clients.find('rp')) as Client), grantTypes: [grantType] })
+    const response = await post('/token', { grant_type: grantType }, { authorization: basic() })
+    expect((await response.json()).error).toBe('unsupported_grant_type')
   })
 })

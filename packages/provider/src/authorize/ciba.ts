@@ -9,7 +9,7 @@ import { readArtifact, type Stored, writeArtifact } from '../payloads'
 import type { Binding } from '../token/issue'
 import { answer, answered, DEFAULT_INTERVAL, type Flow, type Polled, redeem } from './decoupled'
 
-export const CIBA_GRANT = 'urn:openid:params:grant-type:ciba'
+export const CIBA_GRANT_TYPE = 'urn:openid:params:grant-type:ciba'
 
 export type CibaPayload = Polled & {
   mode: 'poll' | 'ping'
@@ -54,7 +54,7 @@ export const backchannelAuthenticationEndpoint = async (
 ) => {
   const form = await readForm(request)
   const { client } = await authenticateClient(config, form, request.headers, certificate)
-  if (!client.grantTypes.includes(CIBA_GRANT)) {
+  if (!client.grantTypes.includes(CIBA_GRANT_TYPE)) {
     throw new OAuthError('unauthorized_client', {
       description: `client ${client.clientId} is not registered for the CIBA grant`,
       spec: 'OIDC CIBA 1.0 §13'
@@ -169,7 +169,7 @@ export const resolveBackchannelRequest = async (config: ResolvedConfig, authReqI
   return { approved, ping: pingFor(request, payload) }
 }
 
-export const cibaGrant = async (config: ResolvedConfig, client: Client, form: URLSearchParams, binding: Binding) => {
+export const redeemCibaRequest = async (config: ResolvedConfig, client: Client, form: URLSearchParams, binding: Binding) => {
   const authReqId = form.get('auth_req_id')
   if (!authReqId) throw new OAuthError('invalid_request', { description: 'auth_req_id is required', spec: 'OIDC CIBA 1.0 §10.1' })
   return redeem(config, cibaFlow, authReqId, client, binding)

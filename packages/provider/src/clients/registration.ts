@@ -2,7 +2,7 @@ import type { Client, ClientAuthMethod } from '@oidcraft/adapter'
 import { constantTimeEquals, randomString } from '@oidcraft/core'
 import { storedId } from '../artifacts'
 import { audit } from '../audit'
-import { CIBA_GRANT } from '../authorize/ciba'
+import { CIBA_GRANT_TYPE } from '../authorize/ciba'
 import type { ResolvedConfig } from '../config'
 import { supportedGrantTypes } from '../discovery'
 import { OAuthError } from '../errors'
@@ -13,7 +13,7 @@ import { deleteClient } from './delete'
 import { secretKind, storableSecret } from './secret'
 import { clientProblems } from './validate'
 
-const DEFAULT_GRANTS = ['authorization_code']
+const DEFAULT_GRANT_TYPES = ['authorization_code']
 
 /** Registration refuses with RFC 7591's codes; a metadata document, read at the authorization endpoint, does not. */
 export type Refuse = (description: string) => OAuthError
@@ -132,8 +132,8 @@ export const keysFrom = (body: Record<string, unknown>, fail: Refuse = invalid) 
 }
 
 /** The client store's `grantTypes` is what the token endpoint enforces, so a stranger must not choose it freely (FR-C9). */
-const grantsFrom = (config: ResolvedConfig, body: Record<string, unknown>, method: ClientAuthMethod) => {
-  const grantTypes = stringsFrom(body.grant_types, 'grant_types') ?? DEFAULT_GRANTS
+const grantTypesFrom = (config: ResolvedConfig, body: Record<string, unknown>, method: ClientAuthMethod) => {
+  const grantTypes = stringsFrom(body.grant_types, 'grant_types') ?? DEFAULT_GRANT_TYPES
   if (!grantTypes.length) throw invalid('grant_types must not be empty')
   const offered = supportedGrantTypes(config)
   const unknown = grantTypes.filter(grant => !offered.includes(grant))
@@ -156,7 +156,7 @@ const grantsFrom = (config: ResolvedConfig, body: Record<string, unknown>, metho
 // OIDC CIBA 1.0 §4; push mode is out of scope (FR-C17).
 const cibaMetadataFrom = (body: Record<string, unknown>, grantTypes: string[]) => {
   const mode = body.backchannel_token_delivery_mode
-  const ciba = grantTypes.includes(CIBA_GRANT)
+  const ciba = grantTypes.includes(CIBA_GRANT_TYPE)
   if (mode === undefined) {
     if (ciba) throw invalid('a client of the CIBA grant must declare backchannel_token_delivery_mode')
     return {}
@@ -212,7 +212,7 @@ const metadataFrom = (config: ResolvedConfig, body: Record<string, unknown>, exi
   const method = (stringFrom(body.token_endpoint_auth_method, 'token_endpoint_auth_method') ?? 'client_secret_basic') as ClientAuthMethod
   if (!config.clientAuthMethods.includes(method)) throw invalid(`token_endpoint_auth_method ${method} is not offered by this provider`)
 
-  const { grantTypes, responseTypes } = grantsFrom(config, body, method)
+  const { grantTypes, responseTypes } = grantTypesFrom(config, body, method)
 
   const scopes = (stringFrom(body.scope, 'scope') ?? 'openid').split(' ').filter(Boolean)
   const clientName = stringFrom(body.client_name, 'client_name')

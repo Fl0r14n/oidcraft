@@ -24,7 +24,7 @@ export const userCode = () => {
 
 export const normalizeUserCode = (input: string) => input.toUpperCase().replace(/[^A-Z0-9]/g, '')
 
-export const DEVICE_GRANT = 'urn:ietf:params:oauth:grant-type:device_code'
+export const DEVICE_CODE_GRANT_TYPE = 'urn:ietf:params:oauth:grant-type:device_code'
 
 export const deviceAuthorizationEndpoint = async (
   config: ResolvedConfig,
@@ -33,7 +33,7 @@ export const deviceAuthorizationEndpoint = async (
 ) => {
   const form = await readForm(request)
   const { client } = await authenticateClient(config, form, request.headers, certificate)
-  if (!client.grantTypes.includes(DEVICE_GRANT)) {
+  if (!client.grantTypes.includes(DEVICE_CODE_GRANT_TYPE)) {
     throw new OAuthError('unauthorized_client', {
       description: `client ${client.clientId} is not registered for the device grant`,
       spec: 'RFC 8628 §3.1'
@@ -182,7 +182,7 @@ export const deviceSignIn = async (config: ResolvedConfig, typed: string, { cook
   return { redirectTo: `${config.interactionUrl}/${id}`, setCookie }
 }
 
-export const deviceCodeGrant = async (config: ResolvedConfig, client: Client, form: URLSearchParams, binding: Binding) => {
+export const redeemDeviceCode = async (config: ResolvedConfig, client: Client, form: URLSearchParams, binding: Binding) => {
   const deviceCode = form.get('device_code')
   if (!deviceCode) throw new OAuthError('invalid_request', { description: 'device_code is required', spec: 'RFC 8628 §3.4' })
   return redeem(config, deviceFlow, deviceCode, client, binding)

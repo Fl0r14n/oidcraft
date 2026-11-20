@@ -47,7 +47,7 @@ const unlessReplayed = async <T>(config: ResolvedConfig, artifact: SingleUse, wh
   return tokens
 }
 
-export const authorizationCodeGrant = async (config: ResolvedConfig, client: Client, form: URLSearchParams, binding: Binding) => {
+export const redeemAuthorizationCode = async (config: ResolvedConfig, client: Client, form: URLSearchParams, binding: Binding) => {
   const code = form.get('code')
   if (!code) throw new OAuthError('invalid_request', { description: 'code is required', spec: 'RFC 6749 §4.1.3' })
 
@@ -101,7 +101,7 @@ export const authorizationCodeGrant = async (config: ResolvedConfig, client: Cli
   return unlessReplayed(config, artifact, 'authorization code', tokens)
 }
 
-export const refreshTokenGrant = async (config: ResolvedConfig, client: Client, form: URLSearchParams, binding: Binding) => {
+export const redeemRefreshToken = async (config: ResolvedConfig, client: Client, form: URLSearchParams, binding: Binding) => {
   const presented = form.get('refresh_token')
   if (!presented) throw new OAuthError('invalid_request', { description: 'refresh_token is required', spec: 'RFC 6749 §6' })
 

@@ -170,14 +170,16 @@ describe('client ID metadata documents (FR-C20)', () => {
   // FR-C20: Claude's document lists the JWT bearer grant for its enterprise sign-in.
   test('a grant the provider does not serve to a document is dropped, and the client still signs in', async () => {
     const bearer = 'urn:ietf:params:oauth:grant-type:jwt-bearer'
-    served = document({ grant_types: ['authorization_code', 'refresh_token', bearer] })
+    served = document({ grant_types: ['authorization_code', 'refresh_token', bearer, 'client_credentials'] })
     expect((await signIn()).status).toBe(200)
+
+    // Served by the provider but never to a document, so only the drop explains the refusal.
 
     const token = await provider.handle(
       new Request(`${ISSUER}/token`, {
         method: 'POST',
         headers: { 'content-type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({ grant_type: bearer, assertion: 'x.y.z', client_id: CLIENT_ID })
+        body: new URLSearchParams({ grant_type: 'client_credentials', client_id: CLIENT_ID })
       })
     )
     expect(token.status).toBe(400)

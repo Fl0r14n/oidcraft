@@ -20,7 +20,7 @@ const assertClientIdUrl = (clientId: string) => {
 }
 
 const ALLOWED_METHODS: ClientAuthMethod[] = ['none', 'private_key_jwt']
-const ALLOWED_GRANTS = ['authorization_code', 'refresh_token']
+const DOCUMENT_GRANT_TYPES = ['authorization_code', 'refresh_token']
 
 const clientFrom = (config: ResolvedConfig, clientId: string, document: unknown): Client => {
   const body = objectFrom(document, `the document at ${clientId}`, refuse)
@@ -44,8 +44,8 @@ const clientFrom = (config: ResolvedConfig, clientId: string, document: unknown)
   )
 
   const listed = stringsFrom(body.grant_types, 'grant_types', refuse) ?? ['authorization_code']
-  // FR-C20: one document serves every server the client talks to, so a grant this one does not serve is dropped, not refused.
-  const grantTypes = listed.filter(grant => ALLOWED_GRANTS.includes(grant))
+  // FR-C20: one document serves every server the client talks to, so a grant type this provider does not support is dropped, not refused.
+  const grantTypes = listed.filter(grant => DOCUMENT_GRANT_TYPES.includes(grant))
   if (!grantTypes.includes('authorization_code')) {
     const named = listed.length ? `grant_types ${listed.join(', ')} leave` : 'grant_types lists no grant, so it leaves'
     throw refuse(`${named} out authorization_code, the only way a metadata-document client signs in`)

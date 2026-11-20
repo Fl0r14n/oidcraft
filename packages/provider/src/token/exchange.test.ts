@@ -126,7 +126,6 @@ describe('token exchange', () => {
     )
     const body = await response.json()
     expect(body.error).toBe('unsupported_grant_type')
-    expect(body.error_description).toContain('exchangePolicy')
   })
 
   test('is not advertised without a policy, and is with one', async () => {

@@ -1,8 +1,11 @@
+import { CIBA_GRANT_TYPE } from './authorize/ciba'
 import { configuredClaims } from './authorize/claims'
+import { DEVICE_CODE_GRANT_TYPE } from './authorize/device'
 import { MTLS_METHODS, type ResolvedConfig } from './config'
 import { CLIENT_SECRET_ALGS, CLIENT_SIGNING_ALGS } from './keys/algorithms'
 import { signingAlgorithms } from './keys/keys'
 import { FAPI_ALGS, FAPI_AUTH_METHODS } from './profile/fapi'
+import { TOKEN_EXCHANGE_GRANT_TYPE } from './token/exchange'
 import { supportedAcrValues } from './upstreams/selection'
 
 // Advertises only what this configuration can do (FR-C6), dropping methods the runtime cannot supply (FR-R5).
@@ -10,9 +13,9 @@ export const supportedGrantTypes = ({ features, exchangePolicy }: ResolvedConfig
   'authorization_code',
   'refresh_token',
   'client_credentials',
-  ...(features.deviceFlow ? ['urn:ietf:params:oauth:grant-type:device_code'] : []),
-  ...(exchangePolicy ? ['urn:ietf:params:oauth:grant-type:token-exchange'] : []),
-  ...(features.ciba ? ['urn:openid:params:grant-type:ciba'] : [])
+  ...(features.deviceFlow ? [DEVICE_CODE_GRANT_TYPE] : []),
+  ...(exchangePolicy ? [TOKEN_EXCHANGE_GRANT_TYPE] : []),
+  ...(features.ciba ? [CIBA_GRANT_TYPE] : [])
 ]
 
 export const metadata = (config: ResolvedConfig, signing: string[]) => {

@@ -70,6 +70,38 @@ in the `claims` parameter (FR-C22) refuses a login that reports less, but nothin
   was not retried under another name, as Proton Pass was (`.cert/README.md`). Google Password Manager
   and Proton Pass pass end to end.
 
+## Next, when a deployment asks for it
+
+- [ ] **Enterprise-managed authorization: the ID-JAG grant (G-10).** Not started; noted 2026-11-20,
+      when Claude's metadata document, which lists the JWT bearer grant, was refused by FR-C20 until
+      unserved grants were dropped. Sources: Claude's
+      https://claude.com/docs/connectors/building/enterprise-managed-auth, MCP's
+      https://modelcontextprotocol.io/extensions/auth/enterprise-managed-authorization,
+      draft-ietf-oauth-identity-assertion-authz-grant, RFC 7523 §2.1 and §3. What it takes:
+  - **A token endpoint case** for `urn:ietf:params:oauth:grant-type:jwt-bearer` with `assertion`,
+    behind a host option, off by default. Discovery lists it in `grant_types_supported` only when on:
+    Claude reads that list, and offers its enterprise sign-in only when the grant is there and the
+    `token_endpoint` shares the issuer's registrable domain.
+  - **A host-supplied trust policy**, as `exchangePolicy` is for token exchange: from the assertion's
+    `iss` (and `aud_tenant` when present) to exactly one tenant and its one trusted issuer, refusing
+    none or several, and the issuer's keys. Fetching `<iss>/.well-known/openid-configuration` and its
+    `jwks_uri` is the host's, as `resolveClientJwks` is (FR-A1), keyed by the issuer string exactly.
+  - **Claude's nine checks, in order, each failing `invalid_grant`:** `iss` an exact match of the
+    tenant's issuer before any key is fetched; keys only from that issuer's `jwks_uri`, never from the
+    JWT header; ES256 or RS256, never `none` or HMAC; `typ` `oauth-id-jag+jwt`; `aud` this issuer;
+    the `client_id` claim the request's authenticated client; `sub` present; `exp`, `iat` and `nbf`
+    within 60 s of skew; `jti` single-use per issuer until `exp` plus skew, through the adapter's
+    replay store, as client assertions' are.
+  - **The account** from `(iss, sub)` through the host, as an upstream subject is linked (FR-F5,
+    never by email). Scopes and `resource` (FR-C19) are narrowed as for any token request. No
+    refresh token unless the host says so: the IdP is meant to decide each time.
+  - **FR-C20 then allows the bearer grant** for a metadata-document client when the option is on.
+    Claude sends its document URL as `client_id`, or
+    `https://claude.ai/oauth/mcp-oauth-client-metadata/confidential_client` with `private_key_jwt`
+    when the provider offers it. Claude's docs say DCR is not used with this flow.
+  - A requirement (`FR-C*`) replacing G-10, and a test against an issuer the test signs for, before
+    any of the above.
+
 ## Still open on the client libraries
 
 - **The login component's props type is written out, not derived from the protocol.** The SFC imports

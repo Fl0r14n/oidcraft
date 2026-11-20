@@ -192,7 +192,10 @@ with its own network policy, size limit, caching and trust policy, and the core 
 a canonical `https` URL with a path and nothing else, refused before any fetch otherwise; a document
 whose `client_id` is that URL exactly; no shared secret, so `none` or `private_key_jwt` only; redirect
 URIs that are the client's registration, `http://localhost` among them unless it says it is `web`.
-PKCE is always required. A stored client with the same id wins. The consent screen shows the
+Its grants are the code and refresh grants it lists, and it must list the code grant. Any other
+grant it lists is dropped, not refused: one document serves every server the client talks to, and
+`grant_types` bounds what the client will use, not what a server must offer (RFC 7591 §2). Claude's
+document lists the JWT bearer grant for its enterprise sign-in (G-10). PKCE is always required. A stored client with the same id wins. The consent screen shows the
 client's host and the host the person returns to, and warns when that is this computer.
 
 **FR-C21 — FAPI 2.0 Security Profile**, opt-in per provider or per client, never a change of the
@@ -707,3 +710,13 @@ peer address together, so someone guessing locks out only their own address, wit
 per account alone, so a guess spread over many addresses still ends in a lock. Without a peer
 address from the host, the count is per account alone. Whether a locked answer looks different
 from a wrong password is the screen's choice; the reference screen makes them the same.
+
+**G-10 — Enterprise-managed authorization (ID-JAG).** MCP's Enterprise-Managed Authorization
+extension, stable and offered by Claude to Team and Enterprise organizations since 2026-08-24: a
+person signs in to the MCP client through their company's IdP, the client gets an Identity
+Assertion JWT Authorization Grant (draft-ietf-oauth-identity-assertion-authz-grant) for this
+provider from that IdP, and redeems it here with the JWT bearer grant (RFC 7523 §2.1,
+`urn:ietf:params:oauth:grant-type:jwt-bearer`), with no screen in between. It is the same client, so
+a metadata-document client then needs that grant too (FR-C20). Open: not built. Accepting any
+well-formed JWT would be sign-in as anyone, so the host binds each tenant to one trusted issuer, and
+the core fetches no issuer's keys itself (FR-A1). `PLAN.md` holds what resuming it takes.

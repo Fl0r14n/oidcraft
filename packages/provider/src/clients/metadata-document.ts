@@ -43,9 +43,13 @@ const clientFrom = (config: ResolvedConfig, clientId: string, document: unknown)
     browserUri(uri, 'redirect_uri', { native: applicationType === 'native', fail: refuse })
   )
 
-  const grantTypes = stringsFrom(body.grant_types, 'grant_types', refuse) ?? ['authorization_code']
-  const unsupported = grantTypes.filter(grant => !ALLOWED_GRANTS.includes(grant))
-  if (unsupported.length) throw refuse(`grant_types ${unsupported.join(', ')} are not available to a metadata-document client`)
+  const listed = stringsFrom(body.grant_types, 'grant_types', refuse) ?? ['authorization_code']
+  // FR-C20: one document serves every server the client talks to, so a grant this one does not serve is dropped, not refused.
+  const grantTypes = listed.filter(grant => ALLOWED_GRANTS.includes(grant))
+  if (!grantTypes.includes('authorization_code')) {
+    const named = listed.length ? `grant_types ${listed.join(', ')} leave` : 'grant_types lists no grant, so it leaves'
+    throw refuse(`${named} out authorization_code, the only way a metadata-document client signs in`)
+  }
 
   const scopes = stringFrom(body.scope, 'scope', refuse)?.split(' ').filter(Boolean) ?? config.scopes
   const unknown = scopes.filter(scope => !config.scopes.includes(scope))

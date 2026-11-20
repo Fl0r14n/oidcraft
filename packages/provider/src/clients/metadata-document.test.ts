@@ -73,6 +73,33 @@ const authorize = (clientId = CLIENT_ID, redirectUri = REDIRECT) =>
     )
   )
 
+/** Signs `ada` in through login and consent, and trades the code at the token endpoint. */
+const signIn = async (atConsent?: (consentId: string) => Promise<void>) => {
+  const first = await authorize()
+  const loginId = new URL(first.headers.get('location') as string).pathname.split('/').pop() as string
+  const login = await provider.interactions.complete(loginId, { login: { accountId: 'ada' } }, browserOf(first))
+  const cookie = `${SESSION_COOKIE}=${(login.setCookie as string).split('=')[1]?.split(';')[0]}`
+  const second = await provider.handle(new Request(login.redirectTo, { headers: { cookie } }))
+  const consentId = new URL(second.headers.get('location') as string).pathname.split('/').pop() as string
+  await atConsent?.(consentId)
+  const consent = await provider.interactions.complete(consentId, { consent: { scopes: ['openid'] } }, browserOf(second))
+  const third = await provider.handle(new Request(consent.redirectTo, { headers: { cookie } }))
+  const code = new URL(third.headers.get('location') as string).searchParams.get('code') as string
+  return provider.handle(
+    new Request(`${ISSUER}/token`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: REDIRECT,
+        client_id: CLIENT_ID,
+        code_verifier: verifier
+      })
+    })
+  )
+}
+
 describe('client ID metadata documents (FR-C20)', () => {
   test('discovery advertises them only when the host can resolve them', async () => {
     const metadata = async (p: Provider) => (await p.handle(new Request(`${ISSUER}/.well-known/oauth-authorization-server`))).json()
@@ -82,35 +109,12 @@ describe('client ID metadata documents (FR-C20)', () => {
   })
 
   test('a document-registered client signs a person in, end to end, with no registration step', async () => {
-    const first = await authorize()
-    const loginId = new URL(first.headers.get('location') as string).pathname.split('/').pop() as string
-    const login = await provider.interactions.complete(loginId, { login: { accountId: 'ada' } }, browserOf(first))
-    const cookie = `${SESSION_COOKIE}=${(login.setCookie as string).split('=')[1]?.split(';')[0]}`
-    const second = await provider.handle(new Request(login.redirectTo, { headers: { cookie } }))
-    const consentId = new URL(second.headers.get('location') as string).pathname.split('/').pop() as string
-
-    // What the consent screen needs to name a client that could call itself anything.
-    const view = await provider.interactions.find(consentId)
-    expect(view.clientId).toBe(CLIENT_ID)
-    expect(view.redirectUri).toBe(REDIRECT)
-
-    const consent = await provider.interactions.complete(consentId, { consent: { scopes: ['openid'] } }, browserOf(second))
-    const third = await provider.handle(new Request(consent.redirectTo, { headers: { cookie } }))
-    const code = new URL(third.headers.get('location') as string).searchParams.get('code') as string
-
-    const token = await provider.handle(
-      new Request(`${ISSUER}/token`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-          grant_type: 'authorization_code',
-          code,
-          redirect_uri: REDIRECT,
-          client_id: CLIENT_ID,
-          code_verifier: verifier
-        })
-      })
-    )
+    const token = await signIn(async consentId => {
+      // What the consent screen needs to name a client that could call itself anything.
+      const view = await provider.interactions.find(consentId)
+      expect(view.clientId).toBe(CLIENT_ID)
+      expect(view.redirectUri).toBe(REDIRECT)
+    })
     expect(token.status).toBe(200)
     expect((await token.json()).id_token).toBeTruthy()
   })
@@ -157,8 +161,27 @@ describe('client ID metadata documents (FR-C20)', () => {
     expect(await refusedWith({ token_endpoint_auth_method: 'private_key_jwt', jwks: 'text' })).toContain('JWK Set')
   })
 
-  test('only the code and refresh grants', async () => {
-    expect(await refusedWith({ grant_types: ['client_credentials'] })).toContain('not available')
+  test('the code grant is required', async () => {
+    expect(await refusedWith({ grant_types: ['client_credentials'] })).toContain('leave out authorization_code')
+    expect(await refusedWith({ grant_types: ['refresh_token'] })).toContain('leave out authorization_code')
+    expect(await refusedWith({ grant_types: [] })).toContain('lists no grant')
+  })
+
+  // FR-C20: Claude's document lists the JWT bearer grant for its enterprise sign-in.
+  test('a grant the provider does not serve to a document is dropped, and the client still signs in', async () => {
+    const bearer = 'urn:ietf:params:oauth:grant-type:jwt-bearer'
+    served = document({ grant_types: ['authorization_code', 'refresh_token', bearer] })
+    expect((await signIn()).status).toBe(200)
+
+    const token = await provider.handle(
+      new Request(`${ISSUER}/token`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ grant_type: bearer, assertion: 'x.y.z', client_id: CLIENT_ID })
+      })
+    )
+    expect(token.status).toBe(400)
+    expect(((await token.json()) as { error: string }).error).toBe('unauthorized_client')
   })
 
   test('a web application may not return to http://localhost', async () => {

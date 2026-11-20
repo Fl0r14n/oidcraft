@@ -71,9 +71,6 @@ in the `claims` parameter (FR-C22) refuses a login that reports less, but nothin
 - **Brave's own password manager** refused a passkey under `localhost`, through a phone by QR code, and
   was not retried under another name, as Proton Pass was (`.cert/README.md`). Google Password Manager
   and Proton Pass pass end to end.
-- **A replayed client assertion is refused but not audited.** FR-M3 says every replay reaches
-  `onAudit`; a replayed code, refresh token or identity assertion does, and `clients/assertion.ts`'s
-  `private_key_jwt` and `client_secret_jwt` replays do not. Found 2026-11-20 while building FR-C24.
 - **What FR-C24 leaves out, on purpose until a deployment needs it:** an assertion bound by `cnf`
   (draft §9.11, and its `jwt-dpop` grant type) is refused rather than checked; Claude's own beta
   assertions, whose `sub` is opaque, are not accepted, since only an email would find their account;

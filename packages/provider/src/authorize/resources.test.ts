@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
-import { ConfigurationError, hashClientSecret } from '@oidcraft/adapter'
+import { ConfigurationError } from '@oidcraft/adapter'
 import { memoryAdapter } from '@oidcraft/adapter/memory'
 import { randomString, sha256 } from '@oidcraft/core'
 import { base64url, decodeJwt } from 'jose'
@@ -8,16 +8,10 @@ import type { Adapter, Client } from '../index'
 import { createProvider, type Provider } from '../provider'
 import { protectedResourceMetadata, protectedResourceMetadataUrl } from '../resource/protected-resource'
 import { SESSION_COOKIE } from '../session/session'
+import { basic, browserOf, ISSUER, REDIRECT, SECRET_HASH } from '../test-flow'
 
-/** The browser-binding cookie the redirect to an interaction set, as the browser would send it back (FR-I2). */
-const browserOf = (response: Response) => response.headers.get('set-cookie')?.split(';')[0] ?? null
-
-const ISSUER = 'https://op.example.com'
-const REDIRECT = 'https://rp.example.com/cb'
 const MCP = 'https://mcp.example.com/mcp'
 const API = 'https://api.example.com'
-const SECRET = 'shhh-a-long-enough-secret'
-const SECRET_HASH = await hashClientSecret(SECRET)
 
 const client = (over: Partial<Client> = {}): Client => ({
   clientId: 'rp',
@@ -66,8 +60,6 @@ beforeEach(async () => {
   verifier = randomString() + randomString()
   challenge = base64url.encode(await sha256(verifier))
 })
-
-const basic = (id = 'rp') => `Basic ${btoa(`${id}:${SECRET}`)}`
 
 const post = (path: string, body: Record<string, string | string[]>, id = 'rp') => {
   const form = new URLSearchParams()

@@ -1,18 +1,13 @@
 import { describe, expect, test } from 'bun:test'
-import { hashClientSecret } from '@oidcraft/adapter'
 import { memoryAdapter } from '@oidcraft/adapter/memory'
 import { createProvider } from './provider'
-import { useFlow } from './test-flow'
+import { ISSUER, REDIRECT, SECRET, SECRET_HASH, useFlow } from './test-flow'
 
 /**
  * The discovery document against OIDC Discovery 1.0 §3 and RFC 8414 §2, cross-checked against what
  * the provider actually does. This is **not** certification — see conformance/README.md — but it
  * catches metadata drifting away from behaviour, which is the failure the real suite finds most.
  */
-const ISSUER = 'https://op.example.com'
-const REDIRECT = 'https://rp.example.com/cb'
-const SECRET = 'a-long-enough-client-secret'
-const SECRET_HASH = await hashClientSecret(SECRET)
 const CHALLENGE = 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM'
 const adapter = await memoryAdapter()
 

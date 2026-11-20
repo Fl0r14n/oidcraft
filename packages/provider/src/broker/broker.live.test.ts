@@ -4,11 +4,9 @@ import { hashClientSecret } from '@oidcraft/adapter'
 import { memoryAdapter } from '@oidcraft/adapter/memory'
 import { createProvider } from '../provider'
 import { SESSION_COOKIE } from '../session/session'
+import { browserOf } from '../test-flow'
 import { createBroker } from './broker'
 import { linkIdentity } from './link'
-
-/** The browser-binding cookie the redirect to an interaction set, as the browser would send it back (FR-I2). */
-const browserOf = (response: Response) => response.headers.get('set-cookie')?.split(';')[0] ?? null
 
 /**
  * The upstream is a second oidcraft instance (ARCHITECTURE.md §10). Brokering to ourselves

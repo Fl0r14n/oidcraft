@@ -11,7 +11,7 @@ import { SESSION_COOKIE } from './session/session'
 export const ISSUER = 'https://op.example.com'
 export const REDIRECT = 'https://rp.example.com/cb'
 export const SECRET = 'shhh-a-long-enough-secret'
-const SECRET_HASH = await hashClientSecret(SECRET)
+export const SECRET_HASH = await hashClientSecret(SECRET)
 
 /** The browser-binding cookie the redirect to an interaction set, as the browser would send it back (FR-I2). */
 export const browserOf = (response: Response) => response.headers.get('set-cookie')?.split(';')[0] ?? null

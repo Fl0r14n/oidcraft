@@ -1,19 +1,12 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
-import { hashClientSecret } from '@oidcraft/adapter'
 import { memoryAdapter } from '@oidcraft/adapter/memory'
 import { randomString, sha256 } from '@oidcraft/core'
 import { base64url, decodeJwt, generateKeyPair, SignJWT } from 'jose'
 import type { Adapter, ArtifactKind, Client } from './index'
 import { createProvider, type Provider } from './provider'
 import { SESSION_COOKIE } from './session/session'
+import { browserOf, ISSUER, REDIRECT, SECRET, SECRET_HASH } from './test-flow'
 
-/** The browser-binding cookie the redirect to an interaction set, as the browser would send it back (FR-I2). */
-const browserOf = (response: Response) => response.headers.get('set-cookie')?.split(';')[0] ?? null
-
-const ISSUER = 'https://op.example.com'
-const REDIRECT = 'https://rp.example.com/cb'
-const SECRET = 'a-long-enough-client-secret'
-const SECRET_HASH = await hashClientSecret(SECRET)
 const FORM = { 'content-type': 'application/x-www-form-urlencoded' }
 
 const client = (over: Partial<Client> = {}): Client => ({

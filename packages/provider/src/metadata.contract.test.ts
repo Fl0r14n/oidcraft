@@ -3,6 +3,7 @@ import { memoryAdapter } from '@oidcraft/adapter/memory'
 import { applyDiscovery, type OpenIdConfiguration } from '@oidcraft/core'
 import { resolveConfig } from './config'
 import { metadata } from './discovery'
+import { ISSUER } from './test-flow'
 
 /**
  * The one place the OP half and the relying-party half of this workspace are pinned to each other.
@@ -13,7 +14,6 @@ import { metadata } from './discovery'
  * looks for is one the writer emits — so the day an endpoint is renamed here, it is a compile error
  * rather than an `undefined` in somebody's client six months later.
  */
-const ISSUER = 'https://op.example.com'
 const adapter = await memoryAdapter()
 const document = metadata(resolveConfig({ issuer: ISSUER, adapter, interactionUrl: `${ISSUER}/interaction` }), ['RS256'])
 

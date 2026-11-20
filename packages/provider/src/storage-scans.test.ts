@@ -1,18 +1,11 @@
 import { expect, test } from 'bun:test'
-import { fromKv, generatedKeyStore, hashClientSecret, type KvStore } from '@oidcraft/adapter'
+import { fromKv, generatedKeyStore, type KvStore } from '@oidcraft/adapter'
 import { memoryKv } from '@oidcraft/adapter/memory'
 import { randomString, sha256 } from '@oidcraft/core'
 import { base64url } from 'jose'
 import type { Client } from './index'
 import { createProvider } from './provider'
-
-/** The browser-binding cookie the redirect to an interaction set, as the browser would send it back (FR-I2). */
-const browserOf = (response: Response) => response.headers.get('set-cookie')?.split(';')[0] ?? null
-
-const ISSUER = 'https://op.example.com'
-const REDIRECT = 'https://rp.example.com/cb'
-const SECRET = 'a-long-enough-client-secret'
-const SECRET_HASH = await hashClientSecret(SECRET)
+import { browserOf, ISSUER, REDIRECT, SECRET, SECRET_HASH } from './test-flow'
 
 /** Records every prefix scanned, so a request path reading a whole family of records shows up by name. */
 const recording = (kv: KvStore) => {

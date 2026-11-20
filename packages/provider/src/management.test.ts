@@ -3,8 +3,7 @@ import { hashClientSecret } from '@oidcraft/adapter'
 import { memoryAdapter } from '@oidcraft/adapter/memory'
 import type { AuditEvent, Client, FullAdapter } from './index'
 import { createProvider, type Provider } from './provider'
-
-const ISSUER = 'https://op.example.com'
+import { ISSUER } from './test-flow'
 
 const input = (over: Partial<Client> = {}) => ({
   clientId: 'rp',

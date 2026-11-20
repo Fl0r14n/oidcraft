@@ -3,9 +3,7 @@ import { memoryAdapter } from '@oidcraft/adapter/memory'
 import { OAuthError } from '../errors'
 import type { Adapter, AuditEvent, Client } from '../index'
 import { createProvider, type Provider } from '../provider'
-
-const ISSUER = 'https://op.example.com'
-const REDIRECT = 'https://rp.example.com/cb'
+import { ISSUER, REDIRECT } from '../test-flow'
 
 let adapter: Adapter
 let provider: Provider

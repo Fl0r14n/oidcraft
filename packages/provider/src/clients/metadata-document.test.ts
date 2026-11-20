@@ -5,11 +5,8 @@ import { base64url } from 'jose'
 import type { Adapter } from '../index'
 import { createProvider, type Provider } from '../provider'
 import { SESSION_COOKIE } from '../session/session'
+import { browserOf, ISSUER } from '../test-flow'
 
-/** The browser-binding cookie the redirect to an interaction set, as the browser would send it back (FR-I2). */
-const browserOf = (response: Response) => response.headers.get('set-cookie')?.split(';')[0] ?? null
-
-const ISSUER = 'https://op.example.com'
 const CLIENT_ID = 'https://app.example.com/oauth/client-metadata.json'
 const REDIRECT = 'http://localhost:3000/callback'
 

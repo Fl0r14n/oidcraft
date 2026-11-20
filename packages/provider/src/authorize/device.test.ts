@@ -1,15 +1,11 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
-import { hashClientSecret } from '@oidcraft/adapter'
 import { memoryAdapter } from '@oidcraft/adapter/memory'
 import { decodeJwt } from 'jose'
 import type { Adapter, Client } from '../index'
 import { createProvider, type Provider } from '../provider'
+import { ISSUER, SECRET, SECRET_HASH } from '../test-flow'
 import { sectorOf } from '../token/subjects'
 import { normalizeUserCode, userCode } from './device'
-
-const ISSUER = 'https://op.example.com'
-const SECRET = 'shhh-a-long-enough-secret'
-const SECRET_HASH = await hashClientSecret(SECRET)
 
 const client = (over: Partial<Client> = {}): Client => ({
   clientId: 'tv',

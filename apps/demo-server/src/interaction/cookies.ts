@@ -39,14 +39,24 @@ const verified = async <T>(value: string | undefined): Promise<T | undefined> =>
 const PENDING = 'oidcraft.demo.pending'
 const KNOWN = 'oidcraft.demo.known'
 
-/** A right password awaiting its second factor: bound to the interaction so it finishes no other, and short-lived. */
+const pendingOf = async (request: Request, interactionId: string) => {
+  const pending = await verified<Pending>(read(request, PENDING))
+  return pending && pending.interactionId === interactionId && pending.until > Date.now() ? pending : undefined
+}
+
+type Pending = { interactionId: string; accountId: string; until: number; byEmail?: true }
+
+/** A right first factor awaiting its second, bound to the interaction; `byEmail` may finish in another browser (FR-I9). */
 export const pendingSecondFactor = {
-  set: async (interactionId: string, accountId: string) =>
-    serialize(PENDING, await sign({ interactionId, accountId, until: Date.now() + 600_000 }), 600, '/interaction'),
-  get: async (request: Request, interactionId: string) => {
-    const pending = await verified<{ interactionId: string; accountId: string; until: number }>(read(request, PENDING))
-    return pending && pending.interactionId === interactionId && pending.until > Date.now() ? pending.accountId : undefined
-  },
+  set: async (interactionId: string, accountId: string, byEmail = false) =>
+    serialize(
+      PENDING,
+      await sign({ interactionId, accountId, until: Date.now() + 600_000, ...(byEmail && { byEmail }) } satisfies Pending),
+      600,
+      '/interaction'
+    ),
+  get: async (request: Request, interactionId: string) => (await pendingOf(request, interactionId))?.accountId,
+  byEmail: async (request: Request, interactionId: string) => Boolean((await pendingOf(request, interactionId))?.byEmail),
   clear: () => serialize(PENDING, '', 0, '/interaction')
 }
 

@@ -48,7 +48,7 @@ const seeOther = (location: string, setCookie?: string) => {
 // #endregion see-other
 
 // #region login
-const pendingSecondFactor = new Map<string, string>()
+const pendingSecondFactor = new Map<string, { accountId: string; byEmail: boolean }>()
 
 const submitLogin = async (id: string, request: Request) => {
   const form = new URLSearchParams(await request.text())
@@ -72,7 +72,7 @@ const submitLogin = async (id: string, request: Request) => {
   if (!result.ok) return Response.json({ reason: result.reason }, { status: result.reason === 'locked' ? 429 : 401 })
 
   if (result.secondFactor) {
-    pendingSecondFactor.set(id, result.accountId)
+    pendingSecondFactor.set(id, { accountId: result.accountId, byEmail: false })
     return seeOther(`/interaction/${id}/otp`)
   }
 
@@ -88,22 +88,64 @@ const submitLogin = async (id: string, request: Request) => {
 // #region second-factor
 const submitCode = async (id: string, request: Request) => {
   const form = new URLSearchParams(await request.text())
-  const accountId = pendingSecondFactor.get(id)
-  if (!accountId) return new Response('Sign in with your password first.', { status: 400 })
+  const pending = pendingSecondFactor.get(id)
+  if (!pending) return new Response('Sign in with your password first.', { status: 400 })
+  const { accountId, byEmail } = pending
 
   const result = await accounts.verifySecondFactor(accountId, form.get('code') ?? '')
   if (!result.ok) return Response.json({ reason: result.reason }, { status: result.reason === 'locked' ? 429 : 401 })
 
   pendingSecondFactor.delete(id)
-  const amr = result.method === 'otp' ? ['pwd', 'otp', 'mfa'] : ['pwd', 'mfa']
-  const { redirectTo, setCookie } = await provider.interactions.complete(
-    id,
-    { login: { accountId, acr: 'mfa', amr } },
+  const first = byEmail ? 'email' : 'pwd'
+  const login = { accountId, acr: 'mfa', amr: result.method === 'otp' ? [first, 'otp', 'mfa'] : [first, 'mfa'] }
+  const cookie = request.headers.get('cookie')
+  // Only a first factor proven by email may finish in another browser (FR-I9).
+  const { redirectTo, setCookie } = byEmail
+    ? await provider.interactions.completeHere(id, login, cookie)
+    : await provider.interactions.complete(id, { login }, cookie)
+  return seeOther(redirectTo, setCookie)
+}
+// #endregion second-factor
+
+const mailbox: { to: string; text: string }[] = []
+const sendMail = (to: string, text: string) => mailbox.push({ to, text })
+
+// #region email-sign-in
+const askForEmailLink = async (id: string, request: Request) => {
+  const form = new URLSearchParams(await request.text())
+  const view = await provider.interactions.find(id)
+  const issued = await accounts.emailSignIn.issue(form.get('email') ?? '', view, { signUp: {} })
+  if (!issued.ok && issued.reason === 'address') return Response.json({ problem: issued.problem }, { status: 400 })
+  if (issued.ok) sendMail(issued.address, `${ISSUER}/email-sign-in?token=${issued.token}`)
+  if (!issued.ok && issued.reason === 'passkey') sendMail(issued.address, 'This account signs in with its passkey.')
+  // Every address gets the same answer; whether it has an account is for its inbox to learn (FR-I9).
+  return new Response('Check your email.')
+}
+
+// The link's GET only names the address: mail scanners open links, and must not spend them.
+const showEmailLink = async (token: string) => {
+  const found = await accounts.emailSignIn.find(token)
+  return found ? new Response(`Sign in as ${found.address}?`) : new Response('This link no longer works.', { status: 400 })
+}
+
+const followEmailLink = async (request: Request) => {
+  // The token alone signs in any browser: posted from another site, it would sign the visitor in as whoever asked.
+  if (request.headers.get('origin') !== new URL(ISSUER).origin) return new Response('Forbidden', { status: 403 })
+  const form = new URLSearchParams(await request.text())
+  const result = await accounts.emailSignIn.redeem(form.get('token') ?? '')
+  if (!result.ok) return Response.json({ reason: result.reason }, { status: 400 })
+  if (result.secondFactor) {
+    pendingSecondFactor.set(result.interactionId, { accountId: result.accountId, byEmail: true })
+    return seeOther(`/interaction/${result.interactionId}/otp`)
+  }
+  const { redirectTo, setCookie } = await provider.interactions.completeHere(
+    result.interactionId,
+    { accountId: result.accountId, acr: 'pwd', amr: ['email'] },
     request.headers.get('cookie')
   )
   return seeOther(redirectTo, setCookie)
 }
-// #endregion second-factor
+// #endregion email-sign-in
 
 // #region consent
 const submitConsent = async (id: string, request: Request) => {
@@ -171,8 +213,12 @@ const browser = () => {
       return header()
     },
     /** A form post from this browser, carrying its cookies as the real one would. */
-    post(values: Record<string, string>) {
-      return new Request(`${ISSUER}/interaction`, { method: 'POST', headers: { cookie: header() }, body: new URLSearchParams(values) })
+    post(values: Record<string, string>, origin = ISSUER) {
+      return new Request(`${ISSUER}/interaction`, {
+        method: 'POST',
+        headers: { cookie: header(), origin },
+        body: new URLSearchParams(values)
+      })
     },
     async follow(response: Response) {
       let current = response
@@ -290,6 +336,48 @@ describe('the interaction contract', () => {
     const consentId = interactionId(await grace.follow(await submitCode(id, grace.post({ code: recovery }))))
     const back = await grace.follow(await submitConsent(consentId, grace.post({ decision: 'allow' })))
     expect(await exchange(back.searchParams.get('code') as string)).toMatchObject({ acr: 'mfa', amr: ['pwd', 'mfa'] })
+  })
+
+  test('an email link signs in whichever browser opens it, and the browser that asked is left with nothing', async () => {
+    const asking = browser()
+    const id = interactionId(await asking.open(authorizeUrl()))
+    expect((await askForEmailLink(id, asking.post({ email: 'Hedy@Example.com' }))).status).toBe(200)
+    expect((await askForEmailLink(id, asking.post({ email: 'hedy' }))).status).toBe(400)
+    const token = new URL(mailbox.findLast(mail => mail.to === 'hedy@example.com')?.text as string).searchParams.get('token') as string
+    expect(await (await showEmailLink(token)).text()).toBe('Sign in as hedy@example.com?')
+
+    const phone = browser()
+    expect((await followEmailLink(phone.post({ token }, 'https://attacker.example'))).status).toBe(403)
+    const consentId = interactionId(await phone.follow(await followEmailLink(phone.post({ token }))))
+    await expect(provider.interactions.find(id)).rejects.toBeInstanceOf(OAuthError)
+    const back = await phone.follow(await submitConsent(consentId, phone.post({ decision: 'allow' })))
+    expect(back.searchParams.get('state')).toBe('af0ifjsldkj')
+    expect(await exchange(back.searchParams.get('code') as string)).toMatchObject({ acr: 'pwd', amr: ['email'] })
+    expect((await followEmailLink(phone.post({ token }))).status).toBe(400)
+  })
+
+  test('an email link to an account with TOTP asks for its code in the browser that opened it', async () => {
+    const created = await accounts.signUp({
+      username: 'katherine@example.com',
+      password: 'correct horse battery',
+      claims: { email: 'katherine@example.com', email_verified: true }
+    })
+    if (!created.ok) throw new Error('could not sign up')
+    const begun = await accounts.totp.begin(created.accountId)
+    if (!begun?.ok) throw new Error('enrolment did not start')
+    const recovery = (await accounts.totp.confirm(created.accountId, await totpNow(begun.secret)))?.recoveryCodes[0] as string
+
+    const asking = browser()
+    const id = interactionId(await asking.open(authorizeUrl()))
+    await askForEmailLink(id, asking.post({ email: 'katherine@example.com' }))
+    const token = new URL(mailbox.findLast(mail => mail.to === 'katherine@example.com')?.text as string).searchParams.get('token') as string
+
+    const phone = browser()
+    const asked = await followEmailLink(phone.post({ token }))
+    expect(asked.headers.get('location')).toBe(`/interaction/${id}/otp`)
+    const consentId = interactionId(await phone.follow(await submitCode(id, phone.post({ code: recovery }))))
+    const back = await phone.follow(await submitConsent(consentId, phone.post({ decision: 'allow' })))
+    expect(await exchange(back.searchParams.get('code') as string)).toMatchObject({ acr: 'mfa', amr: ['email', 'mfa'] })
   })
 
   test('cancelling or declining sends access_denied to the client', async () => {

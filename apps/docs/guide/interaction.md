@@ -190,6 +190,48 @@ The token's page offers a new passkey — `reset.passkeyOptions(token)`, then
 `reset.completeWithPasskey(token, response, name)` — or a password, through `reset.complete`. Either
 ends the account's sessions and revokes its tokens, as a stolen device may be why it was needed.
 
+### Email sign-in
+
+A person types an address and signs in by following a link sent to it (FR-I9). The address is the
+username, and following the link proves it, so the account's `email` is that address with
+`email_verified: true`:
+
+<<< @/samples/interaction.test.ts#email-sign-in{ts}
+
+- **`issue` takes the interaction**, as `provider.interactions.find` describes it, and the token
+  lives at most `policy.emailSignInTtl` (900 seconds) and never past the interaction. Sending it is
+  I/O, so you do it (FR-A1). Pass `signUp` only where you offer sign-up: without it, an address with
+  no account answers `unknown`.
+- **Answer every address the same way.** Only `reason: 'address'` is about what was typed. `unknown`,
+  `locked` (five tokens per address an hour, counted whether or not it has an account), `passkey`
+  and `unverified` are for your mail, never your page: tell a `passkey` account to use its passkey
+  and an `unverified` one its password, or send nothing.
+- **An account with a passkey never signs in by email**, and no option changes that: its owner chose
+  phishing resistance, and the inbox would be a silent way around it. An account with a password
+  signs in by email only once its `email` claim is that address with `email_verified: true`;
+  otherwise whoever signed up with someone else's address would keep a password beside the owner's
+  inbox. Both are checked again by `redeem`, so a passkey added after the link was sent stops it.
+- **The link's `GET` shows a button; the `POST` spends the token.** Mail scanners open links.
+  `find(token)` names the address and the interaction for that page, which matters: a link someone
+  else asked for signs this browser in as them. Check the interaction is still open
+  (`provider.interactions.find`) before `redeem`, or a link to a sign-in finished another way spends
+  its token, and for a sign-up makes an account nobody signs in to.
+- **Accept that `POST` only from your own pages.** The token alone signs in any browser, so a page
+  elsewhere that posts one signs its visitor in as whoever asked for it, without the page that names
+  the address ever showing. Refuse it unless `Origin` is the issuer's.
+- **Finish with `completeHere`, not `complete`.** In the browser the interaction is bound to it
+  completes it. In any other — a mail app's own browser, a phone — it ends that interaction and
+  starts its authorization request again there, signed in, so the code reaches the client from the
+  browser that followed the link and the one that asked is never answered from elsewhere (FR-I2).
+  A web client opened in another browser has no `state` there and refuses the callback; an app
+  receiving its redirect by a universal link completes. It takes a login, never an id alone, and
+  only an authorization sign-in moves: a device or logout interaction is refused from elsewhere, so
+  do not offer email sign-in on a device sign-in, which carries no `redirectUri`.
+- **The inbox is a first factor.** For an account with TOTP, `redeem` answers `secondFactor: true`:
+  ask for the code as above, and finish that with `completeHere` too, since it may be another
+  browser. There is no RFC 8176 value for email; the reference deployment reports `amr: ['email']`
+  and `acr: 'pwd'`, with `otp` and `mfa` added after a code.
+
 ## Resuming
 
 After a login, the browser goes back to the authorization endpoint with the new session, and the
@@ -361,6 +403,9 @@ host.
   (FR-A1); `issue` returns nothing for an unknown username, and your page must answer both cases
   the same way. Completing a reset, with a password or a passkey, ends the account's sessions and
   lifts its locks: the account's own and, given `{ clientIp }`, that address's.
+- `emailSignIn.issue`, `emailSignIn.find` and `emailSignIn.redeem` — sign-in, and sign-up where
+  you offer it, by a single-use link to an address, finished with `provider.interactions.completeHere`
+  ([Email sign-in](#email-sign-in), FR-I9)
 
 The hasher is injected: `bunPasswordHasher` from `@oidcraft/provider/runtimes/bun`,
 `nodePasswordHasher` from `@oidcraft/provider/runtimes/node`, or your own. Failed passwords, and
@@ -386,5 +431,7 @@ on the password screen as you answer a wrong password, or the difference confirm
 - On a `login` view with `consent` in `prompt`, ask for consent there too.
 - Treat an `OAuthError` from `find` or `complete` as "this sign-in expired".
 - Bind any half-finished state, such as a pending second factor, to the browser and the interaction.
+- Finish an email sign-in with `completeHere`, and nothing else: it is the one answer that may come
+  from another browser. Take the link's `POST` only from your own origin.
 - The reference implementation of all of this is `apps/demo-server/src/interaction/routes.ts`, with
   the screens in `packages/ui`; replace both wholesale (FR-I3).

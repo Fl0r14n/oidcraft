@@ -3,6 +3,8 @@ import { SCRIPT, STYLESHEET } from './assets'
 import type { Brand, Theme } from './brand'
 import ConsentScreen from './pages/ConsentScreen.vue'
 import DeviceCodeScreen from './pages/DeviceCodeScreen.vue'
+import EmailScreen from './pages/EmailScreen.vue'
+import EmailSignInScreen from './pages/EmailSignInScreen.vue'
 import ForgotScreen from './pages/ForgotScreen.vue'
 import LoginScreen from './pages/LoginScreen.vue'
 import LogoutScreen from './pages/LogoutScreen.vue'
@@ -25,6 +27,8 @@ export type ScreenUrls = {
   deviceDecide: string
   /** Where a reset link lands. It outlives the interaction that asked for it. */
   reset: string
+  /** Where an email sign-in link lands (FR-I9): in whichever browser it is opened, so outside any interaction. */
+  emailSignIn: string
   /** Where `assets` answers for `ui.css`; its fonts are fetched beside it. */
   stylesheet: string
   /** Where `assets` answers for `passkey.js`, which only a screen offering passkeys loads. */
@@ -45,6 +49,7 @@ export type InteractionAction =
   | 'passkey-options'
   | 'register-options'
   | 'recover'
+  | 'email'
 
 /** The interaction as the provider describes it, plus the client's display name when the host has it. */
 export type ScreenView = InteractionRequest & { clientName?: string | undefined }
@@ -85,6 +90,8 @@ export type LoginOptions = {
   passkeys?: boolean
   /** With `passkeys`, a way in by recovery code for an account whose only passkey is lost. */
   recover?: boolean
+  /** A link to sign in by email, for a host that mounts the `email` route (FR-I9). */
+  email?: boolean
   status?: number
 }
 
@@ -110,6 +117,7 @@ export const createScreens = ({ brand, theme, urls: overrides }: ScreensOptions)
     device: '/device',
     deviceDecide: '/device/decide',
     reset: '/reset',
+    emailSignIn: '/email-sign-in',
     stylesheet: STYLESHEET,
     script: SCRIPT,
     ...overrides
@@ -135,7 +143,17 @@ export const createScreens = ({ brand, theme, urls: overrides }: ScreensOptions)
     // `required` and `maxlength` only mirror the rules; the POST re-checks them with `oauthFieldError`
     login: (
       view: ScreenView,
-      { attempt, upstreams = [], notice, forgot = false, register = false, passkeys = false, recover = false, status }: LoginOptions = {}
+      {
+        attempt,
+        upstreams = [],
+        notice,
+        forgot = false,
+        register = false,
+        passkeys = false,
+        recover = false,
+        email = false,
+        status
+      }: LoginOptions = {}
     ) =>
       page(
         'Sign in',
@@ -152,6 +170,7 @@ export const createScreens = ({ brand, theme, urls: overrides }: ScreensOptions)
           forgotUrl: forgot ? urls.interaction(view.id, 'forgot') : undefined,
           registerUrl: register ? urls.interaction(view.id, 'register') : undefined,
           recoverUrl: passkeys && recover ? urls.interaction(view.id, 'recover') : undefined,
+          emailUrl: email ? urls.interaction(view.id, 'email') : undefined,
           passkey: passkeys ? passkeyForm(view, 'login') : undefined
         },
         status,
@@ -224,6 +243,25 @@ export const createScreens = ({ brand, theme, urls: overrides }: ScreensOptions)
         loginUrl: urls.interaction(view.id, 'login'),
         maxLength: DEFAULT_MAX_LENGTH
       }),
+
+    /** The address an email sign-in link goes to (FR-I9); `error` is the address's own problem, never whether it has an account. */
+    email: (view: ScreenView, { address = '', error, status }: { address?: string; error?: string | undefined; status?: number } = {}) =>
+      page(
+        'Sign in with email',
+        EmailScreen,
+        {
+          action: urls.interaction(view.id, 'email'),
+          loginUrl: urls.interaction(view.id, 'login'),
+          clientName: nameOf(view),
+          maxLength: DEFAULT_MAX_LENGTH,
+          address,
+          error
+        },
+        status
+      ),
+
+    /** Where the link lands: it names the address and only its button spends the token, since mail scanners open links too (FR-I9). */
+    emailSignIn: (token: string, address: string) => page('Sign in', EmailSignInScreen, { action: urls.emailSignIn, token, address }),
 
     /** With `passkeys`, the token may add a passkey instead; its options are a POST to `reset` with `step=passkey-options`. */
     reset: (token: string, { error, passkeys = false, status }: { error?: string | undefined; passkeys?: boolean; status?: number } = {}) =>

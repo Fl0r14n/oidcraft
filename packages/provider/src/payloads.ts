@@ -95,6 +95,8 @@ export type Payloads = {
   revoked_family: Empty
   /** A WebAuthn challenge, under its own value, for one ceremony bound to an interaction or, for a registration, an account (FR-I8). */
   passkey_challenge: { ceremony: 'create' | 'get'; binding: string }
+  /** Under the token's digest, for the interaction that asked; an address with no account yet carries the sign-up (FR-I9). */
+  email_sign_in: { address: string; interactionId: string; signUp?: { claims: Record<string, unknown> } }
 }
 
 /** One record per kind, so a union of kinds narrows on `kind`. */

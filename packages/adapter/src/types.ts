@@ -119,6 +119,7 @@ export type ArtifactKind =
   | 'password_reset'
   | 'revoked_family'
   | 'passkey_challenge'
+  | 'email_sign_in'
 
 export type Artifact = Entity &
   Partial<AccountOwned> &

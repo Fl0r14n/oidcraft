@@ -20,9 +20,13 @@ export const bindBrowser = async (config: ResolvedConfig, cookie: string | null 
   }
 }
 
-export const assertSameBrowser = async (config: ResolvedConfig, cookie: string | null | undefined, browser: string) => {
+export const isSameBrowser = async (config: ResolvedConfig, cookie: string | null | undefined, browser: string) => {
   const held = parseCookies(cookie ?? null).get(browserCookie(config))
-  if (!held || (await storedId(held)) !== browser) {
+  return held !== undefined && held !== '' && (await storedId(held)) === browser
+}
+
+export const assertSameBrowser = async (config: ResolvedConfig, cookie: string | null | undefined, browser: string) => {
+  if (!(await isSameBrowser(config, cookie, browser))) {
     throw new OAuthError('invalid_request', {
       description: 'this interaction was started in another browser',
       status: 403,

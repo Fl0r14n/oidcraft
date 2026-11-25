@@ -240,3 +240,55 @@ describe('extra parameters (FR-I1)', () => {
     expect((await provider.interactions.find(id)).extraParameters).toEqual({})
   })
 })
+
+describe('completeHere (FR-I9)', () => {
+  const started = async (over: Record<string, string> = {}) => {
+    const first = await go(authorizeUrl(over))
+    return { id: new URL(first.headers.get('location') as string).pathname.split('/').pop() as string, browser: browserOf(first) }
+  }
+  const sessionOf = (setCookie: string | undefined) => `${SESSION_COOKIE}=${(setCookie as string).split('=')[1]?.split(';')[0]}`
+
+  test('in the browser the interaction is bound to, it completes it as complete does', async () => {
+    const { id, browser } = await started()
+    const done = await provider.interactions.completeHere(id, { accountId: 'ada' }, browser)
+    expect(done.setCookie).toBeString()
+    await expect(provider.interactions.complete(id, { login: { accountId: 'ada' } }, browser)).rejects.toMatchObject({ status: 404 })
+  })
+
+  // FR-I2: the original is never answered from elsewhere, so whoever started it gains nothing from the person's click.
+  test('in another browser, the original is spent and the request starts again there, consent asked in that browser', async () => {
+    const { id, browser } = await started()
+    const here = await provider.interactions.completeHere(id, { accountId: 'ada' }, null)
+    await expect(provider.interactions.complete(id, { login: { accountId: 'ada' } }, browser)).rejects.toMatchObject({ status: 404 })
+
+    const session = sessionOf(here.setCookie)
+    const resumed = await go(here.redirectTo, session)
+    const consentId = new URL(resumed.headers.get('location') as string).pathname.split('/').pop() as string
+    const thisBrowser = browserOf(resumed) as string
+    expect(thisBrowser).toBeString()
+    const consent = { consent: { scopes: ['openid', 'profile', 'offline_access'] } }
+    await expect(provider.interactions.complete(consentId, consent, browser)).rejects.toMatchObject({ status: 403 })
+    const approved = await provider.interactions.complete(consentId, consent, thisBrowser)
+    const back = new URL((await go(approved.redirectTo, `${session}; ${thisBrowser}`)).headers.get('location') as string)
+    expect(`${back.origin}${back.pathname}`).toBe(REDIRECT)
+    expect(back.searchParams.get('code')).toBeString()
+    expect(back.searchParams.get('state')).toBe('xyz')
+  })
+
+  test('a refused login spends nothing, in either browser', async () => {
+    const { id, browser } = await started()
+    for (const cookie of [browser, null]) {
+      await expect(provider.interactions.completeHere(id, { accountId: 'ghost' }, cookie)).rejects.toMatchObject({ spec: 'FR-I2' })
+    }
+    expect((await provider.interactions.completeHere(id, { accountId: 'ada' }, browser)).setCookie).toBeString()
+  })
+
+  test('a logout confirmation is never finished this way, and only an authorization sign-in moves browsers', async () => {
+    const { cookie } = await loginAndConsent()
+    const asked = await go(`${ISSUER}/session/end`, cookie)
+    const confirm = (asked.headers.get('location') as string).split('/').pop() as string
+    for (const held of [browserOf(asked), null]) {
+      await expect(provider.interactions.completeHere(confirm, { accountId: 'ada' }, held)).rejects.toMatchObject({ status: 403 })
+    }
+  })
+})

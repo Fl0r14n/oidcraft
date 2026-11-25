@@ -1,6 +1,6 @@
 /// <reference types="bun" />
 import type { AccountStore, Adapter, CredentialsAdapter } from '@oidcraft/provider'
-import { type Accounts, createAccounts, generateSecretKey } from '@oidcraft/provider/accounts'
+import { type Accounts, createAccounts, type EmailSignInIssue, generateSecretKey } from '@oidcraft/provider/accounts'
 import { bunPasswordHasher } from '@oidcraft/provider/runtimes/bun'
 import { devSecret } from './dev-secrets'
 import { optional, withDefault } from './env'
@@ -97,6 +97,16 @@ export const seedDemoAccounts = async (accounts: Accounts, adapter: Adapter) => 
     })
   }
   console.log(`[oidcraft] demo accounts: ${people.map(person => person.username).join(', ')} — password from OIDCRAFT_DEMO_PASSWORD`)
+}
+
+/** The demo's mail for an email sign-in (FR-I9): a link, a pointer to the way this account signs in, or nothing at all. */
+export const sendEmailSignIn = (issued: EmailSignInIssue, issuer: string) => {
+  if (issued.ok) {
+    console.log(`[demo mail] to ${issued.address}: sign in at ${new URL(`/email-sign-in?token=${issued.token}`, issuer)}`)
+  } else if (issued.reason === 'passkey' || issued.reason === 'unverified') {
+    const way = issued.reason === 'passkey' ? 'its passkey' : 'its password'
+    console.log(`[demo mail] to ${issued.address}: this account does not sign in by email; use ${way} on the sign-in screen`)
+  }
 }
 
 /** The demo's mail: a deployment emails this link and never shows it, or the form hands accounts to anyone. */

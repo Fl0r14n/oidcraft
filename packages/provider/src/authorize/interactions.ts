@@ -2,8 +2,8 @@ import { randomString } from '@oidcraft/core'
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
 import type { InteractionCompletion, InteractionRequest, InteractionResult } from '../interaction'
-import { type DeviceLogin, type InteractionPayload, readArtifact, writeArtifact } from '../payloads'
-import { assertSameBrowser } from '../session/browser'
+import { type DeviceLogin, type InteractionPayload, readArtifact, type Stored, writeArtifact } from '../payloads'
+import { assertSameBrowser, isSameBrowser } from '../session/browser'
 import { startSession } from '../session/session'
 import {
   type AuthorizationRequest,
@@ -75,117 +75,149 @@ export const interactions = (config: ResolvedConfig) => ({
     await assertSameBrowser(config, cookie, payload.browser)
     if (payload.interactionKind === 'logout') return confirmLogout(config, id, payload, given)
     if ('device' in payload) return completeDeviceLogin(config, id, artifact.clientId, payload.device, given)
-    const { request } = payload
-    // FR-F9: max_age went upstream with the login, so an auth_time older than it says it was not honoured.
-    const outcome: InteractionResult = staleLogin(config, artifact.expiresAt, request.maxAge, given.login?.authTime)
-      ? { error: { error: 'login_required', description: 'the sign-in is older than max_age allows' } }
-      : ((await refusedLogin(config, request, given.login)) ?? given)
-    if (outcome.consent) {
-      const consented = outcome.consent.scopes
-      const unasked = consented.filter(scope => !request.scopes.includes(scope))
-      if (unasked.length) {
-        throw new OAuthError('invalid_request', {
-          description: `consent grants ${unasked.join(', ')}, which this request did not ask for`,
-          spec: 'FR-I4'
-        })
-      }
-      // All or nothing: a partial consent would be stored, then asked for again in full (FR-I4).
-      const accountId = outcome.login?.accountId ?? artifact.accountId
-      // Before the consume below, like every other refusal: a refused answer must not spend the interaction (FR-I2).
-      if (!accountId)
-        throw new OAuthError('invalid_request', { description: 'consent was given without a logged-in account', spec: 'FR-I2' })
-      const held = await config.adapter.grants.findByAccountAndClient(accountId, request.clientId)
-      const declined = request.scopes.filter(scope => !consented.includes(scope) && !held?.scopes.includes(scope))
-      if (declined.length) {
-        throw new OAuthError('invalid_request', {
-          description: `consent must approve every requested scope, or answer access_denied; it leaves out ${declined.join(', ')}`,
-          spec: 'FR-I4'
-        })
-      }
-      const asked = individuallyRequested(config, request.scopes, request.claims)
-      const named = outcome.consent.claims ?? []
-      const unaskedClaims = named.filter(name => !asked.includes(name))
-      if (unaskedClaims.length) {
-        throw new OAuthError('invalid_request', {
-          description: `consent grants the claims ${unaskedClaims.join(', ')}, which this request did not ask for`,
-          spec: 'FR-C22'
-        })
-      }
-      const holding = heldClaims(config, held)
-      const declinedClaims = asked.filter(name => !named.includes(name) && !holding.has(name))
-      if (declinedClaims.length) {
-        throw new OAuthError('invalid_request', {
-          description: `consent must approve every requested claim, or answer access_denied; it leaves out ${declinedClaims.join(', ')}`,
-          spec: 'FR-C22'
-        })
-      }
+    return answer(config, id, artifact, payload.request, given)
+  },
+
+  /**
+   * A sign-in proven in whichever browser the person followed it in (FR-I9): in the one the interaction is bound to, as
+   * `complete`; in another, the interaction ends and its request starts again there, signed in, so the original is never
+   * answered from elsewhere (FR-I2). It takes a login, never an id alone: handing an interaction to whoever names it is
+   * that attack.
+   */
+  async completeHere(id: string, login: NonNullable<InteractionResult['login']>, cookie: string | null): Promise<InteractionCompletion> {
+    const { artifact, payload } = await load(config, id)
+    if (await isSameBrowser(config, cookie, payload.browser)) {
+      if (payload.interactionKind === 'logout') throw notASignIn()
+      if ('device' in payload) return completeDeviceLogin(config, id, artifact.clientId, payload.device, { login })
+      return answer(config, id, artifact, payload.request, { login })
     }
-    if (outcome.login) await knownAccount(config, outcome.login.accountId)
-    const requestedDetails = request.authorizationDetails
-    if (outcome.consent && requestedDetails) {
-      const approved = outcome.consent.authorizationDetails
-      if (!approved || JSON.stringify(approved) !== JSON.stringify(requestedDetails)) {
-        throw new OAuthError('invalid_request', {
-          description: 'consent must approve every authorization detail the request carried, or answer access_denied',
-          spec: 'RFC 9396 §7'
-        })
-      }
-    }
-    // A double-submitted form must not start two sessions or write two grants (FR-I2).
-    if (!(await config.adapter.artifacts.consume('interaction', id))) {
-      throw new OAuthError('invalid_request', { description: 'this interaction was already completed', status: 404, spec: 'FR-I2' })
-    }
-
-    if (outcome.error) {
-      await config.adapter.artifacts.destroy('interaction', id)
-      // A form_post response is not a URL, so every error goes back through the authorization endpoint to be delivered.
-      const responseId = randomString()
-      const target: ResponseTarget = { redirectUri: request.redirectUri, responseMode: request.responseMode, state: request.state }
-      await writeArtifact(config.adapter.artifacts, {
-        id: responseId,
-        kind: 'authorization_response',
-        clientId: request.clientId,
-        payload: {
-          target,
-          values: { error: outcome.error.error, ...(outcome.error.description && { error_description: outcome.error.description }) }
-        },
-        expiresAt: new Date(Date.now() + config.ttl.interaction * 1000)
-      })
-      const url = new URL(`${config.issuer}${config.routes.authorization}`)
-      url.searchParams.set('response', responseId)
-      return { redirectTo: url.toString(), setCookie: undefined }
-    }
-
-    let setCookie: string | undefined
-    let accountId = artifact.accountId
-
-    if (outcome.login) {
-      const started = await startSession(config, outcome.login, request.clientId)
-      setCookie = started.cookie
-      accountId = started.session.accountId
-    }
-
-    if (outcome.consent && accountId) {
-      await recordConsent(config, accountId, request.clientId, outcome.consent.scopes, outcome.consent.claims)
-
-      if (requestedDetails) {
-        await writeArtifact(config.adapter.artifacts, {
-          id: await detailsConsentId(accountId, request.clientId, requestedDetails),
-          kind: 'authorization_details_consent',
-          clientId: request.clientId,
-          accountId,
-          payload: {},
-          expiresAt: new Date(Date.now() + config.ttl.interaction * 1000)
-        })
-      }
-    }
-
-    // Single-use: the authorization endpoint suspends again if it still cannot decide (FR-I2).
-    await config.adapter.artifacts.destroy('interaction', id)
-
-    return { redirectTo: await authorizationUrl(config, request, outcome), setCookie }
+    if (payload.interactionKind !== 'login' || !('request' in payload)) throw notASignIn()
+    return answer(config, id, artifact, payload.request, { login })
   }
 })
+
+const notASignIn = () =>
+  new OAuthError('invalid_request', {
+    description: 'only an authorization sign-in can be finished in another browser',
+    status: 403,
+    spec: 'FR-I2'
+  })
+
+const answer = async (
+  config: ResolvedConfig,
+  id: string,
+  artifact: Stored<'interaction'>,
+  request: AuthorizationRequest,
+  given: InteractionResult
+): Promise<InteractionCompletion> => {
+  // FR-F9: max_age went upstream with the login, so an auth_time older than it says it was not honoured.
+  const outcome: InteractionResult = staleLogin(config, artifact.expiresAt, request.maxAge, given.login?.authTime)
+    ? { error: { error: 'login_required', description: 'the sign-in is older than max_age allows' } }
+    : ((await refusedLogin(config, request, given.login)) ?? given)
+  if (outcome.consent) {
+    const consented = outcome.consent.scopes
+    const unasked = consented.filter(scope => !request.scopes.includes(scope))
+    if (unasked.length) {
+      throw new OAuthError('invalid_request', {
+        description: `consent grants ${unasked.join(', ')}, which this request did not ask for`,
+        spec: 'FR-I4'
+      })
+    }
+    // All or nothing: a partial consent would be stored, then asked for again in full (FR-I4).
+    const accountId = outcome.login?.accountId ?? artifact.accountId
+    // Before the consume below, like every other refusal: a refused answer must not spend the interaction (FR-I2).
+    if (!accountId) throw new OAuthError('invalid_request', { description: 'consent was given without a logged-in account', spec: 'FR-I2' })
+    const held = await config.adapter.grants.findByAccountAndClient(accountId, request.clientId)
+    const declined = request.scopes.filter(scope => !consented.includes(scope) && !held?.scopes.includes(scope))
+    if (declined.length) {
+      throw new OAuthError('invalid_request', {
+        description: `consent must approve every requested scope, or answer access_denied; it leaves out ${declined.join(', ')}`,
+        spec: 'FR-I4'
+      })
+    }
+    const asked = individuallyRequested(config, request.scopes, request.claims)
+    const named = outcome.consent.claims ?? []
+    const unaskedClaims = named.filter(name => !asked.includes(name))
+    if (unaskedClaims.length) {
+      throw new OAuthError('invalid_request', {
+        description: `consent grants the claims ${unaskedClaims.join(', ')}, which this request did not ask for`,
+        spec: 'FR-C22'
+      })
+    }
+    const holding = heldClaims(config, held)
+    const declinedClaims = asked.filter(name => !named.includes(name) && !holding.has(name))
+    if (declinedClaims.length) {
+      throw new OAuthError('invalid_request', {
+        description: `consent must approve every requested claim, or answer access_denied; it leaves out ${declinedClaims.join(', ')}`,
+        spec: 'FR-C22'
+      })
+    }
+  }
+  if (outcome.login) await knownAccount(config, outcome.login.accountId)
+  const requestedDetails = request.authorizationDetails
+  if (outcome.consent && requestedDetails) {
+    const approved = outcome.consent.authorizationDetails
+    if (!approved || JSON.stringify(approved) !== JSON.stringify(requestedDetails)) {
+      throw new OAuthError('invalid_request', {
+        description: 'consent must approve every authorization detail the request carried, or answer access_denied',
+        spec: 'RFC 9396 §7'
+      })
+    }
+  }
+  // A double-submitted form must not start two sessions or write two grants (FR-I2).
+  if (!(await config.adapter.artifacts.consume('interaction', id))) {
+    throw new OAuthError('invalid_request', { description: 'this interaction was already completed', status: 404, spec: 'FR-I2' })
+  }
+
+  if (outcome.error) {
+    await config.adapter.artifacts.destroy('interaction', id)
+    // A form_post response is not a URL, so every error goes back through the authorization endpoint to be delivered.
+    const responseId = randomString()
+    const target: ResponseTarget = { redirectUri: request.redirectUri, responseMode: request.responseMode, state: request.state }
+    await writeArtifact(config.adapter.artifacts, {
+      id: responseId,
+      kind: 'authorization_response',
+      clientId: request.clientId,
+      payload: {
+        target,
+        values: { error: outcome.error.error, ...(outcome.error.description && { error_description: outcome.error.description }) }
+      },
+      expiresAt: new Date(Date.now() + config.ttl.interaction * 1000)
+    })
+    const url = new URL(`${config.issuer}${config.routes.authorization}`)
+    url.searchParams.set('response', responseId)
+    return { redirectTo: url.toString(), setCookie: undefined }
+  }
+
+  let setCookie: string | undefined
+  let accountId = artifact.accountId
+
+  if (outcome.login) {
+    const started = await startSession(config, outcome.login, request.clientId)
+    setCookie = started.cookie
+    accountId = started.session.accountId
+  }
+
+  if (outcome.consent && accountId) {
+    await recordConsent(config, accountId, request.clientId, outcome.consent.scopes, outcome.consent.claims)
+
+    if (requestedDetails) {
+      await writeArtifact(config.adapter.artifacts, {
+        id: await detailsConsentId(accountId, request.clientId, requestedDetails),
+        kind: 'authorization_details_consent',
+        clientId: request.clientId,
+        accountId,
+        payload: {},
+        expiresAt: new Date(Date.now() + config.ttl.interaction * 1000)
+      })
+    }
+  }
+
+  // Single-use: the authorization endpoint suspends again if it still cannot decide (FR-I2).
+  await config.adapter.artifacts.destroy('interaction', id)
+
+  return { redirectTo: await authorizationUrl(config, request, outcome), setCookie }
+}
 
 const logoutView = (id: string, clientId: string, expiresAt: Date): InteractionRequest => ({
   id,

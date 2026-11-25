@@ -40,6 +40,12 @@ export type AccountsPolicy = {
   recoveryCodes: number
   /** How long a passkey ceremony may take, a phone scanned for one included: WebAuthn L3 §15.1's upper bound (FR-I8). @default 600 */
   passkeyTimeout: Seconds
+  /** How long an email sign-in token lives, never past its interaction (FR-I9). @default 900 */
+  emailSignInTtl: Seconds
+  /** Email sign-in tokens issued to one address within `emailSignInWindow` (NFR-S12). @default 5 */
+  emailSignInsPerAddress: number
+  /** @default 3600 */
+  emailSignInWindow: Seconds
 }
 
 export type AccountsOptions = {
@@ -151,6 +157,29 @@ export type SignUpResult =
   | { ok: false; reason: 'username'; problem: 'required' | 'tooLong' }
   | { ok: false; reason: 'password'; problem: PasswordProblem }
 
+export type AddressProblem = 'required' | 'tooLong' | 'invalid'
+
+/**
+ * Every refusal but `address` must reach the person as a success does (FR-I9): `passkey` so the host can send a message
+ * saying the account signs in with one, `unverified` that it signs in with its password, the others by sending nothing.
+ */
+export type EmailSignInIssue =
+  | { ok: true; token: string; address: string; accountId: string | undefined }
+  | { ok: false; reason: 'address'; problem: AddressProblem }
+  | { ok: false; reason: 'passkey' | 'unverified' | 'unknown'; address: string }
+  | { ok: false; reason: 'locked'; until: Date }
+
+/** `interactionId` is the one to finish with `provider.interactions.completeHere`, after the TOTP step when `secondFactor`. */
+export type EmailSignInResult =
+  | { ok: true; accountId: string; interactionId: string; secondFactor: boolean; signedUp: boolean }
+  | { ok: false; reason: 'invalid' | 'passkey' }
+  | { ok: false; reason: 'locked'; until: Date }
+
+/** What an email sign-in token is issued for: `provider.interactions.find`'s answer is one. */
+export type EmailSignInInteraction = { id: string; clientId: string; expiresAt: Date }
+
+type EmailSignInPayload = { address: string; interactionId: string; signUp?: { claims: Record<string, unknown> } }
+
 /** Usernames compare the way people read them: compatibility-normalized, trimmed, case-folded. */
 export const normalizeUsername = (username: string) => username.normalize('NFKC').trim().toLowerCase()
 
@@ -158,6 +187,10 @@ const digest = async (value: string) =>
   base64url.encode(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))))
 
 const SLOTS = 'sign_in'
+
+/** Only the shape: whether it reaches anyone is what sending to it finds out. */
+const addressProblem = (address: string): AddressProblem | undefined =>
+  oauthFieldError(address) ?? (/^[^\s@]+@[^\s@]+$/.test(address) ? undefined : 'invalid')
 
 /** Ten base32 characters in two groups: about 50 bits, enough for a code that is also rate-limited. */
 const recoveryCode = () => {
@@ -185,6 +218,9 @@ export const createAccounts = (options: AccountsOptions) => {
     resetTtl: 1800,
     recoveryCodes: 10,
     passkeyTimeout: 600,
+    emailSignInTtl: 900,
+    emailSignInsPerAddress: 5,
+    emailSignInWindow: 3600,
     ...options.policy
   }
   const scopes = options.claims ?? STANDARD_CLAIMS
@@ -354,6 +390,30 @@ export const createAccounts = (options: AccountsOptions) => {
       await adapter.artifacts.destroyByGrantId(grant.id)
       await adapter.grants.merge({ ...grant, id: randomString() })
     }
+  }
+
+  /** Counted per address whether or not an account has it, so the count names no account either (NFR-S12). */
+  const admitEmailSignIn = async (address: string) => {
+    for (let slot = 0; slot < policy.emailSignInsPerAddress; slot++) {
+      if (await adapter.replay.claim('email_sign_in', `${address}:${slot}`, policy.emailSignInWindow)) return true
+    }
+    return false
+  }
+
+  /**
+   * FR-I9: never an account with a passkey, and one with a password only once this address was proven on it, or whoever
+   * signed up with someone else's address would keep their password beside the owner's inbox.
+   */
+  const emailSignInRefusal = async (credential: Credential, address: string) => {
+    if ((await adapter.passkeys.listForAccount(credential.accountId)).length) return 'passkey' as const
+    const { email, email_verified } = credential.claims
+    const proven = email_verified === true && typeof email === 'string' && normalizeUsername(email) === address
+    return credential.passwordHash && !proven ? ('unverified' as const) : undefined
+  }
+
+  const liveEmailSignIn = async (id: string) => {
+    const artifact = await adapter.artifacts.find('email_sign_in', id)
+    return artifact && !artifact.consumedAt ? artifact : undefined
   }
 
   const signUpBinding = (interactionId: string) => `sign-up:${interactionId}`
@@ -562,6 +622,79 @@ export const createAccounts = (options: AccountsOptions) => {
           enrolled: Boolean(credential?.totp?.confirmedAt),
           recoveryCodesLeft: credential?.recoveryCodes?.length ?? 0
         }
+      }
+    },
+
+    emailSignIn: {
+      /**
+       * A single-use token for the host to send to the address (FR-A1), bound to the interaction and outliving it by nothing.
+       * An address with no account makes one on `redeem` only when `signUp` is given, which a host without sign-up never does.
+       */
+      async issue(
+        address: string,
+        interaction: EmailSignInInteraction,
+        options: { signUp?: { claims?: Record<string, unknown> } } = {}
+      ): Promise<EmailSignInIssue> {
+        const normalized = normalizeUsername(address)
+        const problem = addressProblem(normalized)
+        if (problem) return { ok: false, reason: 'address', problem }
+        if (!(await admitEmailSignIn(normalized))) {
+          return { ok: false, reason: 'locked', until: new Date(Date.now() + policy.emailSignInWindow * 1000) }
+        }
+        const credential = await credentials.findByUsername(normalized)
+        const refusal = credential ? await emailSignInRefusal(credential, normalized) : options.signUp ? undefined : 'unknown'
+        if (refusal) return { ok: false, reason: refusal, address: normalized }
+        const token = randomString(43)
+        const payload: EmailSignInPayload = {
+          address: normalized,
+          interactionId: interaction.id,
+          ...(!credential && { signUp: { claims: options.signUp?.claims ?? {} } })
+        }
+        await adapter.artifacts.upsert({
+          id: await digest(token),
+          kind: 'email_sign_in',
+          clientId: interaction.clientId,
+          ...(credential && { accountId: credential.accountId }),
+          payload,
+          expiresAt: new Date(Math.min(Date.now() + policy.emailSignInTtl * 1000, interaction.expiresAt.getTime()))
+        })
+        return { ok: true, token, address: normalized, accountId: credential?.accountId }
+      },
+
+      /** The address a live token signs in, for the page that asks before spending it: mail scanners open URLs too (FR-I9). */
+      async addressOf(token: string) {
+        const artifact = await liveEmailSignIn(await digest(token))
+        return artifact && (artifact.payload as EmailSignInPayload).address
+      },
+
+      /** Spends the token, whatever comes of it, and signs in its account, making it first if it was a sign-up. */
+      async redeem(token: string): Promise<EmailSignInResult> {
+        const id = await digest(token)
+        const artifact = await liveEmailSignIn(id)
+        if (!artifact || !(await adapter.artifacts.consume('email_sign_in', id))) return invalid
+        const { address, interactionId, signUp } = artifact.payload as EmailSignInPayload
+        let credential = artifact.accountId ? await credentials.find(artifact.accountId) : undefined
+        let signedUp = false
+        if (!artifact.accountId && signUp) {
+          const now = new Date()
+          const account: Credential = {
+            accountId: options.newAccountId?.(address) ?? randomString(24),
+            username: address,
+            claims: { ...signUp.claims, email: address, email_verified: true },
+            failedAttempts: 0,
+            createdAt: now,
+            updatedAt: now
+          }
+          signedUp = await credentials.create(account)
+          credential = signedUp ? account : await credentials.findByUsername(address)
+        }
+        if (credential?.username !== address) return invalid
+        const refusal = signedUp ? undefined : await emailSignInRefusal(credential, address)
+        if (refusal === 'passkey') return { ok: false, reason: 'passkey' }
+        if (refusal) return invalid
+        const until = lockedUntil(credential)
+        if (until) return locked(until)
+        return { ok: true, accountId: credential.accountId, interactionId, secondFactor: Boolean(credential.totp?.confirmedAt), signedUp }
       }
     },
 

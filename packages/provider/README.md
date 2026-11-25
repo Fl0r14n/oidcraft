@@ -104,7 +104,8 @@ Consent is remembered per application, so a returning user is not asked twice.
 ## Local accounts
 
 `@oidcraft/provider/accounts` gives you usernames and passwords, hashed with argon2id, plus passkeys, TOTP
-authenticator apps, recovery codes, lockout after repeated failures, and password reset:
+authenticator apps, recovery codes, lockout after repeated failures, password reset, and sign-in by a link emailed to an
+address:
 
 ```ts
 import { createProvider } from '@oidcraft/provider'

@@ -1,7 +1,7 @@
 import { OAuthError } from '@oidcraft/provider'
 import { type InteractionRequest, oauthFieldError } from '@oidcraft/provider/interaction'
 import { PASSWORD_MESSAGES, type ScreenView } from '@oidcraft/ui'
-import { sendRecoveryLink } from '../op/accounts'
+import { sendEmailSignIn, sendRecoveryLink } from '../op/accounts'
 import { issuer, optional } from '../op/env'
 import { FIRST_PARTY } from '../op/first-party'
 import type { Site } from '../op/site'
@@ -47,6 +47,12 @@ const parsed = (text: string | null) => {
   }
 }
 
+const ADDRESS_MESSAGES = {
+  required: 'Enter your email address',
+  tooLong: 'That address is too long',
+  invalid: 'That is not an email address'
+} as const
+
 const usernameMessage = (problem: 'required' | 'tooLong' | 'taken') =>
   problem === 'required' ? 'Choose a username' : problem === 'tooLong' ? 'That username is too long' : 'That username is taken'
 
@@ -54,18 +60,29 @@ const build = (site: Site) => {
   const { provider, accounts, screens } = site
 
   const loginScreen = (view: ScreenView, options: Parameters<typeof screens.login>[1] = {}) =>
-    screens.login(view, { upstreams: offeredUpstreams(view), forgot: true, register: signUp(), passkeys: true, recover: true, ...options })
+    screens.login(view, {
+      upstreams: offeredUpstreams(view),
+      forgot: true,
+      register: signUp(),
+      passkeys: true,
+      recover: true,
+      email: true,
+      ...options
+    })
 
   const secondStep = async (view: ScreenView, accountId: string, options: Parameters<typeof screens.otp>[1] = {}) =>
     screens.otp(view, { passkeys: (await accounts.passkeys.list(accountId)).length > 0, ...options })
 
-  /** The acr says what actually happened: a client that asked for more must not be told it got it (FR-F9, FR-C16, RFC 8176). */
+  /**
+   * The acr says what actually happened: a client that asked for more must not be told it got it (FR-F9, FR-C16, RFC 8176).
+   * Only a sign-in proven by email may finish in another browser (FR-I9); every other is answered where it started (FR-I2).
+   */
   const finish = async (request: Request, id: string, accountId: string, amr: string[], acr = amr.includes('mfa') ? 'mfa' : 'pwd') => {
-    const { redirectTo, setCookie } = await provider.interactions.complete(
-      id,
-      { login: { accountId, acr, amr } },
-      request.headers.get('cookie')
-    )
+    const login = { accountId, acr, amr }
+    const cookie = request.headers.get('cookie')
+    const { redirectTo, setCookie } = amr.includes('email')
+      ? await provider.interactions.completeHere(id, login, cookie)
+      : await provider.interactions.complete(id, { login }, cookie)
     return seeOther(redirectTo, setCookie, pendingSecondFactor.clear(), await knownAccounts.add(request, accountId))
   }
 
@@ -152,7 +169,8 @@ const build = (site: Site) => {
         const recovery = action === 'recovery'
         if (request.method === 'GET') return secondStep(view, accountId, { recovery })
         const result = await accounts.verifySecondFactor(accountId, (await form(request)).get('code') ?? '', { clientIp })
-        if (result.ok) return await finish(request, id, accountId, result.method === 'otp' ? ['pwd', 'otp', 'mfa'] : ['pwd', 'mfa'])
+        const first = (await pendingSecondFactor.byEmail(request, id)) ? 'email' : 'pwd'
+        if (result.ok) return await finish(request, id, accountId, result.method === 'otp' ? [first, 'otp', 'mfa'] : [first, 'mfa'])
         if (result.reason === 'locked') return loginScreen(view, { notice: lockedNotice(result.until), status: 429 })
         return secondStep(view, accountId, { recovery, error: 'That code is not right, or it was already used.', status: 401 })
       }
@@ -229,6 +247,18 @@ const build = (site: Site) => {
           screens.message('Check your email', 'If that username has an account here, a link to get back in is on its way.'),
           await resumeAfterReset.set(id)
         )
+      }
+
+      // FR-I9: every address gets the same page; what is sent, if anything, is the host's, and sign-up only where it is mounted.
+      if (action === 'email') {
+        if (request.method === 'GET') return screens.email(view)
+        const address = (await form(request)).get('email') ?? ''
+        const issued = await accounts.emailSignIn.issue(address, view, signUp() ? { signUp: {} } : {})
+        if (!issued.ok && issued.reason === 'address') {
+          return screens.email(view, { address, error: ADDRESS_MESSAGES[issued.problem], status: 400 })
+        }
+        sendEmailSignIn(issued, provider.config.issuer)
+        return screens.message('Check your email', 'If that address can sign in here by email, a link is on its way. It works once.')
       }
 
       // FR-I8: a recovery code in place of a lost passkey, for an account with no password. It signs no one in: it leads to
@@ -331,6 +361,42 @@ const build = (site: Site) => {
     return expired()
   }
 
+  /** Where an email sign-in link lands, in whichever browser it is opened, so outside any interaction (FR-I9). */
+  const emailSignInRoutes = async (request: Request, url: URL) => {
+    const expired = () =>
+      screens.message('This link no longer works', 'It expired or was already used. Start again from the application.', 400)
+    if (request.method === 'GET') {
+      const token = url.searchParams.get('token') ?? ''
+      const address = await accounts.emailSignIn.addressOf(token)
+      return address ? screens.emailSignIn(token, address) : expired()
+    }
+    if (request.method !== 'POST') return new Response('Method not allowed', { status: 405 })
+    const result = await accounts.emailSignIn.redeem((await form(request)).get('token') ?? '')
+    if (!result.ok) {
+      if (result.reason === 'passkey') {
+        return screens.message(
+          'Use your passkey',
+          'This account signs in with a passkey. Start again from the application and use it.',
+          400
+        )
+      }
+      return result.reason === 'locked' ? screens.message('This account is locked', lockedNotice(result.until), 429) : expired()
+    }
+    const { interactionId, accountId } = result
+    if (result.secondFactor) {
+      return seeOther(
+        `/interaction/${encodeURIComponent(interactionId)}/otp`,
+        await pendingSecondFactor.set(interactionId, accountId, true)
+      )
+    }
+    try {
+      return await finish(request, interactionId, accountId, ['email'])
+    } catch (error) {
+      if (!(error instanceof OAuthError)) console.error('[email sign-in]', error)
+      return screens.message('This sign-in expired', 'Start again from the application.', 400)
+    }
+  }
+
   const deviceRoutes = async (request: Request, url: URL, clientIp: string | undefined) => {
     try {
       return await deviceScreens(request, url, { clientIp })
@@ -389,7 +455,7 @@ const build = (site: Site) => {
     return undefined
   }
 
-  return { interactionRoutes, resetRoutes, deviceRoutes }
+  return { interactionRoutes, resetRoutes, emailSignInRoutes, deviceRoutes }
 }
 
 const built = new WeakMap<Site, ReturnType<typeof build>>()

@@ -11,7 +11,7 @@ An OpenID Provider library for TypeScript, and the client libraries that sign in
 The documentation is at **[fl0r14n.github.io/oidcraft](https://fl0r14n.github.io/oidcraft/)**.
 
 - **[`@oidcraft/provider`](packages/provider/README.md)**: the provider. Authorization, tokens, sessions,
-  logout, local accounts with passwords, passkeys and TOTP, and signing people in through Google,
+  logout, local accounts with passwords, passkeys, TOTP and email links, and signing people in through Google,
   Microsoft or any other OpenID provider. One build runs on Bun, Node, Deno and Cloudflare Workers.
   **Start with its [guide](packages/provider/README.md).**
 - **[`@oidcraft/adapter`](packages/adapter/README.md)**: its storage contract and an in-memory adapter,

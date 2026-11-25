@@ -75,7 +75,7 @@ packages/provider/          @oidcraft/provider  the provider, nine entries
   src/index.ts              .                   the OP. fetch in, fetch out, no I/O
   src/broker/               ./broker            the relying-party leg — upstream brokering
   src/interaction/          ./interaction       login/consent policy types
-  src/accounts/             ./accounts          local accounts: passwords, passkeys, TOTP, recovery codes, reset (FR-I7, FR-I8)
+  src/accounts/             ./accounts          local accounts: passwords, passkeys, TOTP, recovery codes, reset, email sign-in (FR-I7–FR-I9)
   src/runtimes/node/        ./runtimes/node     node:http bridge + request context
   src/runtimes/bun/         ./runtimes/bun      request context for Bun.serve
   src/runtimes/deno/        ./runtimes/deno     request context for Deno.serve
@@ -538,6 +538,31 @@ issues one for an administrator. The token's page adds a passkey through a creat
 the token's digest, spending the token only once the authenticator's answer verifies, or sets a
 password, and either ends the account's sessions and revokes its grants' tokens as a reset does (FR-T7).
 
+**Email sign-in (FR-I9)** is an `email_sign_in` artifact under the token's digest, as a reset token
+is, carrying the address and the interaction id and expiring no later than the interaction.
+`emailSignIn.issue(address, interaction, { signUp })` takes the interaction as `interactions.find`
+describes it and resolves a token or a refusal the host must answer like a success;
+`emailSignIn.addressOf(token)` names the address for the page a link lands on, spending nothing; and
+`emailSignIn.redeem(token)` takes it with the atomic `consume` and answers as `authenticate` does, so
+TOTP follows when enrolled. A sign-up token carries no account: `redeem` creates it, by
+`CredentialStore.create`, with no password, and one that loses that race to another sign-up signs
+nobody in. `issue` and `redeem` both refuse an account with any passkey, read from `PasskeyStore` at
+the moment of the call, so a passkey added after a token was sent stops it, and an account with a
+password whose `email` claim is not that address, verified. Issuing claims a `ReplayGuard` slot per
+normalized address (namespace `email_sign_in`) whether or not an account exists, so the count says
+nothing either. The token is spent by a POST; its GET renders the confirming page.
+
+Moving to another browser is the provider's, not the entry's, because only the core binds an
+interaction to a browser. `provider.interactions.completeHere(id, result, cookie)` completes the
+interaction when the cookie is its browser's, and otherwise consumes it, suspends its stored request
+again in this browser, signed in: the session starts here and the redirect goes back to the
+authorization endpoint, which binds whatever it still has to ask, consent included (FR-I4), to this
+browser as it binds any other. It takes a login, never an id alone: handing an interaction to whoever
+names it is the attack FR-I2 closes, and a reference route calls it only with the account a redeemed
+token named. From another browser, a device or logout interaction is refused. The reference
+deployment's pending second factor remembers that its first was an email, so the code step finishes
+with `completeHere` too.
+
 Hashing is injected, because the fast hashers are runtime globals: `bunPasswordHasher` lives in
 `./runtimes/bun` and `nodePasswordHasher` in `./runtimes/node`, both writing PHC argon2id strings the
 other verifies. A Deno or workerd host passes its own.
@@ -652,7 +677,8 @@ and, with TOTP on, a code, or for an account with no password one of its passkey
 set on such an account takes one of its passkeys. A recovery ends what the lost passkey opened but
 not the passkey, as only its owner knows which one is gone, so the screens after it say to remove it
 (FR-I8). `prompt=select_account` lists the accounts this browser signed in with, from another signed
-cookie. A reset link is printed to the console where a deployment would email it. Asking for one, or
+cookie. A reset link, and an email sign-in URL (FR-I9), is printed to the console where a deployment
+would email it; the demo sends no code to type. Asking for one, or
 spending a recovery code, sets a signed cookie naming the interaction, so finishing the reset in the
 same browser returns to that sign-in rather than a dead end; a link opened elsewhere resumes
 nothing.

@@ -28,6 +28,7 @@
         <UiLink v-if="registerUrl" :href="registerUrl">Create an account</UiLink>
       </p>
       <p v-if="recoverUrl" class="text-sm"><UiLink :href="recoverUrl">Lost your passkey?</UiLink></p>
+      <p v-if="emailUrl" class="text-sm"><UiLink :href="emailUrl">Email me a sign-in link</UiLink></p>
     </form>
     <div v-if="passkey || upstreams.length" class="space-y-3">
       <!-- the passkey form stays hidden without WebAuthn, so its own divider serves only when nothing follows it -->
@@ -70,6 +71,7 @@ defineProps<{
   forgotUrl?: string | undefined
   registerUrl?: string | undefined
   recoverUrl?: string | undefined
+  emailUrl?: string | undefined
   passkey?: { action: string; options: string; step: 'login' } | undefined
 }>()
 </script>

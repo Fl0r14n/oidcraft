@@ -491,6 +491,31 @@ setting a password, never to a session, and ends the sessions and tokens the los
 (FR-T7). Unlocking an account by removing its passkeys so its next sign-in can enrol one is never a
 recovery path: until then, whoever names it first would.
 
+**FR-I9 — Email sign-in**, in the same entry as FR-I7: a person gives an email address and signs in
+by following a URL sent to it. The address is the account's username, and following the URL proves
+it, so the account's `email` is that address with `email_verified` true. The token is single-use,
+short-lived, stored hashed (NFR-S11) and bound to the interaction that asked for it, and outlives it
+by nothing; delivering it is I/O, so the host sends it (FR-A1). Every address gets the same answer —
+one with no account, one that cannot sign in this way, one already sent too many — and the library
+caps the tokens issued per address (NFR-S12). It is a first factor: an account with TOTP is still
+asked for a code. **An account with a passkey never signs in by email**, and that is not
+configuration: the inbox would be a silent way around the phishing resistance its owner chose, where
+a reset at least ends every session (FR-I8, FR-T7). An account with a password signs in by email
+only once its `email` claim is that address and verified, or whoever signed up with someone else's
+address would keep their password beside the owner's inbox. The host is told which case it is, so it
+can send a message saying so in place of a URL. An address with no account makes one only where the
+host mounts sign-up (FR-I7).
+
+Opening the URL shows a page naming the address, and only its button spends the token: mail scanners
+open URLs, and must not spend them. In the browser the sign-in started in, it completes that
+interaction. In any other — a mail app's own browser, another device — it ends that interaction and
+starts its authorization request again in this browser, signed in, so the response reaches the
+client's redirect URI from there and the original interaction is never answered from elsewhere
+(FR-I2): whoever started it gains nothing from the person following the URL. The page names the
+address because the reverse holds too — a URL someone else asked for signs this browser in as them.
+No code to type is sent (NFR-S3); a host that wants one builds it. An email sign-in reports `amr`
+`email`, which RFC 8176 does not register, and the single-factor `acr` `pwd`.
+
 ## 8. Administration — `FR-M*`
 
 **FR-M1** — A management API over clients, grants, sessions, keys and upstream providers, exposed
@@ -644,7 +669,7 @@ stand-in for email. Tokens appear in logs as a prefix and a hash, if at all.
 
 **NFR-S11** — No bearer credential is stored as itself. Authorization codes, access and refresh
 tokens, device codes, pushed-request references, CIBA `auth_req_id`s, interaction ids, stored
-authorization responses, registration access tokens, password-reset tokens and the session cookie are stored under a SHA-256 of their value, so a copy of the database
+authorization responses, registration access tokens, password-reset and email sign-in tokens and the session cookie are stored under a SHA-256 of their value, so a copy of the database
 yields no usable token. The session's hash is also the `sid` clients are told, so the cookie must
 not be it. A client secret used with `client_secret_basic` or `client_secret_post` is stored hashed
 the same way. `client_secret_jwt` is the necessary exception — the secret is the HMAC key — and a
@@ -652,7 +677,8 @@ reason to prefer `private_key_jwt`. The device `user_code` is the other: short e
 short enough that a hash hides nothing, and it lives minutes (NFR-S3).
 
 **NFR-S12** — The library limits what only it can count: wrong device user codes per address
-(FR-C7) and failed passwords and second-factor codes per account (FR-I7). Limiting requests per
+(FR-C7), failed passwords and second-factor codes per account (FR-I7) and email sign-in tokens issued
+per address, whether or not an account has it (FR-I9). Limiting requests per
 address at the token, authorization and registration endpoints is the host's, in front of the
 provider, where the real peer address is known (FR-R4).
 

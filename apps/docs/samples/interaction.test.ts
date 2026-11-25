@@ -105,6 +105,41 @@ const submitCode = async (id: string, request: Request) => {
 }
 // #endregion second-factor
 
+const mailbox: { to: string; text: string }[] = []
+const sendMail = (to: string, text: string) => mailbox.push({ to, text })
+
+// #region email-sign-in
+const askForEmailLink = async (id: string, request: Request) => {
+  const form = new URLSearchParams(await request.text())
+  const view = await provider.interactions.find(id)
+  const issued = await accounts.emailSignIn.issue(form.get('email') ?? '', view, { signUp: {} })
+  if (!issued.ok && issued.reason === 'address') return Response.json({ problem: issued.problem }, { status: 400 })
+  if (issued.ok) sendMail(issued.address, `${ISSUER}/email-sign-in?token=${issued.token}`)
+  if (!issued.ok && issued.reason === 'passkey') sendMail(issued.address, 'This account signs in with its passkey.')
+  // Every address gets the same answer; whether it has an account is for its inbox to learn (FR-I9).
+  return new Response('Check your email.')
+}
+
+// The link's GET only names the address: mail scanners open links, and must not spend them.
+const showEmailLink = async (token: string) => {
+  const address = await accounts.emailSignIn.addressOf(token)
+  return address ? new Response(`Sign in as ${address}?`) : new Response('This link no longer works.', { status: 400 })
+}
+
+const followEmailLink = async (request: Request) => {
+  const form = new URLSearchParams(await request.text())
+  const result = await accounts.emailSignIn.redeem(form.get('token') ?? '')
+  if (!result.ok) return Response.json({ reason: result.reason }, { status: 400 })
+  if (result.secondFactor) return Response.json({ reason: 'secondFactor' }, { status: 401 })
+  const { redirectTo, setCookie } = await provider.interactions.completeHere(
+    result.interactionId,
+    { accountId: result.accountId, acr: 'pwd', amr: ['email'] },
+    request.headers.get('cookie')
+  )
+  return seeOther(redirectTo, setCookie)
+}
+// #endregion email-sign-in
+
 // #region consent
 const submitConsent = async (id: string, request: Request) => {
   const form = new URLSearchParams(await request.text())
@@ -290,6 +325,23 @@ describe('the interaction contract', () => {
     const consentId = interactionId(await grace.follow(await submitCode(id, grace.post({ code: recovery }))))
     const back = await grace.follow(await submitConsent(consentId, grace.post({ decision: 'allow' })))
     expect(await exchange(back.searchParams.get('code') as string)).toMatchObject({ acr: 'mfa', amr: ['pwd', 'mfa'] })
+  })
+
+  test('an email link signs in whichever browser opens it, and the browser that asked is left with nothing', async () => {
+    const asking = browser()
+    const id = interactionId(await asking.open(authorizeUrl()))
+    expect((await askForEmailLink(id, asking.post({ email: 'Hedy@Example.com' }))).status).toBe(200)
+    expect((await askForEmailLink(id, asking.post({ email: 'hedy' }))).status).toBe(400)
+    const token = new URL(mailbox.findLast(mail => mail.to === 'hedy@example.com')?.text as string).searchParams.get('token') as string
+    expect(await (await showEmailLink(token)).text()).toBe('Sign in as hedy@example.com?')
+
+    const phone = browser()
+    const consentId = interactionId(await phone.follow(await followEmailLink(phone.post({ token }))))
+    await expect(provider.interactions.find(id)).rejects.toBeInstanceOf(OAuthError)
+    const back = await phone.follow(await submitConsent(consentId, phone.post({ decision: 'allow' })))
+    expect(back.searchParams.get('state')).toBe('af0ifjsldkj')
+    expect(await exchange(back.searchParams.get('code') as string)).toMatchObject({ acr: 'pwd', amr: ['email'] })
+    expect((await followEmailLink(phone.post({ token }))).status).toBe(400)
   })
 
   test('cancelling or declining sends access_denied to the client', async () => {

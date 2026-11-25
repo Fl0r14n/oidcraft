@@ -214,3 +214,29 @@ describe('passkeys', () => {
     expect(script).toContain('data-passkey-create')
   })
 })
+
+describe('email sign-in (FR-I9)', () => {
+  test('is a link from the login only where the host mounts it, to a form for the address', async () => {
+    expect(await (await screens.login(view, { email: true })).text()).toContain('href="/interaction/i1/email"')
+    expect(await (await screens.login(view)).text()).not.toContain('/email')
+    const html = await (await screens.email(view, { address: 'ada@', error: 'That is not an email address' })).text()
+    expect(html).toContain('action="/interaction/i1/email"')
+    expect(html).toMatch(/<input[^>]*name="email"[^>]*>/)
+    expect(html).toMatch(/<input[^>]*type="email"[^>]*>/)
+    expect(html).toContain('value="ada@"')
+    expect(html).toContain('That is not an email address')
+    expect(html).not.toContain('<script')
+  })
+
+  // Mail scanners open the link: the GET only shows this, and the token is spent by the button's POST.
+  test('the link lands on a page that names the address and posts the token, which a prefix can move', async () => {
+    const html = await (await screens.emailSignIn('t0k3n', 'ada@example.com')).text()
+    expect(html).toContain('ada@example.com')
+    expect(html).toContain('action="/email-sign-in"')
+    expect(html).toMatch(/<form[^>]*method="post"/)
+    expect(html).toMatch(/<input[^>]*type="hidden"[^>]*name="token"[^>]*value="t0k3n"|<input[^>]*name="token"[^>]*value="t0k3n"/)
+    expect(firstButton(html)).toContain('type="submit"')
+    const moved = createScreens({ brand: { name: 'Acme', host: 'id.acme.test' }, urls: { emailSignIn: '/acme/email-sign-in' } })
+    expect(await (await moved.emailSignIn('t', 'a@b')).text()).toContain('action="/acme/email-sign-in"')
+  })
+})

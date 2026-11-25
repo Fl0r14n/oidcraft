@@ -1,7 +1,7 @@
 /// <reference types="bun" />
 /**
- * Clicks through the demo in a headless browser: sign-up, consent, the account app, TOTP, a passkey, a password reset
- * and the admin app, against a fresh in-memory demo-server and demo-vue. `bun run build` first; it runs from the build.
+ * Clicks through the demo in a headless browser: sign-up, consent, the account app, TOTP, a passkey, a password reset,
+ * email sign-in and the admin app, against a fresh in-memory demo-server and demo-vue. `bun run build` first; it runs from the build.
  *
  * Bun.WebView drives an installed Chrome, Chromium, Edge or Brave over CDP; BUN_CHROME_PATH names one it does not find.
  */
@@ -16,6 +16,7 @@ const RP = `http://localhost:${RP_PORT}`
 const TIMEOUT = 20_000
 
 const USERNAME = `smoke${Date.now().toString(36)}`
+const ADDRESS = `${USERNAME}-mail@example.test`
 const PASSWORDS = ['smoke password one', 'smoke password two', 'smoke password three']
 const ADMIN = 'ada'
 const ADMIN_PASSWORD = 'correct horse battery staple'
@@ -196,6 +197,25 @@ const signOut = async (app: '/account' | '/admin') => {
   })
 }
 
+/** The link in the newest demo mail since `since`, for an email sign-in (FR-I9). */
+const emailSignInLink = (since: number) =>
+  until('the sign-in link in the demo mail', async () =>
+    mail
+      .slice(since)
+      .map(line => line.match(/https?:\/\/\S+\/email-sign-in\?token=\S+/)?.[0])
+      .findLast(Boolean)
+  )
+
+const askForEmailLink = async () => {
+  const since = mail.length
+  await press('#sign-in')
+  await at(LOGIN)
+  await press('a[href$="/email"]')
+  await fill('#e', ADDRESS)
+  await submit('/email')
+  return emailSignInLink(since)
+}
+
 let secret = ''
 let authenticatorId = ''
 
@@ -332,6 +352,29 @@ const steps: [string, () => Promise<void>][] = [
       await signInWithPassword(USERNAME, PASSWORDS[2] as string)
       await enterCode()
       await signedIn('/account', USERNAME)
+      await signOut('/account')
+    }
+  ],
+  [
+    'an email sign-in makes an account for a new address and signs it in, in the browser that asked',
+    async () => {
+      const link = await askForEmailLink()
+      await view.navigate(link)
+      await sees(ADDRESS)
+      await submit('/email-sign-in')
+      await signedIn('/account', ADDRESS)
+      await signOut('/account')
+    }
+  ],
+  [
+    'an email link opened in another browser signs that one in, never the one that asked',
+    async () => {
+      const link = await askForEmailLink()
+      // A browser with none of this one's cookies: no binding to the interaction, no session.
+      await view.cdp('Network.clearBrowserCookies', {})
+      await view.navigate(link)
+      await submit('/email-sign-in')
+      await signedIn('/account', ADDRESS)
       await signOut('/account')
     }
   ],

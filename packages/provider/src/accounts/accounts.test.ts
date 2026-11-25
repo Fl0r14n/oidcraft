@@ -308,6 +308,154 @@ describe('password reset', () => {
   })
 })
 
+describe('email sign-in (FR-I9)', () => {
+  const interaction = (expiresAt = new Date(Date.now() + 1_800_000)) => ({ id: 'i-1', clientId: 'rp', expiresAt })
+  const verified = { email: 'ada@example.com', email_verified: true }
+
+  test('an address with no account signs up and in, proven, only where the host offers sign-up', async () => {
+    const { accounts } = await setup()
+    expect(await accounts.emailSignIn.issue('Ada@Example.com', interaction())).toEqual({
+      ok: false,
+      reason: 'unknown',
+      address: 'ada@example.com'
+    })
+    const issued = await accounts.emailSignIn.issue(' Ada@Example.com', interaction(), { signUp: { claims: { name: 'Ada' } } })
+    if (!issued.ok) throw new Error('not issued')
+    expect(issued.accountId).toBeUndefined()
+    expect(await accounts.emailSignIn.addressOf(issued.token)).toBe('ada@example.com')
+    expect(await accounts.emailSignIn.redeem(issued.token)).toEqual({
+      ok: true,
+      accountId: 'id-ada@example.com',
+      interactionId: 'i-1',
+      secondFactor: false,
+      signedUp: true
+    })
+    expect(await accounts.store.claims('id-ada@example.com', ['email', 'profile'], [])).toMatchObject({
+      name: 'Ada',
+      email: 'ada@example.com',
+      email_verified: true
+    })
+    const again = await accounts.emailSignIn.issue('ada@example.com', interaction())
+    expect(again).toMatchObject({ ok: true, accountId: 'id-ada@example.com' })
+  })
+
+  test('a token is spent once, by the POST, and only an address-shaped address is issued one', async () => {
+    const { accounts } = await setup()
+    const issued = await accounts.emailSignIn.issue('ada@example.com', interaction(), { signUp: {} })
+    if (!issued.ok) throw new Error('not issued')
+    expect(await accounts.emailSignIn.addressOf(issued.token)).toBe('ada@example.com')
+    expect(await accounts.emailSignIn.addressOf(issued.token)).toBe('ada@example.com')
+    expect((await accounts.emailSignIn.redeem(issued.token)).ok).toBe(true)
+    expect(await accounts.emailSignIn.redeem(issued.token)).toEqual({ ok: false, reason: 'invalid' })
+    expect(await accounts.emailSignIn.addressOf(issued.token)).toBeUndefined()
+    expect(await accounts.emailSignIn.redeem('made-up')).toEqual({ ok: false, reason: 'invalid' })
+    for (const [address, problem] of [
+      ['', 'required'],
+      ['ada', 'invalid'],
+      ['ada@', 'invalid'],
+      ['a da@example.com', 'invalid']
+    ] as const) {
+      expect(await accounts.emailSignIn.issue(address, interaction(), { signUp: {} })).toEqual({
+        ok: false,
+        reason: 'address',
+        problem
+      })
+    }
+  })
+
+  test('a token outlives its interaction by nothing', async () => {
+    const { accounts } = await setup()
+    const issued = await accounts.emailSignIn.issue('ada@example.com', interaction(new Date(Date.now() - 1000)), { signUp: {} })
+    if (!issued.ok) throw new Error('not issued')
+    expect(await accounts.emailSignIn.addressOf(issued.token)).toBeUndefined()
+    expect(await accounts.emailSignIn.redeem(issued.token)).toEqual({ ok: false, reason: 'invalid' })
+  })
+
+  const passkeyFor = (accountId: string) => ({
+    accountId,
+    credentialId: `c-${accountId}`,
+    publicKey: 'spki',
+    algorithm: -7,
+    counter: 0,
+    transports: [],
+    name: 'phone',
+    createdAt: new Date()
+  })
+
+  // FR-I9: the inbox would be a silent way around the phishing resistance the owner chose.
+  test('an account with a passkey is never signed in by email, and the host hears why', async () => {
+    const { accounts, adapter } = await setup()
+    const issued = await accounts.emailSignIn.issue('ada@example.com', interaction(), { signUp: {} })
+    if (!issued.ok) throw new Error('not issued')
+    expect((await accounts.emailSignIn.redeem(issued.token)).ok).toBe(true)
+    await adapter.passkeys.create(passkeyFor('id-ada@example.com'))
+    expect(await accounts.emailSignIn.issue('ada@example.com', interaction(), { signUp: {} })).toEqual({
+      ok: false,
+      reason: 'passkey',
+      address: 'ada@example.com'
+    })
+  })
+
+  test('a token issued before a passkey was added does not sign in after', async () => {
+    const { accounts, adapter } = await setup()
+    await accounts.signUp({ username: 'ada@example.com', password: 'correct horse', claims: verified })
+    const issued = await accounts.emailSignIn.issue('ada@example.com', interaction())
+    if (!issued.ok) throw new Error('not issued')
+    await adapter.passkeys.create(passkeyFor('id-ada@example.com'))
+    expect(await accounts.emailSignIn.redeem(issued.token)).toEqual({ ok: false, reason: 'passkey' })
+  })
+
+  // Pre-hijacking: whoever signed up with someone else's address would keep their password beside the owner's inbox.
+  test('an account with a password signs in by email only once that address was proven on it', async () => {
+    const { accounts } = await setup()
+    await accounts.signUp({ username: 'ada@example.com', password: 'correct horse' })
+    expect(await accounts.emailSignIn.issue('ada@example.com', interaction(), { signUp: {} })).toEqual({
+      ok: false,
+      reason: 'unverified',
+      address: 'ada@example.com'
+    })
+    await accounts.signUp({ username: 'bob@example.com', password: 'correct horse', claims: { ...verified, email: 'other@example.com' } })
+    expect(await accounts.emailSignIn.issue('bob@example.com', interaction())).toMatchObject({ ok: false, reason: 'unverified' })
+
+    await accounts.signUp({ username: 'cy@example.com', password: 'correct horse', claims: { ...verified, email: 'Cy@Example.com' } })
+    const issued = await accounts.emailSignIn.issue('cy@example.com', interaction())
+    if (!issued.ok) throw new Error('not issued')
+    expect(await accounts.emailSignIn.redeem(issued.token)).toMatchObject({ ok: true, accountId: 'id-cy@example.com', signedUp: false })
+  })
+
+  test('a sign-up that lost the race to a password sign-up signs nobody in', async () => {
+    const { accounts } = await setup()
+    const issued = await accounts.emailSignIn.issue('ada@example.com', interaction(), { signUp: {} })
+    if (!issued.ok) throw new Error('not issued')
+    await accounts.signUp({ username: 'ada@example.com', password: 'correct horse' })
+    expect(await accounts.emailSignIn.redeem(issued.token)).toEqual({ ok: false, reason: 'invalid' })
+  })
+
+  test('the inbox is a first factor: an account with TOTP is still asked for a code', async () => {
+    const { accounts } = await setup()
+    await accounts.signUp({ username: 'ada@example.com', password: 'correct horse', claims: verified })
+    const begun = await accounts.totp.begin('id-ada@example.com')
+    if (!begun?.ok) throw new Error('enrolment did not begin')
+    await accounts.totp.confirm('id-ada@example.com', await codeFor(begun.secret))
+    const issued = await accounts.emailSignIn.issue('ada@example.com', interaction())
+    if (!issued.ok) throw new Error('not issued')
+    expect(await accounts.emailSignIn.redeem(issued.token)).toMatchObject({ ok: true, secondFactor: true })
+  })
+
+  // NFR-S12: counted per address whether or not an account has it, so the count names no account either.
+  test('tokens are capped per address, for an address with no account as for one with', async () => {
+    const { accounts } = await setup()
+    for (let sent = 0; sent < 5; sent++) {
+      expect(await accounts.emailSignIn.issue('nobody@example.com', interaction())).toMatchObject({ reason: 'unknown' })
+    }
+    expect(await accounts.emailSignIn.issue('NOBODY@example.com', interaction(), { signUp: {} })).toMatchObject({
+      ok: false,
+      reason: 'locked'
+    })
+    expect((await accounts.emailSignIn.issue('somebody@example.com', interaction(), { signUp: {} })).ok).toBe(true)
+  })
+})
+
 describe('addressBucket', () => {
   test('an IPv4 address is itself; an IPv6 one its /64, however it is written', () => {
     expect(addressBucket('192.0.2.7')).toBe('192.0.2.7')

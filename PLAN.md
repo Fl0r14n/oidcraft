@@ -6,13 +6,13 @@ was done.
 
 ## Status
 
-**Implemented, as of 2026-11-20**, with 1549 passing tests (551 more skip without Postgres, MySQL,
+**Implemented, as of 2026-11-25**, with 1566 passing tests (551 more skip without Postgres, MySQL,
 MariaDB and Redis), `bun run verify` as the gate and `bun run smoke` clicking through the demo in CI:
-every functional requirement in `REQUIREMENTS.md` but FR-I9, in progress below.
+every functional requirement in `REQUIREMENTS.md`.
 `metadata.test.ts` exercises every advertised discovery value rather than reading it. Published as
 `@oidcraft/*` on 2026-11-14, each from a GitHub release with provenance — `core` 0.5.0, `client`
-0.4.0, `adapter` and the four storage adapters 0.3.0, `vue` 10.0.0, `react` 5.0.0, `angular` 12.0.0,
-and the provider 0.8.0 on 2026-11-20 — with the docs site at https://fl0r14n.github.io/oidcraft/. Each release's
+0.4.0, the four storage adapters 0.3.0, `vue` 10.0.0, `react` 5.0.0, `angular` 12.0.0, and on
+2026-11-25 `adapter` 0.3.1 and the provider 0.9.0 — with the docs site at https://fl0r14n.github.io/oidcraft/. Each release's
 notes, the renames to ARCHITECTURE.md §9.3 included, are on its GitHub release.
 
 **Provider 0.3.0 and earlier are not to be put in front of real identities**: they ship a session
@@ -24,9 +24,9 @@ DPoP with nonces, PAR, JAR by value, the `claims` parameter, dynamic client regi
 7592 management, the device grant, CIBA in poll and ping, token exchange, RAR, step-up, pairwise
 subjects, identity brokering with home-realm discovery chosen by the provider, five storage adapters
 (memory, Drizzle, Kysely, TypeORM, Redis) passing one conformance suite, the SQL ones on SQLite,
-Postgres, MySQL and MariaDB, four runtime context providers and a Fastify plugin, local accounts with passwords, passkeys
-and TOTP, a management API and an admin UI, and identity assertion grants for MCP's enterprise-managed
-authorization (FR-C24).
+Postgres, MySQL and MariaDB, four runtime context providers and a Fastify plugin, local accounts with passwords, passkeys,
+TOTP and email sign-in (FR-I9), a management API and an admin UI, and identity assertion grants for MCP's
+enterprise-managed authorization (FR-C24).
 
 ### What is NOT done, and will not be silently forgotten
 
@@ -66,25 +66,10 @@ in the `claims` parameter (FR-C22) refuses a login that reports less, but nothin
 - **Renaming the demo's `/federation/callback`** — it is the redirect URI registered with Google
   (`.env.example`), and renaming a URL people have registered breaks their sign-in for a word.
 
-## In progress
-
-**Email sign-in (FR-I9)**, decided 2026-11-25. Built, with its tests, unreleased:
-
-- [x] `@oidcraft/adapter`: the `email_sign_in` artifact kind.
-- [x] `provider.interactions.completeHere` — another browser restarts the stored request, never
-      answers the original (FR-I2).
-- [x] `accounts.emailSignIn.issue` / `find` / `redeem`: refused for an account with a passkey,
-      and for one with a password until its address is verified on it; capped per address; sign-up
-      only when the host asks; TOTP after.
-- [x] `@oidcraft/ui` screens: address, and the page the link lands on, whose POST spends it.
-- [x] `apps/demo-server` routes, URL printed to the console; `screens.test.ts` and two smoke steps,
-      one posting the token from another site, which is refused, then opening the link with every
-      cookie cleared.
-- [x] Docs site: the interaction guide's Email sign-in, from a tested sample.
-- [ ] Release `adapter` 0.4.0, then `provider` 0.9.0.
-- `completeHere` from another browser refuses a device interaction by construction; no test drives one.
-
 ## Open
+
+- **`completeHere` from another browser refuses a device interaction** by construction, as a device
+  one carries no stored request (FR-I9); no test drives one.
 
 - **Brave's own password manager** refused a passkey under `localhost`, through a phone by QR code, and
   was not retried under another name, as Proton Pass was (`.cert/README.md`). Google Password Manager

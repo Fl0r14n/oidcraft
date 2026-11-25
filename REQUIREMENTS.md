@@ -512,9 +512,12 @@ interaction. In any other — a mail app's own browser, another device — it en
 starts its authorization request again in this browser, signed in, so the response reaches the
 client's redirect URI from there and the original interaction is never answered from elsewhere
 (FR-I2): whoever started it gains nothing from the person following the URL. The page names the
-address because the reverse holds too — a URL someone else asked for signs this browser in as them.
-No code to type is sent (NFR-S3); a host that wants one builds it. An email sign-in reports `amr`
-`email`, which RFC 8176 does not register, and the single-factor `acr` `pwd`.
+address because the reverse holds too — a URL someone else asked for signs this browser in as them —
+and the button is accepted only from the issuer's own pages: the token alone signs in any browser, so
+a page elsewhere posting it would sign its visitor in as whoever asked, page unseen. A device sign-in
+is not offered one, as it cannot move browsers. No code to type is sent (NFR-S3); a host that wants
+one builds it. An email sign-in reports `amr` `email`, which RFC 8176 does not register, and the
+single-factor `acr` `pwd`.
 
 ## 8. Administration — `FR-M*`
 

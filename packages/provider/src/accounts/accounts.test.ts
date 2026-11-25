@@ -322,7 +322,7 @@ describe('email sign-in (FR-I9)', () => {
     const issued = await accounts.emailSignIn.issue(' Ada@Example.com', interaction(), { signUp: { claims: { name: 'Ada' } } })
     if (!issued.ok) throw new Error('not issued')
     expect(issued.accountId).toBeUndefined()
-    expect(await accounts.emailSignIn.addressOf(issued.token)).toBe('ada@example.com')
+    expect(await accounts.emailSignIn.find(issued.token)).toEqual({ address: 'ada@example.com', interactionId: 'i-1' })
     expect(await accounts.emailSignIn.redeem(issued.token)).toEqual({
       ok: true,
       accountId: 'id-ada@example.com',
@@ -343,11 +343,11 @@ describe('email sign-in (FR-I9)', () => {
     const { accounts } = await setup()
     const issued = await accounts.emailSignIn.issue('ada@example.com', interaction(), { signUp: {} })
     if (!issued.ok) throw new Error('not issued')
-    expect(await accounts.emailSignIn.addressOf(issued.token)).toBe('ada@example.com')
-    expect(await accounts.emailSignIn.addressOf(issued.token)).toBe('ada@example.com')
+    expect(await accounts.emailSignIn.find(issued.token)).toEqual({ address: 'ada@example.com', interactionId: 'i-1' })
+    expect(await accounts.emailSignIn.find(issued.token)).toEqual({ address: 'ada@example.com', interactionId: 'i-1' })
     expect((await accounts.emailSignIn.redeem(issued.token)).ok).toBe(true)
     expect(await accounts.emailSignIn.redeem(issued.token)).toEqual({ ok: false, reason: 'invalid' })
-    expect(await accounts.emailSignIn.addressOf(issued.token)).toBeUndefined()
+    expect(await accounts.emailSignIn.find(issued.token)).toBeUndefined()
     expect(await accounts.emailSignIn.redeem('made-up')).toEqual({ ok: false, reason: 'invalid' })
     for (const [address, problem] of [
       ['', 'required'],
@@ -367,7 +367,7 @@ describe('email sign-in (FR-I9)', () => {
     const { accounts } = await setup()
     const issued = await accounts.emailSignIn.issue('ada@example.com', interaction(new Date(Date.now() - 1000)), { signUp: {} })
     if (!issued.ok) throw new Error('not issued')
-    expect(await accounts.emailSignIn.addressOf(issued.token)).toBeUndefined()
+    expect(await accounts.emailSignIn.find(issued.token)).toBeUndefined()
     expect(await accounts.emailSignIn.redeem(issued.token)).toEqual({ ok: false, reason: 'invalid' })
   })
 

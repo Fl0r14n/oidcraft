@@ -79,10 +79,8 @@ export const interactions = (config: ResolvedConfig) => ({
   },
 
   /**
-   * A sign-in proven in whichever browser the person followed it in (FR-I9): in the one the interaction is bound to, as
-   * `complete`; in another, the interaction ends and its request starts again there, signed in, so the original is never
-   * answered from elsewhere (FR-I2). It takes a login, never an id alone: handing an interaction to whoever names it is
-   * that attack.
+   * Elsewhere than the interaction's browser, ends it and starts its request again here, signed in (FR-I9); a login is
+   * required, as moving an interaction to whoever names it is the attack FR-I2 closes.
    */
   async completeHere(id: string, login: NonNullable<InteractionResult['login']>, cookie: string | null): Promise<InteractionCompletion> {
     const { artifact, payload } = await load(config, id)
@@ -109,7 +107,7 @@ const answer = async (
   artifact: Stored<'interaction'>,
   request: AuthorizationRequest,
   given: InteractionResult
-): Promise<InteractionCompletion> => {
+) => {
   // FR-F9: max_age went upstream with the login, so an auth_time older than it says it was not honoured.
   const outcome: InteractionResult = staleLogin(config, artifact.expiresAt, request.maxAge, given.login?.authTime)
     ? { error: { error: 'login_required', description: 'the sign-in is older than max_age allows' } }

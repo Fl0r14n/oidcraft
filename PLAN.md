@@ -73,12 +73,13 @@ in the `claims` parameter (FR-C22) refuses a login that reports less, but nothin
 - [x] `@oidcraft/adapter`: the `email_sign_in` artifact kind.
 - [x] `provider.interactions.completeHere` — another browser restarts the stored request, never
       answers the original (FR-I2).
-- [x] `accounts.emailSignIn.issue` / `addressOf` / `redeem`: refused for an account with a passkey,
+- [x] `accounts.emailSignIn.issue` / `find` / `redeem`: refused for an account with a passkey,
       and for one with a password until its address is verified on it; capped per address; sign-up
       only when the host asks; TOTP after.
 - [x] `@oidcraft/ui` screens: address, and the page the link lands on, whose POST spends it.
 - [x] `apps/demo-server` routes, URL printed to the console; `screens.test.ts` and two smoke steps,
-      one opening the link with every cookie cleared.
+      one posting the token from another site, which is refused, then opening the link with every
+      cookie cleared.
 - [x] Docs site: the interaction guide's Email sign-in, from a tested sample.
 - [ ] Release `adapter` 0.4.0, then `provider` 0.9.0.
 - `completeHere` from another browser refuses a device interaction by construction; no test drives one.

@@ -542,7 +542,7 @@ password, and either ends the account's sessions and revokes its grants' tokens 
 is, carrying the address and the interaction id and expiring no later than the interaction.
 `emailSignIn.issue(address, interaction, { signUp })` takes the interaction as `interactions.find`
 describes it and resolves a token or a refusal the host must answer like a success;
-`emailSignIn.addressOf(token)` names the address for the page a link lands on, spending nothing; and
+`emailSignIn.find(token)` names the address and interaction for the page a link lands on, spending nothing; and
 `emailSignIn.redeem(token)` takes it with the atomic `consume` and answers as `authenticate` does, so
 TOTP follows when enrolled. A sign-up token carries no account: `redeem` creates it, by
 `CredentialStore.create`, with no password, and one that loses that race to another sign-up signs
@@ -550,16 +550,19 @@ nobody in. `issue` and `redeem` both refuse an account with any passkey, read fr
 the moment of the call, so a passkey added after a token was sent stops it, and an account with a
 password whose `email` claim is not that address, verified. Issuing claims a `ReplayGuard` slot per
 normalized address (namespace `email_sign_in`) whether or not an account exists, so the count says
-nothing either. The token is spent by a POST; its GET renders the confirming page.
+nothing either. The token is spent by a POST; its GET renders the confirming page. The reference route
+refuses that POST unless its `Origin` is the issuer's, and checks the interaction is still open before
+`redeem`, so a link to a sign-in finished another way spends nothing and makes no account.
 
 Moving to another browser is the provider's, not the entry's, because only the core binds an
-interaction to a browser. `provider.interactions.completeHere(id, result, cookie)` completes the
-interaction when the cookie is its browser's, and otherwise consumes it, suspends its stored request
+interaction to a browser. `provider.interactions.completeHere(id, login, cookie)` completes the
+interaction when the cookie is its browser's, and otherwise consumes it and starts its stored request
 again in this browser, signed in: the session starts here and the redirect goes back to the
 authorization endpoint, which binds whatever it still has to ask, consent included (FR-I4), to this
 browser as it binds any other. It takes a login, never an id alone: handing an interaction to whoever
 names it is the attack FR-I2 closes, and a reference route calls it only with the account a redeemed
-token named. From another browser, a device or logout interaction is refused. The reference
+token named. From another browser, a device or logout interaction is refused, and the reference
+screens offer email sign-in only to an interaction with a redirect URI, which a device one lacks. The reference
 deployment's pending second factor remembers that its first was an email, so the code step finishes
 with `completeHere` too.
 

@@ -159,10 +159,7 @@ export type SignUpResult =
 
 export type AddressProblem = 'required' | 'tooLong' | 'invalid'
 
-/**
- * Every refusal but `address` must reach the person as a success does (FR-I9): `passkey` so the host can send a message
- * saying the account signs in with one, `unverified` that it signs in with its password, the others by sending nothing.
- */
+/** FR-I9: every refusal but `address` is answered as a success is; `passkey` and `unverified` say what to send instead. */
 export type EmailSignInIssue =
   | { ok: true; token: string; address: string; accountId: string | undefined }
   | { ok: false; reason: 'address'; problem: AddressProblem }
@@ -188,7 +185,6 @@ const digest = async (value: string) =>
 
 const SLOTS = 'sign_in'
 
-/** Only the shape: whether it reaches anyone is what sending to it finds out. */
 const addressProblem = (address: string): AddressProblem | undefined =>
   oauthFieldError(address) ?? (/^[^\s@]+@[^\s@]+$/.test(address) ? undefined : 'invalid')
 
@@ -400,15 +396,12 @@ export const createAccounts = (options: AccountsOptions) => {
     return false
   }
 
-  /**
-   * FR-I9: never an account with a passkey, and one with a password only once this address was proven on it, or whoever
-   * signed up with someone else's address would keep their password beside the owner's inbox.
-   */
-  const emailSignInRefusal = async (credential: Credential, address: string) => {
-    if ((await adapter.passkeys.listForAccount(credential.accountId)).length) return 'passkey' as const
+  /** FR-I9: a password beside an address never proven on it may be whoever signed up with someone else's address. */
+  const checkEmailSignIn = async (credential: Credential, address: string) => {
+    if ((await adapter.passkeys.listForAccount(credential.accountId)).length) return { ok: false, reason: 'passkey' } as const
     const { email, email_verified } = credential.claims
     const proven = email_verified === true && typeof email === 'string' && normalizeUsername(email) === address
-    return credential.passwordHash && !proven ? ('unverified' as const) : undefined
+    return credential.passwordHash && !proven ? ({ ok: false, reason: 'unverified' } as const) : ({ ok: true } as const)
   }
 
   const liveEmailSignIn = async (id: string) => {
@@ -626,10 +619,7 @@ export const createAccounts = (options: AccountsOptions) => {
     },
 
     emailSignIn: {
-      /**
-       * A single-use token for the host to send to the address (FR-A1), bound to the interaction and outliving it by nothing.
-       * An address with no account makes one on `redeem` only when `signUp` is given, which a host without sign-up never does.
-       */
+      /** A single-use token for the host to send (FR-A1); an address with no account gets one only with `signUp` (FR-I9). */
       async issue(
         address: string,
         interaction: EmailSignInInteraction,
@@ -642,8 +632,9 @@ export const createAccounts = (options: AccountsOptions) => {
           return { ok: false, reason: 'locked', until: new Date(Date.now() + policy.emailSignInWindow * 1000) }
         }
         const credential = await credentials.findByUsername(normalized)
-        const refusal = credential ? await emailSignInRefusal(credential, normalized) : options.signUp ? undefined : 'unknown'
-        if (refusal) return { ok: false, reason: refusal, address: normalized }
+        if (!credential && !options.signUp) return { ok: false, reason: 'unknown', address: normalized }
+        const checked = credential ? await checkEmailSignIn(credential, normalized) : undefined
+        if (checked && !checked.ok) return { ok: false, reason: checked.reason, address: normalized }
         const token = randomString(43)
         const payload: EmailSignInPayload = {
           address: normalized,
@@ -661,13 +652,14 @@ export const createAccounts = (options: AccountsOptions) => {
         return { ok: true, token, address: normalized, accountId: credential?.accountId }
       },
 
-      /** The address a live token signs in, for the page that asks before spending it: mail scanners open URLs too (FR-I9). */
-      async addressOf(token: string) {
+      /** A live token's address and interaction, spending nothing: mail scanners open links too (FR-I9). */
+      async find(token: string) {
         const artifact = await liveEmailSignIn(await digest(token))
-        return artifact && (artifact.payload as EmailSignInPayload).address
+        if (!artifact) return undefined
+        const { address, interactionId } = artifact.payload as EmailSignInPayload
+        return { address, interactionId }
       },
 
-      /** Spends the token, whatever comes of it, and signs in its account, making it first if it was a sign-up. */
       async redeem(token: string): Promise<EmailSignInResult> {
         const id = await digest(token)
         const artifact = await liveEmailSignIn(id)
@@ -689,9 +681,8 @@ export const createAccounts = (options: AccountsOptions) => {
           credential = signedUp ? account : await credentials.findByUsername(address)
         }
         if (credential?.username !== address) return invalid
-        const refusal = signedUp ? undefined : await emailSignInRefusal(credential, address)
-        if (refusal === 'passkey') return { ok: false, reason: 'passkey' }
-        if (refusal) return invalid
+        const checked = signedUp ? undefined : await checkEmailSignIn(credential, address)
+        if (checked && !checked.ok) return checked.reason === 'passkey' ? { ok: false, reason: 'passkey' } : invalid
         const until = lockedUntil(credential)
         if (until) return locked(until)
         return { ok: true, accountId: credential.accountId, interactionId, secondFactor: Boolean(credential.totp?.confirmedAt), signedUp }

@@ -367,10 +367,20 @@ const steps: [string, () => Promise<void>][] = [
     }
   ],
   [
-    'an email link opened in another browser signs that one in, never the one that asked',
+    'an email link posted from another site signs nobody in; opened in another browser, it signs that one in',
     async () => {
       const link = await askForEmailLink()
-      // A browser with none of this one's cookies: no binding to the interaction, no session.
+      // FR-I9: the token posted from another site is refused, and left unspent for the person it was sent to.
+      await view.navigate(`${RP}/`)
+      await view.evaluate(`(() => {
+        const form = Object.assign(document.createElement('form'), { method: 'post', action: '${OP}/email-sign-in' })
+        form.append(Object.assign(document.createElement('input'), { name: 'token', value: new URL(${JSON.stringify(link)}).searchParams.get('token') }))
+        document.body.append(form)
+        form.submit()
+      })()`)
+      await at(`${OP}/email-sign-in`)
+      await sees('cannot continue')
+      // FR-I9: another browser, with no binding to the interaction and no session.
       await view.cdp('Network.clearBrowserCookies', {})
       await view.navigate(link)
       await submit('/email-sign-in')

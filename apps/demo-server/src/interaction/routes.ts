@@ -53,6 +53,9 @@ const ADDRESS_MESSAGES = {
   invalid: 'That is not an email address'
 } as const
 
+/** FR-I9: only an authorization sign-in can finish in the browser a link is opened in; a device one has no redirect URI. */
+const movesBrowsers = (view: InteractionRequest) => view.redirectUri !== undefined
+
 const usernameMessage = (problem: 'required' | 'tooLong' | 'taken') =>
   problem === 'required' ? 'Choose a username' : problem === 'tooLong' ? 'That username is too long' : 'That username is taken'
 
@@ -66,17 +69,14 @@ const build = (site: Site) => {
       register: signUp(),
       passkeys: true,
       recover: true,
-      email: true,
+      email: movesBrowsers(view),
       ...options
     })
 
   const secondStep = async (view: ScreenView, accountId: string, options: Parameters<typeof screens.otp>[1] = {}) =>
     screens.otp(view, { passkeys: (await accounts.passkeys.list(accountId)).length > 0, ...options })
 
-  /**
-   * The acr says what actually happened: a client that asked for more must not be told it got it (FR-F9, FR-C16, RFC 8176).
-   * Only a sign-in proven by email may finish in another browser (FR-I9); every other is answered where it started (FR-I2).
-   */
+  /** The acr says what happened (FR-F9, FR-C16); only a sign-in proven by email may finish in another browser (FR-I9, FR-I2). */
   const finish = async (request: Request, id: string, accountId: string, amr: string[], acr = amr.includes('mfa') ? 'mfa' : 'pwd') => {
     const login = { accountId, acr, amr }
     const cookie = request.headers.get('cookie')
@@ -188,7 +188,8 @@ const build = (site: Site) => {
         }
         const result = await accounts.passkeys.authenticate(id, parsed(body.get('credential')))
         if (result.ok && (!pending || result.accountId === pending)) {
-          return await finish(request, id, result.accountId, pending ? ['pwd', 'hwk', 'user', 'mfa'] : ['hwk', 'user'], 'mfa')
+          const first = (await pendingSecondFactor.byEmail(request, id)) ? 'email' : 'pwd'
+          return await finish(request, id, result.accountId, pending ? [first, 'hwk', 'user', 'mfa'] : ['hwk', 'user'], 'mfa')
         }
         if (!result.ok && result.reason === 'counter') console.warn(`[interaction] a passkey's counter went backwards: it may be cloned`)
         const notice = 'That passkey could not sign you in.'
@@ -250,7 +251,7 @@ const build = (site: Site) => {
       }
 
       // FR-I9: every address gets the same page; what is sent, if anything, is the host's, and sign-up only where it is mounted.
-      if (action === 'email') {
+      if (action === 'email' && movesBrowsers(view)) {
         if (request.method === 'GET') return screens.email(view)
         const address = (await form(request)).get('email') ?? ''
         const issued = await accounts.emailSignIn.issue(address, view, signUp() ? { signUp: {} } : {})
@@ -365,13 +366,25 @@ const build = (site: Site) => {
   const emailSignInRoutes = async (request: Request, url: URL) => {
     const expired = () =>
       screens.message('This link no longer works', 'It expired or was already used. Start again from the application.', 400)
+    // Spending nothing on a sign-in already finished or expired, so a sign-up does not make an account nobody signs in to.
+    const live = async (token: string) => {
+      const found = await accounts.emailSignIn.find(token)
+      const open = found && (await provider.interactions.find(found.interactionId).then(movesBrowsers, () => false))
+      return open ? found : undefined
+    }
     if (request.method === 'GET') {
       const token = url.searchParams.get('token') ?? ''
-      const address = await accounts.emailSignIn.addressOf(token)
-      return address ? screens.emailSignIn(token, address) : expired()
+      const found = await live(token)
+      return found ? screens.emailSignIn(token, found.address) : expired()
     }
     if (request.method !== 'POST') return new Response('Method not allowed', { status: 405 })
-    const result = await accounts.emailSignIn.redeem((await form(request)).get('token') ?? '')
+    // FR-I9: the token alone signs in any browser, so a page elsewhere posting one would sign its visitor in as whoever asked.
+    if (request.headers.get('origin') !== new URL(provider.config.issuer).origin) {
+      return screens.message('This sign-in cannot continue', 'Open the link from your email again.', 403)
+    }
+    const token = (await form(request)).get('token') ?? ''
+    if (!(await live(token))) return expired()
+    const result = await accounts.emailSignIn.redeem(token)
     if (!result.ok) {
       if (result.reason === 'passkey') {
         return screens.message(

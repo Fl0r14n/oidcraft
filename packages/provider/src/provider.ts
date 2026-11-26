@@ -162,6 +162,12 @@ const endSessionHandler: Handler = async (config, request) => {
 // JAR by reference is deliberately absent: resolving it means fetching a URL the client chose (FR-A1).
 const resolveParameters = async (config: ResolvedConfig, raw: URLSearchParams) => {
   const requestUri = raw.get('request_uri')
+  if (requestUri && raw.has('request')) {
+    throw new OAuthError('invalid_request', { description: 'request and request_uri must not be sent together', spec: 'RFC 9101 §5' })
+  }
+  if (requestUri && !raw.get('client_id')) {
+    throw new OAuthError('invalid_request', { description: 'a request_uri needs the client_id alongside it', spec: 'RFC 9126 §4' })
+  }
   if (requestUri) {
     if (config.features.pushedAuthorizationRequests) return resolvePushedRequest(config, requestUri, raw.get('client_id'))
     // PAR off, the only reference is the one that resumes a signed request after an interaction; anything else is unsupported.

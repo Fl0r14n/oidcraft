@@ -275,6 +275,42 @@ describe('request objects (JAR)', () => {
     expect(location.searchParams.get('error_description')).toContain('payment is not supported')
   })
 
+  // FR-C12, RFC 9101 §10.8: it rides in a URL, so a captured one must stop working.
+  test('an object without exp, living over an hour, or issued in the future is refused', async () => {
+    const now = Math.floor(Date.now() / 1000)
+    const base = requestParams({ client_id: 'signer' })
+    const sign = (claims: Record<string, unknown>, typ?: string) =>
+      new SignJWT({ ...base, ...claims })
+        .setProtectedHeader({ alg: 'ES256', ...(typ && { typ }) })
+        .setIssuer('signer')
+        .setAudience(ISSUER)
+        .sign(signing.privateKey)
+    const refused = async (request: string) => (await (await authorize({ client_id: 'signer', request })).json()).error
+    expect(await refused(await sign({ iat: now }))).toBe('invalid_request')
+    expect(await refused(await sign({ iat: now, exp: now + 7200 }))).toBe('invalid_request')
+    expect(await refused(await sign({ iat: now + 120, exp: now + 300 }))).toBe('invalid_request')
+    expect(await refused(await sign({ iat: now, exp: now + 300 }, 'JWT'))).toBe('invalid_request')
+    const typed = await authorize({ client_id: 'signer', request: await sign({ iat: now, exp: now + 300 }, 'oauth-authz-req+jwt') })
+    expect(typed.status).toBe(303)
+  })
+
+  // RFC 8707 §2: resource repeats in the query form, so a request object's array of them is that many parameters.
+  test('an array of strings becomes repeated parameters', async () => {
+    const request = await objectFor({ ...requestParams({ client_id: 'signer' }), resource: ['https://unknown.example.com'] })
+    const location = new URL((await authorize({ client_id: 'signer', request })).headers.get('location') as string)
+    expect(location.searchParams.get('error_description')).toContain('resource https://unknown.example.com is not one')
+  })
+
+  test('request with request_uri, or a request_uri without its client_id, is refused', async () => {
+    const request = await objectFor({ ...requestParams({ client_id: 'signer' }) })
+    const both = await authorize({ client_id: 'signer', request, request_uri: 'urn:ietf:params:oauth:request_uri:x' })
+    expect((await both.json()).error_description).toContain('together')
+    const bare = await provider.handle(
+      new Request(`${ISSUER}/authorize?${new URLSearchParams({ request_uri: 'urn:ietf:params:oauth:request_uri:x' })}`)
+    )
+    expect((await bare.json()).error_description).toContain('client_id')
+  })
+
   test('an object signed by the wrong key is refused', async () => {
     const other = await generateKeyPair('ES256', { extractable: true })
     const request = await objectFor({ ...requestParams({ client_id: 'signer' }) }, other)

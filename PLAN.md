@@ -218,6 +218,78 @@ Reference deployment (`apps/demo-server/src`):
   fields), FR-C11/FR-C17 (the host delivers; advertised only with the hook), FR-C13 (fails closed), FR-C26
   (client credentials), FR-I10 (session), NFR-S13 (framing), NFR-S14 (client-chosen URLs), NFR-D6 (payloads).
 
+### Decided in section 2
+
+Implementation waits for every section's decisions; refactoring lands as part of the fix it motivates.
+
+- A1 `toPlainAdapter` in `@oidcraft/adapter` (`src/plain.ts`, per store `toPlainStore`): every store as a plain object
+  of its own and inherited methods, bound to the original. `createProvider`, `createRealms`, `createAccounts` and
+  `createBroker` normalise on entry; `resolveConfig` checks required methods after; the conformance suite also runs
+  against the normalised adapter. Ships in one adapter release with A7.
+- A2 light: a refresh token without `familyExpiresAt` is refused; ARCHITECTURE §9 gains "a field that restricts a
+  stored artifact is checked as present where it is read: absent is refused, never unrestricted"; NFR-D6 softened to
+  that rule. No version stamps or decoders.
+- A3 the library ships two things: `safeFetch` in each runtime entry (seeded from reghedge's `client-metadata.ts`;
+  Node pins the address, a runtime that cannot pins nothing and says so, workerd caps size and time), and
+  `provider.verifyAccessToken(request, { resource })` lifted from UserInfo, answering a ready 401 (fixes S-13, D-8).
+  Mail delivery and security headers are demo items.
+- A4 each rule moves into the one function every path passes through, as the fix for its finding: family and client
+  liveness into `issueAccessToken` (S-6), `assertBoundTo`, one token-visibility module (S-3, S-8), one
+  `assertConsentCovers`, one cookie module (S-10), one set of error builders (S-13), a branded `StoredId`.
+- A5 the authorization handler moves from `provider.ts` to `authorize/endpoint.ts`. The `authorize ↔ token ↔ clients`
+  cycle stays: feature grouping is preferred.
+- A6 no counter primitive: keep the generation when the account-wide lock trips (A-1); unknown usernames get a
+  symmetric bucket keyed by the normalised username (A-8).
+- A7 `UpdatableStore<T, Key>` = `EntityStore<T>` + `update(id, fields) → boolean`, writing only the fields given and
+  never creating: `SessionStore` (key `id`; FR-I10's in-place update must not race `addClient`), `CredentialStore`
+  (`accountId`, `username`), `PasskeyStore` (`accountId`, `credentialId`). §9.3 gains the verb; three conformance
+  checks. Fix ARCHITECTURE §4's stale `ClientStore` row.
+- A8 the Redis README says it expects one node or one hash slot; the per-family split waits for a Cluster user. No
+  injectable clock.
+
+### Decided in section 3
+
+- One SQL core in private `@oidcraft/sql` over six primitives per ORM (`one`, `many`, `insertIgnore`, `update`,
+  `delete`, `upsert`); drizzle, kysely and typeorm keep only driver-result normalisation and table definitions. Before
+  A7, so `update` is written once; R-8 settles on overwrite.
+- File splits land with the fix that touches them: `accounts/index.ts` (throttle, recovery, reset, email sign-in, TOTP
+  enrolment), `authorize/authorization.ts` (`response.ts`, consent check, one interaction `kind`), `clients/uris.ts`,
+  the two refresh paths in `token/code.ts`, the demo's `interaction/routes.ts` by flow.
+- `broker.complete` verifies once. `sealed.ts` derives its keys with HKDF and carries a key id, reading the old format.
+
+### Decided in section 4
+
+- Settled by sections 1–3: S-1, S-2, S-3, S-4, S-5, S-6, S-9, S-11, S-12, S-13, S-15, S-19, S-20, A-1, A-4, A-5, A-6,
+  A-8, A-9, R-8, D-1.
+- S-7 a session starts with no clients, a client is added when it gets tokens. S-8 `DPoP` only for a `jkt`. S-14
+  array claims as repeated parameters. S-16 the CIBA hint verified as end-session's is. S-17 `openid` and known scopes
+  at the device endpoint. S-18 catch only `OAuthError`. A-2 `complete` refuses an idp outside `allowedUpstreams`. A-3
+  each upstream's `linkPolicy` honoured, the stricter wins. A-10 the doc follows the default mapper. R-2 `strict`
+  refuses to verify without an issuer. R-3 storage only in a browser. R-4, R-5, R-6, R-7, R-9 as found.
+- Hardening: all of it except a per-upstream callback path, which would change the URIs registered at the upstreams.
+- S-10 a clean break to `__Host-oidcraft.sid`: one sign-in at the provider after upgrading, in the release notes.
+- A-7 a fresh login required downstream sends `prompt=login` upstream, and a missing upstream `auth_time` is the
+  moment the round trip started.
+- R-1 the per-client index without a fallback scan; artifacts older than it outlive a deleted client until they
+  expire, in the release notes.
+- Demo: D-2 seeding only with `OIDCRAFT_DEMO_ACCOUNTS=on`, no default password, admins by username; D-3 console mail
+  only outside production; D-4 TOTP enrolment needs the password or a passkey; D-5 `0600`/`0700`; D-6 `safeFetch`;
+  D-7 headers in `render()`; D-8 `verifyAccessToken`; D-9 the error code only; D-10 state bound to a cookie, with a TTL.
+
+### Order of work
+
+Each step ends green on `bun run verify` and is committed on `main`; a release is the user's to cut.
+
+1. **Provider, no contract change.** S-2, S-3, S-4, S-5 with NFR-S14 and `clients/uris.ts`, S-6 and the rest of A4,
+   S-7, S-8, S-9, S-11 to S-20, A-2, A-3, A-10, A2, A5, `verifyAccessToken`. Accounts: A-1, A-8, A-4, A-5, A-9, the
+   password policy, the account-id checks (Q9), splitting `accounts/index.ts` as it goes.
+2. **Relying-party libraries.** R-2 to R-7, R-9 in `@oidcraft/core` and `@oidcraft/client`.
+3. **Storage.** The SQL core; then A1 `toPlainAdapter`, A7 `UpdatableStore`, R-1, the MySQL collations, the Redis
+   README. One `@oidcraft/adapter` release and the four adapters.
+4. **Provider on the new contract.** S-1 and FR-I10 with `ttl.sessionIdle`, S-10, A-6, A-7, `sealed.ts`, `safeFetch`.
+5. **Demo and conformance.** D-1 to D-10, delivering both logouts, the four plans in CI, splitting `routes.ts`.
+6. **Hardening** not already landed with its neighbour.
+
 ### Future features
 
 - A per-client "end other sign-ins" primitive and an `onSessionStart` event, for a host limiting sign-ins per

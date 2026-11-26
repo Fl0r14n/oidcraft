@@ -24,7 +24,8 @@ const describe = (artifact: Token, issuer: string, subject: string | undefined) 
     active: true,
     scope: artifact.payload.scopes.join(' '),
     client_id: artifact.clientId,
-    token_type: access ? (access.cnf ? 'DPoP' : 'Bearer') : undefined,
+    // A certificate-bound token is still presented as a Bearer (RFC 8705 §3); only a DPoP key makes it DPoP (RFC 9449 §7.1).
+    token_type: access ? (access.cnf?.jkt ? 'DPoP' : 'Bearer') : undefined,
     exp: seconds(artifact.expiresAt),
     iat: artifact.payload.iat,
     sub: subject,

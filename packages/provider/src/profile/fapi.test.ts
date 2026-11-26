@@ -181,6 +181,13 @@ describe('FR-C21: clients the profile does not allow', () => {
     expect(await management.create({ ...base, clientId: 'c', tokenEndpointAuthMethod: 'client_secret_basic' })).toBeTruthy()
   })
 
+  // §5.3.2.2: FR-C3's nonce exemption is the host vouching for a client; FAPI 2.0 takes no one's word for it.
+  test('a client opted out of PKCE is refused', async () => {
+    const management = build().management.clients
+    const { clientId: _, ...compliant } = await fapiClient()
+    await expect(management.create({ ...compliant, clientId: 'nopkce', profile: 'fapi2', requirePkce: false })).rejects.toThrow(/PKCE/)
+  })
+
   test('a public client is refused at the authorization endpoint under a provider-wide profile', async () => {
     await adapter.clients.upsert?.({ ...(await fapiClient()), clientId: 'spa', tokenEndpointAuthMethod: 'none', jwks: undefined as never })
     const params = new URLSearchParams({ ...(await authorizationParams()), client_id: 'spa' })

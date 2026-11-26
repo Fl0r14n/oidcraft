@@ -96,6 +96,12 @@ describe('device authorization', () => {
     const response = await post('/device/authorize', { scope: 'openid admin' }, { authorization: basic() })
     expect((await response.json()).error).toBe('invalid_scope')
   })
+
+  // Approving needs openid (FR-I4), so a request without it is refused now, not left to wait for an approval that cannot pass.
+  test('refuses a request without openid', async () => {
+    const response = await post('/device/authorize', { scope: 'profile' }, { authorization: basic() })
+    expect((await response.json()).error).toBe('invalid_scope')
+  })
 })
 
 describe('polling', () => {
@@ -325,7 +331,8 @@ describe('signing in from the verification page', () => {
 
     const session = await provider.session(new Request(done.redirectTo, { headers: { cookie: cookieOf(done.setCookie) } }))
     expect(session?.accountId).toBe('ada')
-    expect(session?.clients).toEqual(['tv'])
+    // FR-C11: the device joins the session's logout list when it is issued tokens, not at sign-in.
+    expect(session?.clients).toEqual([])
   })
 
   // FR-I2: the sign-in a verification page starts belongs to the browser that was sent to it.

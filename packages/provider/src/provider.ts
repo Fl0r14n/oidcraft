@@ -165,7 +165,11 @@ const resolveParameters = async (config: ResolvedConfig, raw: URLSearchParams) =
   if (requestUri) {
     if (config.features.pushedAuthorizationRequests) return resolvePushedRequest(config, requestUri, raw.get('client_id'))
     // PAR off, the only reference is the one that resumes a signed request after an interaction; anything else is unsupported.
-    const resumed = await resolvePushedRequest(config, requestUri, raw.get('client_id')).catch(() => undefined)
+    // Only a refusal means "not one of ours"; a store that failed is the host's to hear about (NFR-D5).
+    const resumed = await resolvePushedRequest(config, requestUri, raw.get('client_id')).catch(error => {
+      if (error instanceof OAuthError) return undefined
+      throw error
+    })
     if (!resumed) {
       throw new OAuthError('request_uri_not_supported', { description: 'request_uri is not supported here', spec: 'OIDC Core §3.1.2.6' })
     }

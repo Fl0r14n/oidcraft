@@ -40,6 +40,7 @@ export const fapiClientProblems = (config: ResolvedConfig, client: Client) => {
   if (!FAPI_AUTH_METHODS.includes(client.tokenEndpointAuthMethod)) {
     problems.push(`authenticates with ${client.tokenEndpointAuthMethod}; FAPI 2.0 allows ${FAPI_AUTH_METHODS.join(', ')}`)
   }
+  if (client.requirePkce === false) problems.push('is opted out of PKCE, which FAPI 2.0 requires without exception (§5.3.2.2)')
   for (const uri of client.redirectUris) {
     if (uri.startsWith('http:') && client.applicationType !== 'native')
       problems.push(`redirect URI ${uri} is http and the client is not native`)

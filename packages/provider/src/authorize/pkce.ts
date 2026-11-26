@@ -30,6 +30,10 @@ export const assertChallenge = (client: Client, challenge: string | null, method
       spec: 'RFC 7636 §4.3'
     })
   }
+  // RFC 7636 §4.2: the base64url of a SHA-256, so exactly 43 characters; anything else can never match a verifier.
+  if (!/^[A-Za-z0-9_-]{43}$/.test(challenge)) {
+    throw new OAuthError('invalid_request', { description: 'code_challenge must be 43 base64url characters', spec: 'RFC 7636 §4.2' })
+  }
   return challenge
 }
 
@@ -46,8 +50,11 @@ export const verifyChallenge = async (verifier: string | null, challenge: string
   if (!verifier) {
     throw new OAuthError('invalid_grant', { description: 'code_verifier is required', spec: 'RFC 7636 §4.5' })
   }
-  if (verifier.length < MIN || verifier.length > MAX) {
-    throw new OAuthError('invalid_grant', { description: `code_verifier must be ${MIN}-${MAX} characters`, spec: 'RFC 7636 §4.1' })
+  if (verifier.length < MIN || verifier.length > MAX || !/^[A-Za-z0-9._~-]+$/.test(verifier)) {
+    throw new OAuthError('invalid_grant', {
+      description: `code_verifier must be ${MIN}-${MAX} unreserved characters`,
+      spec: 'RFC 7636 §4.1'
+    })
   }
   if (base64url.encode(await sha256(verifier)) !== challenge) {
     throw new OAuthError('invalid_grant', { description: 'code_verifier does not match the code_challenge', spec: 'RFC 7636 §4.6' })

@@ -45,7 +45,8 @@ export const startSession = async (config: ResolvedConfig, login: LoginInput, cl
     ...(login.amr && { amr: login.amr }),
     ...(login.idp && { idp: login.idp }),
     ...(login.upstreamSessionId && { upstreamSessionId: login.upstreamSessionId }),
-    clients: [clientId],
+    // FR-C11: a client joins when it is issued tokens, so one the person refused is never told who they were.
+    clients: [],
     expiresAt: new Date(Date.now() + config.ttl.session * 1000)
   }
   await config.adapter.sessions.upsert(session)

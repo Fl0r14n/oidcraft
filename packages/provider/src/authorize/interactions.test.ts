@@ -45,6 +45,15 @@ describe('interaction', () => {
     expect((await provider.interactions.complete(confirm, { logout: true }, browserOf(asked))).redirectTo).toContain('logout=')
   })
 
+  // FR-C11: a client listed at sign-in would get a logout token naming the person, consent or not.
+  test('a session lists no client until one is issued tokens', async () => {
+    const first = await go(authorizeUrl())
+    const id = new URL(first.headers.get('location') as string).pathname.split('/').pop() as string
+    const { setCookie } = await provider.interactions.complete(id, { login: { accountId: 'ada' } }, browserOf(first))
+    const session = await provider.session(new Request(ISSUER, { headers: { cookie: (setCookie as string).split(';')[0] as string } }))
+    expect(session?.clients).toEqual([])
+  })
+
   // FR-F6: a brokered login reports when the person signed in upstream, and the session keeps that, not now.
   test('a login reports its own auth_time, never one in the future', async () => {
     const at = async (authTime: Date) => {

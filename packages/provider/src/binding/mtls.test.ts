@@ -205,6 +205,10 @@ describe('FR-C4 and FR-C13: mTLS', () => {
       { clientCertificate: certificate }
     )
     expect(with_.status).toBe(200)
+
+    // RFC 8705 §3: presented as a Bearer, with the certificate beside it; DPoP would send the resource server the wrong way.
+    const introspected = await provider.handle(form('/introspect', { token: issued.access_token }, basic()))
+    expect(await introspected.json()).toMatchObject({ active: true, token_type: 'Bearer' })
   })
 
   const form = (path: string, body: Record<string, string>, authorization?: string) =>

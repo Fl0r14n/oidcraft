@@ -40,6 +40,23 @@ describe('PKCE exemption (FR-C3)', () => {
     expect((await response.json()).error).toBe('invalid_grant')
   })
 
+  // RFC 7636 §4.1, §4.2: values that can never match are refused where they arrive, not at the token endpoint.
+  test('a challenge or verifier of the wrong shape is refused', async () => {
+    expect(await errorOf({ code_challenge: 'short' })).toBe('invalid_request')
+    const { location } = await loginAndConsent()
+    const response = await post(
+      '/token',
+      {
+        grant_type: 'authorization_code',
+        code: location.searchParams.get('code') as string,
+        redirect_uri: REDIRECT,
+        code_verifier: `${verifier.slice(1)}!`
+      },
+      { authorization: basic() }
+    )
+    expect((await response.json()).error_description).toContain('unreserved')
+  })
+
   test('a challenge an opted-out client did send is still enforced', async () => {
     await withoutPkce()
     const { location } = await loginAndConsent({ client_id: 'rp-nonce' })

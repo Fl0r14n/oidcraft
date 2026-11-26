@@ -41,7 +41,9 @@ export const deviceAuthorizationEndpoint = async (
   }
 
   const scopes = (form.get('scope') ?? 'openid').split(' ').filter(Boolean)
-  const unallowed = scopes.filter(scope => !client.scopes.includes(scope))
+  // The person approves as at sign-in, which is OpenID's (FR-I4): refused here rather than left for an approval that cannot pass.
+  if (!scopes.includes('openid')) throw new OAuthError('invalid_scope', { description: 'scope must include openid', spec: 'FR-C7' })
+  const unallowed = scopes.filter(scope => !client.scopes.includes(scope) || !config.scopes.includes(scope))
   if (unallowed.length)
     throw new OAuthError('invalid_scope', {
       description: `client ${client.clientId} may not request: ${unallowed.join(', ')}`,

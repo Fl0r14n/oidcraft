@@ -145,9 +145,9 @@ Low:
 
 - [x] S-5 `[test]` `sector_identifier_uri` skips `serverUri` (`clients/registration.ts:89`).
 - [x] S-6 `issueAccessToken` skips family/client liveness (exchange, client credentials, ID-JAG).
-- [ ] S-7 `[test]` session lists the client before consent → logout token to a refused client (`session/session.ts:48`).
-- [ ] S-8 introspection `token_type` DPoP for an mTLS-bound token (`resource/introspection.ts:27`).
-- [ ] S-9 PKCE nonce exemption under FAPI (`authorize/pkce.ts:13`).
+- [x] S-7 `[test]` session lists the client before consent → logout token to a refused client (`session/session.ts:48`).
+- [x] S-8 introspection `token_type` DPoP for an mTLS-bound token (`resource/introspection.ts:27`).
+- [x] S-9 PKCE nonce exemption under FAPI (`authorize/pkce.ts:13`).
 - [ ] S-10 `oidcraft.sid` without `__Host-` (`session/session.ts:7`).
 - [ ] S-11 request object without `exp`/`jti`/max lifetime (`authorize/request-object.ts:21`).
 - [ ] S-12 exchange: another client's refresh token as subject; actor `cnf`; scopes not ⊆ client's (`token/exchange.ts`).
@@ -155,8 +155,8 @@ Low:
 - [ ] S-14 array claims in a request object stringified (`authorize/request-object.ts:50`).
 - [ ] S-15 web clients may register custom-scheme / `http://127.0.0.1` redirects (`clients/registration.ts:39`).
 - [ ] S-16 CIBA `id_token_hint` unverified (`authorize/ciba.ts:105`).
-- [ ] S-17 device endpoint accepts scopes approval can never grant (`authorize/device.ts:43`).
-- [ ] S-18 `.catch(() => undefined)` hides storage failures (`provider.ts:168`).
+- [x] S-17 device endpoint accepts scopes approval can never grant (`authorize/device.ts:43`).
+- [x] S-18 `.catch(() => undefined)` hides storage failures (`provider.ts:168`).
 - [ ] S-20 discovery advertises front- and back-channel logout unconditionally (`discovery.ts:85-96`), with no
       `onLogout`/`onFrontChannelLogout` to deliver them (FR-C6); the demo sets neither.
 - [ ] A-3 `UpstreamProvider.linkPolicy` never read (`broker/types.ts:207`).

@@ -193,6 +193,33 @@ describe('pushed authorization requests', () => {
     )
     expect((await response.json()).error).toBe('request_uri_not_supported')
   })
+
+  // NFR-D5: a store that failed is not a request_uri this provider does not know, and the host must hear of it.
+  test('with the feature off, a failing store is reported, not answered as unsupported', async () => {
+    const reported: unknown[] = []
+    const broken = {
+      ...adapter,
+      artifacts: {
+        ...adapter.artifacts,
+        find: async () => {
+          throw new Error('store down')
+        }
+      }
+    }
+    const off = createProvider({
+      interactionUrl: 'https://op.example.com/interaction',
+      issuer: ISSUER,
+      adapter: broken,
+      onError: error => {
+        reported.push(error)
+      }
+    })
+    const response = await off.handle(
+      new Request(`${ISSUER}/authorize?${new URLSearchParams({ client_id: 'rp', request_uri: 'urn:ietf:params:oauth:request_uri:x' })}`)
+    )
+    expect((await response.json()).error).toBe('server_error')
+    expect(String(reported[0])).toContain('store down')
+  })
 })
 
 describe('request objects (JAR)', () => {

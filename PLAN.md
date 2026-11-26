@@ -110,7 +110,7 @@ marks a finding reproduced by a throwaway test. Paths are under `packages/provid
 
 - [ ] A1 store wrappers spread (`artifacts.ts:23`, `clients/metadata-document.ts:81`, `keys/signer.ts:25`): a
       class-based adapter loses prototype methods inside the provider.
-- [ ] A2 artifact payloads unversioned and cast (`payloads.ts`); e.g. `token/code.ts:141` on a pre-`familyExpiresAt` token.
+- [x] A2 artifact payloads unversioned and cast (`payloads.ts`); e.g. `token/code.ts:141` on a pre-`familyExpiresAt` token.
 - [ ] A3 host obligations with no reference implementation: SSRF-safe fetch, mail delivery, security headers,
       DPoP-aware resource check.
 - [ ] A4 invariants at call sites: family liveness (`issueAccessToken`), consent rule twice, sender-constraint
@@ -136,7 +136,7 @@ Medium:
 - [x] S-3 `[test]` introspection accepts a `none` client; RFC 7592 update keeps operator fields (`resource/introspection.ts:45`, `clients/registration.ts:401`).
 - [x] S-4 `[test]` cert-bound client without a certificate gets bearer tokens; `dpopBoundAccessTokens` ignored with DPoP off (`token/endpoint.ts:22,59`).
 - [ ] A-1 `[test]` account-wide lockout renews the generation, freeing every slot (`accounts/index.ts:264,302`).
-- [ ] A-2 `allowedUpstreams` not enforced at `interactions.complete` (`authorize/interactions.ts:292`).
+- [x] A-2 `allowedUpstreams` not enforced at `interactions.complete` (`authorize/interactions.ts:292`).
 - [ ] R-1 `fromKv` `destroyByClientId` scans, reachable from RFC 7592 DELETE (`packages/adapter/src/kv.ts:156,303`).
 - [ ] R-2 ID token `iss` unchecked without a configured issuer (`packages/core/src/jwt.ts:170`).
 - [ ] R-3 `@oidcraft/client` uses a server-side process-wide `localStorage` (`packages/client/src/storage.ts:5`).
@@ -154,19 +154,19 @@ Low:
 - [ ] S-13 DPoP errors 400 at UserInfo, not 401 + `WWW-Authenticate` (`binding/dpop.ts:34`).
 - [x] S-14 array claims in a request object stringified (`authorize/request-object.ts:50`).
 - [x] S-15 web clients may register custom-scheme / `http://127.0.0.1` redirects (`clients/registration.ts:39`).
-- [ ] S-16 CIBA `id_token_hint` unverified (`authorize/ciba.ts:105`).
+- [x] S-16 CIBA `id_token_hint` unverified (`authorize/ciba.ts:105`).
 - [x] S-17 device endpoint accepts scopes approval can never grant (`authorize/device.ts:43`).
 - [x] S-18 `.catch(() => undefined)` hides storage failures (`provider.ts:168`).
 - [x] S-20 discovery advertises front- and back-channel logout unconditionally (`discovery.ts:85-96`), with no
       `onLogout`/`onFrontChannelLogout` to deliver them (FR-C6); the demo sets neither.
-- [ ] A-3 `UpstreamProvider.linkPolicy` never read (`broker/types.ts:207`).
+- [x] A-3 `UpstreamProvider.linkPolicy` never read (`broker/types.ts:207`).
 - [ ] A-4 reset by passkey keeps the password (`accounts/index.ts:721`).
 - [ ] A-5 reset leaves other reset/email tokens live (`accounts/index.ts:376`).
 - [ ] A-6 credential writes undo each other (`accounts/index.ts:475,562-609`).
 - [ ] A-7 brokered login without upstream `auth_time` stamped now (`session/session.ts:43`).
 - [ ] A-8 known/unknown username timing via slot probing (`accounts/index.ts:275`).
 - [ ] A-9 `setPassword` clears a host-set `lockedUntil` (`accounts/index.ts:474`).
-- [ ] A-10 claim-mapping doc vs default mapper (`broker/types.ts:201`).
+- [x] A-10 claim-mapping doc vs default mapper (`broker/types.ts:201`).
 - [ ] R-4 `oauthFetch(Request)` drops its headers (`packages/client/src/fetch.ts:20`).
 - [ ] R-5 refresh lock released mid-request (`packages/client/src/token.ts:192`).
 - [ ] R-6 ID token without `exp`/`iat` accepted; no `algorithms` (`packages/core/src/jwt.ts:176`).

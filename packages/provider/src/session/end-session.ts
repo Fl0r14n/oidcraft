@@ -32,17 +32,26 @@ const aboutThisSession = (claims: JWTPayload | undefined, session: Session | und
   Boolean(claims && (!session || claims.sid === session.id))
 
 // Unverified, a hint would let anyone name a client and be redirected to its URI (OIDC RP-Initiated Logout 1.0 §2).
-const verifyHint = async (config: ResolvedConfig, hint: string) => {
+export const verifyHint = async (
+  config: ResolvedConfig,
+  hint: string,
+  { audience, spec = 'OIDC RP-Initiated Logout 1.0 §2' }: { audience?: string; spec?: string } = {}
+) => {
   const jwks = createLocalJWKSet(jwksResponseBody(await config.adapter.keys.list()) as never)
   try {
     // §2: a hint has usually expired and need only prove this provider issued it, so its lifetime is not checked.
     // `typ` JWT is what this provider stamps on ID tokens alone; a logout token or a JWT access token is no hint.
-    const { payload } = await jwtVerify(hint, jwks, { issuer: config.issuer, typ: 'JWT', clockTolerance: Number.MAX_SAFE_INTEGER })
+    const { payload } = await jwtVerify(hint, jwks, {
+      issuer: config.issuer,
+      typ: 'JWT',
+      clockTolerance: Number.MAX_SAFE_INTEGER,
+      ...(audience && { audience })
+    })
     return payload
   } catch {
     throw new OAuthError('invalid_request', {
-      description: 'id_token_hint is not a token this provider issued',
-      spec: 'OIDC RP-Initiated Logout 1.0 §2'
+      description: `id_token_hint is not a token this provider issued${audience ? ` to ${audience}` : ''}`,
+      spec
     })
   }
 }

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, setSystemTime, test } from 'bun:test'
 import { memoryAdapter } from '@oidcraft/adapter/memory'
-import { decodeJwt } from 'jose'
+import { decodeJwt, generateKeyPair, SignJWT } from 'jose'
 import type { Adapter, Client } from '../index'
 import { createProvider, type Provider } from '../provider'
 import { ISSUER, SECRET, SECRET_HASH } from '../test-flow'
@@ -145,6 +145,26 @@ describe('backchannel authentication', () => {
 
   test('requires client authentication', async () => {
     expect((await post('/backchannel', { scope: 'openid', login_hint: 'ada@example.test' })).status).toBe(401)
+  })
+
+  // OIDC CIBA 1.0 §7.1: a hint the host decodes without checking would let any client name anyone.
+  test('an id_token_hint this provider did not issue is refused before the host is asked', async () => {
+    const asked: string[] = []
+    provider = build({
+      resolveCibaUser: ({ hint }: { hint: { value: string } }) => {
+        asked.push(hint.value)
+        return { accountId: 'ada' }
+      }
+    })
+    const forger = await generateKeyPair('ES256')
+    const forged = await new SignJWT({ sub: 'ada' })
+      .setProtectedHeader({ alg: 'ES256', typ: 'JWT' })
+      .setIssuer(ISSUER)
+      .setAudience('bank')
+      .sign(forger.privateKey)
+    const response = await post('/backchannel', { scope: 'openid', id_token_hint: forged }, { authorization: basic() })
+    expect((await response.json()).error).toBe('invalid_request')
+    expect(asked).toEqual([])
   })
 
   test('refuses a scope the client may not have', async () => {

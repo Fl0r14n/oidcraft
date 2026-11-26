@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
+import type { Client } from '../index'
 import { SESSION_COOKIE } from '../session/session'
-import { authorizeUrl, browserOf, build, go, ISSUER, loginAndConsent, provider, REDIRECT, useFlow } from '../test-flow'
+import { adapter, authorizeUrl, browserOf, build, go, ISSUER, loginAndConsent, provider, REDIRECT, useFlow } from '../test-flow'
 
 useFlow()
 
@@ -55,6 +56,19 @@ describe('interaction', () => {
   })
 
   // FR-F6: a brokered login reports when the person signed in upstream, and the session keeps that, not now.
+  // FR-F2: whatever route brokered the sign-in, an upstream the client excludes does not sign anyone in to it.
+  test('a login through an upstream the client does not allow is refused', async () => {
+    await adapter.clients.upsert?.({ ...((await adapter.clients.find('rp')) as Client), allowedUpstreams: ['corp'] })
+    const signIn = async (idp: string) => {
+      const first = await go(authorizeUrl())
+      const id = new URL(first.headers.get('location') as string).pathname.split('/').pop() as string
+      const { redirectTo } = await provider.interactions.complete(id, { login: { accountId: 'ada', idp } }, browserOf(first))
+      return new URL((await go(redirectTo)).headers.get('location') as string)
+    }
+    expect((await signIn('google')).searchParams.get('error')).toBe('access_denied')
+    expect((await signIn('corp')).searchParams.get('error')).toBeNull()
+  })
+
   test('a login reports its own auth_time, never one in the future', async () => {
     const at = async (authTime: Date) => {
       const first = await go(authorizeUrl())

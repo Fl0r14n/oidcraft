@@ -111,6 +111,10 @@ export const redeemRefreshToken = async (config: ResolvedConfig, client: Client,
   if (artifact.consumedAt) await revokeOnReplay(config, artifact, 'refresh token', client.clientId)
   if (artifact.clientId !== client.clientId)
     await revokeOnReplay(config, artifact, 'refresh token presented by the wrong client', client.clientId)
+  // NFR-D6: written before the family had an absolute end; read without one, every rotation would start the clock again.
+  if (typeof artifact.payload.familyExpiresAt !== 'number') {
+    throw new OAuthError('invalid_grant', { description: 'this refresh token predates its family lifetime; sign in again', spec: 'NFR-D6' })
+  }
 
   const { grant, session } = await loadGrantAndSignIn(config, artifact)
   const requested = form.get('scope')?.split(' ').filter(Boolean)

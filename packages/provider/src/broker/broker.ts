@@ -312,6 +312,7 @@ export const createBroker = (config: BrokerConfig) => {
         ...(Array.isArray(claims.amr) && { amr: claims.amr as string[] }),
         ...(typeof claims.auth_time === 'number' && { authTime: new Date(claims.auth_time * 1000) }),
         ...(typeof claims.sid === 'string' && { upstreamSessionId: claims.sid }),
+        ...(provider.linkPolicy && { linkPolicy: provider.linkPolicy }),
         // FR-F10 / NFR-S9: opt-in per provider, because keeping these makes us a credential store.
         ...(provider.retainTokens &&
           token?.access_token && {

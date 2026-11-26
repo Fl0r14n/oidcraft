@@ -298,8 +298,13 @@ const refusedLogin = async (
   if (essentialAcrUnmet(request, login.acr)) {
     return { error: { error: 'access_denied', description: 'the sign-in did not reach the acr the client requires' } }
   }
-  const client = request.claims?.sub === undefined ? undefined : await config.adapter.clients.find(request.clientId)
-  if (client && (await subjectMismatch(config, client, request, login.accountId))) {
+  const client = request.claims?.sub === undefined && !login.idp ? undefined : await config.adapter.clients.find(request.clientId)
+  // FR-F2: home-realm discovery only narrows the choice; a host's route could still broker to an upstream the client excludes.
+  const allowed = client?.allowedUpstreams
+  if (login.idp && allowed?.length && !allowed.includes(login.idp)) {
+    return { error: { error: 'access_denied', description: `client ${request.clientId} does not accept sign-in through ${login.idp}` } }
+  }
+  if (client && request.claims?.sub !== undefined && (await subjectMismatch(config, client, request, login.accountId))) {
     return { error: { error: 'access_denied', description: 'the person who signed in is not the one the client asked for' } }
   }
   return undefined

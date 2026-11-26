@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, setSystemTime, test } from 'bun:test'
 import { memoryAdapter } from '@oidcraft/adapter/memory'
 import { randomString, sha256 } from '@oidcraft/core'
 import { base64url, decodeJwt } from 'jose'
-import { storedId } from './artifacts'
+import { storedId, withHashedArtifacts } from './artifacts'
 import type { Adapter, Client, LogoutNotification } from './index'
 import { createProvider, type Provider } from './provider'
 import { SESSION_COOKIE } from './session/session'
@@ -136,6 +136,17 @@ describe('revocation', () => {
       }
     })
   }
+
+  // NFR-D6: a token written before families had an absolute end would otherwise get a fresh one on every rotation.
+  test('a refresh token stored without its family lifetime is refused, not given a new one', async () => {
+    const issued = await tokens()
+    const hashed = withHashedArtifacts(adapter).artifacts
+    const stored = await hashed.find('refresh_token', issued.refresh_token)
+    const { familyExpiresAt: _, ...older } = (stored as NonNullable<typeof stored>).payload
+    await hashed.upsert({ ...(stored as NonNullable<typeof stored>), payload: older })
+    const refreshed = await post('/token', { grant_type: 'refresh_token', refresh_token: issued.refresh_token }, { authorization: basic() })
+    expect((await refreshed.json()).error).toBe('invalid_grant')
+  })
 
   test('revoking a refresh token takes its family with it', async () => {
     const issued = await tokens()

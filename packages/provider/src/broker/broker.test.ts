@@ -154,6 +154,21 @@ describe('account linking', () => {
     expect(verified).toEqual({ accountId: 'existing-user', created: false })
   })
 
+  // FR-F5, NFR-S8: an upstream marked subject-only stays so, whatever policy the call passes for the trusted ones.
+  test("an upstream's own linkPolicy is never loosened by the call's", async () => {
+    const verified = { email: 'ada@corp.example', claims: { email_verified: true } }
+    const options = { policy: 'verified-email' as const, findByEmail: async () => 'existing-user', createAccount: async () => 'new-1' }
+    const strict = await linkIdentity(await fresh(), identity({ ...verified, linkPolicy: 'subject' }), options)
+    expect(strict).toEqual({ accountId: 'new-1', created: true })
+    const interactive = await linkIdentity(await fresh(), identity({ ...verified, linkPolicy: 'interactive' }), options)
+    expect(interactive).toEqual({ needsInteraction: 'link', candidate: 'existing-user' })
+    const loose = await linkIdentity(await fresh(), identity({ ...verified, linkPolicy: 'verified-email' }), {
+      findByEmail: options.findByEmail,
+      createAccount: options.createAccount
+    })
+    expect(loose).toEqual({ accountId: 'existing-user', created: false })
+  })
+
   test('interactive refuses to decide and hands the question back', async () => {
     const adapter = await fresh()
     const result = await linkIdentity(adapter, identity({ email: 'ada@corp.example', claims: { email_verified: true } }), {

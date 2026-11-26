@@ -825,9 +825,9 @@ this workspace's own and published from it, so brokering adds no third-party pac
 an `onError` hook, and answered as `server_error` with nothing of the cause in the response. This
 is the diagnostic FR-F11 promises; without it a 500 leaves no trace the host can find.
 
-**NFR-D6** — A provider release reads every artifact the previous minor release stored, so a rolling
-deploy over live storage neither fails nor silently extends a token: a stored shape a release no
-longer writes is decoded with a defined meaning or refused, never read as `undefined`.
+**NFR-D6** — A stored artifact missing what the running release expects is refused, never read as
+`undefined`: a rolling deploy over live storage may cost a sign-in, never silently lift a restriction
+or extend a token.
 
 ## 12. Open questions and decisions — `G-*`
 

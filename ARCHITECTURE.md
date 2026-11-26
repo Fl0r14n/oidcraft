@@ -802,6 +802,9 @@ the browser breaks. Only a whole literal `process.env.X` is substituted.
 - **No file extension on a relative import.** `moduleResolution: "bundler"` resolves the `.ts`
   directly, and `vue-tsgo`'s resolver rejects the `.js` suffix outright.
 - **A file using a Bun global carries `/// <reference types="bun" />` itself.**
+- **A field that restricts a stored artifact is checked as present where it is read.** A payload
+  written by an earlier release lacks what was added since, and absent must mean refused, never
+  unrestricted (NFR-D6): a refresh token without `familyExpiresAt` is refused, not given a new family.
 - 140 columns, single quotes, no semicolons, no trailing commas, 2-space indent — `biome.json`
   settles it and `bun run format` applies it.
 

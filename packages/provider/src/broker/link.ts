@@ -11,6 +11,12 @@ export type LinkOptions = {
   createAccount?: (identity: BrokeredIdentity) => Promise<string>
 }
 
+// Strictest first: proving the existing account beats trusting an upstream's word that it checked the address (NFR-S8).
+const STRICTNESS: LinkPolicy[] = ['subject', 'interactive', 'verified-email']
+
+/** The upstream's policy and the call's: whichever is stricter, so neither can loosen the other; `subject` when neither says. */
+const strictest = (policies: (LinkPolicy | undefined)[]) => STRICTNESS.find(policy => policies.includes(policy)) ?? 'subject'
+
 /**
  * Attaches a brokered identity to a local account (FR-F5). `subject`, the default, matches `(upstream, subject)` only;
  * `verified-email` demands `email_verified`, as an unverified address is account takeover (NFR-S8).
@@ -23,7 +29,7 @@ export const linkIdentity = async (
   const existing = await adapter.identities.find(identity.upstream, identity.subject)
   if (existing) return { accountId: existing.accountId, created: false }
 
-  const policy: LinkPolicy = options.policy ?? 'subject'
+  const policy = strictest([options.policy, identity.linkPolicy])
 
   if (policy !== 'subject' && identity.email) {
     // An unverified address proves nothing: the upstream may never have checked it.

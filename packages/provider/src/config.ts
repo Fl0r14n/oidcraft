@@ -181,7 +181,11 @@ export type ProviderHooks = {
    * registered claims (`iss`, `sub`, `aud`, `exp`, `nbf`, `iat`, `jti`, `scope`, `client_id`, `cnf`, `act`) always win (FR-T2).
    */
   accessTokenClaims?: (token: AccessTokenContext) => Record<string, unknown> | undefined | Promise<Record<string, unknown> | undefined>
-  /** Turns a CIBA hint into an account. No default: guessing which hint means which account would invent an authentication (FR-C17). */
+  /**
+   * Turns a CIBA hint into an account. No default: guessing which hint means which account would invent an authentication (FR-C17).
+   * An `id_token_hint` has been verified as one this provider issued to this client; its `sub` is the one that client was given.
+   * A `login_hint` or `login_hint_token` is the client's word, unverified.
+   */
   resolveCibaUser?: (input: {
     client: Client
     hint: { kind: string; value: string }

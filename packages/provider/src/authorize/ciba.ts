@@ -6,6 +6,7 @@ import type { ClientCertificate } from '../context'
 import { OAuthError } from '../errors'
 import { readForm } from '../form'
 import { readArtifact, type Stored, writeArtifact } from '../payloads'
+import { verifyHint } from '../session/end-session'
 import type { Binding } from '../token/issue'
 import { answer, answered, DEFAULT_INTERVAL, type Flow, type Polled, redeem } from './decoupled'
 
@@ -102,6 +103,10 @@ export const backchannelAuthenticationEndpoint = async (
       spec: 'OIDC CIBA 1.0 §13'
     })
 
+  // OIDC CIBA 1.0 §7.1: an ID token this provider issued to this client; unverified, any client could name anyone with it.
+  if (hints[0] === 'id_token_hint') {
+    await verifyHint(config, form.get('id_token_hint') as string, { audience: client.clientId, spec: 'OIDC CIBA 1.0 §7.1' })
+  }
   const resolved = await config.resolveCibaUser({
     client,
     hint: { kind: hints[0] as string, value: form.get(hints[0] as string) as string },

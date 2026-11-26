@@ -14,12 +14,16 @@ export type UpstreamProvider = ClientCredentials & {
   domains?: string[]
   /** Human-readable, for an upstream-selection screen. */
   label?: string
-  /** Maps upstream claims onto local ones. Without it only `sub` is trusted (FR-F7). */
+  /**
+   * Maps upstream claims onto local ones (FR-F7). Without it `pickClaims()` passes the standard profile claims
+   * (`standardClaims`), and never a protocol one or a verification flag paired with a claim it did not pass.
+   */
   claimMapper?: ClaimMapper
   /** Keep the upstream tokens for downstream API calls. Off by default — it is a credential store (NFR-S9). */
   retainTokens?: boolean
   /** Sign the browser out here too when it signs out of a session this upstream authenticated (FR-F8). */
   propagateLogout?: boolean
+  /** How identities from this upstream may link; `linkIdentity` takes the stricter of this and its own `policy` (FR-F5). */
   linkPolicy?: LinkPolicy
 }
 
@@ -58,4 +62,6 @@ export type BrokeredIdentity = Omit<LinkedIdentity, 'accountId' | 'createdAt'> &
   acr?: string
   amr?: string[]
   authTime?: Date
+  /** The upstream's own `linkPolicy`, which `linkIdentity` never loosens (FR-F5). */
+  linkPolicy?: LinkPolicy
 }

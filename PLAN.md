@@ -153,7 +153,7 @@ Low:
 - [ ] S-12 exchange: another client's refresh token as subject; actor `cnf`; scopes not ⊆ client's (`token/exchange.ts`).
 - [ ] S-13 DPoP errors 400 at UserInfo, not 401 + `WWW-Authenticate` (`binding/dpop.ts:34`).
 - [ ] S-14 array claims in a request object stringified (`authorize/request-object.ts:50`).
-- [ ] S-15 web clients may register custom-scheme / `http://127.0.0.1` redirects (`clients/registration.ts:39`).
+- [x] S-15 web clients may register custom-scheme / `http://127.0.0.1` redirects (`clients/registration.ts:39`).
 - [ ] S-16 CIBA `id_token_hint` unverified (`authorize/ciba.ts:105`).
 - [x] S-17 device endpoint accepts scopes approval can never grant (`authorize/device.ts:43`).
 - [x] S-18 `.catch(() => undefined)` hides storage failures (`provider.ts:168`).
@@ -267,6 +267,8 @@ Implementation waits for every section's decisions; refactoring lands as part of
   each upstream's `linkPolicy` honoured, the stricter wins. A-10 the doc follows the default mapper. R-2 `strict`
   refuses to verify without an issuer. R-3 storage only in a browser. R-4, R-5, R-6, R-7, R-9 as found.
 - Hardening: all of it except a per-upstream callback path, which would change the URIs registered at the upstreams.
+- S-15 a registration that omits `application_type` and uses only loopback or app-scheme redirects is `native`;
+  one mixing them with https is refused, as is an explicit `web` client using them.
 - S-10 a clean break to `__Host-oidcraft.sid`: one sign-in at the provider after upgrading, in the release notes.
 - A-7 a fresh login required downstream sends `prompt=login` upstream, and a missing upstream `auth_time` is the
   moment the round trip started.

@@ -210,6 +210,20 @@ describe('dynamic client registration', () => {
     expect((await register({ ...valid, jwks_uri: 'https://rp.example.com/jwks' })).status).toBe(201)
   })
 
+  // FR-C9, RFC 8252 §7: loopback and app schemes are a native app's; a client that omits its type and uses only those is one.
+  test('a web client redirects over https only, and one with only native redirects is native', async () => {
+    const loopback = 'http://127.0.0.1:8123/cb'
+    const scheme = 'com.example.app:/oauth/cb'
+    for (const redirect_uris of [[loopback], [scheme]]) {
+      const response = await register({ ...valid, redirect_uris })
+      expect(response.status).toBe(201)
+      expect((await adapter.clients.find((await response.json()).client_id))?.applicationType).toBe('native')
+    }
+    expect((await register({ ...valid, application_type: 'web', redirect_uris: [loopback] })).status).toBe(400)
+    expect((await register({ ...valid, application_type: 'web', redirect_uris: [scheme] })).status).toBe(400)
+    expect((await register({ ...valid, redirect_uris: ['https://rp.example.com/cb', loopback] })).status).toBe(400)
+  })
+
   test('a redirect_uri with a fragment is refused', async () => {
     const response = await register({ redirect_uris: ['https://rp.example.com/cb#x'] })
     expect((await response.json()).error_description).toContain('fragment')

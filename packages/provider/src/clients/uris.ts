@@ -23,12 +23,23 @@ export const browserUri = (
   // A fragment can never be matched: the browser never sends it (RFC 6749 §3.1.2).
   if (url.hash) throw fail(`${name} ${raw} must not carry a fragment`)
   if (FORBIDDEN_SCHEMES.includes(url.protocol)) throw fail(`${name} ${raw} uses a scheme that can run script`)
+  // FR-C9: loopback and private-use schemes are a native app's (RFC 8252 §7); a web client's redirects are https.
+  if (!native) {
+    if (url.protocol !== 'https:') throw fail(`${name} ${raw} must be https for a web client; loopback and app schemes are native`)
+    return raw
+  }
   // A native app listens on this machine, and many say localhost: its port is free, as on a loopback IP (NFR-S2).
-  const local = isLoopbackIp(url) || (native && url.hostname === 'localhost')
-  if (url.protocol === 'http:' && !local) {
-    throw fail(`${name} ${raw} must be https outside a loopback IP${native ? ' or localhost' : ''}`)
+  if (url.protocol === 'http:' && !isLoopbackIp(url) && url.hostname !== 'localhost') {
+    throw fail(`${name} ${raw} must be https outside a loopback IP or localhost`)
   }
   return raw
+}
+
+/** Whether a redirect is one only an app on this machine can receive: a loopback IP or a private-use scheme (RFC 8252 §7). */
+export const isNativeRedirect = (raw: unknown) => {
+  if (typeof raw !== 'string' || !URL.canParse(raw)) return false
+  const url = new URL(raw)
+  return (url.protocol === 'http:' && isLoopbackIp(url)) || (url.protocol !== 'http:' && url.protocol !== 'https:')
 }
 
 // WHATWG URL parsing already turns decimal, octal and hex forms of an IPv4 address into the dotted one.

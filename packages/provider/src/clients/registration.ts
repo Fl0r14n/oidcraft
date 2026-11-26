@@ -12,7 +12,7 @@ import { defaultSigningAlg, underFapi } from '../profile/fapi'
 import { JWT_BEARER_GRANT_TYPE } from '../token/identity-assertion'
 import { deleteClient } from './delete'
 import { secretKind, storableSecret } from './secret'
-import { browserUri, invalidMetadata, type Refuse, serverUri } from './uris'
+import { browserUri, invalidMetadata, isNativeRedirect, type Refuse, serverUri } from './uris'
 import { clientProblems } from './validate'
 
 const DEFAULT_GRANT_TYPES = ['authorization_code']
@@ -20,9 +20,9 @@ const DEFAULT_GRANT_TYPES = ['authorization_code']
 const invalid = invalidMetadata
 const invalidRedirect: Refuse = description => new OAuthError('invalid_redirect_uri', { description, spec: 'RFC 7591 §3.2.2', status: 400 })
 
-const uriList = (value: unknown, name: string) => {
+const uriList = (value: unknown, name: string, native: boolean) => {
   if (!Array.isArray(value)) throw invalid(`${name} must be an array`)
-  return value.map(each => browserUri(each, name))
+  return value.map(each => browserUri(each, name, { native }))
 }
 
 // The one endpoint that lets a stranger write to the client store, so its metadata is checked as strictly as an operator's (NFR-S2).
@@ -31,10 +31,15 @@ const assertRedirectUris = (uris: unknown, native: boolean) => {
   return uris.map(each => browserUri(each, 'redirect_uri', { native, fail: invalidRedirect }))
 }
 
-/** OIDC DCR 1.0 §2: `web` when omitted. MCP clients must send it (MCP 2026-07-28). */
-const applicationTypeFrom = (raw: unknown) => {
-  if (raw === undefined || raw === 'web' || raw === 'native') return raw ?? 'web'
-  throw invalid(`application_type ${String(raw)} is neither web nor native`)
+/**
+ * OIDC DCR 1.0 §2: `web` when omitted — save a client whose every redirect is a loopback IP or an app's own scheme, which
+ * only a native app can receive. MCP 2026-07-28 clients send it; earlier ones register such redirects without it.
+ */
+const applicationTypeFrom = (raw: unknown, redirectUris: unknown) => {
+  if (raw === 'web' || raw === 'native') return raw
+  if (raw !== undefined) throw invalid(`application_type ${String(raw)} is neither web nor native`)
+  const native = Array.isArray(redirectUris) && redirectUris.length > 0 && redirectUris.every(isNativeRedirect)
+  return native ? 'native' : 'web'
 }
 
 /** FR-T1: `none` never, and never an algorithm the provider holds no key for. */
@@ -177,7 +182,7 @@ const tlsClientAuthFrom = (body: Record<string, unknown>) => {
 }
 
 const metadataFrom = (config: ResolvedConfig, body: Record<string, unknown>, existing?: Client): Client => {
-  const applicationType = applicationTypeFrom(body.application_type)
+  const applicationType = applicationTypeFrom(body.application_type, body.redirect_uris)
   const redirectUris = assertRedirectUris(body.redirect_uris, applicationType === 'native')
   const method = (stringFrom(body.token_endpoint_auth_method, 'token_endpoint_auth_method') ?? 'client_secret_basic') as ClientAuthMethod
   if (!config.clientAuthMethods.includes(method)) throw invalid(`token_endpoint_auth_method ${method} is not offered by this provider`)
@@ -197,7 +202,7 @@ const metadataFrom = (config: ResolvedConfig, body: Record<string, unknown>, exi
     applicationType,
     redirectUris,
     ...(body.post_logout_redirect_uris !== undefined && {
-      postLogoutRedirectUris: uriList(body.post_logout_redirect_uris, 'post_logout_redirect_uri')
+      postLogoutRedirectUris: uriList(body.post_logout_redirect_uris, 'post_logout_redirect_uri', applicationType === 'native')
     }),
     grantTypes,
     responseTypes,

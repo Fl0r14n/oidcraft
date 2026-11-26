@@ -15,6 +15,21 @@ export type Binding = { jkt?: string | undefined; x5t?: string | undefined }
 
 export const confirmationOf = ({ jkt, x5t }: Binding) => (jkt || x5t ? { ...(jkt && { jkt }), ...(x5t && { 'x5t#S256': x5t }) } : undefined)
 
+/** A token bound to a key or certificate is usable only by a request proving that same key or certificate (RFC 9449 §5, RFC 8705 §4). */
+export const assertBoundTo = (
+  cnf: { jkt?: string; 'x5t#S256'?: string } | undefined,
+  binding: Binding,
+  what: string,
+  code: 'invalid_grant' | 'invalid_request' = 'invalid_grant'
+) => {
+  if (cnf?.jkt && cnf.jkt !== binding.jkt) {
+    throw new OAuthError(code, { description: `${what} is bound to a key this request did not prove`, spec: 'RFC 9449 §5' })
+  }
+  if (cnf?.['x5t#S256'] && cnf['x5t#S256'] !== binding.x5t) {
+    throw new OAuthError(code, { description: `${what} is bound to a certificate this request did not present`, spec: 'RFC 8705 §4' })
+  }
+}
+
 export type AccessTokenRequest = {
   client: Client
   scopes: string[]

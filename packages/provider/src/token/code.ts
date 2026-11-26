@@ -11,6 +11,7 @@ type SingleUse = Stored<'authorization_code' | 'refresh_token'>
 
 import { stillConsented } from '../authorize/claims'
 import { underFapi } from '../profile/fapi'
+import { assertBoundTo } from './access-token'
 import { revokeFamily } from './family'
 import { type Binding, issueTokens, loadGrantAndSession, loadGrantAndSignIn } from './issue'
 
@@ -123,12 +124,7 @@ export const redeemRefreshToken = async (config: ResolvedConfig, client: Client,
 
   // A bound refresh token may only be presented by the key it was bound to (RFC 9449 §5).
   const bound = artifact.payload.cnf
-  if (bound?.jkt && bound.jkt !== binding.jkt) {
-    throw new OAuthError('invalid_grant', { description: 'this refresh token is bound to a different key', spec: 'RFC 9449 §5' })
-  }
-  if (bound?.['x5t#S256'] && bound['x5t#S256'] !== binding.x5t) {
-    throw new OAuthError('invalid_grant', { description: 'this refresh token is bound to a different certificate', spec: 'RFC 8705 §4' })
-  }
+  assertBoundTo(bound, binding, 'this refresh token')
 
   // FR-T3: always rotate, save a FAPI client, whose token is useless without its key (FAPI 2.0 Security Profile §5.3.2.1).
   const rotate = !underFapi(config, client)

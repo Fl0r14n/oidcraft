@@ -150,7 +150,7 @@ Low:
 - [x] S-9 PKCE nonce exemption under FAPI (`authorize/pkce.ts:13`).
 - [ ] S-10 `oidcraft.sid` without `__Host-` (`session/session.ts:7`).
 - [x] S-11 request object without `exp`/`jti`/max lifetime (`authorize/request-object.ts:21`).
-- [ ] S-12 exchange: another client's refresh token as subject; actor `cnf`; scopes not ⊆ client's (`token/exchange.ts`).
+- [x] S-12 exchange: another client's refresh token as subject; actor `cnf`; scopes not ⊆ client's (`token/exchange.ts`).
 - [ ] S-13 DPoP errors 400 at UserInfo, not 401 + `WWW-Authenticate` (`binding/dpop.ts:34`).
 - [x] S-14 array claims in a request object stringified (`authorize/request-object.ts:50`).
 - [x] S-15 web clients may register custom-scheme / `http://127.0.0.1` redirects (`clients/registration.ts:39`).

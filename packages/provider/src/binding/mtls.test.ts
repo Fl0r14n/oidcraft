@@ -272,7 +272,7 @@ describe('FR-C4 and FR-C13: mTLS', () => {
       })
 
     const other = await refresh({ ...certificate, thumbprint: 'someone-elses' })
-    expect((await other.json()).error_description).toContain('different certificate')
+    expect((await other.json()).error_description).toContain('certificate this request did not present')
     expect((await refresh(certificate)).status).toBe(200)
   })
 })

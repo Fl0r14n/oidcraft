@@ -133,6 +133,41 @@ describe('token exchange', () => {
     resource: requested.resource
   })
 
+  // FR-C25: a refresh token is a credential its client never hands on, so only that client may exchange it.
+  test("another client's refresh token is refused as a subject token", async () => {
+    await adapter.clients.upsert?.(client({ clientId: 'svc', redirectUris: [] }))
+    const provider = build({ exchangePolicy: allowing })
+    const issued = await tokensFor(provider)
+    expect(issued.refresh_token).toBeTruthy()
+    const response = await post(
+      provider,
+      '/token',
+      {
+        grant_type: 'urn:ietf:params:oauth:grant-type:token-exchange',
+        subject_token: issued.refresh_token,
+        subject_token_type: 'urn:ietf:params:oauth:token-type:refresh_token'
+      },
+      { authorization: basic('svc') }
+    )
+    expect((await response.json()).error_description).toContain('issued to another client')
+  })
+
+  // FR-C25: the policy's answer is bounded by the client's own scopes as well as the subject token's.
+  test('an exchange cannot grant a scope the client may not hold', async () => {
+    await adapter.clients.upsert?.(client({ clientId: 'svc', redirectUris: [], scopes: ['openid'] }))
+    const provider = build({ exchangePolicy: allowing })
+    const issued = await tokensFor(provider)
+    const response = await post(
+      provider,
+      '/token',
+      { grant_type: 'urn:ietf:params:oauth:grant-type:token-exchange', subject_token: issued.access_token, subject_token_type: ACCESS },
+      { authorization: basic('svc') }
+    )
+    const body = await response.json()
+    expect(body.error).toBe('invalid_scope')
+    expect(body.error_description).toContain('may not hold')
+  })
+
   // FR-T7, RFC 9700 §4.14.2: an exchange writes into its subject's family, so a revocation racing it must take what it writes.
   test('a grant revoked while an exchange is writing takes the exchanged token too', async () => {
     let race = false

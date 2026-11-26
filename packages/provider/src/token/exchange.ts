@@ -1,7 +1,7 @@
 import type { Artifact, Client } from '@oidcraft/adapter'
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
-import { type Binding, findPresented, issueAccessToken } from './access-token'
+import { assertBoundTo, type Binding, findPresented, issueAccessToken } from './access-token'
 import { outlivedItsSession } from './issue'
 import { subjectFor } from './subjects'
 
@@ -49,6 +49,16 @@ const resolveToken = async (config: ResolvedConfig, value: string, declaredType:
   return artifact && !artifact.consumedAt && !(await outlivedItsSession(config, artifact)) ? artifact : undefined
 }
 
+// FR-C25: an access token is what a person handed a service; a refresh token is a credential its client never hands on.
+const assertOwnRefreshToken = (token: Artifact, client: Client, parameter: string) => {
+  if (token.kind === 'refresh_token' && token.clientId !== client.clientId) {
+    throw new OAuthError('invalid_request', {
+      description: `the ${parameter} is a refresh token issued to another client`,
+      spec: 'RFC 8693 §2.2.2'
+    })
+  }
+}
+
 // RFC 8693: no default policy; without an `exchangePolicy` the grant is refused rather than inventing an authorization rule.
 const decideExchange = async (config: ResolvedConfig, client: Client, form: URLSearchParams) => {
   if (!config.exchangePolicy) {
@@ -74,6 +84,7 @@ const decideExchange = async (config: ResolvedConfig, client: Client, form: URLS
 
   const subject = await resolveToken(config, subjectToken, subjectTokenType, 'subject_token')
   if (!subject) throw new OAuthError('invalid_request', { description: 'the subject_token is unknown or expired', spec: 'RFC 8693 §2.2.2' })
+  assertOwnRefreshToken(subject, client, 'subject_token')
 
   const actorTokenValue = form.get('actor_token')
   if (actorTokenValue && !form.get('actor_token_type')) {
@@ -85,6 +96,7 @@ const decideExchange = async (config: ResolvedConfig, client: Client, form: URLS
   const actor = actorTokenValue ? await resolveToken(config, actorTokenValue, form.get('actor_token_type'), 'actor_token') : undefined
   if (actorTokenValue && !actor)
     throw new OAuthError('invalid_request', { description: 'the actor_token is unknown or expired', spec: 'RFC 8693 §2.2.2' })
+  if (actor) assertOwnRefreshToken(actor, client, 'actor_token')
 
   const requestedScopes = (form.get('scope') ?? '').split(' ').filter(Boolean)
   const decision = await config.exchangePolicy({
@@ -102,7 +114,7 @@ const decideExchange = async (config: ResolvedConfig, client: Client, form: URLS
 
   if (!decision) throw new OAuthError('invalid_target', { description: 'this exchange was refused', spec: 'RFC 8693 §2.2.2' })
 
-  // RFC 8693 §2.1: a widening beyond what the subject token held is an escalation, not an exchange.
+  // RFC 8693 §2.1, FR-C25: a widening beyond the subject token, or beyond the client's own scopes, is an escalation.
   const held = subject.payload.scopes
   const widened = decision.scopes.filter((scope: string) => !held.includes(scope))
   if (widened.length) {
@@ -111,21 +123,23 @@ const decideExchange = async (config: ResolvedConfig, client: Client, form: URLS
       spec: 'RFC 8693 §2.2.2'
     })
   }
+  const beyond = decision.scopes.filter((scope: string) => !client.scopes.includes(scope))
+  if (beyond.length) {
+    throw new OAuthError('invalid_scope', {
+      description: `client ${client.clientId} may not hold: ${beyond.join(', ')}`,
+      spec: 'RFC 6749 §3.3'
+    })
+  }
 
-  return { decision, requestedType, subject }
+  return { decision, requestedType, subject, actor }
 }
 
 export const redeemSubjectToken = async (config: ResolvedConfig, client: Client, form: URLSearchParams, binding: Binding) => {
-  const { decision, subject } = await decideExchange(config, client, form)
+  const { decision, subject, actor } = await decideExchange(config, client, form)
 
-  // A sender-constrained token is only usable by its holder; exchanging it must not launder that away.
-  const bound = subject.payload.cnf
-  if ((bound?.jkt && bound.jkt !== binding.jkt) || (bound?.['x5t#S256'] && bound['x5t#S256'] !== binding.x5t)) {
-    throw new OAuthError('invalid_request', {
-      description: 'the subject_token is bound to a key or certificate this request did not prove',
-      spec: 'RFC 8693 §2.2.2'
-    })
-  }
+  // A sender-constrained token is only usable by its holder; exchanging it must not launder that away (FR-C25).
+  assertBoundTo(subject.payload.cnf, binding, 'the subject_token', 'invalid_request')
+  if (actor) assertBoundTo(actor.payload.cnf, binding, 'the actor_token', 'invalid_request')
 
   const access = await issueAccessToken(config, {
     client,

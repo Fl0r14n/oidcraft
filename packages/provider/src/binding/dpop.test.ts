@@ -311,7 +311,7 @@ describe('DPoP through refresh', () => {
         body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: first.refresh_token, client_id: 'rp' }).toString()
       })
     )
-    expect((await response.json()).error_description).toContain('bound to a different key')
+    expect((await response.json()).error_description).toContain('bound to a key this request did not prove')
   })
 })
 

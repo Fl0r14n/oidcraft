@@ -15,8 +15,10 @@ differences that are the reason it exists:
 - **Runtime-portable.** One build runs on Bun, Node, Deno and any workerd-shaped host. The core
   never imports `node:http`, `node:crypto` or any runtime-private API (FR-R1).
 - **Batteries included for the interaction half.** `oidc-provider` ships no login, consent or admin
-  surface, so a team writes those before it authenticates anybody. oidcraft ships a policy layer and
-  reference screens, closer to what Django's oauth-toolkit gives a Django project (FR-I*, FR-M*).
+  surface, so a team writes those before it authenticates anybody. oidcraft ships the policy layer —
+  the rules those screens enforce, local accounts and a management API — and a reference deployment
+  whose screens a host copies or replaces, closer to what Django's oauth-toolkit gives a Django
+  project (FR-I*, FR-M*).
 - **Federation is a first-class mode, not an application concern.** An oidcraft deployment can be a
   pure broker in front of Entra, Google or another OP, a local-account OP, or both at once (FR-F*).
 
@@ -86,9 +88,11 @@ it. Where the runtime cannot supply one, they are refused at construction and ab
 its subject DN, or a DNS, URI, IP or email SAN (RFC 8705 §2.1.2). A SAN is refused where the
 runtime supplies certificates without them.
 
-A JWT assertion is checked for its audience, a `jti` not seen before, and a lifetime under five
-minutes. The audience check is what stops an assertion made out to one provider being replayed at
-another to impersonate the client.
+A JWT assertion's `aud` is this provider's issuer identifier and nothing else — a string, or an array
+holding only it — never the token endpoint URL (RFC 10070, updating RFC 7523); it carries a `jti` not
+seen before and a lifetime under five minutes. The audience check is what stops an assertion made out
+to one provider being replayed at another to impersonate the client, and accepting any other value is
+what the audience-injection attack on `private_key_jwt` relies on.
 
 **FR-C5 — UserInfo endpoint.** Claims resolved per request through `AccountStore.claims`, never
 served from a copy cached at authentication time. Signed and/or encrypted responses when the
@@ -108,9 +112,10 @@ poll never writes the request it reads, so an approval or denial that lands whil
 polling is not lost. The same holds for a CIBA request (FR-C17).
 
 **FR-C8 — Revocation (RFC 7009) and introspection (RFC 7662).** Introspection requires client or
-resource-server authentication and returns `active: false` rather than an error for anything the
-caller may not see. Revoking a refresh token revokes its family (FR-T3), its access tokens included,
-or signing an application out would mean nothing; the same application on another device keeps its
+resource-server authentication — a public client's `client_id`, which proves nothing, is not
+authentication — and returns `active: false` rather than an error for anything the caller may not
+see. Revoking a refresh token revokes its family (FR-T3), its access tokens included, or signing an
+application out would mean nothing; the same application on another device keeps its
 own family, and the grant, the consent, stays (FR-I4). Revoking an access token removes that token
 alone.
 
@@ -119,7 +124,11 @@ an explicit policy: open, software-statement-gated, or disabled. **Disabled is t
 Offering it does not make oidcraft a Dynamic OpenID Provider (OIDC Core §15.2; FR-C1, FR-C12).
 The request body is untrusted input: one that is not an object, a member of the wrong type, a
 `jwks` that is not a key set or carries private members, or `jwks` together with `jwks_uri` is
-`invalid_client_metadata`, never a 500.
+`invalid_client_metadata`, never a 500. Gating it on an initial access token (RFC 7591 §3) or a
+software statement is the host's `registrationPolicy`. A `web` client's redirect URIs are `https`;
+loopback addresses and private-use schemes are a `native` client's (RFC 8252 §7, NFR-S2). An update
+(RFC 7592) that changes how a client authenticates keeps nothing the operator granted it (FR-M1): what
+was vouched for a client authenticating one way is not vouched for another.
 
 **FR-C10 — JWKS endpoint and key rotation.** Multiple active keys; the first signing-capable key
 of an algorithm signs, the rest only verify, so a rotation never invalidates live tokens (NFR-S7).
@@ -135,6 +144,11 @@ management API every event still runs and the first failure reaches the caller, 
 failure does (FR-M3). The accounts entry's password reset ends sessions through the adapter and
 does not call it.
 
+The provider mints logout tokens and front-channel URLs and delivers neither: sending to a URL a
+client registered is the host's (`onLogout`, `onFrontChannelLogout`; FR-A1, NFR-S14). Each kind is
+advertised in discovery, and a client registering for it accepted, only when the host supplies its
+hook (FR-C6).
+
 At the end-session endpoint a `client_id` sent with an `id_token_hint` must be the client the hint
 was issued to, or the request is refused (OIDC RP-Initiated Logout 1.0 §2). A hint naming a session
 or subject other than the browser's own proves nothing about this browser, so the person is asked to
@@ -142,7 +156,11 @@ confirm, as when there is no hint at all.
 
 **FR-C12 — Request objects.** JAR (RFC 9101) **by value** (`request`) and PAR (RFC 9126), with
 per-client `require_pushed_authorization_requests`. A request object must be signed: `alg: none` is
-refused, since an unsigned one proves nothing a plain parameter does not.
+refused, since an unsigned one proves nothing a plain parameter does not. It carries `exp`, lives at
+most 60 minutes from its `nbf` or `iat`, and is refused with either in the future beyond the clock
+skew (RFC 9101 §10.8); a `typ` header, when present, is `oauth-authz-req+jwt`. Its `jti` is not
+tracked: a replay inside that window starts an authorization that still needs the person, and PKCE
+binds its code to the client's own verifier.
 
 JAR _by reference_ — a `request_uri` pointing at the client's own server — is not implemented and
 will not be in the core: resolving it means fetching a URL the client chose, outbound I/O the core
@@ -151,7 +169,10 @@ result. A `request_uri` issued by PAR is different: it references this provider'
 
 **FR-C13 — Sender-constrained tokens.** DPoP (RFC 9449) with nonce support and `dpop_jkt`, binding
 the authorization code to the client's key, from the request or from a proof on its push (RFC 9449
-§10); and mTLS certificate-bound tokens (RFC 8705 §3).
+§10); and mTLS certificate-bound tokens (RFC 8705 §3). A client registered for sender-constrained
+tokens is refused at the token endpoint without its proof or its certificate, never served a bearer
+token instead; where DPoP is off, a client requiring it is refused at registration and at the token
+endpoint alike.
 
 **FR-C14 — `iss` in the authorization response** (RFC 9207), always, unconditionally.
 
@@ -162,7 +183,8 @@ the authorization code to the client's key, from the request or from a proof on 
 fresher `auth_time`, and the OP must honour the resulting `acr_values`/`max_age`.
 
 **FR-C17 — CIBA** — OpenID Connect Client-Initiated Backchannel Authentication, poll and ping
-modes. Push mode is out of scope.
+modes. Push mode is out of scope. A ping is delivered by the host, as logout tokens are (FR-C11,
+NFR-S14).
 
 Identifying the user from a hint has no default and never will: the client never touches the user's
 browser, so who to reach is entirely the provider's decision, and a library guessing which
@@ -177,10 +199,11 @@ redirect URIs span several hosts must register one (OIDC Core §8.1).
 **FR-C19 — Resource indicators** (RFC 8707). The host configures the resources tokens may be issued
 for — an MCP server, an API — each optionally tied to the resource-server client that introspects for
 it. A `resource` on the authorization, token or refresh request must be one of them, or the request
-fails with `invalid_target`; the access token's audience is then that resource alone, and only its
-resource server may introspect it. A token request may narrow to any configured resource when the
-authorization named none, and only to those it named when it did. A resource may name the clients
-allowed to request it; any other client naming it fails with `invalid_target`, so an API kept to the
+fails with `invalid_target`. An authorization may name several; each access token is for one, its
+audience that resource alone, and only that resource's server, or the client it was issued to, may
+introspect it. A token request may narrow to any configured resource when the authorization named
+none, only to those it named when it did, and must name one when it named several. A resource may
+name the clients allowed to request it; any other client naming it fails with `invalid_target`, so an API kept to the
 host's own application is out of reach of a client that registered itself. Without `resource`,
 nothing changes.
 So a token issued for one MCP server is useless at another, as an MCP authorization server owes an
@@ -189,7 +212,8 @@ MCP server (MCP 2026-07-28).
 **FR-C20 — Client ID Metadata Documents** (draft-ietf-oauth-client-id-metadata-document), the way
 MCP 2026-07-28 prefers a client be known: its `client_id` is an `https` URL serving its own metadata,
 with no registration step. The core does not fetch it (FR-A1): the host's `resolveClientMetadata` does,
-with its own network policy, size limit, caching and trust policy, and the core checks the result —
+with its own size limit, caching and trust policy and never from a special-use address (RFC 6890;
+draft-ietf-oauth-client-id-metadata-document-03 §10.7, NFR-S14), and the core checks the result —
 a canonical `https` URL with a path and nothing else, refused before any fetch otherwise; a document
 whose `client_id` is that URL exactly; no shared secret, so `none` or `private_key_jwt` only; redirect
 URIs that are the client's registration, `http://localhost` among them unless it says it is `web`.
@@ -204,14 +228,16 @@ client's host and the host the person returns to, and warns when that is this co
 **FR-C21 — FAPI 2.0 Security Profile**, opt-in per provider or per client, never a change of the
 defaults. Under it the provider refuses what it otherwise only supports: a public client; client
 authentication other than `private_key_jwt` or mTLS; an authorization request not pushed (PAR,
-`request_uri` under 600 s, codes living 60 s at most); a token that is not sender-constrained (DPoP or mTLS); signing
-algorithms other than PS256, ES256 and EdDSA; a client assertion whose `aud` is not exactly the
-issuer; an assertion outside the 10 s `iat` / 60 s `nbf` window; an `http` redirect for a client
-that is not native. `dpop_jkt` (FR-C13) is supported but not required: the profile asks only that
-the server offer code binding. Refresh tokens follow FR-T3's exception. It is one switch, never
+`request_uri` under 600 s, codes living 60 s at most), or pushed without `redirect_uri` (§5.3.2.2); a
+code grant without PKCE, FR-C3's exemption included; a token that is not sender-constrained (DPoP or
+mTLS); signing algorithms other than PS256, ES256 and EdDSA, or an RSA key under 2048 bits or an EC
+key under 224 (§5.4.1); a client assertion whose `aud` is not exactly the issuer, as a string; an
+assertion whose `iat` or `nbf` is more than 10 s in the future (§5.3.2.1 allows refusing past 10 s and
+requires it past 60 s); an `http` redirect for a client that is not native. `dpop_jkt` (FR-C13) is
+supported but not required: the profile asks only that the server offer code binding. Refresh tokens follow FR-T3's exception. It is one switch, never
 assembled from individual settings: under it the provider refuses to start on a configuration that
-cannot meet it (NFR-D2) — save a key set without a PS256, ES256 or EdDSA key, refused at its first
-signature since keys are read asynchronously — a client that cannot meet it is refused at registration and upsert, and
+cannot meet it (NFR-D2) — save a key set without a PS256, ES256 or EdDSA key, or with a key too
+short, refused at its first signature since keys are read asynchronously — a client that cannot meet it is refused at registration and upsert, and
 discovery advertises only what it allows. Its conformance plan gates CI (NFR-C1). Message Signing
 is a separate profile and not part of this.
 
@@ -278,6 +304,23 @@ supplies `assertionTrust`, and only then supported and advertised: the bearer gr
   (FR-T7) or by itself (FR-C8), not with the account's grants, and lives at most the access-token
   lifetime. `authorization_details` in the assertion is not granted.
 
+**FR-C25 — Token exchange** (RFC 8693). Off unless the host supplies `exchangePolicy`, which decides
+who may act for whom: a library cannot know which impersonation or delegation a deployment considers
+legitimate. The provider bounds what the policy can grant:
+
+- A `subject_token` is an access token this provider issued, to any client — a service exchanges what
+  a person presented to it — or a refresh token issued to the client exchanging it and to no other: a
+  refresh token is a credential its client never hands on.
+- A sender-constrained subject or actor token is accepted only with its proof, as everywhere else
+  (FR-C13).
+- The scopes granted are within the subject token's, the client's own and the policy's answer.
+- What it issues is an access token naming its actor in `act`, in the subject's family and grant, so
+  that revoking them revokes it however the two interleave (FR-T3, FR-T7).
+
+**FR-C26 — Client credentials** (RFC 6749 §4.4). A confidential client only, its scopes within its
+own and never `openid`, so neither an ID token nor a refresh token; its tokens are revoked with the
+client (FR-T7).
+
 ## 4. Tokens — `FR-T*`
 
 **FR-T1** — ID tokens are always JWS; `none` never. An `RS256` key is mandatory in every key set
@@ -285,7 +328,9 @@ and `RS256` is advertised (OIDC Core §15.1, Discovery 1.0 §3), except under a 
 profile, which forbids it. A client's registered `id_token_signed_response_alg` is honoured;
 without one, a configured client gets the provider's first key (`ES256` by default) and a
 dynamically registered one `RS256` (OIDC DCR 1.0 §2) — under FR-C21 the profile's first allowed key
-instead, named in the registration response.
+instead, named in the registration response. Encrypting them, optional in OIDC Core §2, is not
+implemented: an ID token travels only from the token endpoint, over TLS (FR-C1), and a browser client
+could not hold the key that decrypts it.
 
 **FR-T2** — Access tokens are opaque by default and JWT (RFC 9068) when a client or resource
 server is configured for it, because a revoked opaque token stops working immediately and a revoked
@@ -392,7 +437,10 @@ decides it, the person is asked to choose among the candidates; one is never gue
 
 **FR-F5 — Account linking is by `(upstream, subject)` and nothing else, by default.** Other
 policies (`verified-email`, `interactive`) exist and must be chosen deliberately, because they
-are the difference between a safe broker and an account-takeover primitive (NFR-S8).
+are the difference between a safe broker and an account-takeover primitive (NFR-S8). An account id
+names one account however it was made: a brokered account is never created under an id that has
+local credentials (FR-I7), nor a local one under an id that has linked identities, so no username
+chosen at sign-up lands in someone's brokered account.
 
 **FR-F6 — Provenance reaches the ID token.** A brokered session records the upstream that
 authenticated it, and the `idp`, `acr`, `amr` and `auth_time` claims reflect the upstream's
@@ -446,7 +494,9 @@ every requested scope not already granted, and names none the request did not as
 refused; declining is `access_denied`. A device or CIBA approval follows the same rule.
 
 **FR-I5** — `prompt=none`, `prompt=login`, `prompt=consent`, `prompt=select_account` are all
-honoured, including the error responses when `none` cannot be satisfied.
+honoured, including the error responses when `none` cannot be satisfied. `prompt=create`
+(Initiating User Registration via OpenID Connect 1.0) is not implemented: offering sign-up is the
+host's screen (FR-I7).
 
 **FR-I6** — `ui_locales` selects the screen language; the reference screens ship English and are
 structured for translation.
@@ -458,19 +508,30 @@ nothing in the core assumes it. It covers:
 - **Passwords**, hashed with argon2id by a `PasswordHasher` the host passes in. The library ships
   one per runtime that has a native argon2 (`./runtimes/bun`, `./runtimes/node`) and none in the
   entry itself, so no runtime's global leaks into it. An unknown username costs the same hash as a
-  known one.
+  known one. A password is at least 15 characters by default, as NIST SP 800-63B-4 §3.1.1.2 asks of
+  one used alone, which the host may lower, and at most 128, checked at sign-in too, after the hash
+  an unknown username would cost. A blocklist is the host's, through `rejectPassword`: no list ships
+  without a dependency (NFR-D4).
 - **TOTP** (RFC 6238) as a second factor: begin, confirm with a first code, verify, remove. A code is
   accepted once (NFR-S5). The secret is stored encrypted with AES-GCM under a key the host
   configures, bound to its account, so a database dump alone yields no second factor.
 - **Recovery codes**, issued when TOTP is confirmed or an account is made with a passkey alone
   (FR-I8), stored hashed and each usable once.
 - **Throttling**: failed passwords and codes are counted per account and peer address, and lock
-  that address out of that account for a while (NIST SP 800-63B §5.2.2); a higher count per account
+  that address out of that account for a while (NIST SP 800-63B-4 §3.2.2); a higher count per account
   alone locks it for everyone, so a guess spread over many addresses still stops (`G-9`).
 - **Password reset**: single-use tokens with a short lifetime, stored hashed, which set a password
   or add a passkey (FR-I8). Delivering one is I/O, so the host sends it (FR-A1), whether the person
-  asked or an administrator did for them. Completing a reset ends sessions and revokes tokens (FR-T7).
-- **Self-service sign-up**, with a password or a passkey, which the host may leave unmounted.
+  asked or an administrator did for them. Completing a reset ends sessions and revokes tokens (FR-T7),
+  and voids every other reset and email sign-in token the account holds (FR-I9), so a second link
+  sent to a mailbox someone else read is spent too. One that adds a passkey replaces the password,
+  leaving a passkey account with recovery codes (FR-I8): after a compromise, a password left beside
+  the new passkey is the one the intruder knows. A reset lifts the lockouts wrong guesses caused, never
+  a suspension: a credential's `lockedUntil` is the host's, honoured by every way in and cleared by
+  nothing in the library.
+- **Self-service sign-up**, with a password or a passkey, which the host may leave unmounted. An
+  account gets a random id unless the host maps usernames to ids itself, and never one that has
+  linked identities (FR-F5).
 
 **FR-I8 — Passkeys** (WebAuthn Level 3), in the same entry as FR-I7, as a sign-in of their own —
 username-less, offered through the browser's autofill — and as a second factor after a password.
@@ -518,6 +579,19 @@ a page elsewhere posting it would sign its visitor in as whoever asked, page uns
 is not offered one, as it cannot move browsers. No code to type is sent (NFR-S3); a host that wants
 one builds it. An email sign-in reports `amr` `email`, which RFC 8176 does not register, and the
 single-factor `acr` `pwd`.
+
+**FR-I10 — The provider's session.** A browser holds at most one session per issuer, through the
+session cookie, `__Host-` prefixed on an https issuer. It lives the configured absolute lifetime and,
+when the host sets one, ends after an idle lifetime without use; unset, there is none. A login in a
+browser that already has a session never leaves that session where no logout can reach it. For the
+same account the session is updated in place — `auth_time`, `acr` and `amr` renewed, the client
+added, its id and `sid` kept — so the person's other applications stay signed in and their logouts
+still match (FR-T6, FR-C11). For another account the old session is ended first, exactly as a logout
+ends it, then the new one starts. Updating in place does not rotate the cookie on a step-up, as
+session guidance prefers: the `sid` is the cookie's hash (NFR-S11) and session-bound refresh tokens
+name it; a cookie that is `HttpOnly` and host-only already takes a compromised browser to steal. How
+many sessions an account may hold across browsers is the host's policy, through the management API
+(FR-M1).
 
 ## 8. Administration — `FR-M*`
 
@@ -583,7 +657,9 @@ where no provider can supply one, advertising them in discovery would be a lie (
 ## 10. Client libraries — `FR-L*`
 
 `@oidcraft/core`, `@oidcraft/client` and the bindings on them are the relying-party half. They work
-against any OpenID Provider, not only this one.
+against any OpenID Provider, not only this one, so they may drive what this provider refuses:
+`oauthForm()` and its counterparts drive the password grant FR-C2 leaves out, for the providers that
+still accept it.
 
 **FR-L1** — `@oidcraft/core` is the protocol and nothing else: discovery, the authorization request,
 the code exchange, refresh, revocation, ID token verification. No storage, no `location`, no
@@ -603,7 +679,10 @@ protection for its code (RFC 9700 §2.1.1).
 
 **FR-L4** — Tokens are kept in `localStorage`, because a session has to survive a reload and reach
 the other tabs, which session storage and memory do not. The README says what that costs: a script
-injected into the page reads the refresh token.
+injected into the page reads the refresh token. RFC 10017 (BCP 212) prefers a backend-for-frontend
+for applications handling personal data and finds `localStorage` no protection against injected
+script; what it asks of the server — refresh tokens rotated or sender-constrained, with an absolute
+and an idle lifetime that rotation never extends — this provider does (FR-T3, FR-T6).
 
 **FR-L5** — One refresh at a time, across tabs as within one. Two tabs presenting the same refresh
 token is a replay to a provider that rotates (FR-T3), and signs that browser out.
@@ -629,7 +708,7 @@ snapshot, `@oidcraft/angular` as signals. What one binding does, the others do.
 
 **NFR-S1** — RFC 9700 (BCP 240) is the baseline, not a later hardening pass. Where it and OIDC
 Core disagree, RFC 9700 wins and the deviation is documented here. OAuth 2.1
-(`draft-ietf-oauth-v2-1`, read at -16) binds the server too, though still a draft, and wins over
+(`draft-ietf-oauth-v2-1`, read at -17) binds the server too, though still a draft, and wins over
 OIDC Core the same way. The one deviation that costs anything: a confidential client sending neither
 PKCE nor a `nonce` is refused (FR-C3, OAuth 2.1 §7.5.1.1), which OIDC Core would allow.
 
@@ -685,10 +764,22 @@ per address, whether or not an account has it (FR-I9). Limiting requests per
 address at the token, authorization and registration endpoints is the host's, in front of the
 provider, where the real peer address is known (FR-R4).
 
+**NFR-S13** — A page a person acts on — sign-in, consent, logout and device confirmation, every
+reference screen — refuses to be framed: `frame-ancestors 'none'` and `X-Frame-Options: DENY`
+(RFC 9700 §4.16). The `form_post` response page has no interface and is exempt (FR-C1).
+
+**NFR-S14** — A URL a client chose that the host fetches or delivers to — `jwks_uri`,
+`sector_identifier_uri`, a metadata document's `client_id`, `backchannel_logout_uri`, a CIBA
+`client_notification_endpoint` — reaches the host only as `https`, with no address literal, no
+`localhost` and no credentials; the core refuses anything else first, every one alike. Refusing a name
+that resolves to a special-use address (RFC 6890) is the host's, at the moment it fetches, since only
+it resolves names (FR-A1).
+
 ### Conformance — `NFR-C*`
 
 **NFR-C1** — The OpenID Foundation conformance suite runs in CI against the reference deployment,
-for the `basic` and `config` OP profiles, and for the FAPI 2.0 Security Profile plan against the same
+for the `basic`, `config`, Form Post, RP-Initiated Logout, Front-Channel Logout and Back-Channel
+Logout OP profiles, and for the FAPI 2.0 Security Profile plan against the same
 deployment under FR-C21. A red suite is a failed build, except for the modules
 `conformance/README.md` lists as refused on purpose, each with the clause that requires the refusal.
 `dynamic` is not a target: it tests a Dynamic OpenID Provider, which FR-C1 rules out.
@@ -734,7 +825,11 @@ this workspace's own and published from it, so brokering adds no third-party pac
 an `onError` hook, and answered as `server_error` with nothing of the cause in the response. This
 is the diagnostic FR-F11 promises; without it a 500 leaves no trace the host can find.
 
-## 12. Open questions — `G-*`
+**NFR-D6** — A provider release reads every artifact the previous minor release stored, so a rolling
+deploy over live storage neither fails nor silently extends a token: a stored shape a release no
+longer writes is decoded with a defined meaning or refused, never read as `undefined`.
+
+## 12. Open questions and decisions — `G-*`
 
 **G-1 — OpenID Federation 1.0 (trust chains, not brokering).** Not identity brokering ("sign in
 with Google"), which is FR-F* and built. OpenID Federation lets parties that never registered with
@@ -776,7 +871,7 @@ proxy overwrite that header, and a misconfiguration is client impersonation the 
 detect. Build it if an mTLS-only deployment on Bun appears. Node and workerd are unaffected.
 
 **G-9 — Account lockout as denial of service.** FR-I7 locks an account after failed attempts, as
-NIST SP 800-63B §5.2.2 asks, which also lets anyone who knows a username lock its owner out, and
+NIST SP 800-63B-4 §3.2.2 asks, which also lets anyone who knows a username lock its owner out, and
 lets a locked answer confirm the username exists. Decided: failures are counted per account and
 peer address together, so someone guessing locks out only their own address, with a higher ceiling
 per account alone, so a guess spread over many addresses still ends in a lock. Without a peer

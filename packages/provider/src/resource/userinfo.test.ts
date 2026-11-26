@@ -18,6 +18,17 @@ import {
 useFlow()
 
 describe('userinfo', () => {
+  // FR-T7: a token written while its client was being deleted outlives the sweep; the missing client ends it here.
+  test('a token whose client no longer exists is refused', async () => {
+    await adapter.clients.upsert?.(client())
+    const issued = await tokensFor(build())
+    await adapter.clients.destroy?.('rp')
+    const response = await build().handle(
+      new Request(`${ISSUER}/userinfo`, { headers: { authorization: `Bearer ${issued.access_token}` } })
+    )
+    expect(response.status).toBe(401)
+  })
+
   test('returns the claims the granted scopes release', async () => {
     const { location } = await loginAndConsent()
     const tokens = await (

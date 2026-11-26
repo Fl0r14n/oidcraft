@@ -65,7 +65,9 @@ export const userinfoEndpoint = async (
   const artifact = await resolveAccessToken(config, presented.token)
   if (!artifact || artifact.consumedAt) throw unauthorized('the access token is unknown or expired')
   const client = await config.adapter.clients.find(artifact.clientId)
-  if (client) caller.client = client
+  // FR-T7: a token written while its client was being deleted can outlive the sweep; its client's absence ends it here.
+  if (!client) throw unauthorized('the client this access token was issued to no longer exists')
+  caller.client = client
   if (!artifact.accountId) throw unauthorized('this access token identifies no end user')
   // FR-C5: a token for a resource is that resource's. Served here, the resource server holding it could read the profile.
   if (artifact.payload.aud !== undefined || artifact.payload.resource !== undefined) {

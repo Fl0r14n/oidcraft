@@ -6,6 +6,7 @@ import { OAuthError } from '../errors'
 import { jwksResponseBody } from '../keys/keys'
 import { signerFor } from '../keys/signer'
 import { readArtifact, type Stored, writeArtifact } from '../payloads'
+import { assertFamilyLive } from './family'
 
 export const JWT_ACCESS_TOKEN_TYPE = 'at+jwt'
 
@@ -78,6 +79,8 @@ export const issueAccessToken = async (config: ResolvedConfig, request: AccessTo
     },
     expiresAt
   })
+  // After the write, so every grant type writing into a family meets a revocation that raced it (FR-T3, FR-T7).
+  if (request.familyId && request.grantId) await assertFamilyLive(config, request.familyId, request.grantId)
 
   const extra = jwt
     ? await config.accessTokenClaims?.({

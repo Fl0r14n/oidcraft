@@ -83,8 +83,11 @@ export const introspectionEndpoint = async (
 
     // FR-C18: the subject the token's client was given, never the account id behind a pairwise one.
     const owner = artifact.clientId === client.clientId ? client : await config.adapter.clients.find(artifact.clientId)
-    const subject =
-      artifact.accountId && owner ? (accessPayload(artifact)?.subject ?? (await subjectFor(config, owner, artifact.accountId))) : undefined
+    // FR-T7: a token written while its client was being deleted can outlive the sweep; it is inactive without one.
+    if (!owner) return inactive
+    const subject = artifact.accountId
+      ? (accessPayload(artifact)?.subject ?? (await subjectFor(config, owner, artifact.accountId)))
+      : undefined
     const body = describe(artifact, config.issuer, subject)
     return Response.json(Object.fromEntries(Object.entries(body).filter(([, value]) => value !== undefined)), {
       headers: { 'cache-control': 'no-store' }

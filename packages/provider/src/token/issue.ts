@@ -116,8 +116,8 @@ export const issueTokens = async (
     ? await mintIdToken(config, { client, session, subject, nonce, accessToken, claims: released })
     : undefined
 
-  // RFC 9700 §4.14.2: here, after every write, so no grant type can issue into a family a racing revocation swept.
-  await assertFamilyLive(config, familyId, grant.id)
+  // The access token's own write checked this already; the refresh token was written after it (RFC 9700 §4.14.2).
+  if (refreshToken && refreshToken !== keepRefreshToken) await assertFamilyLive(config, familyId, grant.id)
   return {
     access_token: accessToken,
     token_type: access.tokenType,

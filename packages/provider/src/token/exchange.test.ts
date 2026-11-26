@@ -133,6 +133,38 @@ describe('token exchange', () => {
     resource: requested.resource
   })
 
+  // FR-T7, RFC 9700 §4.14.2: an exchange writes into its subject's family, so a revocation racing it must take what it writes.
+  test('a grant revoked while an exchange is writing takes the exchanged token too', async () => {
+    let race = false
+    const written: string[] = []
+    const racing: Adapter = {
+      ...adapter,
+      artifacts: {
+        ...adapter.artifacts,
+        async upsert(artifact) {
+          if (race && artifact.kind === 'access_token') {
+            race = false
+            await provider.management.grants.revoke(artifact.grantId as string)
+            written.push(artifact.id)
+          }
+          await adapter.artifacts.upsert(artifact)
+        }
+      }
+    }
+    const provider = build({ adapter: racing, exchangePolicy: allowing })
+    const issued = await tokensFor(provider)
+    race = true
+    const response = await post(
+      provider,
+      '/token',
+      { grant_type: 'urn:ietf:params:oauth:grant-type:token-exchange', subject_token: issued.access_token, subject_token_type: ACCESS },
+      { authorization: basic() }
+    )
+    expect((await response.json()).error).toBe('invalid_grant')
+    expect(written).toHaveLength(1)
+    expect(await adapter.artifacts.find('access_token', written[0] as string)).toBeUndefined()
+  })
+
   test('exchanges a subject token for a narrower one', async () => {
     const provider = build({ exchangePolicy: allowing })
     const issued = await tokensFor(provider)

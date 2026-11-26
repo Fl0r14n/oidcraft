@@ -60,7 +60,14 @@ export const introspectionEndpoint = async (
   caller: Caller = {}
 ) => {
   const form = await readForm(request)
-  const { client } = await authenticateClient(config, form, request.headers, certificate, caller)
+  const { client, method } = await authenticateClient(config, form, request.headers, certificate, caller)
+  // FR-C8: a public client's client_id is known to anyone, so naming it authenticates nobody.
+  if (method === 'none') {
+    throw new OAuthError('invalid_client', {
+      description: 'introspection needs client authentication, which a public client cannot give',
+      spec: 'RFC 7662 §2.1'
+    })
+  }
 
   const presented = form.get('token')
   if (!presented) throw new OAuthError('invalid_request', { description: 'token is required', spec: 'RFC 7662 §2.1' })

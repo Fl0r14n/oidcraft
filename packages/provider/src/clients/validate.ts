@@ -15,6 +15,9 @@ export const clientProblems = (config: ResolvedConfig, client: Client) => {
   if (client.requirePkce === false && client.tokenEndpointAuthMethod === 'none') {
     problems.push('a public client cannot opt out of PKCE (FR-C3)')
   }
+  if (client.resourceServer && client.tokenEndpointAuthMethod === 'none') {
+    problems.push('a resource server introspects, which needs authentication a public client cannot give (FR-C8)')
+  }
 
   if ((client.subjectType ?? config.subjectType) === 'pairwise') {
     if (!config.pairwiseSalt) problems.push('this provider does not issue pairwise subjects: it has no pairwiseSalt (FR-C18)')

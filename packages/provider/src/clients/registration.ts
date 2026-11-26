@@ -266,6 +266,12 @@ const REGISTERED = new Set<string>([
 
 const operatorFields = (client: Client) => Object.fromEntries(Object.entries(client).filter(([name]) => !REGISTERED.has(name)))
 
+// FR-C9: what was vouched for a client authenticating one way is not vouched for another; its restrictions stay.
+const operatorFieldsAfter = (client: Client, method: Client['tokenEndpointAuthMethod']) => {
+  const { resourceServer: _vouched, ...restrictions } = operatorFields(client)
+  return method === client.tokenEndpointAuthMethod ? operatorFields(client) : restrictions
+}
+
 // Secrets are stored as digests, so a response carries one only when the caller holds it or it was just issued (NFR-S11).
 export const clientResponse = (
   config: ResolvedConfig,
@@ -398,7 +404,7 @@ export const registrationEndpoint = async (config: ResolvedConfig, request: Requ
   // Identity and the token that grants access to it are the server's, not the client's to change.
   const { client: updated, issued } = await storableSecret(
     {
-      ...operatorFields(client),
+      ...operatorFieldsAfter(client, metadata.tokenEndpointAuthMethod),
       ...metadata,
       clientId: client.clientId,
       ...(sameSecret && client.clientSecret && { clientSecret: client.clientSecret }),

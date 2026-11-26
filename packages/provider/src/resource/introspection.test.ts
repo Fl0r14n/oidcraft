@@ -30,6 +30,24 @@ describe('FR-C8: introspection by a resource server', () => {
     expect(await introspect(provider, issued.refresh_token, 'api')).toEqual({ active: false })
   })
 
+  // FR-C8: anyone knows a public client's client_id, so naming one is not authentication.
+  test('a public client cannot introspect, even a client made a resource server by configuration', async () => {
+    await adapter.clients.upsert?.(client())
+    const { clientSecretHash: _none, ...spa } = client({ clientId: 'spa', tokenEndpointAuthMethod: 'none' })
+    await adapter.clients.upsert?.(spa)
+    const provider = build({ resources: [{ uri: 'https://api.example.com', resourceServer: 'spa' }] })
+    const issued = await tokensFor(provider)
+    const response = await provider.handle(
+      new Request(`${ISSUER}/introspect`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ token: issued.access_token, client_id: 'spa' }).toString()
+      })
+    )
+    expect(response.status).toBe(401)
+    expect((await response.json()).error).toBe('invalid_client')
+  })
+
   test('a token restricted to another audience is inactive to this resource server', async () => {
     await adapter.clients.upsert?.(client())
     await adapter.clients.upsert?.(client({ clientId: 'api', resourceServer: true }))

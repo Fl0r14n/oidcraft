@@ -523,6 +523,26 @@ describe('registration management (RFC 7592)', () => {
     expect(updated?.backchannelLogoutUri).toBeUndefined()
   })
 
+  // FR-C9, FR-C8: a resource server switching itself to `none` would let anyone introspect under its name.
+  test('an update that changes how the client authenticates drops what the operator vouched for', async () => {
+    const client = await registered()
+    const stored = (await adapter.clients.find(client.client_id)) as Client
+    await adapter.clients.upsert?.({ ...stored, resourceServer: true, allowedUpstreams: ['corp'] })
+
+    const same = await call('PUT', client.client_id, client.registration_access_token, valid)
+    expect(same.status).toBe(200)
+    expect((await adapter.clients.find(client.client_id))?.resourceServer).toBe(true)
+
+    const changed = await call('PUT', client.client_id, client.registration_access_token, {
+      ...valid,
+      token_endpoint_auth_method: 'none'
+    })
+    expect(changed.status).toBe(200)
+    const updated = await adapter.clients.find(client.client_id)
+    expect(updated?.resourceServer).toBeUndefined()
+    expect(updated?.allowedUpstreams).toEqual(['corp'])
+  })
+
   // Identity and the token guarding it are the server's to set, not the client's to choose.
   test('an update cannot change the client_id or its registration token', async () => {
     const client = await registered()

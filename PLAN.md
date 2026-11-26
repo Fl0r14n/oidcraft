@@ -133,7 +133,7 @@ Medium:
 
 - [ ] S-1 `[test]` a login never ends the browser's previous session (`authorize/interactions.ts:193`, `session/session.ts:37`).
 - [x] S-2 `[test]` assertion `aud` accepts the token endpoint and arrays (`clients/assertion.ts:23`).
-- [ ] S-3 `[test]` introspection accepts a `none` client; RFC 7592 update keeps operator fields (`resource/introspection.ts:45`, `clients/registration.ts:401`).
+- [x] S-3 `[test]` introspection accepts a `none` client; RFC 7592 update keeps operator fields (`resource/introspection.ts:45`, `clients/registration.ts:401`).
 - [ ] S-4 `[test]` cert-bound client without a certificate gets bearer tokens; `dpopBoundAccessTokens` ignored with DPoP off (`token/endpoint.ts:22,59`).
 - [ ] A-1 `[test]` account-wide lockout renews the generation, freeing every slot (`accounts/index.ts:264,302`).
 - [ ] A-2 `allowedUpstreams` not enforced at `interactions.complete` (`authorize/interactions.ts:292`).

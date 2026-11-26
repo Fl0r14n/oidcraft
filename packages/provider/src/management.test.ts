@@ -139,6 +139,11 @@ describe('management', () => {
     await expect(provider.management.clients.create(input({ requirePkce: false }))).rejects.toThrow('PKCE')
   })
 
+  // FR-C8: a resource server introspects, and a public client cannot authenticate to do it.
+  test('a public client cannot be a resource server', async () => {
+    await expect(provider.management.clients.create(input({ resourceServer: true }))).rejects.toThrow('resource server')
+  })
+
   // FR-M1: an update is held to what a create is, or the rule is only as strong as the path that skips it.
   test('an update cannot opt a public client out of PKCE either', async () => {
     await provider.management.clients.create(input())

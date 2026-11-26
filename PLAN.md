@@ -143,7 +143,7 @@ Medium:
 
 Low:
 
-- [ ] S-5 `[test]` `sector_identifier_uri` skips `serverUri` (`clients/registration.ts:89`).
+- [x] S-5 `[test]` `sector_identifier_uri` skips `serverUri` (`clients/registration.ts:89`).
 - [ ] S-6 `issueAccessToken` skips family/client liveness (exchange, client credentials, ID-JAG).
 - [ ] S-7 `[test]` session lists the client before consent → logout token to a refused client (`session/session.ts:48`).
 - [ ] S-8 introspection `token_type` DPoP for an mTLS-bound token (`resource/introspection.ts:27`).

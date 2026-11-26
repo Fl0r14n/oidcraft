@@ -4,6 +4,7 @@ import type { ResolvedConfig } from '../config'
 import { fapiClientProblems } from '../profile/fapi'
 import { supportedAcrValues } from '../upstreams/selection'
 import { secretKind } from './secret'
+import { SERVER_URI_FIELDS, serverUriProblem } from './uris'
 
 // However a client reaches the store (FR-M1); otherwise each is found at the token endpoint, as a 500 nobody there can fix.
 export const clientProblems = (config: ResolvedConfig, client: Client) => {
@@ -14,6 +15,11 @@ export const clientProblems = (config: ResolvedConfig, client: Client) => {
 
   if (client.requirePkce === false && client.tokenEndpointAuthMethod === 'none') {
     problems.push('a public client cannot opt out of PKCE (FR-C3)')
+  }
+  // NFR-S14: the host fetches or posts to these, so they are held to the same rule whoever wrote the client.
+  for (const [field, name] of Object.entries(SERVER_URI_FIELDS) as [keyof typeof SERVER_URI_FIELDS, string][]) {
+    const problem = client[field] === undefined ? undefined : serverUriProblem(client[field], name)
+    if (problem) problems.push(problem)
   }
   if (client.dpopBoundAccessTokens && !config.features.dpop) {
     problems.push('dpop_bound_access_tokens needs DPoP, which this provider does not issue (FR-C13)')

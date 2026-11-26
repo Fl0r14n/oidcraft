@@ -12,49 +12,13 @@ import { defaultSigningAlg, underFapi } from '../profile/fapi'
 import { JWT_BEARER_GRANT_TYPE } from '../token/identity-assertion'
 import { deleteClient } from './delete'
 import { secretKind, storableSecret } from './secret'
+import { browserUri, invalidMetadata, type Refuse, serverUri } from './uris'
 import { clientProblems } from './validate'
 
 const DEFAULT_GRANT_TYPES = ['authorization_code']
 
-/** Registration refuses with RFC 7591's codes; a metadata document, read at the authorization endpoint, does not. */
-export type Refuse = (description: string) => OAuthError
-
-const invalid: Refuse = description => new OAuthError('invalid_client_metadata', { description, spec: 'RFC 7591 §3.2.2', status: 400 })
+const invalid = invalidMetadata
 const invalidRedirect: Refuse = description => new OAuthError('invalid_redirect_uri', { description, spec: 'RFC 7591 §3.2.2', status: 400 })
-
-// RFC 8252 §8.3: loopback means the IP literal. `localhost` can be resolved elsewhere.
-const isLoopbackIp = (url: URL) => url.hostname === '127.0.0.1' || url.hostname === '[::1]'
-
-// Each would run script, or read a file, wherever the browser is sent or a form is posted.
-const FORBIDDEN_SCHEMES = ['javascript:', 'data:', 'vbscript:', 'file:']
-
-export const browserUri = (raw: unknown, name: string, { native = false, fail = invalid }: { native?: boolean; fail?: Refuse } = {}) => {
-  if (typeof raw !== 'string' || !URL.canParse(raw)) throw fail(`${name} ${String(raw)} is not an absolute URL`)
-  const url = new URL(raw)
-  // A fragment can never be matched: the browser never sends it (RFC 6749 §3.1.2).
-  if (url.hash) throw fail(`${name} ${raw} must not carry a fragment`)
-  if (FORBIDDEN_SCHEMES.includes(url.protocol)) throw fail(`${name} ${raw} uses a scheme that can run script`)
-  // A native app listens on this machine, and many say localhost: its port is free, as on a loopback IP (NFR-S2).
-  const local = isLoopbackIp(url) || (native && url.hostname === 'localhost')
-  if (url.protocol === 'http:' && !local) {
-    throw fail(`${name} ${raw} must be https outside a loopback IP${native ? ' or localhost' : ''}`)
-  }
-  return raw
-}
-
-const isIpLiteral = (hostname: string) => hostname.startsWith('[') || /^\d+\.\d+\.\d+\.\d+$/.test(hostname)
-
-// SSRF: an address literal or `localhost` is refused here; a name resolving inside the network is the host's to refuse (FR-A1).
-export const serverUri = (raw: unknown, name: string, fail: Refuse = invalid) => {
-  if (typeof raw !== 'string' || !URL.canParse(raw)) throw fail(`${name} ${String(raw)} is not an absolute URL`)
-  const url = new URL(raw)
-  if (url.protocol !== 'https:') throw fail(`${name} ${raw} must be https`)
-  if (url.hash) throw fail(`${name} ${raw} must not carry a fragment`)
-  if (isIpLiteral(url.hostname) || url.hostname === 'localhost' || url.hostname.endsWith('.localhost')) {
-    throw fail(`${name} ${raw} must name a public host, not an address or localhost`)
-  }
-  return raw
-}
 
 const uriList = (value: unknown, name: string) => {
   if (!Array.isArray(value)) throw invalid(`${name} must be an array`)
@@ -86,12 +50,14 @@ const assertSignable = async (config: ResolvedConfig, client: Client) => {
 const assertSector = async (config: ResolvedConfig, client: Client) => {
   const uri = client.sectorIdentifierUri
   if (uri === undefined) return
-  if (!URL.canParse(uri) || new URL(uri).protocol !== 'https:') throw invalid('sector_identifier_uri must be an https URL')
+  serverUri(uri, 'sector_identifier_uri')
   if (!config.resolveSectorIdentifier) throw invalid('this provider cannot validate a sector_identifier_uri')
+  // One answer for a fetch that failed and one that found no list, so it tells a prober nothing about the network (NFR-S14).
+  const unreadable = () => invalid(`sector_identifier_uri ${uri} did not answer with a JSON array of redirect URIs`)
   const listed = await config.resolveSectorIdentifier(uri).catch(() => {
-    throw invalid(`sector_identifier_uri ${uri} could not be retrieved`)
+    throw unreadable()
   })
-  if (!Array.isArray(listed)) throw invalid('sector_identifier_uri must reference a JSON array of redirect URIs')
+  if (!Array.isArray(listed)) throw unreadable()
   const missing = client.redirectUris.filter(each => !listed.includes(each))
   if (missing.length) throw invalid(`sector_identifier_uri does not list ${missing.join(', ')}`)
 }

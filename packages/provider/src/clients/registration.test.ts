@@ -201,7 +201,8 @@ describe('dynamic client registration', () => {
       { jwks_uri: 'https://169.254.169.254/latest/meta-data' },
       { jwks_uri: 'http://rp.example.com/jwks' },
       { backchannel_logout_uri: 'https://localhost/logout' },
-      { backchannel_logout_uri: 'https://[::1]/logout' }
+      { backchannel_logout_uri: 'https://[::1]/logout' },
+      { jwks_uri: 'https://user:secret@rp.example.com/jwks' }
     ]) {
       const response = await register({ ...valid, ...body })
       expect({ body, status: response.status }).toEqual({ body, status: 400 })
@@ -357,6 +358,31 @@ describe('dynamic client registration', () => {
       expect((await registerWith(op, { ...valid, sector_identifier_uri: 'https://rp.example.com/missing.json' })).status).toBe(400)
       expect((await registerWith(op, { ...valid, sector_identifier_uri: SECTOR })).status).toBe(400)
       expect((await registerWith(op, { ...valid, sector_identifier_uri: 'http://rp.example.com/sector.json' })).status).toBe(400)
+    })
+
+    // NFR-S14: the host's resolver is never handed an address, and its failures all read alike, so a prober learns nothing.
+    test('never hands the resolver an address or localhost, and answers every unreadable sector alike', async () => {
+      const asked: string[] = []
+      const op = createProvider({
+        interactionUrl: 'https://op.example.com/interaction',
+        issuer: ISSUER,
+        adapter,
+        features: { dynamicRegistration: true },
+        resolveSectorIdentifier: async uri => {
+          asked.push(uri)
+          if (uri.endsWith('/object.json')) return { redirect_uris: [REDIRECT] }
+          throw new Error('connection refused')
+        }
+      })
+      for (const sector of ['https://169.254.169.254/latest/meta-data', 'https://localhost/x', 'https://user:pw@rp.example.com/s']) {
+        expect((await registerWith(op, { ...valid, sector_identifier_uri: sector })).status).toBe(400)
+      }
+      expect(asked).toEqual([])
+
+      const refused = await registerWith(op, { ...valid, sector_identifier_uri: 'https://rp.example.com/missing.json' })
+      const notAList = await registerWith(op, { ...valid, sector_identifier_uri: 'https://rp.example.com/object.json' })
+      const description = (body: { error_description: string }) => body.error_description.replace(/https:\S+/, '<uri>')
+      expect(description(await refused.json())).toBe(description(await notAList.json()))
     })
 
     test('refuses a sector the provider has no way to fetch', async () => {

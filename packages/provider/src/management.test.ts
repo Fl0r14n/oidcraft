@@ -139,6 +139,14 @@ describe('management', () => {
     await expect(provider.management.clients.create(input({ requirePkce: false }))).rejects.toThrow('PKCE')
   })
 
+  // NFR-S14: the host posts to these whoever wrote the client, so an operator is held to registration's rule.
+  test('a server-side URI must be https on a public name here too', async () => {
+    await expect(provider.management.clients.create(input({ backchannelLogoutUri: 'https://10.0.0.5/logout' }))).rejects.toThrow(
+      'public host'
+    )
+    await expect(provider.management.clients.create(input({ jwksUri: 'http://rp.example.com/jwks' }))).rejects.toThrow('https')
+  })
+
   // FR-C8: a resource server introspects, and a public client cannot authenticate to do it.
   test('a public client cannot be a resource server', async () => {
     await expect(provider.management.clients.create(input({ resourceServer: true }))).rejects.toThrow('resource server')

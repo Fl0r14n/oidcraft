@@ -15,6 +15,12 @@ export const clientProblems = (config: ResolvedConfig, client: Client) => {
   if (client.requirePkce === false && client.tokenEndpointAuthMethod === 'none') {
     problems.push('a public client cannot opt out of PKCE (FR-C3)')
   }
+  if (client.dpopBoundAccessTokens && !config.features.dpop) {
+    problems.push('dpop_bound_access_tokens needs DPoP, which this provider does not issue (FR-C13)')
+  }
+  if (client.certificateBoundAccessTokens && !config.capabilities.clientCertificate) {
+    problems.push('certificate-bound tokens need a client certificate, which this runtime cannot supply (FR-C13, FR-R5)')
+  }
   if (client.resourceServer && client.tokenEndpointAuthMethod === 'none') {
     problems.push('a resource server introspects, which needs authentication a public client cannot give (FR-C8)')
   }

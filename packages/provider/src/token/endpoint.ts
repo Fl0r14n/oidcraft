@@ -17,9 +17,15 @@ import { JWT_BEARER_GRANT_TYPE, redeemIdentityAssertion } from './identity-asser
 
 const NO_STORE = { 'cache-control': 'no-store', pragma: 'no-cache' }
 
-/** A client may always offer a proof; one registered for bound tokens must (RFC 9449 §5). */
+/** A client may always offer a proof; one registered for bound tokens must (RFC 9449 §5), and never gets a bearer token instead (FR-C13). */
 const bindingFor = async (config: ResolvedConfig, client: Client, request: Request) => {
-  if (!config.features.dpop) return undefined
+  if (!config.features.dpop) {
+    if (!client.dpopBoundAccessTokens) return undefined
+    throw new OAuthError('invalid_client', {
+      description: `client ${client.clientId} is registered for DPoP-bound tokens, which this provider does not issue`,
+      spec: 'FR-C13'
+    })
+  }
   const offered = request.headers.has('dpop')
   if (!offered) {
     if (!client.dpopBoundAccessTokens) return undefined
@@ -57,6 +63,12 @@ export const tokenEndpoint = async (
   const fapi = underFapi(config, client)
   // RFC 8705 §3: binding to the certificate already presented costs nothing and makes a stolen token useless.
   const binding = { jkt, x5t: client.certificateBoundAccessTokens || fapi ? certificate?.thumbprint : undefined }
+  if (client.certificateBoundAccessTokens && !binding.x5t) {
+    throw new OAuthError('invalid_request', {
+      description: `client ${client.clientId} is registered for certificate-bound tokens and presented no client certificate`,
+      spec: 'RFC 8705 §3'
+    })
+  }
   if (fapi && !binding.jkt && !binding.x5t) {
     throw new OAuthError('invalid_request', {
       description: `client ${client.clientId} is under FAPI 2.0, whose tokens are sender-constrained: present a DPoP proof or a client certificate`,

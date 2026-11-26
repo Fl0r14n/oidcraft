@@ -506,7 +506,7 @@ describe('registration management (RFC 7592)', () => {
     const stored = (await adapter.clients.find(client.client_id)) as Client
     const operator = {
       requirePushedAuthorizationRequests: true,
-      dpopBoundAccessTokens: true,
+      resourceServer: true,
       allowedUpstreams: ['corp'],
       accessTokenFormat: 'jwt' as const,
       frontchannelLogoutUri: 'https://rp.example.com/fc'

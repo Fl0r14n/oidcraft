@@ -241,6 +241,20 @@ describe('FR-C4 and FR-C13: mTLS', () => {
     expect((stored?.payload.cnf as { 'x5t#S256'?: string } | undefined)?.['x5t#S256']).toBe(certificate.thumbprint)
   })
 
+  // FR-C13: a client registered for bound tokens never falls back to bearer ones, or a stolen refresh token needs no certificate.
+  test('a certificate-bound client presenting no certificate is refused, not served a bearer token', async () => {
+    await adapter.clients.upsert?.(
+      client({ tokenEndpointAuthMethod: 'none', certificateBoundAccessTokens: true, scopes: ['openid', 'profile', 'offline_access'] })
+    )
+    const provider = mtlsProvider()
+    const issued = await tokensFor(provider, 'rp', { clientCertificate: certificate }, { scope: 'openid offline_access' })
+    const refreshed = await provider.handle(
+      form('/token', { grant_type: 'refresh_token', client_id: 'rp', refresh_token: issued.refresh_token })
+    )
+    expect(refreshed.status).toBe(400)
+    expect((await refreshed.json()).error_description).toContain('presented no client certificate')
+  })
+
   // RFC 8705 §4: a public client has no other credential, so its refresh token is held to the certificate.
   test("a public client's refresh token needs the same certificate", async () => {
     await adapter.clients.upsert?.(

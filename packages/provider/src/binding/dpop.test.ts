@@ -149,6 +149,21 @@ describe('DPoP binding', () => {
     expect((await response.json()).error).toBe('invalid_dpop_proof')
   })
 
+  // FR-C13: with DPoP off, a client that requires it is refused rather than quietly served bearer tokens.
+  test('a client registered for bound tokens is refused where DPoP is off', async () => {
+    provider = createProvider({ issuer: ISSUER, adapter, interactionUrl: `${ISSUER}/interaction` })
+    const response = await exchange(await codeFor('strict'), {}, 'strict')
+    const body = await response.json()
+    expect(body.error).toBe('invalid_client')
+    expect(body.error_description).toContain('does not issue')
+    await expect(
+      createProvider({ issuer: ISSUER, adapter, interactionUrl: `${ISSUER}/interaction` }).management.clients.create({
+        ...client({ clientId: 'later', tokenEndpointAuthMethod: 'none' }),
+        dpopBoundAccessTokens: true
+      })
+    ).rejects.toThrow('DPoP')
+  })
+
   test('introspection reports the binding so a resource server can enforce it', async () => {
     const tokens = await (await exchange(await codeFor(), { dpop: await proof('POST', `${ISSUER}/token`) })).json()
     await adapter.clients.upsert?.({ ...((await adapter.clients.find('rp')) as Client), tokenEndpointAuthMethod: 'none' })

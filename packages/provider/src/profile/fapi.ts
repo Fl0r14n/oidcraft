@@ -8,9 +8,8 @@ export const FAPI_ALGS = ['PS256', 'ES256', 'EdDSA']
 /** §5.3.2.1: authentication by a key the client holds, never by a shared secret. */
 export const FAPI_AUTH_METHODS: ClientAuthMethod[] = ['private_key_jwt', 'tls_client_auth', 'self_signed_tls_client_auth']
 
-/** §5.3.2.1: a client assertion's `iat` may run this far ahead, and its `nbf` lag this far behind. */
+/** §5.3.2.1: a client assertion's `iat` or `nbf` may run this far ahead and no further (FR-C21). */
 export const FAPI_IAT_SKEW = 10
-export const FAPI_NBF_MAX_AGE = 60
 
 /** One switch, for the provider or for a client; never assembled from individual settings (FR-C21). */
 export const underFapi = (config: Pick<ResolvedConfig, 'profile'>, client: Pick<Client, 'profile'> | undefined) =>

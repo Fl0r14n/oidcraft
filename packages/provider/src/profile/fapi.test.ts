@@ -272,23 +272,27 @@ describe('FR-C21: client assertions under the profile', () => {
     expect((await pushWith(await assertion())).status).toBe(201)
   })
 
-  test('an audience array is refused even when it holds the issuer', async () => {
+  test('an audience array is refused even when it holds the issuer alone', async () => {
     const now = Math.floor(Date.now() / 1000)
     const arrayAud = await new SignJWT({ jti: randomString() })
       .setProtectedHeader({ alg: 'ES256' })
       .setIssuer('bank')
       .setSubject('bank')
-      .setAudience([ISSUER, `${ISSUER}/token`])
+      .setAudience([ISSUER])
       .setIssuedAt(now)
       .setExpirationTime(now + 60)
       .sign(clientKey.privateKey)
     expect((await pushWith(arrayAud)).status).toBe(401)
   })
 
-  test('an iat up to ten seconds ahead is accepted, an nbf over a minute old is not', async () => {
+  // §5.3.2.1 bounds iat and nbf in the future only: an nbf in the past is any JWT's normal state.
+  test('an iat or nbf up to ten seconds ahead is accepted, further is not, and an old nbf is fine', async () => {
     const now = Math.floor(Date.now() / 1000)
     expect((await pushWith(await assertion({ iat: now + 8 }))).status).toBe(201)
-    expect((await pushWith(await assertion({ nbf: now - 120 }))).status).toBe(401)
+    expect((await pushWith(await assertion({ nbf: now + 8 }))).status).toBe(201)
+    expect((await pushWith(await assertion({ nbf: now - 120 }))).status).toBe(201)
+    expect((await pushWith(await assertion({ iat: now + 30 }))).status).toBe(401)
+    expect((await pushWith(await assertion({ nbf: now + 30 }))).status).toBe(401)
   })
 
   test('an algorithm outside PS256, ES256 and EdDSA is refused', async () => {

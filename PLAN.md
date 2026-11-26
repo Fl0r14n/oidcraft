@@ -87,7 +87,7 @@ marks a finding reproduced by a throwaway test. Paths are under `packages/provid
 
 ### 1. Requirements
 
-- [ ] FR-C4: a client assertion's `aud` is the issuer, sole value (RFC 10070, Nov 2026). Code: S-2.
+- [x] FR-C4: a client assertion's `aud` is the issuer, sole value (RFC 10070, Nov 2026). Code: S-2.
 - [ ] FR-C21: FAPI 2.0 §5.3.2.1 bounds `iat`/`nbf` in the _future_ (accept ≤ 10 s, reject > 60 s); the text and
       `clients/assertion.ts:57` read it as "`nbf` at most 60 s old". Add `redirect_uri` required in PAR (§5.3.2.2)
       and RSA ≥ 2048 / EC ≥ 224 (§5.4.1).
@@ -132,7 +132,7 @@ marks a finding reproduced by a throwaway test. Paths are under `packages/provid
 Medium:
 
 - [ ] S-1 `[test]` a login never ends the browser's previous session (`authorize/interactions.ts:193`, `session/session.ts:37`).
-- [ ] S-2 `[test]` assertion `aud` accepts the token endpoint and arrays (`clients/assertion.ts:23`).
+- [x] S-2 `[test]` assertion `aud` accepts the token endpoint and arrays (`clients/assertion.ts:23`).
 - [ ] S-3 `[test]` introspection accepts a `none` client; RFC 7592 update keeps operator fields (`resource/introspection.ts:45`, `clients/registration.ts:401`).
 - [ ] S-4 `[test]` cert-bound client without a certificate gets bearer tokens; `dpopBoundAccessTokens` ignored with DPoP off (`token/endpoint.ts:22,59`).
 - [ ] A-1 `[test]` account-wide lockout renews the generation, freeing every slot (`accounts/index.ts:264,302`).

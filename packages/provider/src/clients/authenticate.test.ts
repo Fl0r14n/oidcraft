@@ -42,9 +42,11 @@ beforeEach(async () => {
   await adapter.clients.upsert?.(client())
   const { clientSecretHash: _omitted, ...publicClient } = client({ clientId: 'public-api', tokenEndpointAuthMethod: 'none' })
   await adapter.clients.upsert?.(publicClient)
-  await adapter.clients.upsert?.(
-    client({ clientId: 'pkj', tokenEndpointAuthMethod: 'private_key_jwt', jwks: { keys: [await exportJWK(signing.publicKey)] } })
-  )
+  for (const clientId of ['pkj', 'pkj2']) {
+    await adapter.clients.upsert?.(
+      client({ clientId, tokenEndpointAuthMethod: 'private_key_jwt', jwks: { keys: [await exportJWK(signing.publicKey)] } })
+    )
+  }
   await adapter.clients.upsert?.(client({ clientId: 'csj', tokenEndpointAuthMethod: 'client_secret_jwt', clientSecret: SECRET }))
   provider = createProvider({
     interactionUrl: 'https://op.example.com/interaction',
@@ -104,7 +106,7 @@ describe('private_key_jwt', () => {
       .setExpirationTime('2m')
     if (!('iss' in over)) builder.setIssuer(clientId)
     if (!('sub' in over)) builder.setSubject(clientId)
-    if (!('aud' in over)) builder.setAudience(`${ISSUER}/token`)
+    if (!('aud' in over)) builder.setAudience(ISSUER)
     return builder.sign(key.privateKey)
   }
 
@@ -117,8 +119,27 @@ describe('private_key_jwt', () => {
     expect((await response.json()).access_token).toBeTruthy()
   })
 
-  test('accepts the issuer as the audience too', async () => {
-    expect((await authenticate(await assertion({ aud: ISSUER }))).status).toBe(200)
+  test('accepts the issuer alone in a one-element array', async () => {
+    expect((await authenticate(await assertion({ aud: [ISSUER] }))).status).toBe(200)
+  })
+
+  // RFC 10070: the token endpoint was what the audience-injection attack on private_key_jwt relied on.
+  test('an assertion made out to the token endpoint is refused', async () => {
+    const body = await (await authenticate(await assertion({ aud: `${ISSUER}/token` }))).json()
+    expect(body.error).toBe('invalid_client')
+    expect(body.error_description).toContain('issuer alone')
+  })
+
+  test('an audience array holding the issuer beside another value is refused', async () => {
+    const body = await (await authenticate(await assertion({ aud: ['https://attacker.example', ISSUER] }))).json()
+    expect(body.error).toBe('invalid_client')
+  })
+
+  test('a jti is spent per client, so one client cannot spend another in advance', async () => {
+    const jti = crypto.randomUUID()
+    expect((await authenticate(await assertion({ jti }, signing, 'pkj2'))).status).toBe(200)
+    expect((await authenticate(await assertion({ jti }))).status).toBe(200)
+    expect((await (await authenticate(await assertion({ jti }))).json()).error_description).toContain('already been used')
   })
 
   // Without the audience check, every provider a client talks to could impersonate it elsewhere.
@@ -149,7 +170,7 @@ describe('private_key_jwt', () => {
       .setProtectedHeader({ alg: 'ES256' })
       .setIssuer('pkj')
       .setSubject('pkj')
-      .setAudience(`${ISSUER}/token`)
+      .setAudience(ISSUER)
       .setIssuedAt()
       .setExpirationTime('2m')
       .sign(signing.privateKey)
@@ -161,7 +182,7 @@ describe('private_key_jwt', () => {
       .setProtectedHeader({ alg: 'ES256' })
       .setIssuer('pkj')
       .setSubject('pkj')
-      .setAudience(`${ISSUER}/token`)
+      .setAudience(ISSUER)
       .setIssuedAt()
       .setExpirationTime('2h')
       .sign(signing.privateKey)
@@ -173,7 +194,7 @@ describe('private_key_jwt', () => {
       .setProtectedHeader({ alg: 'ES256' })
       .setIssuer('pkj')
       .setSubject('pkj')
-      .setAudience(`${ISSUER}/token`)
+      .setAudience(ISSUER)
       .sign(signing.privateKey)
 
   // FR-C4: the lifetime is what is left from now, not what the client says it has.
@@ -236,7 +257,7 @@ describe('client_secret_jwt', () => {
       .setProtectedHeader({ alg: 'HS256' })
       .setIssuer('csj')
       .setSubject('csj')
-      .setAudience(`${ISSUER}/token`)
+      .setAudience(ISSUER)
       .setIssuedAt()
       .setExpirationTime('2m')
       .sign(new TextEncoder().encode(secret))
@@ -268,7 +289,7 @@ describe('client_secret_jwt', () => {
       .setProtectedHeader({ alg: 'HS256' })
       .setIssuer('pkj')
       .setSubject('pkj')
-      .setAudience(`${ISSUER}/token`)
+      .setAudience(ISSUER)
       .setIssuedAt()
       .setExpirationTime('2m')
       .sign(new TextEncoder().encode(SECRET))

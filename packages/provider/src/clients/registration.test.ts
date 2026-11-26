@@ -19,7 +19,9 @@ beforeEach(async () => {
     features: { dynamicRegistration: true },
     onAudit: event => {
       audit.push(event)
-    }
+    },
+    onLogout: () => undefined,
+    onFrontChannelLogout: () => undefined
   })
 })
 
@@ -222,6 +224,28 @@ describe('dynamic client registration', () => {
     expect((await register({ ...valid, application_type: 'web', redirect_uris: [loopback] })).status).toBe(400)
     expect((await register({ ...valid, application_type: 'web', redirect_uris: [scheme] })).status).toBe(400)
     expect((await register({ ...valid, redirect_uris: ['https://rp.example.com/cb', loopback] })).status).toBe(400)
+  })
+
+  // FR-C11: without a host that delivers them, a logout URI promises notifications that never come.
+  test('a backchannel_logout_uri is refused where nothing delivers logout tokens', async () => {
+    const quiet = createProvider({
+      interactionUrl: 'https://op.example.com/interaction',
+      issuer: ISSUER,
+      adapter,
+      features: { dynamicRegistration: true }
+    })
+    const response = await quiet.handle(
+      new Request(`${ISSUER}/register`, {
+        method: 'POST',
+        body: JSON.stringify({ ...valid, backchannel_logout_uri: 'https://rp.example.com/bc' })
+      })
+    )
+    expect((await response.json()).error_description).toContain('onLogout')
+    const metadata = await (await quiet.handle(new Request(`${ISSUER}/.well-known/openid-configuration`))).json()
+    expect(metadata).not.toHaveProperty('backchannel_logout_supported')
+    expect(metadata).not.toHaveProperty('frontchannel_logout_supported')
+    const advertised = await (await provider.handle(new Request(`${ISSUER}/.well-known/openid-configuration`))).json()
+    expect(advertised).toMatchObject({ backchannel_logout_supported: true, frontchannel_logout_supported: true })
   })
 
   test('a redirect_uri with a fragment is refused', async () => {

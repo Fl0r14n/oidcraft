@@ -80,10 +80,11 @@ export const metadata = (config: ResolvedConfig, signing: string[]) => {
     ...(features.dpop && { dpop_signing_alg_values_supported: clientAlgs }),
     // RFC 8705 §3.3, only where a certificate can actually reach us (FR-R5, G-8).
     ...(mtlsAvailable && { tls_client_certificate_bound_access_tokens: true }),
-    // OIDC Core §5.3.2 (FR-C5) and the logout session parameters (FR-C11).
+    // OIDC Core §5.3.2 (FR-C5).
     userinfo_signing_alg_values_supported: algorithms,
-    frontchannel_logout_session_supported: true,
-    backchannel_logout_session_supported: true,
+    // FR-C11: the core mints logout tokens and URLs; only a host that delivers them can say the provider offers either.
+    ...(config.onFrontChannelLogout && { frontchannel_logout_supported: true, frontchannel_logout_session_supported: true }),
+    ...(config.onLogout && { backchannel_logout_supported: true, backchannel_logout_session_supported: true }),
     ...(config.authorizationDetailTypes.length && { authorization_details_types_supported: config.authorizationDetailTypes }),
     // JAR by value only: resolving a client-supplied request_uri would be outbound I/O (FR-A1).
     request_parameter_supported: true,
@@ -91,9 +92,7 @@ export const metadata = (config: ResolvedConfig, signing: string[]) => {
     require_request_uri_registration: false,
     request_object_signing_alg_values_supported: clientAlgs,
     claims_parameter_supported: true,
-    ...(config.acrValues?.length && { acr_values_supported: supportedAcrValues(config) }),
-    frontchannel_logout_supported: true,
-    backchannel_logout_supported: true
+    ...(config.acrValues?.length && { acr_values_supported: supportedAcrValues(config) })
   }
 }
 

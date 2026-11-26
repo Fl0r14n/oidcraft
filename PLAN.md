@@ -157,7 +157,7 @@ Low:
 - [ ] S-16 CIBA `id_token_hint` unverified (`authorize/ciba.ts:105`).
 - [x] S-17 device endpoint accepts scopes approval can never grant (`authorize/device.ts:43`).
 - [x] S-18 `.catch(() => undefined)` hides storage failures (`provider.ts:168`).
-- [ ] S-20 discovery advertises front- and back-channel logout unconditionally (`discovery.ts:85-96`), with no
+- [x] S-20 discovery advertises front- and back-channel logout unconditionally (`discovery.ts:85-96`), with no
       `onLogout`/`onFrontChannelLogout` to deliver them (FR-C6); the demo sets neither.
 - [ ] A-3 `UpstreamProvider.linkPolicy` never read (`broker/types.ts:207`).
 - [ ] A-4 reset by passkey keeps the password (`accounts/index.ts:721`).

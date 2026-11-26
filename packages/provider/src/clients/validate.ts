@@ -21,6 +21,13 @@ export const clientProblems = (config: ResolvedConfig, client: Client) => {
     const problem = client[field] === undefined ? undefined : serverUriProblem(client[field], name)
     if (problem) problems.push(problem)
   }
+  // FR-C11: a logout URI nobody delivers to would promise the client notifications it never gets.
+  if (client.backchannelLogoutUri !== undefined && !config.onLogout) {
+    problems.push('backchannel_logout_uri needs an onLogout to deliver logout tokens, which this provider has not (FR-C11)')
+  }
+  if (client.frontchannelLogoutUri !== undefined && !config.onFrontChannelLogout) {
+    problems.push('frontchannel_logout_uri needs an onFrontChannelLogout to load it, which this provider has not (FR-C11)')
+  }
   if (client.dpopBoundAccessTokens && !config.features.dpop) {
     problems.push('dpop_bound_access_tokens needs DPoP, which this provider does not issue (FR-C13)')
   }

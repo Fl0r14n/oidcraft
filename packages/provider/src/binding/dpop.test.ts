@@ -213,8 +213,47 @@ describe('DPoP at the resource', () => {
         }
       })
     )
-    expect(response.status).toBe(400)
+    // RFC 9449 §7.1: at a resource the proof is the credential, so its refusal is a 401 with a challenge (S-13).
+    expect(response.status).toBe(401)
+    expect(response.headers.get('www-authenticate')).toStartWith('DPoP error="invalid_dpop_proof"')
     expect((await response.json()).error).toBe('invalid_dpop_proof')
+  })
+
+  test('verifyAccessToken takes a proof for the URL the resource names, and refuses the bearer scheme', async () => {
+    const tokens = await bound()
+    const url = 'https://api.example.com/things'
+    const request = async (scheme: string) =>
+      new Request('http://10.0.0.7/things?page=2', {
+        headers: { authorization: `${scheme} ${tokens.access_token}`, dpop: await proof('GET', url, { accessToken: tokens.access_token }) }
+      })
+    expect((await provider.verifyAccessToken(await request('DPoP'), { url: `${url}?page=2` })).ok).toBe(true)
+    const refused = await provider.verifyAccessToken(await request('Bearer'), { url })
+    if (refused.ok) throw new Error('verified')
+    expect(refused.response.headers.get('www-authenticate')).toStartWith('DPoP error="invalid_token"')
+    const elsewhere = await provider.verifyAccessToken(await request('DPoP'))
+    expect(elsewhere.ok ? undefined : elsewhere.reason).toBe('invalid_dpop_proof')
+  })
+
+  // RFC 9449 §9: a resource asks for a nonce with a 401, not the token endpoint's 400.
+  test('a nonce demanded at the resource is a 401 carrying the nonce', async () => {
+    const tokens = await bound()
+    provider = createProvider({
+      issuer: ISSUER,
+      adapter,
+      interactionUrl: `${ISSUER}/interaction`,
+      features: { dpop: true, dpopNonces: true }
+    })
+    const response = await provider.handle(
+      new Request(`${ISSUER}/userinfo`, {
+        headers: {
+          authorization: `DPoP ${tokens.access_token}`,
+          dpop: await proof('GET', `${ISSUER}/userinfo`, { accessToken: tokens.access_token })
+        }
+      })
+    )
+    expect(response.status).toBe(401)
+    expect(response.headers.get('www-authenticate')).toStartWith('DPoP error="use_dpop_nonce"')
+    expect(response.headers.get('dpop-nonce')).toBeTruthy()
   })
 
   test('a proof without ath does not authorise the token', async () => {

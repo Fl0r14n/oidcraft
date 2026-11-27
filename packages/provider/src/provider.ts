@@ -27,6 +27,7 @@ import { management } from './management'
 import { introspectionEndpoint } from './resource/introspection'
 import { revocationEndpoint } from './resource/revocation'
 import { userinfoEndpoint } from './resource/userinfo'
+import { type AccessTokenVerification, type VerifyAccessTokenOptions, verifyAccessToken } from './resource/verify'
 import { endSessionEndpoint } from './session/end-session'
 import type { LogoutNotification } from './session/logout'
 import { readSession } from './session/session'
@@ -56,6 +57,15 @@ export type Provider = {
   session(request: Request): Promise<Session | undefined>
   /** CIBA's out-of-band half, for whatever channel actually asks the person (FR-C17). */
   ciba: { resolve: (authReqId: string, outcome: CibaDecision) => ReturnType<typeof resolveBackchannelRequest> }
+  /**
+   * For a resource server in this process, in place of introspecting: the presented access token with every check its
+   * resource owes it, sender constraint included, or a refusal carrying the ready 401 (FR-C8, FR-C13, FR-C19).
+   */
+  verifyAccessToken(
+    request: Request,
+    options?: VerifyAccessTokenOptions,
+    context?: Pick<RequestContext, 'clientCertificate'>
+  ): Promise<AccessTokenVerification>
   /** A WHATWG Request in, a Response out, no I/O of its own (FR-R1, FR-A1). Of the context it reads only the certificate. */
   handle(request: Request, context?: Pick<RequestContext, 'clientCertificate'>): Promise<Response>
 }
@@ -147,6 +157,8 @@ export const createProvider = (config: ProviderConfig): Provider => {
     },
     session: request => readSession(resolved, request),
     ciba: { resolve: (authReqId, outcome) => resolveBackchannelRequest(resolved, authReqId, outcome) },
+    verifyAccessToken: (request, options = {}, context) =>
+      verifyAccessToken(withKeysOnce(resolved), request, options, context?.clientCertificate),
     async handle(request, context) {
       const path = routePath(resolved, new URL(request.url).pathname)
       const route = routes.get(path)

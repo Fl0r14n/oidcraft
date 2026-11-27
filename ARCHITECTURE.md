@@ -100,7 +100,8 @@ src/token/        the token endpoint as a dispatcher, the code and refresh grant
 src/binding/      sender-constrained tokens — DPoP (RFC 9449) and mTLS (RFC 8705)
 src/clients/      client authentication, JWT client assertions, dynamic registration
 src/session/      the OP session cookie, RP-initiated logout, logout notifications
-src/resource/     what a resource server calls: UserInfo, introspection, revocation, step-up
+src/resource/     what a resource server calls: UserInfo, introspection, revocation, step-up,
+                  and verifying an access token in-process
 src/keys/         the key store and the JWKS endpoint
 src/upstreams/    upstream selection (FR-F4) and the linked identities — the root's side of
                   brokering; the relying-party leg is the `./broker` entry

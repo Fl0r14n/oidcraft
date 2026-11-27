@@ -112,7 +112,7 @@ marks a finding reproduced by a throwaway test. Paths are under `packages/provid
       class-based adapter loses prototype methods inside the provider.
 - [x] A2 artifact payloads unversioned and cast (`payloads.ts`); e.g. `token/code.ts:141` on a pre-`familyExpiresAt` token.
 - [ ] A3 host obligations with no reference implementation: SSRF-safe fetch, mail delivery, security headers,
-      DPoP-aware resource check.
+      DPoP-aware resource check. `provider.verifyAccessToken` landed; `safeFetch` waits for step 4.
 - [ ] A4 invariants at call sites: family liveness (`issueAccessToken`), consent rule twice, sender-constraint
       matching ×3, token visibility ×4, cookies ×3, error factories.
 - [x] A5 `authorize ↔ token ↔ clients` import cycle; authorization endpoint inside `provider.ts`.
@@ -151,7 +151,7 @@ Low:
 - [ ] S-10 `oidcraft.sid` without `__Host-` (`session/session.ts:7`).
 - [x] S-11 request object without `exp`/`jti`/max lifetime (`authorize/request-object.ts:21`).
 - [x] S-12 exchange: another client's refresh token as subject; actor `cnf`; scopes not ⊆ client's (`token/exchange.ts`).
-- [ ] S-13 DPoP errors 400 at UserInfo, not 401 + `WWW-Authenticate` (`binding/dpop.ts:34`).
+- [x] S-13 DPoP errors 400 at UserInfo, not 401 + `WWW-Authenticate` (`binding/dpop.ts:34`).
 - [x] S-14 array claims in a request object stringified (`authorize/request-object.ts:50`).
 - [x] S-15 web clients may register custom-scheme / `http://127.0.0.1` redirects (`clients/registration.ts:39`).
 - [x] S-16 CIBA `id_token_hint` unverified (`authorize/ciba.ts:105`).

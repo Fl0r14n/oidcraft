@@ -117,7 +117,9 @@ authentication — and returns `active: false` rather than an error for anything
 see. Revoking a refresh token revokes its family (FR-T3), its access tokens included, or signing an
 application out would mean nothing; the same application on another device keeps its
 own family, and the grant, the consent, stays (FR-I4). Revoking an access token removes that token
-alone.
+alone. A resource server in the provider's own process verifies a presented access token instead,
+with the checks UserInfo makes: its resource (FR-C19), its sender constraint (FR-C13), and a refusal
+that is a 401 carrying its challenge (RFC 6750 §3, RFC 9449 §7.1), whichever check refused it.
 
 **FR-C9 — Dynamic client registration** (OIDC DCR 1.0) with registration access tokens, gated by
 an explicit policy: open, software-statement-gated, or disabled. **Disabled is the default.**

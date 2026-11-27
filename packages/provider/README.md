@@ -385,8 +385,19 @@ const url = protectedResourceMetadataUrl(MCP) // https://mcp.example.com/.well-k
 const metadata = protectedResourceMetadata(provider.config, MCP)
 ```
 
-The MCP server then checks each token: introspect it as the `mcp-server` client, which only sees
-tokens issued for its own resource, or verify a JWT access token's `aud`. A resource can ask for JWT
+The MCP server then checks each token. In the provider's own process, `verifyAccessToken` does every
+check, a DPoP proof or a bound certificate included, and a refusal carries the 401 to send, its
+challenge naming the metadata:
+
+```ts
+const verified = await provider.verifyAccessToken(request, { resource: MCP })
+if (!verified.ok) return verified.response
+const { clientId, subject, scopes } = verified.token
+```
+
+Behind a proxy, pass the URL the client called as `url`, which a DPoP proof is checked against.
+Elsewhere, introspect the token as the `mcp-server` client, which only sees tokens issued for its own
+resource, or verify a JWT access token's `aud` and its binding yourself. A resource can ask for JWT
 access tokens whatever the client's own format, with a lifetime of its own, and be kept to the clients
 it names; `accessTokenClaims` adds claims such as the grant id to them:
 

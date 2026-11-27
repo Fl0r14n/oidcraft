@@ -77,7 +77,7 @@ export class OAuthError extends Error {
     const uri = this.spec && specUri(this.spec)
     return {
       error: this.code,
-      ...(this.description && { error_description: this.description.replace(OUTSIDE_ERROR_TEXT, '?') }),
+      ...(this.description && { error_description: errorText(this.description) }),
       ...(uri && { error_uri: uri })
     }
   }
@@ -85,6 +85,8 @@ export class OAuthError extends Error {
 
 // RFC 6749 §5.2: error_description is printable ASCII without `"` or `\`, and it carries client-supplied values.
 const OUTSIDE_ERROR_TEXT = /[^\x20\x21\x23-\x5B\x5D-\x7E]/g
+
+export const errorText = (description: string) => description.replace(OUTSIDE_ERROR_TEXT, '?')
 
 /** RFC 6749 §5.2: error_uri must be a URI, so a citation becomes one only when it names an RFC. */
 const specUri = (spec: string) => {

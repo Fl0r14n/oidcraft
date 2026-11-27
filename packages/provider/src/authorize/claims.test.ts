@@ -38,7 +38,7 @@ const authorize = async (params: Record<string, string>, answers: Answers = {}, 
         ? { login: answers.login ?? { accountId: 'ada' } }
         : (answers.consent?.(view) ?? { consent: { scopes: view.scopes, claims: view.claims } })
     const done = await provider.interactions.complete(id, answer, browserOf(response))
-    if (done.setCookie) cookie = `${SESSION_COOKIE}=${done.setCookie.split('=')[1]?.split(';')[0]}`
+    if (done.setCookie) cookie = `__Host-${SESSION_COOKIE}=${done.setCookie.split('=')[1]?.split(';')[0]}`
     response = await go(done.redirectTo, cookie)
   }
   throw new Error('never reached the client')

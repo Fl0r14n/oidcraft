@@ -133,7 +133,7 @@ describe('interaction', () => {
     const login = await provider.interactions.complete(loginId, { login: { accountId: 'ada' } }, browserOf(first))
     expect(new URL(login.redirectTo).searchParams.get('prompt')).toBe('consent')
 
-    const cookie = `${SESSION_COOKIE}=${(login.setCookie as string).split('=')[1]?.split(';')[0]}`
+    const cookie = `__Host-${SESSION_COOKIE}=${(login.setCookie as string).split('=')[1]?.split(';')[0]}`
     const next = new URL((await go(login.redirectTo, cookie)).headers.get('location') as string)
     expect(next.searchParams.has('code')).toBe(false)
     expect((await provider.interactions.find(next.pathname.split('/').pop() as string)).kind).toBe('consent')
@@ -153,7 +153,7 @@ describe('interaction', () => {
     )
     expect(new URL(done.redirectTo).searchParams.has('prompt')).toBe(false)
 
-    const cookie = `${SESSION_COOKIE}=${(done.setCookie as string).split('=')[1]?.split(';')[0]}`
+    const cookie = `__Host-${SESSION_COOKIE}=${(done.setCookie as string).split('=')[1]?.split(';')[0]}`
     expect(new URL((await go(done.redirectTo, cookie)).headers.get('location') as string).searchParams.get('code')).toBeString()
   })
 
@@ -164,7 +164,7 @@ describe('interaction', () => {
     const login = await provider.interactions.complete(id, { login: { accountId: 'ada' } }, browserOf(first))
     expect(new URL(login.redirectTo).searchParams.has('prompt')).toBe(false)
 
-    const fresh = `${SESSION_COOKIE}=${(login.setCookie as string).split('=')[1]?.split(';')[0]}`
+    const fresh = `__Host-${SESSION_COOKIE}=${(login.setCookie as string).split('=')[1]?.split(';')[0]}`
     expect(new URL((await go(login.redirectTo, fresh)).headers.get('location') as string).searchParams.get('code')).toBeString()
   })
 
@@ -176,7 +176,7 @@ describe('interaction', () => {
       provider.interactions.complete(id, { login, consent: { scopes: ['openid', 'profile', 'offline_access'] } }, browserOf(first))
     ).rejects.toMatchObject({ code: 'invalid_request', spec: 'FR-I4' })
     const done = await provider.interactions.complete(id, { login, consent: { scopes: ['openid', 'profile'] } }, browserOf(first))
-    const cookie = `${SESSION_COOKIE}=${(done.setCookie as string).split('=')[1]?.split(';')[0]}`
+    const cookie = `__Host-${SESSION_COOKIE}=${(done.setCookie as string).split('=')[1]?.split(';')[0]}`
     expect(new URL((await go(done.redirectTo, cookie)).headers.get('location') as string).searchParams.get('code')).toBeString()
   })
 
@@ -269,7 +269,7 @@ describe('completeHere (FR-I9)', () => {
     const first = await go(authorizeUrl(over))
     return { id: new URL(first.headers.get('location') as string).pathname.split('/').pop() as string, browser: browserOf(first) }
   }
-  const sessionOf = (setCookie: string | undefined) => `${SESSION_COOKIE}=${(setCookie as string).split('=')[1]?.split(';')[0]}`
+  const sessionOf = (setCookie: string | undefined) => `__Host-${SESSION_COOKIE}=${(setCookie as string).split('=')[1]?.split(';')[0]}`
 
   test('in the browser the interaction is bound to, it completes it as complete does', async () => {
     const { id, browser } = await started()

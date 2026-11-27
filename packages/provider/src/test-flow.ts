@@ -96,7 +96,7 @@ export const loginAndConsent = async (over: Record<string, string> = {}) => {
   const loginId = new URL(first.headers.get('location') as string).pathname.split('/').pop() as string
 
   const login = await provider.interactions.complete(loginId, { login: { accountId: 'ada' } }, browserOf(first))
-  const cookie = `${SESSION_COOKIE}=${(login.setCookie as string).split('=')[1]?.split(';')[0]}`
+  const cookie = `__Host-${SESSION_COOKIE}=${(login.setCookie as string).split('=')[1]?.split(';')[0]}`
 
   const second = await go(login.redirectTo, cookie)
   const consentId = new URL(second.headers.get('location') as string).pathname.split('/').pop() as string
@@ -126,7 +126,7 @@ export const tokensFor = async (
     code_challenge_method: 'S256'
   })
   let secret = session
-  let cookie = session ? `${SESSION_COOKIE}=${session}` : ''
+  let cookie = session ? `__Host-${SESSION_COOKIE}=${session}` : ''
   let response = await on.handle(new Request(`${ISSUER}/authorize?${params}`, { headers: cookie ? { cookie } : {} }))
   for (let leg = 0; leg < 4; leg++) {
     const location = new URL(response.headers.get('location') as string)
@@ -160,7 +160,7 @@ export const tokensFor = async (
     )
     if (done.setCookie) {
       secret = done.setCookie.split('=')[1]?.split(';')[0]
-      cookie = `${SESSION_COOKIE}=${secret}`
+      cookie = `__Host-${SESSION_COOKIE}=${secret}`
     }
     response = await on.handle(new Request(done.redirectTo, { headers: cookie ? { cookie } : {} }))
   }
@@ -171,6 +171,6 @@ export const tokensFor = async (
 export const endSession = (on: Provider, secret: string | undefined, idToken: string) =>
   on.handle(
     new Request(`${ISSUER}/session/end?${new URLSearchParams({ id_token_hint: idToken })}`, {
-      headers: { cookie: `${SESSION_COOKIE}=${secret}` }
+      headers: { cookie: `__Host-${SESSION_COOKIE}=${secret}` }
     })
   )

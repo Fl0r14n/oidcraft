@@ -3,7 +3,6 @@ import { afterAll, describe, expect, test } from 'bun:test'
 import { hashClientSecret } from '@oidcraft/adapter'
 import { memoryAdapter } from '@oidcraft/adapter/memory'
 import { createProvider } from '../provider'
-import { SESSION_COOKIE } from '../session/session'
 import { browserOf } from '../test-flow'
 import { createBroker } from './broker'
 import { linkIdentity } from './link'
@@ -90,7 +89,7 @@ const authenticateUpstream = async (authorizationUrl: string) => {
     const outcome = view.kind === 'login' ? { login: { accountId: 'ada' } } : { consent: { scopes: view.scopes } }
 
     const completed = await upstream.interactions.complete(id, outcome, browserOf(response))
-    if (completed.setCookie) cookie = `${SESSION_COOKIE}=${completed.setCookie.split('=')[1]?.split(';')[0]}`
+    if (completed.setCookie) cookie = completed.setCookie.split(';')[0] as string
     response = await upstream.handle(new Request(completed.redirectTo, { headers: cookie ? { cookie } : {} }))
   }
   throw new Error('the upstream kept asking for interactions')

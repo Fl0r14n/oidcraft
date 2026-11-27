@@ -2,22 +2,11 @@ import type { Session } from '@oidcraft/adapter'
 import { randomString } from '@oidcraft/core'
 import { storedId } from '../artifacts'
 import type { ResolvedConfig } from '../config'
-import { parseCookies, serializeCookie } from './cookies'
+import { isSecure, issuerCookie, parseCookies, serializeCookie } from './cookies'
 
 export const SESSION_COOKIE = 'oidcraft.sid'
 
-/** One cookie per issuer: two issuers on one host, told apart by path, would otherwise overwrite each other's. */
-export const perIssuer = (config: Pick<ResolvedConfig, 'issuerUrl'>, name: string) => {
-  const { pathname } = config.issuerUrl
-  let start = 0
-  let end = pathname.length
-  while (start < end && pathname[start] === '/') start++
-  while (end > start && pathname[end - 1] === '/') end--
-  const path = pathname.slice(start, end)
-  return path ? `${name}.${path.replace(/[^A-Za-z0-9]/g, '_')}` : name
-}
-
-export const sessionCookie = (config: Pick<ResolvedConfig, 'issuerUrl'>) => perIssuer(config, SESSION_COOKIE)
+export const sessionCookie = (config: Pick<ResolvedConfig, 'issuerUrl'>) => issuerCookie(config, SESSION_COOKIE)
 
 // NFR-S11: the cookie carries a secret and the session is stored under its hash, which is the `sid` clients are told.
 export const readSession = async (config: ResolvedConfig, request: Request) => {
@@ -54,7 +43,7 @@ export const startSession = async (config: ResolvedConfig, login: LoginInput, cl
     session,
     cookie: serializeCookie(sessionCookie(config), secret, {
       maxAge: config.ttl.session,
-      secure: config.issuerUrl.protocol === 'https:'
+      secure: isSecure(config)
     })
   }
 }

@@ -280,9 +280,10 @@ issued to. No cookie is ever sent cross-origin.
 ### 3.2 What the core does not do
 
 No HTML beyond the `form_post` response page. Two cookies, both host-only, `HttpOnly`,
-`SameSite=Lax`, and `Secure` on an https issuer: the session cookie, `oidcraft.sid`, which carries a
-secret whose hash is the session's id and `sid` (NFR-S11), and `oidcraft.browser` (`__Host-` prefixed
-on https), which binds an interaction to the browser it was started in (FR-I2). No timers, no
+`SameSite=Lax`, and on an https issuer `Secure` and `__Host-` prefixed, so a sibling subdomain can
+neither read nor plant one: the session cookie, `oidcraft.sid`, which carries a secret whose hash is
+the session's id and `sid` (NFR-S11, FR-I10), and `oidcraft.browser`, which binds an interaction to
+the browser it was started in (FR-I2). `session/cookies.ts` names both, per issuer. No timers, no
 background sweeps, no connection pool, no process-level cache that survives a request (FR-A1,
 NFR-P3), so two processes behind a load balancer behave as one. No cap on a request body's size:
 that is the host's, in front of the provider (NFR-S12).

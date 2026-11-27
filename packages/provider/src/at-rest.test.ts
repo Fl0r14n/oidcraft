@@ -75,7 +75,7 @@ const codeFor = async (provider: Provider) => {
       view.kind === 'login' ? { login: { accountId: 'ada', acr: 'pwd' } } : { consent: { scopes: view.scopes } },
       browserOf(response)
     )
-    if (done.setCookie) cookie = `${SESSION_COOKIE}=${done.setCookie.split('=')[1]?.split(';')[0]}`
+    if (done.setCookie) cookie = `__Host-${SESSION_COOKIE}=${done.setCookie.split('=')[1]?.split(';')[0]}`
     response = await provider.handle(new Request(done.redirectTo, { headers: cookie ? { cookie } : {} }))
   }
   throw new Error('never reached the redirect')
@@ -157,7 +157,7 @@ describe('NFR-S11: no bearer credential is stored as itself', () => {
           { headers: { cookie } }
         )
       )
-    const replayed = new URL((await silently(`${SESSION_COOKIE}=${sid}`)).headers.get('location') as string)
+    const replayed = new URL((await silently(`__Host-${SESSION_COOKIE}=${sid}`)).headers.get('location') as string)
     expect(replayed.searchParams.get('error')).toBe('login_required')
     const owned = new URL((await silently(issued.cookie)).headers.get('location') as string)
     expect(owned.searchParams.get('code')).toBeTruthy()

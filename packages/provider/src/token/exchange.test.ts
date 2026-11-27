@@ -95,7 +95,7 @@ const tokensFor = async (provider: Provider, extra: Record<string, string> = {})
         : { consent: { scopes: view.scopes, authorizationDetails: view.authorizationDetails } },
       browserOf(response)
     )
-    if (done.setCookie) cookie = `${SESSION_COOKIE}=${done.setCookie.split('=')[1]?.split(';')[0]}`
+    if (done.setCookie) cookie = `__Host-${SESSION_COOKIE}=${done.setCookie.split('=')[1]?.split(';')[0]}`
     response = await provider.handle(new Request(done.redirectTo, { headers: cookie ? { cookie } : {} }))
   }
   throw new Error('never reached the redirect')
@@ -342,7 +342,7 @@ describe('rich authorization requests', () => {
       const first = await provider.handle(new Request(authorizeUrl()))
       const id = interactionOf(first) as string
       const done = await provider.interactions.complete(id, { login: { accountId: 'ada', acr: 'pwd' } }, browserOf(first))
-      const cookie = `${SESSION_COOKIE}=${done.setCookie?.split('=')[1]?.split(';')[0]}`
+      const cookie = `__Host-${SESSION_COOKIE}=${done.setCookie?.split('=')[1]?.split(';')[0]}`
       return { cookie, next: await provider.handle(new Request(done.redirectTo, { headers: { cookie } })) }
     }
 

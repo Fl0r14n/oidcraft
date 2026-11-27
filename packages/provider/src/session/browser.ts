@@ -2,13 +2,9 @@ import { randomString } from '@oidcraft/core'
 import { storedId } from '../artifacts'
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
-import { parseCookies, serializeCookie } from './cookies'
-import { perIssuer } from './session'
+import { isSecure, issuerCookie, parseCookies, serializeCookie } from './cookies'
 
-const secure = (config: Pick<ResolvedConfig, 'issuerUrl'>) => config.issuerUrl.protocol === 'https:'
-
-// `__Host-` where the browser honours it: a sibling subdomain cannot plant the cookie and so cannot share a browser's binding.
-const browserCookie = (config: Pick<ResolvedConfig, 'issuerUrl'>) => perIssuer(config, `${secure(config) ? '__Host-' : ''}oidcraft.browser`)
+const browserCookie = (config: Pick<ResolvedConfig, 'issuerUrl'>) => issuerCookie(config, 'oidcraft.browser')
 
 // FR-I2: unbound, a page could post an attacker's credentials to their interaction from the victim's browser.
 export const bindBrowser = async (config: ResolvedConfig, cookie: string | null | undefined) => {
@@ -16,7 +12,7 @@ export const bindBrowser = async (config: ResolvedConfig, cookie: string | null 
   const value = held || randomString()
   return {
     browser: await storedId(value),
-    setCookie: held ? undefined : serializeCookie(browserCookie(config), value, { secure: secure(config) })
+    setCookie: held ? undefined : serializeCookie(browserCookie(config), value, { secure: isSecure(config) })
   }
 }
 

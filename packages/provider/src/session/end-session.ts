@@ -8,7 +8,7 @@ import { reportError } from '../hooks'
 import { jwksResponseBody } from '../keys/keys'
 import { readArtifact, writeArtifact } from '../payloads'
 import { bindBrowser } from './browser'
-import { clearCookie } from './cookies'
+import { clearCookie, isSecure } from './cookies'
 import { type FrontChannelLogout, frontChannelLogouts, type LogoutNotification, logoutTokens } from './logout'
 import { sessionCookie } from './session'
 
@@ -95,7 +95,7 @@ export const endSessionEndpoint = async (
 
   const headers = new Headers({
     'cache-control': 'no-store',
-    'set-cookie': clearCookie(sessionCookie(config), { secure: config.issuerUrl.protocol === 'https:' })
+    'set-cookie': clearCookie(sessionCookie(config), { secure: isSecure(config) })
   })
 
   const state = params.get('state')

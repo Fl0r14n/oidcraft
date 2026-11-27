@@ -16,7 +16,7 @@ describe('malformed cookies are client errors, not 500s', () => {
       code_challenge_method: 'S256'
     })
     const response = await build().handle(
-      new Request(`${ISSUER}/authorize?${params}`, { headers: { cookie: `${SESSION_COOKIE}=%E0%A4%A; other=1` } })
+      new Request(`${ISSUER}/authorize?${params}`, { headers: { cookie: `__Host-${SESSION_COOKIE}=%E0%A4%A; other=1` } })
     )
     expect(response.status).toBe(303)
   })
@@ -41,8 +41,10 @@ describe('the session cookie belongs to one issuer', () => {
     return { provider, name: pair.split('=')[0] as string, pair }
   }
 
-  test('an issuer at the root keeps the plain name', async () => {
-    expect((await signIn(ISSUER)).name).toBe('oidcraft.sid')
+  // S-10: host-only, so a sibling subdomain can neither read the session nor plant one for this browser.
+  test('an https issuer at the root names it __Host-, and an http one the plain name', async () => {
+    expect((await signIn(ISSUER)).name).toBe('__Host-oidcraft.sid')
+    expect((await signIn('http://localhost:3001')).name).toBe('oidcraft.sid')
   })
 
   test('two issuers on one host do not share a cookie, and each reads its own', async () => {

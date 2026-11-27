@@ -93,7 +93,7 @@ const codeFor = async (resources: string[], clientId = 'rp') => {
   const first = await authorize(resources, clientId)
   const loginId = new URL(first.headers.get('location') as string).pathname.split('/').pop() as string
   const login = await provider.interactions.complete(loginId, { login: { accountId: 'ada' } }, browserOf(first))
-  const cookie = `${SESSION_COOKIE}=${(login.setCookie as string).split('=')[1]?.split(';')[0]}`
+  const cookie = `__Host-${SESSION_COOKIE}=${(login.setCookie as string).split('=')[1]?.split(';')[0]}`
   const second = await provider.handle(new Request(login.redirectTo, { headers: { cookie } }))
   const consentId = new URL(second.headers.get('location') as string).pathname.split('/').pop() as string
   const consent = await provider.interactions.complete(

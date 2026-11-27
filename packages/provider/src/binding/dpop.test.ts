@@ -89,7 +89,7 @@ const codeFor = async (clientId = 'rp', params = authorizationParams(clientId)) 
       view.kind === 'login' ? { login: { accountId: 'ada' } } : { consent: { scopes: view.scopes } },
       browserOf(response)
     )
-    if (done.setCookie) cookie = `${SESSION_COOKIE}=${done.setCookie.split('=')[1]?.split(';')[0]}`
+    if (done.setCookie) cookie = `__Host-${SESSION_COOKIE}=${done.setCookie.split('=')[1]?.split(';')[0]}`
     response = await provider.handle(new Request(done.redirectTo, { headers: cookie ? { cookie } : {} }))
   }
   throw new Error('never reached the redirect')

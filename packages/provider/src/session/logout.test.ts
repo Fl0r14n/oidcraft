@@ -149,11 +149,11 @@ test('a confirmed logout returns to the registered post_logout_redirect_uri', as
     state: 's1'
   })
   const asked = await provider.handle(
-    new Request(`${ISSUER}/session/end?${params}`, { headers: { cookie: `${SESSION_COOKIE}=${newer.secret}` } })
+    new Request(`${ISSUER}/session/end?${params}`, { headers: { cookie: `__Host-${SESSION_COOKIE}=${newer.secret}` } })
   )
   const id = new URL(asked.headers.get('location') as string).pathname.split('/').pop() as string
   const { redirectTo } = await provider.interactions.complete(id, { logout: true }, browserOf(asked))
-  const done = await provider.handle(new Request(redirectTo, { headers: { cookie: `${SESSION_COOKIE}=${newer.secret}` } }))
+  const done = await provider.handle(new Request(redirectTo, { headers: { cookie: `__Host-${SESSION_COOKIE}=${newer.secret}` } }))
   expect(done.headers.get('location')).toBe('https://rp.example.com/bye?state=s1')
 })
 
@@ -184,7 +184,9 @@ describe('onSessionEnd', () => {
     const older = await tokensFor(provider)
     const newer = await tokensFor(provider)
     const params = new URLSearchParams({ id_token_hint: older.id_token })
-    await provider.handle(new Request(`${ISSUER}/session/end?${params}`, { headers: { cookie: `${SESSION_COOKIE}=${newer.secret}` } }))
+    await provider.handle(
+      new Request(`${ISSUER}/session/end?${params}`, { headers: { cookie: `__Host-${SESSION_COOKIE}=${newer.secret}` } })
+    )
     expect(ended).toEqual([])
   })
 

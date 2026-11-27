@@ -1,3 +1,26 @@
+import type { ResolvedConfig } from '../config'
+
+type Issuer = Pick<ResolvedConfig, 'issuerUrl'>
+
+export const isSecure = (config: Issuer) => config.issuerUrl.protocol === 'https:'
+
+/** One cookie per issuer: two issuers on one host, told apart by path, would otherwise overwrite each other's. */
+const perIssuer = (config: Issuer, name: string) => {
+  const { pathname } = config.issuerUrl
+  let start = 0
+  let end = pathname.length
+  while (start < end && pathname[start] === '/') start++
+  while (end > start && pathname[end - 1] === '/') end--
+  const path = pathname.slice(start, end)
+  return path ? `${name}.${path.replace(/[^A-Za-z0-9]/g, '_')}` : name
+}
+
+/**
+ * Every cookie the provider sets is named here (S-10): `__Host-` on an https issuer, so the browser keeps it host-only,
+ * `Path=/` and `Secure`, and a sibling subdomain can neither read it nor plant one of its own.
+ */
+export const issuerCookie = (config: Issuer, name: string) => perIssuer(config, `${isSecure(config) ? '__Host-' : ''}${name}`)
+
 export const parseCookies = (header: string | null) => {
   const out = new Map<string, string>()
   if (!header) return out

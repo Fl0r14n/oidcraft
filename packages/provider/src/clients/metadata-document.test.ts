@@ -75,7 +75,7 @@ const signIn = async (atConsent?: (consentId: string) => Promise<void>) => {
   const first = await authorize()
   const loginId = new URL(first.headers.get('location') as string).pathname.split('/').pop() as string
   const login = await provider.interactions.complete(loginId, { login: { accountId: 'ada' } }, browserOf(first))
-  const cookie = `${SESSION_COOKIE}=${(login.setCookie as string).split('=')[1]?.split(';')[0]}`
+  const cookie = `__Host-${SESSION_COOKIE}=${(login.setCookie as string).split('=')[1]?.split(';')[0]}`
   const second = await provider.handle(new Request(login.redirectTo, { headers: { cookie } }))
   const consentId = new URL(second.headers.get('location') as string).pathname.split('/').pop() as string
   await atConsent?.(consentId)

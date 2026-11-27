@@ -113,7 +113,7 @@ describe('authorization endpoint', () => {
     const first = await go(authorizeUrl())
     const id = new URL(first.headers.get('location') as string).pathname.split('/').pop() as string
     const login = await provider.interactions.complete(id, { login: { accountId: 'ada' } }, browserOf(first))
-    const cookie = `${SESSION_COOKIE}=${(login.setCookie as string).split('=')[1]?.split(';')[0]}`
+    const cookie = `__Host-${SESSION_COOKIE}=${(login.setCookie as string).split('=')[1]?.split(';')[0]}`
     const response = await go(authorizeUrl({ prompt: 'none' }), cookie)
     expect(new URL(response.headers.get('location') as string).searchParams.get('error')).toBe('consent_required')
   })
@@ -139,7 +139,7 @@ describe('authorization endpoint', () => {
     const first = await go(authorizeUrl())
     const loginId = new URL(first.headers.get('location') as string).pathname.split('/').pop() as string
     const login = await provider.interactions.complete(loginId, { login: { accountId: 'ada' } }, browserOf(first))
-    const cookie = `${SESSION_COOKIE}=${(login.setCookie as string).split('=')[1]?.split(';')[0]}`
+    const cookie = `__Host-${SESSION_COOKIE}=${(login.setCookie as string).split('=')[1]?.split(';')[0]}`
 
     const tabs = await Promise.all([go(login.redirectTo, cookie), go(authorizeUrl(), cookie)])
     const consentIds = tabs.map(tab => new URL(tab.headers.get('location') as string).pathname.split('/').pop() as string)
@@ -195,7 +195,7 @@ describe('default acr values', () => {
       const answer =
         view.kind === 'login' ? { login: { accountId: 'ada', acr } } : { consent: { scopes: view.scopes, claims: view.claims } }
       const done = await provider.interactions.complete(id, answer, browserOf(response))
-      if (done.setCookie) cookie = `${SESSION_COOKIE}=${done.setCookie.split('=')[1]?.split(';')[0]}`
+      if (done.setCookie) cookie = `__Host-${SESSION_COOKIE}=${done.setCookie.split('=')[1]?.split(';')[0]}`
       response = await go(done.redirectTo, cookie)
     }
     throw new Error('never reached the client')

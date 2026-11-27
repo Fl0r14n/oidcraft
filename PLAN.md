@@ -149,7 +149,7 @@ Low:
 - [x] S-7 `[test]` session lists the client before consent → logout token to a refused client (`session/session.ts:48`).
 - [x] S-8 introspection `token_type` DPoP for an mTLS-bound token (`resource/introspection.ts:27`).
 - [x] S-9 PKCE nonce exemption under FAPI (`authorize/pkce.ts:13`).
-- [ ] S-10 `oidcraft.sid` without `__Host-` (`session/session.ts:7`).
+- [x] S-10 `oidcraft.sid` without `__Host-` (`session/session.ts:7`).
 - [x] S-11 request object without `exp`/`jti`/max lifetime (`authorize/request-object.ts:21`).
 - [x] S-12 exchange: another client's refresh token as subject; actor `cnf`; scopes not ⊆ client's (`token/exchange.ts`).
 - [x] S-13 DPoP errors 400 at UserInfo, not 401 + `WWW-Authenticate` (`binding/dpop.ts:34`).

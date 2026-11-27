@@ -1,5 +1,6 @@
 import type { Client } from '@oidcraft/adapter'
 import { randomString } from '@oidcraft/core'
+import { addressBucket } from '../address'
 import { authenticateClient } from '../clients/authenticate'
 import type { ResolvedConfig } from '../config'
 import type { ClientCertificate, RequestContext } from '../context'
@@ -15,10 +16,16 @@ const ALPHABET = 'BCDFGHJKMNPQRSTVWXYZ23456789'
 const GROUPS = 2
 const GROUP_SIZE = 4
 
+// 256 is not a multiple of 28: a byte at or past 252 would make the first four letters likelier, so it is drawn again.
+const UNBIASED = 256 - (256 % ALPHABET.length)
+
 export const userCode = () => {
-  const bytes = new Uint8Array(GROUPS * GROUP_SIZE)
-  crypto.getRandomValues(bytes)
-  const characters = [...bytes].map(byte => ALPHABET[byte % ALPHABET.length] as string)
+  const characters: string[] = []
+  while (characters.length < GROUPS * GROUP_SIZE) {
+    for (const byte of crypto.getRandomValues(new Uint8Array(GROUPS * GROUP_SIZE))) {
+      if (byte < UNBIASED && characters.length < GROUPS * GROUP_SIZE) characters.push(ALPHABET[byte % ALPHABET.length] as string)
+    }
+  }
   return Array.from({ length: GROUPS }, (_, group) => characters.slice(group * GROUP_SIZE, (group + 1) * GROUP_SIZE).join('')).join('-')
 }
 
@@ -110,27 +117,36 @@ const ATTEMPT_WINDOW_SECONDS = 600
 const MAX_FAILURES = 5
 // Without a peer address every guesser shares one bucket, so it is wider, or one person locks out all.
 const MAX_ANONYMOUS_FAILURES = 50
+// Every address together: a guess spread over a botnet's addresses still ends, as an account's does (G-9).
+const MAX_GLOBAL_FAILURES = 1000
 
 /** Who is typing codes, as far as the host can tell. Only the peer address counts (FR-R4). */
 export type UserCodeContext = Pick<RequestContext, 'clientIp'>
 
-// RFC 8628 §5.1: wrong guesses are limited per peer, by a read-then-write count that bounds guessing, not an exact quota.
+// RFC 8628 §5.1: wrong guesses are limited per peer, by its /64 for IPv6, and across all peers together, by a
+// read-then-write count that bounds guessing, not an exact quota.
 const attemptsFor = async (config: ResolvedConfig, context: UserCodeContext) => {
-  const id = context.clientIp ? `ip:${context.clientIp}` : 'anonymous'
-  const limit = context.clientIp ? MAX_FAILURES : MAX_ANONYMOUS_FAILURES
-  const record = await readArtifact(config.adapter.artifacts, 'user_code_attempts', id)
-  const failures = record?.payload.failures ?? 0
-  if (failures >= limit) {
+  const buckets = [
+    context.clientIp
+      ? { id: `ip:${addressBucket(context.clientIp)}`, limit: MAX_FAILURES }
+      : { id: 'anonymous', limit: MAX_ANONYMOUS_FAILURES },
+    { id: 'all', limit: MAX_GLOBAL_FAILURES }
+  ]
+  const records = await Promise.all(buckets.map(bucket => readArtifact(config.adapter.artifacts, 'user_code_attempts', bucket.id)))
+  if (buckets.some((bucket, index) => (records[index]?.payload.failures ?? 0) >= bucket.limit)) {
     throw new OAuthError('invalid_request', { description: 'too many wrong codes; try again later', spec: 'RFC 8628 §5.1', status: 429 })
   }
   return async () => {
-    await writeArtifact(config.adapter.artifacts, {
-      id,
-      kind: 'user_code_attempts',
-      clientId: '',
-      payload: { failures: failures + 1 },
-      expiresAt: record?.expiresAt ?? new Date(Date.now() + ATTEMPT_WINDOW_SECONDS * 1000)
-    })
+    for (const [index, bucket] of buckets.entries()) {
+      const record = records[index]
+      await writeArtifact(config.adapter.artifacts, {
+        id: bucket.id,
+        kind: 'user_code_attempts',
+        clientId: '',
+        payload: { failures: (record?.payload.failures ?? 0) + 1 },
+        expiresAt: record?.expiresAt ?? new Date(Date.now() + ATTEMPT_WINDOW_SECONDS * 1000)
+      })
+    }
   }
 }
 

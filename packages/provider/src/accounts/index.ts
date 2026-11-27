@@ -19,6 +19,7 @@ import {
 import { createThrottle } from './throttle'
 import { matchingCounter, TOTP_PERIOD } from './totp'
 
+export { addressBucket } from '@oidcraft/provider'
 export type { AddressProblem, EmailSignInInteraction, EmailSignInIssue, EmailSignInResult } from './email'
 export type {
   AuthenticationResponseJSON,
@@ -39,7 +40,6 @@ export {
   type PasswordProblem,
   type SignInContext
 } from './shared'
-export { addressBucket } from './throttle'
 export { hotp } from './totp'
 
 const STANDARD_CLAIMS: Record<string, string[]> = {

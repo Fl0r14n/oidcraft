@@ -72,6 +72,15 @@ describe('user codes', () => {
     for (let i = 0; i < 200; i++) expect(userCode()).toMatch(/^[BCDFGHJKMNPQRSTVWXYZ2-9]{4}-[BCDFGHJKMNPQRSTVWXYZ2-9]{4}$/)
   })
 
+  // 256 bytes over 28 letters favoured the first four by a ninth: a byte past the last whole round is drawn again.
+  test('draw every letter as often as any other', () => {
+    const counts = new Map<string, number>()
+    for (let i = 0; i < 20_000; i++) for (const letter of userCode().replace('-', '')) counts.set(letter, (counts.get(letter) ?? 0) + 1)
+    const expected = (20_000 * 8) / 28
+    expect(counts.size).toBe(28)
+    for (const count of counts.values()) expect(Math.abs(count - expected) / expected).toBeLessThan(0.05)
+  })
+
   test('are normalised the way a person types them', () => {
     expect(normalizeUserCode('wdjb-mjht')).toBe('WDJBMJHT')
     expect(normalizeUserCode(' WDJB MJHT ')).toBe('WDJBMJHT')
@@ -207,6 +216,21 @@ describe('approval', () => {
     const { user_code } = await start()
     await expect(provider.device.find(user_code, { clientIp: '198.51.100.1' })).rejects.toThrow(/too many wrong codes/)
     expect((await provider.device.find(user_code, { clientIp: '198.51.100.2' }))?.client.clientId).toBe('tv')
+  })
+
+  // One subscriber holds a whole /64: by address, a guesser there had 2^64 fresh counts.
+  test('an IPv6 guesser is counted by its /64', async () => {
+    for (let host = 1; host <= 5; host++) await provider.device.find('WRONG-CODE', { clientIp: `2001:db8:1:2::${host}` })
+    await expect(provider.device.find('WRONG-CODE', { clientIp: '2001:db8:1:2:ffff::9' })).rejects.toThrow(/too many wrong codes/)
+    expect(await provider.device.find('WRONG-CODE', { clientIp: '2001:db8:1:3::1' })).toBeUndefined()
+  })
+
+  // G-9's reasoning, applied to user codes: a guess spread over many addresses still ends.
+  test('wrong codes from all addresses together are capped', async () => {
+    for (let address = 0; address < 1000; address++) {
+      await provider.device.find('WRONG-CODE', { clientIp: `10.${address >> 8}.${address & 255}.1` })
+    }
+    await expect(provider.device.find('WRONG-CODE', { clientIp: '198.51.100.77' })).rejects.toThrow(/too many wrong codes/)
   })
 
   test('an unknown code is refused', async () => {

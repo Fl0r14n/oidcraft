@@ -78,7 +78,7 @@ export const signInFlow =
       const result = await accounts.verifySecondFactor(accountId, (await form(request)).get('code') ?? '', { clientIp })
       const first = (await pendingSecondFactor.byEmail(request, id)) ? 'email' : 'pwd'
       if (result.ok) return finish(request, id, accountId, result.method === 'otp' ? [first, 'otp', 'mfa'] : [first, 'mfa'])
-      if (result.reason === 'locked') return loginScreen(view, { notice: lockedNotice(result.until), status: 429 })
+      if (result.reason === 'locked') return loginScreen(view, { notice: lockedNotice(result.lock), status: 429 })
       return secondStep(view, accountId, { recovery, error: 'That code is not right, or it was already used.', status: 401 })
     }
 

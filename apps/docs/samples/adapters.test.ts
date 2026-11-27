@@ -91,8 +91,8 @@ const register = (target: Adapter) =>
     responseTypes: ['code'],
     scopes: ['openid', 'profile', 'offline_access'],
     tokenEndpointAuthMethod: 'none',
-    createdAt: new Date(),
-    updatedAt: new Date()
+    createdAt: Date.now(),
+    updatedAt: Date.now()
   })
 
 let people = 0

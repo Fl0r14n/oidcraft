@@ -1,5 +1,5 @@
 import { DEFAULT_MAX_LENGTH } from '@oidcraft/core'
-import type { AccountStore } from '@oidcraft/provider'
+import type { AccountStore, Expiring } from '@oidcraft/provider'
 import { createEmailSignIn } from './email'
 import { createTotpEnrolment } from './enrolment'
 import { createPasskeys, displayNameOf, nameProblem, type PasskeyNameProblem, type RegistrationResponseJSON } from './passkeys'
@@ -10,7 +10,7 @@ import {
   type AccountsOptions,
   createShared,
   invalid,
-  lockedUntil,
+  liveLock,
   normalizeUsername,
   type PasswordProblem,
   passwordSetter,
@@ -71,12 +71,12 @@ const STANDARD_CLAIMS: Record<string, string[]> = {
 export type AuthenticationResult =
   | { ok: true; accountId: string; secondFactor: boolean }
   | { ok: false; reason: 'invalid' }
-  | { ok: false; reason: 'locked'; until: Date }
+  | { ok: false; reason: 'locked'; lock: Expiring }
 
 export type SecondFactorResult =
   | { ok: true; method: 'otp' | 'recovery' }
   | { ok: false; reason: 'invalid' }
-  | { ok: false; reason: 'locked'; until: Date }
+  | { ok: false; reason: 'locked'; lock: Expiring }
 
 export type PasskeySignUpOptionsResult<Options> =
   | { ok: true; options: Options }
@@ -91,7 +91,7 @@ export type PasskeySignUpResult =
 export type RecoveryResult =
   | { ok: true; accountId: string; token: string }
   | { ok: false; reason: 'invalid' }
-  | { ok: false; reason: 'locked'; until: Date }
+  | { ok: false; reason: 'locked'; lock: Expiring }
 
 export type SignUpResult =
   | { ok: true; accountId: string }
@@ -148,7 +148,7 @@ export const createAccounts = (options: AccountsOptions) => {
       if (!created?.signUp) return invalid
       const { accountId, signUp } = created
       const { codes, hashes } = await recovery.issueRecoveryCodes(accountId)
-      const now = new Date()
+      const now = Date.now()
       const account = { accountId, ...signUp, recoveryCodes: hashes, failedAttempts: 0, createdAt: now, updatedAt: now }
       if ((await shared.linkedElsewhere(accountId)) || !(await credentials.create(account))) return { ok: false, reason: 'taken' }
       // FR-I8: an account with neither a password nor a passkey has no way in, so it does not stay.
@@ -187,7 +187,7 @@ export const createAccounts = (options: AccountsOptions) => {
       if (invalidName) return { ok: false, reason: 'username', problem: invalidName }
       const problem = await shared.passwordProblem(input.password, username)
       if (problem) return { ok: false, reason: 'password', problem }
-      const now = new Date()
+      const now = Date.now()
       const accountId = shared.newAccountId(username)
       if (await shared.linkedElsewhere(accountId)) return { ok: false, reason: 'taken' }
       const created = await credentials.create({
@@ -213,7 +213,7 @@ export const createAccounts = (options: AccountsOptions) => {
       if (!credential?.passwordHash) return throttle.guessAtNobody(normalized, password, 'password', context)
       const { passwordHash } = credential
       const bucket = throttle.ownBucket(credential.accountId, 'password', context)
-      const admitted = await throttle.admit(credential.accountId, lockedUntil(credential), bucket, password)
+      const admitted = await throttle.admit(credential.accountId, liveLock(credential.lock), bucket, password)
       if (admitted.refused) return admitted.refused
       if (!(await hasher.verify(password, passwordHash))) return throttle.fail(credential.accountId, bucket, admitted.slot, context)
       await throttle.succeed(bucket, admitted.slot)
@@ -225,7 +225,7 @@ export const createAccounts = (options: AccountsOptions) => {
       const credential = await credentials.find(accountId)
       if (!credential?.totp?.confirmedAt) return invalid
       const bucket = throttle.ownBucket(accountId, 'code', context)
-      const admitted = await throttle.admit(accountId, lockedUntil(credential), bucket)
+      const admitted = await throttle.admit(accountId, liveLock(credential.lock), bucket)
       if (admitted.refused) return admitted.refused
 
       const counter = await matchingCounter(await (await sealer).open(accountId, credential.totp.secret), code.replace(/\s/g, ''))
@@ -253,7 +253,7 @@ export const createAccounts = (options: AccountsOptions) => {
       if (!credential || credential.passwordHash) return throttle.guessAtNobody(normalized, code, 'code', context)
       const { accountId } = credential
       const bucket = throttle.ownBucket(accountId, 'code', context)
-      const admitted = await throttle.admit(accountId, lockedUntil(credential), bucket, code)
+      const admitted = await throttle.admit(accountId, liveLock(credential.lock), bucket, code)
       if (admitted.refused) return admitted.refused
       const [redeemed] = await Promise.all([recovery.redeemRecoveryCode(credential, code), spendDecoy(code)])
       if (!redeemed) return throttle.fail(accountId, bucket, admitted.slot, context)
@@ -266,7 +266,7 @@ export const createAccounts = (options: AccountsOptions) => {
       const credential = await credentials.find(accountId)
       if (!credential || (credential.passwordHash && !credential.totp?.confirmedAt)) return undefined
       const { codes, hashes } = await recovery.issueRecoveryCodes(accountId)
-      await credentials.update(accountId, { recoveryCodes: hashes, updatedAt: new Date() })
+      await credentials.update(accountId, { recoveryCodes: hashes, updatedAt: Date.now() })
       return { recoveryCodes: codes }
     },
 

@@ -529,7 +529,7 @@ nothing in the core assumes it. It covers:
   sent to a mailbox someone else read is spent too. One that adds a passkey replaces the password,
   leaving a passkey account with recovery codes (FR-I8): after a compromise, a password left beside
   the new passkey is the one the intruder knows. A reset lifts the lockouts wrong guesses caused, never
-  a suspension: a credential's `lockedUntil` is the host's, honoured by every way in and cleared by
+  a suspension: a credential's `lock` is the host's, honoured by every way in and cleared by
   nothing in the library.
 - **Self-service sign-up**, with a password or a passkey, which the host may leave unmounted. An
   account gets a random id unless the host maps usernames to ids itself, and never one that has

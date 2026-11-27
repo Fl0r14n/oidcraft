@@ -26,8 +26,8 @@ const advertisedClient = async (provider: ReturnType<typeof createProvider>, cli
       responseTypes: metadata.response_types_supported as string[],
       scopes: metadata.scopes_supported as string[],
       tokenEndpointAuthMethod: 'client_secret_basic',
-      createdAt: new Date(),
-      updatedAt: new Date()
+      createdAt: Date.now(),
+      updatedAt: Date.now()
     })
   }
   return clientId
@@ -216,8 +216,8 @@ describe('discovery metadata', () => {
         responseTypes: ['code'],
         scopes: ['openid'],
         tokenEndpointAuthMethod: method as never,
-        createdAt: new Date(),
-        updatedAt: new Date()
+        createdAt: Date.now(),
+        updatedAt: Date.now()
       })
 
       const response = await provider.handle(

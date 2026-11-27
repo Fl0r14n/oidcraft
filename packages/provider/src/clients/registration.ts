@@ -196,7 +196,7 @@ const metadataFrom = (config: ResolvedConfig, body: Record<string, unknown>, exi
   const unknown = scopes.filter(scope => !config.scopes.includes(scope))
   if (unknown.length) throw invalid(`unknown scope: ${unknown.join(', ')}`)
 
-  const now = new Date()
+  const now = Date.now()
   return {
     clientId: randomString(),
     ...(clientName !== undefined && { clientName }),
@@ -275,7 +275,7 @@ export const clientResponse = (
         .filter(([, field]) => client[field] !== undefined)
         .map(([name, field]) => [name, client[field]])
     ),
-    client_id_issued_at: Math.floor(client.createdAt.getTime() / 1000),
+    client_id_issued_at: Math.floor(client.createdAt / 1000),
     ...(registrationAccessToken && {
       registration_access_token: registrationAccessToken,
       registration_client_uri: `${config.issuer}${config.routes.registration}?client_id=${encodeURIComponent(client.clientId)}`
@@ -377,7 +377,7 @@ export const registrationEndpoint = async (config: ResolvedConfig, request: Requ
       ...(sameSecret && client.clientSecretHash && { clientSecretHash: client.clientSecretHash }),
       registrationAccessToken: client.registrationAccessToken as string,
       createdAt: client.createdAt,
-      updatedAt: new Date()
+      updatedAt: Date.now()
     },
     true
   )

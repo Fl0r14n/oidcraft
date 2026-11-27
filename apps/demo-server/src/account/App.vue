@@ -33,7 +33,7 @@ type Me = {
   claims: Record<string, unknown>
   passwordless: boolean
   totp: { enrolled: boolean; recoveryCodesLeft: number }
-  passkeys: { credentialId: string; name: string; createdAt: string; lastUsedAt?: string }[]
+  passkeys: { credentialId: string; name: string; createdAt: number; lastUsedAt?: number }[]
 }
 
 const { isAuthorized, error: signInError, errorDescription, logout } = useOAuth()

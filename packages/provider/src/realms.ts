@@ -90,7 +90,7 @@ export const createRealms = (options: RealmsConfig) => {
   }
 
   const audit = async (action: string, id: string) => {
-    await options.onAudit?.({ action, at: new Date(), detail: { realm: id } })
+    await options.onAudit?.({ action, at: Date.now(), detail: { realm: id } })
   }
 
   const existing = async (id: string) => {
@@ -113,7 +113,7 @@ export const createRealms = (options: RealmsConfig) => {
 
     async create(input: RealmInput) {
       if (!isRealmId(input.id)) throw new Error(`realm id ${JSON.stringify(input.id)} must be a DNS label: a-z, 0-9 and inner hyphens`)
-      const now = new Date()
+      const now = Date.now()
       const realm: Realm = {
         id: input.id,
         ...(input.displayName && { displayName: input.displayName }),
@@ -129,26 +129,26 @@ export const createRealms = (options: RealmsConfig) => {
         await store.destroy(realm.id)
         throw error
       }
-      return save({ ...realm, enabled: true, updatedAt: new Date() }, 'realm.create')
+      return save({ ...realm, enabled: true, updatedAt: Date.now() }, 'realm.create')
     },
 
     async update(id: string, patch: RealmPatch) {
       const realm = await existing(id)
-      return save({ ...realm, ...patch, updatedAt: new Date() }, 'realm.update')
+      return save({ ...realm, ...patch, updatedAt: Date.now() }, 'realm.update')
     },
 
     async enable(id: string) {
-      return save({ ...(await existing(id)), enabled: true, updatedAt: new Date() }, 'realm.enable')
+      return save({ ...(await existing(id)), enabled: true, updatedAt: Date.now() }, 'realm.enable')
     },
 
     async disable(id: string) {
-      return save({ ...(await existing(id)), enabled: false, updatedAt: new Date() }, 'realm.disable')
+      return save({ ...(await existing(id)), enabled: false, updatedAt: Date.now() }, 'realm.disable')
     },
 
     /** Disabled first, so a failed `retire` leaves a realm nobody is served and the removal can be retried. */
     async remove(id: string) {
       const realm = await existing(id)
-      await store.upsert({ ...realm, enabled: false, updatedAt: new Date() })
+      await store.upsert({ ...realm, enabled: false, updatedAt: Date.now() })
       forget(id)
       await options.retire?.(realm)
       await store.destroy(id)

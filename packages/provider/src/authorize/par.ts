@@ -21,7 +21,7 @@ export const pushParameters = async (config: ResolvedConfig, clientId: string, p
     kind: 'pushed_authorization_request',
     clientId,
     payload: { params: params.toString() },
-    expiresAt: new Date(Date.now() + config.ttl.pushedAuthorizationRequest * 1000)
+    expiresAt: Date.now() + config.ttl.pushedAuthorizationRequest * 1000
   })
   return `${REQUEST_URI_PREFIX}${id}`
 }

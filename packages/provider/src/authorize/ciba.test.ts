@@ -13,8 +13,8 @@ const client = (over: Partial<Client> = {}): Client => ({
   responseTypes: ['code'],
   scopes: ['openid', 'profile', 'payments'],
   tokenEndpointAuthMethod: 'client_secret_basic',
-  createdAt: new Date(),
-  updatedAt: new Date(),
+  createdAt: Date.now(),
+  updatedAt: Date.now(),
   ...over
 })
 
@@ -78,7 +78,7 @@ const pollFor = (authReqId: string, as = 'bank') =>
   post('/token', { grant_type: 'urn:openid:params:grant-type:ciba', auth_req_id: authReqId }, { authorization: basic(as) })
 
 const approve = async (authReqId: string, scopes = ['openid', 'profile', 'payments']) => {
-  const session = { id: 's1', accountId: 'ada', authTime: new Date(), clients: ['bank'], expiresAt: new Date(Date.now() + 60_000) }
+  const session = { id: 's1', accountId: 'ada', authTime: Date.now(), clients: ['bank'], expiresAt: Date.now() + 60_000 }
   await adapter.sessions.upsert(session)
   return provider.ciba.resolve(authReqId, { accountId: 'ada', sessionId: session.id, scopes })
 }
@@ -233,7 +233,7 @@ describe('polling', () => {
     const { auth_req_id } = await (await start({ client_notification_token: 'nt' }, 'pinger')).json()
     expect((await (await pollFor(auth_req_id, 'pinger')).json()).error).toBe('authorization_pending')
 
-    const session = { id: 's3', accountId: 'ada', authTime: new Date(), clients: ['pinger'], expiresAt: new Date(Date.now() + 60_000) }
+    const session = { id: 's3', accountId: 'ada', authTime: Date.now(), clients: ['pinger'], expiresAt: Date.now() + 60_000 }
     await adapter.sessions.upsert(session)
     const { ping } = await provider.ciba.resolve(auth_req_id, {
       accountId: 'ada',
@@ -263,7 +263,7 @@ describe('resolution', () => {
   // CIBA §7.1: the hint named the user; someone else answering is not an answer to this request.
   test('only the account the request was made for can approve it', async () => {
     const { auth_req_id } = await (await start()).json()
-    const session = { id: 'sm', accountId: 'mallory', authTime: new Date(), clients: [], expiresAt: new Date(Date.now() + 60_000) }
+    const session = { id: 'sm', accountId: 'mallory', authTime: Date.now(), clients: [], expiresAt: Date.now() + 60_000 }
     await adapter.sessions.upsert(session)
     await expect(
       provider.ciba.resolve(auth_req_id, { accountId: 'mallory', sessionId: 'sm', scopes: ['openid', 'profile', 'payments'] })
@@ -274,7 +274,7 @@ describe('resolution', () => {
   // OIDC CIBA 1.0 §10.2: the host delivers it; the core does no I/O (FR-A1).
   test('hands back everything the host needs to deliver the ping', async () => {
     const { auth_req_id } = await (await start({ client_notification_token: 'nt' }, 'pinger')).json()
-    const session = { id: 's2', accountId: 'ada', authTime: new Date(), clients: ['pinger'], expiresAt: new Date(Date.now() + 60_000) }
+    const session = { id: 's2', accountId: 'ada', authTime: Date.now(), clients: ['pinger'], expiresAt: Date.now() + 60_000 }
     await adapter.sessions.upsert(session)
     const result = await provider.ciba.resolve(auth_req_id, {
       accountId: 'ada',
@@ -316,9 +316,9 @@ describe('resolution', () => {
     await adapter.sessions.upsert({
       id: 's2',
       accountId: 'ada',
-      authTime: new Date(),
+      authTime: Date.now(),
       clients: [],
-      expiresAt: new Date(Date.now() + 60_000)
+      expiresAt: Date.now() + 60_000
     })
     await provider.ciba.resolve(auth_req_id, { accountId: 'ada', sessionId: 's2', scopes: ['openid', 'profile', 'payments'] })
     expect((await adapter.sessions.find('s2'))?.clients).toEqual(['bank'])

@@ -17,7 +17,7 @@ const administrators = () =>
   )
 
 const publicClient = (clientId: string, clientName: string, issuer: string, path: string) => {
-  const now = new Date()
+  const now = Date.now()
   return {
     clientId,
     clientName,

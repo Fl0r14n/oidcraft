@@ -408,8 +408,9 @@ host.
   (FR-A1); `issue` returns nothing for an unknown username, and your page must answer both cases
   the same way. Completing a reset, with a password or a passkey, ends the account's sessions,
   spends the account's other reset and email sign-in tokens, and lifts the locks wrong guesses
-  caused: the account's own and, given `{ clientIp }`, that address's. A credential's `lockedUntil`
-  is your suspension, which nothing here lifts.
+  caused: the account's own and, given `{ clientIp }`, that address's. A credential's `lock`
+  is your suspension, which nothing here lifts. A `locked` refusal carries the `lock` in force, and
+  `lock.expiresAt` is when it lifts.
 - `emailSignIn.issue`, `emailSignIn.find` and `emailSignIn.redeem` — sign-in, and sign-up where
   you offer it, by a single-use link to an address, finished with `provider.interactions.completeHere`
   ([Email sign-in](#email-sign-in), FR-I9)

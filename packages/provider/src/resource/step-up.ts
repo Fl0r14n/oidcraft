@@ -1,4 +1,4 @@
-import type { Artifact } from '@oidcraft/adapter'
+import type { Artifact, EpochMillis } from '@oidcraft/adapter'
 
 export type StepUpRequirement = {
   /** The authentication strength the resource needs, e.g. `mfa`. */
@@ -15,12 +15,12 @@ export type StepUpVerdict = { sufficient: true } | { sufficient: false; challeng
  */
 export const meetsRequirement = (
   requirement: StepUpRequirement,
-  actual: { acr?: string | undefined; authTime?: Date | undefined }
+  actual: { acr?: string | undefined; authTime?: EpochMillis | undefined }
 ): StepUpVerdict => {
   const parts: string[] = ['Bearer error="insufficient_user_authentication"']
 
   const acrUnmet = Boolean(requirement.acrValues?.length && (!actual.acr || !requirement.acrValues.includes(actual.acr)))
-  const staleness = actual.authTime ? (Date.now() - actual.authTime.getTime()) / 1000 : Number.POSITIVE_INFINITY
+  const staleness = actual.authTime ? (Date.now() - actual.authTime) / 1000 : Number.POSITIVE_INFINITY
   const ageUnmet = requirement.maxAge !== undefined && staleness > requirement.maxAge
 
   if (!acrUnmet && !ageUnmet) return { sufficient: true }
@@ -38,7 +38,7 @@ export const meetsRequirement = (
 }
 
 /** What a resource server knows about the authentication behind a token it is holding. */
-export const authenticationOf = (artifact: Artifact, session: { acr?: string | undefined; authTime: Date } | undefined) => ({
+export const authenticationOf = (artifact: Artifact, session: { acr?: string | undefined; authTime: EpochMillis } | undefined) => ({
   acr: session?.acr,
   authTime: session?.authTime,
   accountId: artifact.accountId

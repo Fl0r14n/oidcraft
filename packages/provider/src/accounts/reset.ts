@@ -37,7 +37,7 @@ export const createReset = (
       clientId: '',
       accountId,
       payload: { generation: await generationOf(accountId) },
-      expiresAt: new Date(Date.now() + policy.resetTtl * 1000)
+      expiresAt: Date.now() + policy.resetTtl * 1000
     })
     return token
   }
@@ -58,7 +58,7 @@ export const createReset = (
       clientId: '',
       accountId,
       payload: { generation: randomString(8) },
-      expiresAt: new Date(Date.now() + RECOVERY_TOMBSTONE * 1000)
+      expiresAt: Date.now() + RECOVERY_TOMBSTONE * 1000
     })
     await throttle.lift(accountId, context)
     for (const session of await adapter.sessions.listForAccount(accountId)) await adapter.sessions.destroy(session.id)
@@ -121,7 +121,7 @@ export const createReset = (
       const kept = await passkeys.keep(created.passkey(passkeyName))
       if (!kept.ok) return { ok: false, reason: 'taken' }
       const { codes, hashes } = await recovery.issueRecoveryCodes(accountId)
-      await credentials.update(accountId, { passwordHash: undefined, totp: undefined, recoveryCodes: hashes, updatedAt: new Date() })
+      await credentials.update(accountId, { passwordHash: undefined, totp: undefined, recoveryCodes: hashes, updatedAt: Date.now() })
       await afterReset(accountId, context)
       return { ok: true, accountId, recoveryCodes: codes }
     },

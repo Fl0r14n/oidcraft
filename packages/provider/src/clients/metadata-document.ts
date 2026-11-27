@@ -59,7 +59,7 @@ const clientFrom = (config: ResolvedConfig, clientId: string, document: unknown)
   if (unknown.length) throw refuse(`unknown scope: ${unknown.join(', ')}`)
 
   const clientName = stringFrom(body.client_name, 'client_name', refuse)
-  const now = new Date()
+  const now = Date.now()
   return {
     clientId,
     ...(clientName !== undefined && { clientName }),

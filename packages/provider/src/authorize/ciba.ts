@@ -132,7 +132,7 @@ export const backchannelAuthenticationEndpoint = async (
       // Fixed when the request is made, so re-registering mid-flight cannot redirect the ping.
       ...(mode === 'ping' && { notificationEndpoint: client.backchannelClientNotificationEndpoint })
     },
-    expiresAt: new Date(Date.now() + expiresIn * 1000)
+    expiresAt: Date.now() + expiresIn * 1000
   })
 
   return Response.json(

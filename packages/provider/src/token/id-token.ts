@@ -44,7 +44,7 @@ export const mintIdToken = async (config: ResolvedConfig, input: IdTokenInput) =
     iat: now,
     exp: now + config.ttl.idToken,
     sub: input.subject ?? input.session.accountId,
-    auth_time: Math.floor(input.session.authTime.getTime() / 1000),
+    auth_time: Math.floor(input.session.authTime / 1000),
     ...(input.nonce && { nonce: input.nonce }),
     ...(input.session.acr && { acr: input.session.acr }),
     ...(input.session.amr && { amr: input.session.amr }),

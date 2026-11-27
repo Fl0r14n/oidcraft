@@ -41,15 +41,15 @@ describe('kysely adapter', () => {
 
   test('prune removes expired rows and reports how many', async () => {
     const { adapter } = await fresh()
-    await adapter.artifacts.upsert({ id: 'old', kind: 'access_token', clientId: 'c1', payload: {}, expiresAt: new Date(Date.now() - 1000) })
+    await adapter.artifacts.upsert({ id: 'old', kind: 'access_token', clientId: 'c1', payload: {}, expiresAt: Date.now() - 1000 })
     await adapter.artifacts.upsert({
       id: 'new',
       kind: 'access_token',
       clientId: 'c1',
       payload: {},
-      expiresAt: new Date(Date.now() + 60_000)
+      expiresAt: Date.now() + 60_000
     })
-    expect(await adapter.artifacts.prune?.(new Date(), 100)).toBe(1)
+    expect(await adapter.artifacts.prune?.(Date.now(), 100)).toBe(1)
     expect((await adapter.artifacts.find('access_token', 'new'))?.id).toBe('new')
   })
 })

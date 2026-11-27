@@ -24,8 +24,8 @@ await adapter.clients.upsert?.({
   responseTypes: ['code'],
   scopes: ['openid', 'profile'],
   tokenEndpointAuthMethod: 'none',
-  createdAt: new Date(),
-  updatedAt: new Date()
+  createdAt: Date.now(),
+  updatedAt: Date.now()
 })
 
 const provider = createProvider({
@@ -64,8 +64,8 @@ describe('the smallest usable provider', () => {
       responseTypes: ['code'],
       scopes: ['openid', 'profile'],
       tokenEndpointAuthMethod: 'none',
-      createdAt: new Date(),
-      updatedAt: new Date()
+      createdAt: Date.now(),
+      updatedAt: Date.now()
     })
 
     const provider = createProvider({

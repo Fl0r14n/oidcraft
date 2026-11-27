@@ -10,9 +10,12 @@ export type {
   Client,
   ClientAuthMethod,
   ClientStore,
+  Created,
   Credential,
   CredentialStore,
   CredentialsAdapter,
+  EpochMillis,
+  Expiring,
   FullAdapter,
   Grant,
   GrantStore,
@@ -27,7 +30,9 @@ export type {
   ReplayGuard,
   Seconds,
   Session,
-  SessionStore
+  SessionStore,
+  Timestamped,
+  Used
 } from '@oidcraft/adapter'
 export { ConfigurationError, hashClientSecret, toPlainAdapter } from '@oidcraft/adapter'
 export { addressBucket } from './address'

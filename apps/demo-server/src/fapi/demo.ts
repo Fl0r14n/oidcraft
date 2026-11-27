@@ -31,8 +31,8 @@ export const seedFapiDemoClient = async (adapter: Adapter, issuer: string) => {
     scopes: ['openid', 'profile', 'offline_access'],
     tokenEndpointAuthMethod: 'private_key_jwt',
     jwks: { keys: [{ ...(await exportJWK(clientKey.publicKey)), alg: 'ES256', use: 'sig' }] },
-    createdAt: new Date(),
-    updatedAt: new Date()
+    createdAt: Date.now(),
+    updatedAt: Date.now()
   })
   console.log(`[oidcraft] registered FAPI 2.0 demo client ${FAPI_DEMO_CLIENT_ID} -> ${issuer}/fapi-demo`)
 }

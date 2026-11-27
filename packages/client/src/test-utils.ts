@@ -50,14 +50,14 @@ export const installStorage = (): Storage => {
 
 /** A sign-in started, as `login` leaves it for the callback: under its own state, expiring. */
 export const armHandoff = (handoff: Record<string, string>, storageKey = 'token') =>
-  globalThis.localStorage.setItem(`${storageKey}.handoff.${handoff.state}`, JSON.stringify({ ...handoff, expires: Date.now() + 60_000 }))
+  globalThis.localStorage.setItem(`${storageKey}.handoff.${handoff.state}`, JSON.stringify({ ...handoff, expiresAt: Date.now() + 60_000 }))
 
 /** The one pending handoff, whatever its state. */
 export const handoffOf = (storageKey = 'token'): Record<string, string | undefined> => {
   for (let i = 0; i < globalThis.localStorage.length; i++) {
     const key = globalThis.localStorage.key(i)
     if (key?.startsWith(`${storageKey}.handoff.`)) {
-      const { expires: _, ...handoff } = JSON.parse(globalThis.localStorage.getItem(key) ?? '{}')
+      const { expiresAt: _, ...handoff } = JSON.parse(globalThis.localStorage.getItem(key) ?? '{}')
       return handoff
     }
   }

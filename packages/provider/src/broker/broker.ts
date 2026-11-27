@@ -14,7 +14,7 @@ import {
   randomString,
   sha256
 } from '@oidcraft/core'
-import type { BrokeringAdapter, Session } from '@oidcraft/provider'
+import type { BrokeringAdapter, Created, Session } from '@oidcraft/provider'
 import { DEFAULT_TTL, OAuthError, type SelectionHints, selectUpstream, toPlainAdapter } from '@oidcraft/provider'
 import { base64url } from 'jose'
 import { pickClaims } from './claims'
@@ -225,15 +225,15 @@ export const createBroker = (given: BrokerConfig) => {
 
       const ttl = config.handoffTtl ?? DEFAULT_HANDOFF_TTL
       const binding = randomString()
-      const expiresAt = new Date(Date.now() + ttl * 1000)
-      const handoff: Omit<Handoff, 'expiresAt'> = {
+      const createdAt = Date.now()
+      const handoff: Handoff = {
         provider: provider.id,
         state,
         nonce,
         codeVerifier: code_verifier,
         interactionId,
         browserBinding: await hashOf(binding),
-        startedAt: Date.now()
+        createdAt
       }
 
       await config.adapter.artifacts.upsert({
@@ -241,7 +241,7 @@ export const createBroker = (given: BrokerConfig) => {
         kind: 'broker_handoff',
         clientId: provider.id,
         payload: handoff,
-        expiresAt
+        expiresAt: createdAt + ttl * 1000
       })
 
       // `setCookie` must reach the browser with the redirect to `url`, or the callback is refused.
@@ -255,9 +255,9 @@ export const createBroker = (given: BrokerConfig) => {
 
       const stored = await config.adapter.artifacts.find('broker_handoff', state)
       if (!stored) throw new Error('this sign-in did not start here, or it expired')
-      const handoff = stored.payload as Omit<Handoff, 'expiresAt'>
-      // A handoff stored before startedAt was kept started one lifetime before it expires.
-      const startedAt = handoff.startedAt ?? stored.expiresAt.getTime() - (config.handoffTtl ?? DEFAULT_HANDOFF_TTL) * 1000
+      const handoff = stored.payload as Partial<Created> & Omit<Handoff, 'createdAt'>
+      // One stored before it carried `createdAt` was created one lifetime before it expires.
+      const createdAt = handoff.createdAt ?? stored.expiresAt - (config.handoffTtl ?? DEFAULT_HANDOFF_TTL) * 1000
       // Before the handoff is spent, so a stranger holding the callback URL cannot burn it.
       const presented = cookieValue(cookieHeader, bindingCookie(state))
       const expected = handoff.browserBinding
@@ -304,7 +304,7 @@ export const createBroker = (given: BrokerConfig) => {
           kind: 'upstream_id_token',
           clientId: provider.id,
           payload: { idToken: token.id_token },
-          expiresAt: new Date(Date.now() + (config.sessionTtl ?? DEFAULT_TTL.session) * 1000)
+          expiresAt: Date.now() + (config.sessionTtl ?? DEFAULT_TTL.session) * 1000
         })
       }
 
@@ -321,7 +321,7 @@ export const createBroker = (given: BrokerConfig) => {
         ...(typeof claims.acr === 'string' && { acr: claims.acr }),
         ...(Array.isArray(claims.amr) && { amr: claims.amr as string[] }),
         // A-7: without an upstream auth_time, the sign-in is no fresher than the round trip that made it.
-        authTime: typeof claims.auth_time === 'number' ? new Date(claims.auth_time * 1000) : new Date(startedAt),
+        authTime: typeof claims.auth_time === 'number' ? claims.auth_time * 1000 : createdAt,
         ...(typeof claims.sid === 'string' && { upstreamSessionId: claims.sid }),
         ...(provider.linkPolicy && { linkPolicy: provider.linkPolicy }),
         // FR-F10 / NFR-S9: opt-in per provider, because keeping these makes us a credential store.
@@ -330,7 +330,7 @@ export const createBroker = (given: BrokerConfig) => {
             upstreamTokens: {
               accessToken: token.access_token,
               ...(token.refresh_token && { refreshToken: token.refresh_token }),
-              ...(token.expires_in && { expiresAt: new Date(Date.now() + Number(token.expires_in) * 1000) })
+              ...(token.expires_in && { expiresAt: Date.now() + Number(token.expires_in) * 1000 })
             }
           })
       }
@@ -355,7 +355,7 @@ export const createBroker = (given: BrokerConfig) => {
         kind: 'broker_logout',
         clientId: provider.id,
         payload: then === undefined ? {} : { destination: then },
-        expiresAt: new Date(Date.now() + (config.handoffTtl ?? DEFAULT_HANDOFF_TTL) * 1000)
+        expiresAt: Date.now() + (config.handoffTtl ?? DEFAULT_HANDOFF_TTL) * 1000
       })
       const hintId = session.upstreamSessionId ? logoutHintId(provider.id, session.upstreamSessionId) : undefined
       const hint = hintId ? await config.adapter.artifacts.find('upstream_id_token', hintId) : undefined

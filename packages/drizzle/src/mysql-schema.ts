@@ -1,11 +1,7 @@
 import { bigint, customType, index, int, mysqlSchema, mysqlTable, primaryKey, text, uniqueIndex, varchar } from 'drizzle-orm/mysql-core'
 
 // The same JS values as the SQLite and Postgres columns, over MYSQL_MIGRATIONS' types: one table set for MySQL and MariaDB.
-const millis = customType<{ data: Date; driverData: string | number }>({
-  dataType: () => 'bigint',
-  toDriver: value => value.getTime(),
-  fromDriver: value => new Date(Number(value))
-})
+const millis = (name: string) => bigint(name, { mode: 'number' })
 const json = customType<{ data: unknown; driverData: string }>({
   dataType: () => 'mediumtext',
   toDriver: value => JSON.stringify(value),

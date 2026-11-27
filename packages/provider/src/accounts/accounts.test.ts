@@ -168,8 +168,24 @@ describe('passwords', () => {
     for (let address = 0; address < 50; address++) await accounts.authenticate('ada', 'nope nope', { clientIp: `192.0.2.${address}` })
     const wide = await adapter.artifacts.find('sign_in_attempts', 'id-ada:*')
     if (!wide) throw new Error('no account-wide count')
-    await adapter.artifacts.upsert({ ...wide, payload: { ...wide.payload, lockedUntil: Date.now() - 1 } })
+    await adapter.artifacts.upsert({ ...wide, payload: { ...wide.payload, lock: { expiresAt: Date.now() - 1 } } })
     expect(await accounts.authenticate('ada', 'nope nope', { clientIp: '192.0.2.100' })).toMatchObject({ ok: false, reason: 'locked' })
+  })
+
+  // NFR-D6: a lock written as `lockedUntil`, before `lock`, outlives the deploy that renamed it.
+  test('a lock stored as lockedUntil still holds', async () => {
+    const { adapter, accounts } = await setup()
+    await accounts.signUp({ username: 'ada', password: 'correct horse' })
+    for (let address = 0; address < 50; address++) await accounts.authenticate('ada', 'nope nope', { clientIp: `192.0.2.${address}` })
+    const wide = await adapter.artifacts.find('sign_in_attempts', 'id-ada:*')
+    if (!wide) throw new Error('no account-wide count')
+    const { lock, ...rest } = wide.payload as { lock: { expiresAt: number } }
+    await adapter.artifacts.upsert({ ...wide, payload: { ...rest, lockedUntil: lock.expiresAt } })
+    expect(await accounts.authenticate('ada', 'correct horse', { clientIp: '192.0.2.200' })).toMatchObject({
+      ok: false,
+      reason: 'locked',
+      lock
+    })
   })
 
   // A-8, G-9: an unknown username that never locked told a guesser which names exist.
@@ -205,24 +221,24 @@ describe('passwords', () => {
     expect(calls[0]).not.toContain('x'.repeat(129))
   })
 
-  // A-9, FR-I7: `lockedUntil` is the host's suspension, which nothing in the library lifts.
+  // A-9, FR-I7: `lock` is the host's suspension, which nothing in the library lifts.
   test('a new password, or a reset, leaves the host’s suspension in place', async () => {
     const { adapter, accounts } = await setup()
     await accounts.signUp({ username: 'ada', password: 'correct horse' })
     const credential = await adapter.credentials.find('id-ada')
-    const suspended = new Date(Date.now() + 3_600_000)
-    await adapter.credentials.upsert({ ...(credential as NonNullable<typeof credential>), lockedUntil: suspended })
+    const suspended = { expiresAt: Date.now() + 3_600_000 }
+    await adapter.credentials.upsert({ ...(credential as NonNullable<typeof credential>), lock: suspended })
     await accounts.setPassword('id-ada', 'battery staple')
     const issued = await accounts.reset.issue('ada')
     await accounts.reset.complete(issued?.token as string, 'another staple')
-    expect((await adapter.credentials.find('id-ada'))?.lockedUntil).toEqual(suspended)
+    expect((await adapter.credentials.find('id-ada'))?.lock).toEqual(suspended)
     expect(await accounts.authenticate('ada', 'another staple')).toMatchObject({ ok: false, reason: 'locked' })
   })
 
   // A-6: setPassword wrote back the whole row it read before hashing, undoing whatever landed in between.
   test('a write landing while a password is set is kept', async () => {
     const adapter = await memoryAdapter()
-    const suspended = new Date(Date.now() + 3_600_000)
+    const suspended = { expiresAt: Date.now() + 3_600_000 }
     let during: (() => Promise<unknown>) | undefined
     const accounts = createAccounts({
       adapter,
@@ -241,10 +257,10 @@ describe('passwords', () => {
       policy: { minPasswordLength: 8 }
     })
     await accounts.signUp({ username: 'ada', password: 'correct horse' })
-    during = () => adapter.credentials.update('id-ada', { lockedUntil: suspended })
+    during = () => adapter.credentials.update('id-ada', { lock: suspended })
     expect(await accounts.setPassword('id-ada', 'battery staple')).toEqual({ ok: true })
     const credential = await adapter.credentials.find('id-ada')
-    expect(credential?.lockedUntil).toEqual(suspended)
+    expect(credential?.lock).toEqual(suspended)
     expect(credential?.passwordHash).toBe('h:battery staple')
   })
 
@@ -264,7 +280,7 @@ describe('passwords', () => {
   // Q9, FR-I7: a username chosen to read as `google:<sub>` must not become that person's account.
   test('sign-up refuses an id that linked identities already name', async () => {
     const { adapter, accounts } = await setup()
-    await adapter.identities.upsert({ upstream: 'google', subject: '1', accountId: 'id-google:1', claims: {}, createdAt: new Date() })
+    await adapter.identities.upsert({ upstream: 'google', subject: '1', accountId: 'id-google:1', claims: {}, createdAt: Date.now() })
     expect(await accounts.signUp({ username: 'google:1', password: 'correct horse' })).toEqual({ ok: false, reason: 'taken' })
     expect(await adapter.credentials.find('id-google:1')).toBeUndefined()
   })
@@ -383,10 +399,10 @@ describe('password reset', () => {
   test('revokes every token issued to the account and keeps its consents', async () => {
     const { adapter, accounts } = await setup()
     await accounts.signUp({ username: 'ada', password: 'correct horse' })
-    const grant = { id: 'g1', accountId: 'id-ada', clientId: 'rp', scopes: ['openid'], claims: [], resources: {}, createdAt: new Date() }
+    const grant = { id: 'g1', accountId: 'id-ada', clientId: 'rp', scopes: ['openid'], claims: [], resources: {}, createdAt: Date.now() }
     await adapter.grants.upsert(grant)
     await adapter.grants.upsert({ ...grant, id: 'g2', accountId: 'someone-else' })
-    const token = { clientId: 'rp', payload: {}, expiresAt: new Date(Date.now() + 60_000) }
+    const token = { clientId: 'rp', payload: {}, expiresAt: Date.now() + 60_000 }
     await adapter.artifacts.upsert({ ...token, id: 'offline', kind: 'refresh_token', accountId: 'id-ada', grantId: 'g1' })
     await adapter.artifacts.upsert({ ...token, id: 'access', kind: 'access_token', accountId: 'id-ada', grantId: 'g1' })
     await adapter.artifacts.upsert({ ...token, id: 'theirs', kind: 'refresh_token', accountId: 'someone-else', grantId: 'g2' })
@@ -410,9 +426,9 @@ describe('password reset', () => {
     await adapter.sessions.upsert({
       id: 's1',
       accountId: 'id-ada',
-      authTime: new Date(),
+      authTime: Date.now(),
       clients: [],
-      expiresAt: new Date(Date.now() + 60_000)
+      expiresAt: Date.now() + 60_000
     })
     expect(await accounts.reset.issue('nobody')).toBeUndefined()
     const issued = await accounts.reset.issue('Ada')
@@ -452,7 +468,7 @@ describe('password reset', () => {
     const email = await accounts.emailSignIn.issue('ada@example.test', {
       id: 'i-1',
       clientId: 'rp',
-      expiresAt: new Date(Date.now() + 600_000)
+      expiresAt: Date.now() + 600_000
     })
     if (!first || !second) throw new Error('no token')
     if (!email.ok) throw new Error(email.reason)
@@ -474,7 +490,7 @@ describe('password reset', () => {
 })
 
 describe('email sign-in (FR-I9)', () => {
-  const interaction = (expiresAt = new Date(Date.now() + 1_800_000)) => ({ id: 'i-1', clientId: 'rp', expiresAt })
+  const interaction = (expiresAt = Date.now() + 1_800_000) => ({ id: 'i-1', clientId: 'rp', expiresAt })
   const verified = { email: 'ada@example.com', email_verified: true }
 
   test('an address with no account signs up and in, proven, only where the host offers sign-up', async () => {
@@ -530,7 +546,7 @@ describe('email sign-in (FR-I9)', () => {
 
   test('a token outlives its interaction by nothing', async () => {
     const { accounts } = await setup()
-    const issued = await accounts.emailSignIn.issue('ada@example.com', interaction(new Date(Date.now() - 1000)), { signUp: {} })
+    const issued = await accounts.emailSignIn.issue('ada@example.com', interaction(Date.now() - 1000), { signUp: {} })
     if (!issued.ok) throw new Error('not issued')
     expect(await accounts.emailSignIn.find(issued.token)).toBeUndefined()
     expect(await accounts.emailSignIn.redeem(issued.token)).toEqual({ ok: false, reason: 'invalid' })
@@ -544,7 +560,7 @@ describe('email sign-in (FR-I9)', () => {
     counter: 0,
     transports: [],
     name: 'phone',
-    createdAt: new Date()
+    createdAt: Date.now()
   })
 
   // FR-I9: the inbox would be a silent way around the phishing resistance the owner chose.

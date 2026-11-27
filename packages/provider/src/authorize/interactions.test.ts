@@ -70,15 +70,15 @@ describe('interaction', () => {
   })
 
   test('a login reports its own auth_time, never one in the future', async () => {
-    const at = async (authTime: Date) => {
+    const at = async (authTime: number) => {
       const first = await go(authorizeUrl())
       const id = new URL(first.headers.get('location') as string).pathname.split('/').pop() as string
       const { setCookie } = await provider.interactions.complete(id, { login: { accountId: 'ada', authTime } }, browserOf(first))
       return (await provider.session(new Request(ISSUER, { headers: { cookie: (setCookie as string).split(';')[0] as string } })))?.authTime
     }
-    const earlier = new Date(Math.floor(Date.now() / 1000) * 1000 - 3_600_000)
+    const earlier = Math.floor(Date.now() / 1000) * 1000 - 3_600_000
     expect(await at(earlier)).toEqual(earlier)
-    expect((await at(new Date(Date.now() + 3_600_000)))?.getTime()).toBeLessThanOrEqual(Date.now())
+    expect(await at(Date.now() + 3_600_000)).toBeLessThanOrEqual(Date.now())
   })
 
   // FR-F9: max_age went upstream; an answer older than it was not a re-authentication, and the client hears so.
@@ -86,7 +86,7 @@ describe('interaction', () => {
     const answer = async (maxAge: string, ago: number) => {
       const first = await go(authorizeUrl({ max_age: maxAge }))
       const id = new URL(first.headers.get('location') as string).pathname.split('/').pop() as string
-      const authTime = new Date(Date.now() - ago * 1000)
+      const authTime = Date.now() - ago * 1000
       const done = await provider.interactions.complete(id, { login: { accountId: 'ada', authTime } }, browserOf(first))
       return { done, back: new URL((await go(done.redirectTo)).headers.get('location') as string) }
     }

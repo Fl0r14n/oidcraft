@@ -114,7 +114,7 @@ describe('FR-T6: a refresh token without offline_access is bound to the session'
     const issued = await tokensFor(build({ ttl: { session: 600, refreshToken: 86_400 } }), 'rp')
     const stored = await withHashedArtifacts(adapter).artifacts.find('refresh_token', issued.refresh_token)
     const session = (await adapter.sessions.listForAccount('ada'))[0]
-    expect(stored?.expiresAt.getTime()).toBeLessThanOrEqual(session?.expiresAt.getTime() as number)
+    expect(stored?.expiresAt).toBeLessThanOrEqual(session?.expiresAt as number)
   })
 
   test('a client not registered for the refresh_token grant gets none', async () => {

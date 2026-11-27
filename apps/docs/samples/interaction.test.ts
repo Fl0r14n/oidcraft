@@ -35,8 +35,8 @@ await storage.clients.upsert?.({
   responseTypes: ['code'],
   scopes: ['openid', 'profile', 'email'],
   tokenEndpointAuthMethod: 'none',
-  createdAt: new Date(),
-  updatedAt: new Date()
+  createdAt: Date.now(),
+  updatedAt: Date.now()
 })
 
 // #region see-other

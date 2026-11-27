@@ -225,8 +225,8 @@ describe('client ID metadata documents (FR-C20)', () => {
       responseTypes: ['code'],
       scopes: ['openid'],
       tokenEndpointAuthMethod: 'none',
-      createdAt: new Date(),
-      updatedAt: new Date()
+      createdAt: Date.now(),
+      updatedAt: Date.now()
     })
     expect((await authorize(CLIENT_ID, 'https://app.example.com/cb')).status).toBe(303)
     expect(fetched).toEqual([])

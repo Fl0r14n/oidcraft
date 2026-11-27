@@ -1,4 +1,4 @@
-import type { Client } from '@oidcraft/adapter'
+import type { Client, EpochMillis } from '@oidcraft/adapter'
 import { authenticateClient } from '../clients/authenticate'
 import type { ResolvedConfig } from '../config'
 import type { ClientCertificate } from '../context'
@@ -14,7 +14,7 @@ type Token = Stored<'access_token' | 'refresh_token'>
 
 const INTROSPECTABLE: Token['kind'][] = ['access_token', 'refresh_token']
 
-const seconds = (date: Date) => Math.floor(date.getTime() / 1000)
+const seconds = (instant: EpochMillis) => Math.floor(instant / 1000)
 
 const accessPayload = (artifact: Token) => (artifact.kind === 'access_token' ? artifact.payload : undefined)
 

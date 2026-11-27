@@ -13,7 +13,7 @@ export const createTotpEnrolment = ({ adapter, credentials, options }: Shared, s
     // A second factor follows a password; an account without one signs in with a passkey, already two (FR-I8).
     if (!credential.passwordHash) return { ok: false, reason: 'passwordless' } as const
     const secret = crypto.getRandomValues(new Uint8Array(20))
-    await credentials.update(accountId, { totp: { secret: await (await sealer).seal(accountId, secret) }, updatedAt: new Date() })
+    await credentials.update(accountId, { totp: { secret: await (await sealer).seal(accountId, secret) }, updatedAt: Date.now() })
     const encoded = base32(secret)
     return { ok: true, secret: encoded, uri: otpauthUri(encoded, options.issuer, credential.username) } as const
   },
@@ -26,15 +26,15 @@ export const createTotpEnrolment = ({ adapter, credentials, options }: Shared, s
     if (counter === undefined || !(await adapter.replay.claim('totp', `${accountId}:${counter}`, 3 * TOTP_PERIOD))) return undefined
     const { codes, hashes } = await recovery.issueRecoveryCodes(accountId)
     await credentials.update(accountId, {
-      totp: { secret: credential.totp.secret, confirmedAt: new Date() },
+      totp: { secret: credential.totp.secret, confirmedAt: Date.now() },
       recoveryCodes: hashes,
-      updatedAt: new Date()
+      updatedAt: Date.now()
     })
     return { recoveryCodes: codes }
   },
 
   async remove(accountId: string) {
-    await credentials.update(accountId, { totp: undefined, recoveryCodes: undefined, updatedAt: new Date() })
+    await credentials.update(accountId, { totp: undefined, recoveryCodes: undefined, updatedAt: Date.now() })
   },
 
   async status(accountId: string) {

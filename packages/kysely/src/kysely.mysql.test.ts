@@ -46,7 +46,7 @@ for (const server of MYSQL_SERVERS) {
     // Ids are case-sensitive; MySQL's default collations are not.
     test('ids that differ only in case are two records', async () => {
       const adapter = kyselyAdapter({ db: dbOf((await freshDatabase(url)).uri), keys: await generatedKeyStore(), accounts })
-      const expiresAt = new Date(Date.now() + 60_000)
+      const expiresAt = Date.now() + 60_000
       await adapter.artifacts.upsert({ id: 'AbC', kind: 'access_token', clientId: 'c', payload: {}, expiresAt })
       expect(await adapter.artifacts.find('access_token', 'abc')).toBeUndefined()
       expect(await adapter.replay.claim('n', 'Token', 60)).toBe(true)
@@ -65,7 +65,7 @@ for (const server of MYSQL_SERVERS) {
         counter: 0,
         transports: [],
         name: 'Key',
-        createdAt: new Date()
+        createdAt: Date.now()
       }
       expect(await adapter.passkeys.create(passkey)).toBe(true)
       expect((await adapter.passkeys.find(credentialId))?.accountId).toBe('a1')
@@ -87,8 +87,8 @@ for (const server of MYSQL_SERVERS) {
         responseTypes: ['code'],
         scopes: ['openid'],
         tokenEndpointAuthMethod: 'none',
-        createdAt: new Date(),
-        updatedAt: new Date()
+        createdAt: Date.now(),
+        updatedAt: Date.now()
       })
       expect(await acme.clients.find('rp')).toBeTruthy()
       expect(await globex.clients.find('rp')).toBeUndefined()

@@ -1,6 +1,6 @@
 import { randomString } from '@oidcraft/core'
-import type { Credential } from '@oidcraft/provider'
-import { digest, invalid, locked, lockedUntil, normalizeUsername, type Shared, usernameProblem } from './shared'
+import type { Credential, EpochMillis, Expiring } from '@oidcraft/provider'
+import { digest, invalid, liveLock, locked, normalizeUsername, type Shared, usernameProblem } from './shared'
 
 export type AddressProblem = 'required' | 'tooLong' | 'invalid'
 
@@ -9,16 +9,16 @@ export type EmailSignInIssue =
   | { ok: true; token: string; address: string; accountId: string | undefined }
   | { ok: false; reason: 'address'; problem: AddressProblem }
   | { ok: false; reason: 'passkey' | 'unverified' | 'unknown'; address: string }
-  | { ok: false; reason: 'locked'; until: Date }
+  | { ok: false; reason: 'locked'; lock: Expiring }
 
 /** `interactionId` is the one to finish with `provider.interactions.completeHere`, after the TOTP step when `secondFactor`. */
 export type EmailSignInResult =
   | { ok: true; accountId: string; interactionId: string; secondFactor: boolean; signedUp: boolean }
   | { ok: false; reason: 'invalid' | 'passkey' }
-  | { ok: false; reason: 'locked'; until: Date }
+  | { ok: false; reason: 'locked'; lock: Expiring }
 
 /** What an email sign-in token is issued for: `provider.interactions.find`'s answer is one. */
-export type EmailSignInInteraction = { id: string; clientId: string; expiresAt: Date }
+export type EmailSignInInteraction = { id: string; clientId: string; expiresAt: EpochMillis }
 
 type EmailSignInPayload = {
   address: string
@@ -69,7 +69,7 @@ export const createEmailSignIn = (shared: Shared, generationOf: (accountId: stri
       const problem = addressProblem(normalized)
       if (problem) return { ok: false, reason: 'address', problem }
       if (!(await admitEmailSignIn(normalized))) {
-        return { ok: false, reason: 'locked', until: new Date(Date.now() + policy.emailSignInWindow * 1000) }
+        return locked({ expiresAt: Date.now() + policy.emailSignInWindow * 1000 })
       }
       const credential = await credentials.findByUsername(normalized)
       if (!credential && !options.signUp) return { ok: false, reason: 'unknown', address: normalized }
@@ -87,7 +87,7 @@ export const createEmailSignIn = (shared: Shared, generationOf: (accountId: stri
         clientId: interaction.clientId,
         ...(credential && { accountId: credential.accountId }),
         payload,
-        expiresAt: new Date(Math.min(Date.now() + policy.emailSignInTtl * 1000, interaction.expiresAt.getTime()))
+        expiresAt: Math.min(Date.now() + policy.emailSignInTtl * 1000, interaction.expiresAt)
       })
       return { ok: true, token, address: normalized, accountId: credential?.accountId }
     },
@@ -108,7 +108,7 @@ export const createEmailSignIn = (shared: Shared, generationOf: (accountId: stri
       let credential = artifact.accountId ? await credentials.find(artifact.accountId) : undefined
       let signedUp = false
       if (!artifact.accountId && signUp) {
-        const now = new Date()
+        const now = Date.now()
         const accountId = shared.newAccountId(address)
         if (await shared.linkedElsewhere(accountId)) return invalid
         const account: Credential = {
@@ -125,8 +125,8 @@ export const createEmailSignIn = (shared: Shared, generationOf: (accountId: stri
       if (credential?.username !== address) return invalid
       const checked = signedUp ? undefined : await checkEmailSignIn(credential, address)
       if (checked && !checked.ok) return checked.reason === 'passkey' ? { ok: false, reason: 'passkey' } : invalid
-      const until = lockedUntil(credential)
-      if (until) return locked(until)
+      const lock = liveLock(credential.lock)
+      if (lock) return locked(lock)
       return { ok: true, accountId: credential.accountId, interactionId, secondFactor: Boolean(credential.totp?.confirmedAt), signedUp }
     }
   }

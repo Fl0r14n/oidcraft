@@ -15,8 +15,8 @@ const client = (over: Partial<Client> = {}): Client => ({
   responseTypes: ['code'],
   scopes: ['openid', 'profile', 'offline_access'],
   tokenEndpointAuthMethod: 'client_secret_basic',
-  createdAt: new Date(),
-  updatedAt: new Date(),
+  createdAt: Date.now(),
+  updatedAt: Date.now(),
   ...over
 })
 
@@ -153,7 +153,7 @@ describe('polling', () => {
 
 describe('approval', () => {
   const approve = async (userCodeTyped: string, scopes = ['openid', 'profile', 'offline_access'], accountId = 'ada') => {
-    const session = { id: 's1', accountId: 'ada', authTime: new Date(), clients: ['tv'], expiresAt: new Date(Date.now() + 60_000) }
+    const session = { id: 's1', accountId: 'ada', authTime: Date.now(), clients: ['tv'], expiresAt: Date.now() + 60_000 }
     await adapter.sessions.upsert(session)
     return provider.device.resolve(userCodeTyped, { accountId, sessionId: session.id, scopes })
   }
@@ -243,9 +243,9 @@ describe('approval', () => {
     await adapter.sessions.upsert({
       id: 's2',
       accountId: 'ada',
-      authTime: new Date(),
+      authTime: Date.now(),
       clients: [],
-      expiresAt: new Date(Date.now() + 60_000)
+      expiresAt: Date.now() + 60_000
     })
     await provider.device.resolve(user_code, { accountId: 'ada', sessionId: 's2', scopes: ['openid', 'profile', 'offline_access'] })
     expect((await adapter.sessions.find('s2'))?.clients).toEqual(['tv'])
@@ -277,17 +277,17 @@ describe('pairwise subjects', () => {
     await adapter.sessions.upsert({
       id: 's1',
       accountId: 'ada',
-      authTime: new Date(),
+      authTime: Date.now(),
       clients: ['tv'],
-      expiresAt: new Date(Date.now() + 60_000)
+      expiresAt: Date.now() + 60_000
     })
     const paired = provider.config.adapter
     await paired.sessions.upsert({
       id: 's1',
       accountId: 'ada',
-      authTime: new Date(),
+      authTime: Date.now(),
       clients: ['tv'],
-      expiresAt: new Date(Date.now() + 60_000)
+      expiresAt: Date.now() + 60_000
     })
     await provider.device.resolve(user_code, { accountId: 'ada', sessionId: 's1', scopes: ['openid', 'profile', 'offline_access'] })
 

@@ -4,8 +4,8 @@ import { index, integer, primaryKey, sqliteTable, text, uniqueIndex } from 'driz
 export const clients = sqliteTable('oidc_clients', {
   clientId: text('client_id').primaryKey(),
   data: text('data', { mode: 'json' }).notNull(),
-  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
-  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull()
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull()
 })
 
 export const artifacts = sqliteTable(
@@ -19,8 +19,8 @@ export const artifacts = sqliteTable(
     familyId: text('family_id'),
     userCode: text('user_code'),
     payload: text('payload', { mode: 'json' }).notNull(),
-    consumedAt: integer('consumed_at', { mode: 'timestamp_ms' }),
-    expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull()
+    consumedAt: integer('consumed_at'),
+    expiresAt: integer('expires_at').notNull()
   },
   table => [
     primaryKey({ columns: [table.kind, table.id] }),
@@ -38,14 +38,14 @@ export const sessions = sqliteTable(
   {
     id: text('id').primaryKey(),
     accountId: text('account_id').notNull(),
-    authTime: integer('auth_time', { mode: 'timestamp_ms' }).notNull(),
+    authTime: integer('auth_time').notNull(),
     acr: text('acr'),
     amr: text('amr', { mode: 'json' }),
     idp: text('idp'),
     upstreamSessionId: text('upstream_session_id'),
     clients: text('clients', { mode: 'json' }).notNull(),
-    expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
-    lastUsedAt: integer('last_used_at', { mode: 'timestamp_ms' })
+    expiresAt: integer('expires_at').notNull(),
+    lastUsedAt: integer('last_used_at')
   },
   table => [
     index('oidc_sessions_account_idx').on(table.accountId),
@@ -64,8 +64,8 @@ export const grants = sqliteTable(
     scopes: text('scopes', { mode: 'json' }).notNull(),
     claims: text('claims', { mode: 'json' }).notNull(),
     resources: text('resources', { mode: 'json' }).notNull(),
-    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
-    expiresAt: integer('expires_at', { mode: 'timestamp_ms' })
+    createdAt: integer('created_at').notNull(),
+    expiresAt: integer('expires_at')
   },
   table => [
     // One grant per (account, client): the consent record accumulates rather than duplicating.
@@ -82,7 +82,7 @@ export const identities = sqliteTable(
     accountId: text('account_id').notNull(),
     email: text('email'),
     claims: text('claims', { mode: 'json' }).notNull(),
-    linkedAt: integer('linked_at', { mode: 'timestamp_ms' }).notNull()
+    linkedAt: integer('linked_at').notNull()
   },
   table => [primaryKey({ columns: [table.provider, table.subject] }), index('oidc_identities_account_idx').on(table.accountId)]
 )
@@ -92,7 +92,7 @@ export const replay = sqliteTable(
   {
     namespace: text('namespace').notNull(),
     value: text('value').notNull(),
-    expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull()
+    expiresAt: integer('expires_at').notNull()
   },
   table => [primaryKey({ columns: [table.namespace, table.value] }), index('oidc_replay_expiry_idx').on(table.expiresAt)]
 )
@@ -105,12 +105,12 @@ export const credentials = sqliteTable(
     passwordHash: text('password_hash'),
     claims: text('claims', { mode: 'json' }).notNull(),
     totpSecret: text('totp_secret'),
-    totpConfirmedAt: integer('totp_confirmed_at', { mode: 'timestamp_ms' }),
+    totpConfirmedAt: integer('totp_confirmed_at'),
     recoveryCodes: text('recovery_codes', { mode: 'json' }),
     failedAttempts: integer('failed_attempts').notNull().default(0),
-    lockedUntil: integer('locked_until', { mode: 'timestamp_ms' }),
-    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
-    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull()
+    lockedUntil: integer('locked_until'),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at').notNull()
   },
   table => [uniqueIndex('oidc_credentials_username_idx').on(table.username)]
 )
@@ -125,8 +125,8 @@ export const passkeys = sqliteTable(
     counter: integer('counter').notNull(),
     transports: text('transports', { mode: 'json' }).notNull(),
     name: text('name').notNull(),
-    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
-    lastUsedAt: integer('last_used_at', { mode: 'timestamp_ms' })
+    createdAt: integer('created_at').notNull(),
+    lastUsedAt: integer('last_used_at')
   },
   table => [index('oidc_passkeys_account_idx').on(table.accountId)]
 )
@@ -136,8 +136,8 @@ export const realms = sqliteTable('oidc_realms', {
   displayName: text('display_name'),
   enabled: integer('enabled', { mode: 'boolean' }).notNull(),
   settings: text('settings', { mode: 'json' }).notNull(),
-  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
-  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull()
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull()
 })
 
 export const schema = { clients, artifacts, sessions, grants, identities, replay, credentials, passkeys, realms }

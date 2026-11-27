@@ -43,8 +43,8 @@ test('a sign-in, a refresh, UserInfo, a revocation and a logout scan no whole fa
     responseTypes: ['code'],
     scopes: ['openid', 'profile', 'offline_access'],
     tokenEndpointAuthMethod: 'client_secret_basic',
-    createdAt: new Date(),
-    updatedAt: new Date()
+    createdAt: Date.now(),
+    updatedAt: Date.now()
   }
   await adapter.clients.upsert?.(client)
   const provider = createProvider({ issuer: ISSUER, adapter, interactionUrl: `${ISSUER}/interaction` })

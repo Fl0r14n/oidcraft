@@ -49,7 +49,7 @@ describe('ID token details', () => {
 describe('claims an ID token carries', () => {
   test('cannot restate how the person signed in', async () => {
     const provider = build()
-    const session = { id: 's1', accountId: 'ada', authTime: new Date(), clients: [], expiresAt: new Date(Date.now() + 60_000) }
+    const session = { id: 's1', accountId: 'ada', authTime: Date.now(), clients: [], expiresAt: Date.now() + 60_000 }
     const token = await mintIdToken(provider.config, {
       client: client(),
       session,

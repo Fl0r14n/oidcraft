@@ -57,7 +57,7 @@ describe('drizzle adapter', () => {
       accountId: 'u1',
       grantId: 'g1',
       payload: { scopes: ['openid'] },
-      expiresAt: new Date(Date.now() + 60_000)
+      expiresAt: Date.now() + 60_000
     })
     const [row] = (db as unknown as { all: (q: unknown) => Record<string, unknown>[] }).all(
       sql`select client_id, account_id, grant_id from oidc_artifacts where id = 'a1'`
@@ -67,21 +67,21 @@ describe('drizzle adapter', () => {
 
   test('prune removes expired rows and reports how many', async () => {
     const { adapter } = await fresh()
-    await adapter.artifacts.upsert({ id: 'old', kind: 'access_token', clientId: 'c1', payload: {}, expiresAt: new Date(Date.now() - 1000) })
+    await adapter.artifacts.upsert({ id: 'old', kind: 'access_token', clientId: 'c1', payload: {}, expiresAt: Date.now() - 1000 })
     await adapter.artifacts.upsert({
       id: 'new',
       kind: 'access_token',
       clientId: 'c1',
       payload: {},
-      expiresAt: new Date(Date.now() + 60_000)
+      expiresAt: Date.now() + 60_000
     })
-    expect(await adapter.artifacts.prune?.(new Date(), 100)).toBe(1)
+    expect(await adapter.artifacts.prune?.(Date.now(), 100)).toBe(1)
     expect((await adapter.artifacts.find('access_token', 'new'))?.id).toBe('new')
   })
 
   test('one grant per account and client: a second id writes into the first', async () => {
     const { adapter } = await fresh()
-    const base = { accountId: 'u1', clientId: 'c1', claims: [], resources: {}, createdAt: new Date() }
+    const base = { accountId: 'u1', clientId: 'c1', claims: [], resources: {}, createdAt: Date.now() }
     await adapter.grants.upsert({ id: 'g1', scopes: ['openid'], ...base })
     await adapter.grants.upsert({ id: 'g2', scopes: ['openid', 'profile'], ...base })
     expect((await adapter.grants.listForAccount('u1')).map(grant => [grant.id, grant.scopes])).toEqual([['g1', ['openid', 'profile']]])

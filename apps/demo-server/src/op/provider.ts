@@ -40,7 +40,7 @@ const adapter = forgetConsent ? forgettingConsent(withAccounts) : withAccounts
 
 // Expired rows are never served (FR-T5); sweeping them only reclaims the space, in bounded batches (NFR-P3).
 const sweep = async () => {
-  const now = new Date()
+  const now = Date.now()
   await adapter.artifacts.prune?.(now, 1000)
   await adapter.sessions.prune?.(now, 1000)
   await adapter.replay.prune?.(now, 1000)

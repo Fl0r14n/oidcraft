@@ -15,7 +15,7 @@ import type {
 } from './adapter'
 import { mergedGrant } from './grants'
 import { page } from './page'
-import type { Artifact, Client, Credential, Grant, LinkedIdentity, Passkey, Realm, Seconds, Session } from './types'
+import type { Artifact, Client, Credential, EpochMillis, Grant, LinkedIdentity, Passkey, Realm, Seconds, Session } from './types'
 
 export type KvEntry = { key: string; value: string; ttl?: Seconds }
 
@@ -52,19 +52,11 @@ const enc = (value: unknown) => JSON.stringify(value)
 
 const dec = <T>(raw: string | undefined): T | undefined => (raw === undefined ? undefined : (JSON.parse(raw) as T))
 
-const revive = <T>(value: T, dates: (keyof T & string)[]) => {
-  const record = value as Record<string, unknown>
-  for (const field of dates) {
-    if (typeof record[field] === 'string') record[field] = new Date(record[field] as string)
-  }
-  return value
-}
+const secondsUntil = (expiresAt: EpochMillis): Seconds => Math.max(1, Math.ceil((expiresAt - Date.now()) / 1000))
 
-const secondsUntil = (expiresAt: Date): Seconds => Math.max(1, Math.ceil((expiresAt.getTime() - Date.now()) / 1000))
-
-const collect = async <T>(kv: KvStore, prefix: string, revived: (raw: string) => T) => {
+const collect = async <T>(kv: KvStore, prefix: string) => {
   const out: T[] = []
-  for await (const { value } of kv.scan(prefix)) out.push(revived(value))
+  for await (const { value } of kv.scan(prefix)) out.push(JSON.parse(value) as T)
   return out
 }
 
@@ -107,8 +99,8 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
   const consumedKey = (kind: string, id: string) => `consumed/${kind}/${id}`
   const withConsumption = async (artifact: Artifact) => {
     const consumedAt = await read(consumedKey(artifact.kind, artifact.id))
-    const { consumedAt: _, ...rest } = revive(artifact, ['expiresAt'])
-    return consumedAt ? { ...rest, consumedAt: new Date(consumedAt) } : rest
+    const { consumedAt: _, ...rest } = artifact
+    return consumedAt ? { ...rest, consumedAt: Number(consumedAt) } : rest
   }
 
   const artifacts: ArtifactStore = {
@@ -129,7 +121,7 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
       if (!artifact) return undefined
       const live = await withConsumption(artifact)
       // FR-T5: an expiry the store missed must still not be served.
-      return live.expiresAt.getTime() > Date.now() ? live : undefined
+      return live.expiresAt > Date.now() ? live : undefined
     },
 
     async findByUserCode(userCode) {
@@ -138,15 +130,14 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
       const artifact = dec<Artifact>(await read(pointer))
       if (!artifact) return undefined
       const live = await withConsumption(artifact)
-      return live.expiresAt.getTime() > Date.now() ? live : undefined
+      return live.expiresAt > Date.now() ? live : undefined
     },
 
     async consume(kind, id) {
       const artifact = dec<Artifact>(await read(artifactKey(kind, id)))
       if (!artifact) return false
-      const expiresAt = new Date(artifact.expiresAt)
-      if (expiresAt.getTime() <= Date.now()) return false
-      if (!(await kv.create({ key: consumedKey(kind, id), value: new Date().toISOString(), ttl: secondsUntil(expiresAt) }))) return false
+      if (artifact.expiresAt <= Date.now()) return false
+      if (!(await kv.create({ key: consumedKey(kind, id), value: String(Date.now()), ttl: secondsUntil(artifact.expiresAt) }))) return false
       // Deleted between the read and the create, it is revoked, not redeemed (NFR-S4).
       return (await read(artifactKey(kind, id))) !== undefined
     },
@@ -183,8 +174,7 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
 
   const clients: ClientStore = {
     async find(clientId) {
-      const client = dec<Record<string, unknown>>(await read(`client/${clientId}`))
-      return client ? (revive(client, ['createdAt', 'updatedAt']) as never) : undefined
+      return dec<Client>(await read(`client/${clientId}`))
     },
     async upsert(client) {
       await kv.upsert({ key: `client/${client.clientId}`, value: enc(client) })
@@ -193,7 +183,7 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
       await kv.destroy(`client/${clientId}`)
     },
     async list(cursor, limit) {
-      const all: Client[] = await collect(kv, 'client/', raw => revive(JSON.parse(raw), ['createdAt', 'updatedAt']) as never)
+      const all = await collect<Client>(kv, 'client/')
       return page(
         all.filter(client => cursor === undefined || client.clientId > cursor).sort((a, b) => (a.clientId < b.clientId ? -1 : 1)),
         limit
@@ -221,15 +211,12 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
     await kv.upsert({ key: `session/${session.id}`, value: enc(session), ttl })
     for (const key of sessionIndexes(session)) await kv.upsert({ key, value: '', ttl })
   }
-  const readSession = async (id: string) => {
-    const session = dec<Session>(await read(`session/${id}`))
-    return session && revive(session, ['authTime', 'expiresAt', 'lastUsedAt'])
-  }
+  const readSession = async (id: string) => dec<Session>(await read(`session/${id}`))
 
   const sessions: BrokeringAdapter['sessions'] = {
     async find(id) {
       const live = await readSession(id)
-      return live && live.expiresAt.getTime() > Date.now() ? withClients(live) : undefined
+      return live && live.expiresAt > Date.now() ? withClients(live) : undefined
     },
     async listForAccount(accountId) {
       return present(await Promise.all((await under(accountSessions(accountId))).map(id => sessions.find(id))))
@@ -254,7 +241,7 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
     update: (id, fields) =>
       locked(sessionLock(id), async () => {
         const session = await readSession(id)
-        if (!session || session.expiresAt.getTime() <= Date.now()) return false
+        if (!session || session.expiresAt <= Date.now()) return false
         const { id: _, clients: __, ...changed } = fields as Partial<Session>
         const next = { ...session, ...changed }
         for (const key of sessionIndexes(session)) if (!sessionIndexes(next).includes(key)) await kv.destroy(key)
@@ -269,9 +256,8 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
   const clientGrants = (clientId: string) => `grant-by-client/${part(clientId)}/`
   const readGrant = async (id: string) => {
     const grant = dec<Grant>(await read(`grant/${id}`))
-    const live = grant && revive(grant, ['createdAt', 'expiresAt'])
     // FR-T5: a TTL rounds up to a second, so the expiry is checked as an artifact's is.
-    return live && (!live.expiresAt || live.expiresAt.getTime() > Date.now()) ? live : undefined
+    return grant && (!grant.expiresAt || grant.expiresAt > Date.now()) ? grant : undefined
   }
 
   const grants: GrantStore = {
@@ -334,11 +320,10 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
   const identityKey = (provider: string, subject: string) => `identity/${part(provider)}/${part(subject)}`
   const identities: LinkedIdentityStore = {
     async find(upstream, subject) {
-      const identity = dec<LinkedIdentity>(await read(identityKey(upstream, subject)))
-      return identity ? revive(identity, ['createdAt']) : undefined
+      return dec<LinkedIdentity>(await read(identityKey(upstream, subject)))
     },
     async listForAccount(accountId) {
-      const all = await collect(kv, 'identity/', raw => revive(JSON.parse(raw) as LinkedIdentity, ['createdAt']))
+      const all = await collect<LinkedIdentity>(kv, 'identity/')
       return all.filter(identity => identity.accountId === accountId)
     },
     async upsert(identity) {
@@ -352,15 +337,7 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
   const credentialKey = (accountId: string) => `credential/${accountId}`
   const usernameKey = (username: string) => `username/${username}`
   const credentialLock = (accountId: string) => `credential-lock/${part(accountId)}`
-  const reviveCredential = (credential: Credential) => {
-    revive(credential, ['createdAt', 'updatedAt', 'lockedUntil'])
-    if (credential.totp) revive(credential.totp, ['confirmedAt'])
-    return credential
-  }
-  const readCredential = async (accountId: string) => {
-    const credential = dec<Credential>(await read(credentialKey(accountId)))
-    return credential ? reviveCredential(credential) : undefined
-  }
+  const readCredential = async (accountId: string) => dec<Credential>(await read(credentialKey(accountId)))
 
   // The username index is claimed with `create`, so uniqueness rests on the same atomic write as single use.
   const credentials: CredentialStore = {
@@ -406,10 +383,7 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
   const passkeyKey = (credentialId: string) => `passkey/${part(credentialId)}`
   const accountPasskeys = (accountId: string) => `account-passkey/${part(accountId)}/`
   const passkeyLock = (credentialId: string) => `passkey-lock/${part(credentialId)}`
-  const readPasskey = async (credentialId: string) => {
-    const passkey = dec<Passkey>(await read(passkeyKey(credentialId)))
-    return passkey ? revive(passkey, ['createdAt', 'lastUsedAt']) : undefined
-  }
+  const readPasskey = async (credentialId: string) => dec<Passkey>(await read(passkeyKey(credentialId)))
 
   const passkeys: PasskeyStore = {
     find: readPasskey,
@@ -445,13 +419,11 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
   }
 
   const realmKey = (id: string) => `realm/${id}`
-  const reviveRealm = (raw: string) => revive(JSON.parse(raw) as Realm, ['createdAt', 'updatedAt'])
   const realms: RealmStore = {
     async find(id) {
-      const raw = await read(realmKey(id))
-      return raw === undefined ? undefined : reviveRealm(raw)
+      return dec<Realm>(await read(realmKey(id)))
     },
-    list: () => collect(kv, 'realm/', reviveRealm),
+    list: () => collect<Realm>(kv, 'realm/'),
     create: realm => kv.create({ key: realmKey(realm.id), value: enc(realm) }),
     async upsert(realm) {
       await kv.upsert({ key: realmKey(realm.id), value: enc(realm) })

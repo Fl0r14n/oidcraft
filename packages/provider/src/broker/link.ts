@@ -65,7 +65,7 @@ const link = async (adapter: BrokeringAdapter, identity: BrokeredIdentity, accou
     subject: identity.subject,
     ...(identity.email && { email: identity.email }),
     claims: identity.claims,
-    createdAt: new Date()
+    createdAt: Date.now()
   }
   await adapter.identities.upsert(record)
 }

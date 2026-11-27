@@ -50,7 +50,7 @@ describe('security events reach onAudit', () => {
       grantId: expect.any(String),
       detail: { kind: 'authorization_code', familyId: expect.any(String) }
     })
-    expect(events[0]?.at).toBeInstanceOf(Date)
+    expect(events[0]?.at).toBeNumber()
   })
 
   test('two redemptions racing are reported once, naming who presented the replay', async () => {

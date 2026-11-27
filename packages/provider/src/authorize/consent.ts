@@ -7,7 +7,7 @@ import { heldClaims, individuallyRequested } from './claims'
 
 /** FR-I4: one grant per account and client, which every consent adds to; the store merges atomically, so none is lost to another. */
 export const recordConsent = (config: ResolvedConfig, accountId: string, clientId: string, scopes: string[], claims: string[] = []) =>
-  config.adapter.grants.merge({ id: randomString(), accountId, clientId, scopes, claims, resources: {}, createdAt: new Date() })
+  config.adapter.grants.merge({ id: randomString(), accountId, clientId, scopes, claims, resources: {}, createdAt: Date.now() })
 
 type Asked = Pick<AuthorizationRequest, 'scopes' | 'claims'>
 type Covering = Pick<Grant, 'scopes' | 'claims'> | undefined

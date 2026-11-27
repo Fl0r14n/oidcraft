@@ -136,7 +136,7 @@ const askToConfirm = async (
     clientId: client?.clientId ?? '',
     accountId: session.accountId,
     payload: { interactionKind: 'logout', browser, sessionId: session.id, ...(state !== null && { state }), ...(target && { target }) },
-    expiresAt: new Date(Date.now() + config.ttl.interaction * 1000)
+    expiresAt: Date.now() + config.ttl.interaction * 1000
   })
   const headers = new Headers({ location: `${config.interactionUrl}/${id}`, 'cache-control': 'no-store' })
   if (setCookie) headers.set('set-cookie', setCookie)

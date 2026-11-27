@@ -1,4 +1,4 @@
-import type { AccountStore, ArtifactKind, FullAdapter, KeyStore } from '@oidcraft/adapter'
+import type { AccountStore, ArtifactKind, EpochMillis, FullAdapter, KeyStore } from '@oidcraft/adapter'
 import { grantExpired, MERGE_ROUNDS, mergedGrant, noAccounts } from '@oidcraft/adapter'
 import {
   type ArtifactRow,
@@ -233,15 +233,15 @@ export const sqlAdapter = ({ dialect, execute, keys, accounts }: SqlAdapterOptio
   const prune = async <T extends 'oidc_artifacts' | 'oidc_sessions' | 'oidc_replay'>(
     table: T,
     key: Column<T>[],
-    before: Date,
+    before: EpochMillis,
     limit: number
   ) => {
-    const expired = { expires_at: { lte: before.getTime() } } as Where<T>
+    const expired = { expires_at: { lte: before } } as Where<T>
     const query = statement().text('delete from ').table(table)
     // MySQL refuses a `LIMIT` in an `IN` subquery on the table being deleted from, and has `DELETE … LIMIT` instead.
     if (mysql) return counted(query.where(expired).text(' order by ').column('expires_at').text(' limit ').value(limit), key[0] as string)
     query.text(' where (').list(key).text(') in (select ').list(key).text(' from ').table(table).where(expired).text(' limit ').value(limit)
-    query.text(') and ').column('expires_at').text(' <= ').value(before.getTime())
+    query.text(') and ').column('expires_at').text(' <= ').value(before)
     return counted(query, key[0] as string)
   }
 

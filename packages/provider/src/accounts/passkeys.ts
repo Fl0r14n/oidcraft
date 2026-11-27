@@ -1,5 +1,6 @@
 import type { CredentialsAdapter, Passkey, Seconds } from '@oidcraft/provider'
 import { base64url } from 'jose'
+import { liveLock } from './shared'
 import {
   bytesOf,
   equalBytes,
@@ -121,7 +122,7 @@ export const createPasskeys = ({ adapter, origin: configured, name, hashingKey, 
       clientId: '',
       ...(accountId && { accountId }),
       payload: challenge,
-      expiresAt: new Date(Date.now() + ttl * 1000)
+      expiresAt: Date.now() + ttl * 1000
     })
     return id
   }
@@ -208,7 +209,7 @@ export const createPasskeys = ({ adapter, origin: configured, name, hashingKey, 
         TRANSPORTS.has(transport)
       ),
       name: passkeyName,
-      createdAt: new Date()
+      createdAt: Date.now()
     })
     return { accountId, signUp: redeemed.challenge.signUp, passkey }
   }
@@ -286,8 +287,8 @@ export const createPasskeys = ({ adapter, origin: configured, name, hashingKey, 
       const { counter } = authenticator.data
       if ((counter !== 0 || passkey.counter !== 0) && counter <= passkey.counter) return { ok: false, reason: 'counter' }
       const credential = await adapter.credentials.find(passkey.accountId)
-      if (!credential || (credential.lockedUntil && credential.lockedUntil.getTime() > Date.now())) return invalid
-      await adapter.passkeys.update(passkey.credentialId, { counter, lastUsedAt: new Date() })
+      if (!credential || liveLock(credential.lock)) return invalid
+      await adapter.passkeys.update(passkey.credentialId, { counter, lastUsedAt: Date.now() })
       return { ok: true, accountId: passkey.accountId, credentialId: passkey.credentialId }
     },
 

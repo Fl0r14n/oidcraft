@@ -13,10 +13,14 @@ import type { ConfigContext } from './config'
 import { createStorageStore, readSlot, writeSlot } from './storage'
 import { watchStore } from './store'
 
-export const isExpiredToken = (token?: OAuthToken) => (token?.expires && Date.now() > token.expires) || false
+// A token stored before `expiresAt` holds `expires`; read without it, it would never expire nor be refreshed (NFR-D6).
+const fromStorage = ({ expires, ...token }: OAuthToken) =>
+  typeof expires === 'number' && token.expiresAt === undefined ? { ...token, expiresAt: expires } : token
+
+export const isExpiredToken = (token?: OAuthToken) => (token?.expiresAt && Date.now() > token.expiresAt) || false
 
 const refreshAhead = (token: OAuthToken) => Math.min(30_000, ((Number(token.expires_in) || Number.POSITIVE_INFINITY) * 1e3) / 2)
-const isExpiringToken = (token?: OAuthToken) => (token?.expires && Date.now() + refreshAhead(token) > token.expires) || false
+const isExpiringToken = (token?: OAuthToken) => (token?.expiresAt && Date.now() + refreshAhead(token) > token.expiresAt) || false
 
 // How long a caller waits on discovery, then on the refresh itself.
 const REFRESH_PATIENCE = 30_000
@@ -72,7 +76,7 @@ export const createToken = (
   functions: OAuthFunctions,
   discovery: Discovery = createDiscovery({ functions })
 ) => {
-  const storage = createStorageStore<OAuthToken>(storageKey(), {})
+  const storage = createStorageStore<OAuthToken>(storageKey(), {}, fromStorage)
   const token = storage.get
   const setToken = storage.set
 
@@ -95,7 +99,7 @@ export const createToken = (
 
   const withExpiry = (t: OAuthToken) => {
     const expiresIn = Number(t?.expires_in) || 0
-    return expiresIn && !t.expires ? { ...t, expires: Date.now() + expiresIn * 1e3 } : t
+    return expiresIn && !t.expiresAt ? { ...t, expiresAt: Date.now() + expiresIn * 1e3 } : t
   }
 
   const setExpires = (t: OAuthToken) => {
@@ -167,17 +171,17 @@ export const createToken = (
   // signed in until the next request. At its expiry it is refreshed, or written again so every reader recomputes.
   const watchExpiry = () => {
     let timer: ReturnType<typeof setTimeout> | undefined
-    const schedule = (expires: number | undefined) => {
+    const schedule = (expiresAt: number | undefined) => {
       clearTimeout(timer)
-      if (!expires) return
+      if (!expiresAt) return
       timer = setTimeout(
         () => {
           const t = token()
-          if (t?.expires !== expires) return
-          if (Date.now() < expires) return schedule(expires)
+          if (t?.expiresAt !== expiresAt) return
+          if (Date.now() < expiresAt) return schedule(expiresAt)
           const lapse = () => {
             const still = token()
-            if (still?.expires === expires && still.access_token) setToken({ ...still })
+            if (still?.expiresAt === expiresAt && still.access_token) setToken({ ...still })
           }
           if (t.refresh_token)
             void checkToken()
@@ -185,10 +189,10 @@ export const createToken = (
               .finally(lapse)
           else lapse()
         },
-        Math.min(Math.max(0, expires - Date.now()), LONGEST_TIMER)
+        Math.min(Math.max(0, expiresAt - Date.now()), LONGEST_TIMER)
       )
     }
-    const off = watchStore(storage.store, () => token()?.expires, schedule, { immediate: true })
+    const off = watchStore(storage.store, () => token()?.expiresAt, schedule, { immediate: true })
     return () => {
       clearTimeout(timer)
       off()

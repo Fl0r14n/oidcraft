@@ -60,8 +60,8 @@ for (const server of MYSQL_SERVERS) {
         responseTypes: ['code'],
         scopes: ['openid'],
         tokenEndpointAuthMethod: 'none',
-        createdAt: new Date(),
-        updatedAt: new Date()
+        createdAt: Date.now(),
+        updatedAt: Date.now()
       })
       expect(await acme.clients.find('rp')).toBeTruthy()
       expect(await globex.clients.find('rp')).toBeUndefined()

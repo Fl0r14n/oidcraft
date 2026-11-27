@@ -828,7 +828,7 @@ the browser breaks. Only a whole literal `process.env.X` is substituted.
 - **A file using a Bun global carries `/// <reference types="bun" />` itself.**
 - **A field that restricts a stored artifact is checked as present where it is read.** A payload
   written by an earlier release lacks what was added since, and absent must mean refused, never
-  unrestricted (NFR-D6): a refresh token without `familyExpiresAt` is refused, not given a new family.
+  unrestricted (NFR-D6): a refresh token without its `family` is refused, not given a new one.
 - 140 columns, single quotes, no semicolons, no trailing commas, 2-space indent — `biome.json`
   settles it and `bun run format` applies it.
 
@@ -856,8 +856,15 @@ the argument would still type-check and do the unconditional thing.
 
 **Words.** _Provider_ is oidcraft, the OP. An external identity provider is an _upstream_
 (`upstream`, `allowedUpstreams`, `upstreamSessionId`). A field that becomes a token claim keeps the
-claim's name (`acr`, `amr`, `idp`), whatever the vocabulary says. A point in time is `<event>At`, a
-`Date`; a duration is `Seconds`. _Sign up_ creates an account, with a password or a passkey;
+claim's name (`acr`, `amr`, `idp`), whatever the vocabulary says. A point in time is `EpochMillis`,
+what `Date.now()` answers, in a record and a payload alike, so it crosses SQL, JSON and the browser
+unconverted; a protocol field is the claim's NumericDate seconds (RFC 7519 §2), made only at the wire.
+Every instant is one of `@oidcraft/core`'s composed types, never spelled again: `Created`
+(`createdAt`), `Timestamped` (and `updatedAt`), `Expiring` (`expiresAt`) and `Used` (`lastUsedAt`).
+`expiresAt` is the one word for an end; the end of something a record holds is that thing's
+`Expiring`, nested under its name — a refresh token's `family`, a credential's `lock` — so the path
+says whose end it is. What is left is a claim's (`authTime`) or an event's (`consumedAt`). A duration
+is `Seconds`. _Sign up_ creates an account, with a password or a passkey;
 _register_ is WebAuthn's word for adding a credential to an account that exists, and _client
 registration_ is FR-C9's, never the bare word; _link_ joins an upstream identity to one. A _grant_
 is the `Grant` record, the consent remembered for an account and client (FR-I4), and `grantId` points
@@ -888,7 +895,7 @@ A hook is named for what it answers — `exchangePolicy` a decision, `accessToke
 
 **Results.** An operation that can refuse resolves `{ ok: true, … }` or `{ ok: false, reason }`:
 `reason` is a short word (`invalid`, `locked`, `taken`, `unknown` for a record that is not there),
-with `problem` when a field's rule failed and `until` when a lockout ends. A lookup resolves
+with `problem` when a field's rule failed and the `lock` in force when locked. A lookup resolves
 `undefined` for a miss rather than a refusal.
 
 Above storage, the management API speaks the domain — `grants.revoke`, `identities.unlink`,

@@ -16,8 +16,8 @@ const client = (over: Partial<Client> = {}): Client => ({
   responseTypes: ['code'],
   scopes: ['openid', 'offline_access'],
   tokenEndpointAuthMethod: 'none',
-  createdAt: new Date(),
-  updatedAt: new Date(),
+  createdAt: Date.now(),
+  updatedAt: Date.now(),
   ...over
 })
 

@@ -35,8 +35,8 @@ const fapiClient = async (over: Partial<Client> = {}): Promise<Client> => ({
   scopes: ['openid', 'offline_access'],
   tokenEndpointAuthMethod: 'private_key_jwt',
   jwks: { keys: [{ ...(await exportJWK(clientKey.publicKey)), alg: 'ES256', use: 'sig' }] },
-  createdAt: new Date(),
-  updatedAt: new Date(),
+  createdAt: Date.now(),
+  updatedAt: Date.now(),
   ...over
 })
 

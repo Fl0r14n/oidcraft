@@ -1,4 +1,4 @@
-import type { Session } from '@oidcraft/adapter'
+import type { EpochMillis, Session } from '@oidcraft/adapter'
 import { randomString } from '@oidcraft/core'
 import { storedId } from '../artifacts'
 import type { ResolvedConfig } from '../config'
@@ -12,7 +12,7 @@ export const sessionCookie = (config: Pick<ResolvedConfig, 'issuerUrl'>) => issu
 
 /** FR-I10: an idle lifetime counts from the last use, a sign-in being one; a session from before it was kept counts from its sign-in. */
 const idleEnded = (config: ResolvedConfig, session: Session) =>
-  config.ttl.sessionIdle !== undefined && (session.lastUsedAt ?? session.authTime).getTime() + config.ttl.sessionIdle * 1000 <= Date.now()
+  config.ttl.sessionIdle !== undefined && (session.lastUsedAt ?? session.authTime) + config.ttl.sessionIdle * 1000 <= Date.now()
 
 /**
  * The session, unless it ended. A session idle past `ttl.sessionIdle` ends here, as an expired one does: quietly, so the
@@ -27,8 +27,8 @@ export const findLiveSession = async (config: ResolvedConfig, id: string, { use 
   }
   const idle = config.ttl.sessionIdle
   const lastUsedAt = session.lastUsedAt ?? session.authTime
-  if (use && idle !== undefined && Date.now() - lastUsedAt.getTime() >= Math.min(60, idle / 10) * 1000) {
-    const now = new Date()
+  if (use && idle !== undefined && Date.now() - lastUsedAt >= Math.min(60, idle / 10) * 1000) {
+    const now = Date.now()
     await config.adapter.sessions.update(id, { lastUsedAt: now })
     return { ...session, lastUsedAt: now }
   }
@@ -49,7 +49,7 @@ export type LoginInput = {
   amr?: string[] | undefined
   idp?: string | undefined
   upstreamSessionId?: string | undefined
-  authTime?: Date | undefined
+  authTime?: EpochMillis | undefined
 }
 
 /** What a sign-in sets, on a new session or on the browser's own one for the same account (FR-I10). */
@@ -57,13 +57,13 @@ const signedIn = (config: ResolvedConfig, login: LoginInput) => {
   const now = Date.now()
   return {
     // Never in the future: an upstream's clock, or a host's mistake, must not make a session fresher than now.
-    authTime: new Date(Math.min(login.authTime?.getTime() ?? now, now)),
+    authTime: Math.min(login.authTime ?? now, now),
     acr: login.acr,
     amr: login.amr,
     idp: login.idp,
     upstreamSessionId: login.upstreamSessionId,
-    lastUsedAt: new Date(now),
-    expiresAt: new Date(now + config.ttl.session * 1000)
+    lastUsedAt: now,
+    expiresAt: now + config.ttl.session * 1000
   }
 }
 
@@ -123,4 +123,4 @@ export const establishSession = async (config: ResolvedConfig, login: LoginInput
 
 /** What `max_age` and `prompt=login` are measured against (FR-C16, FR-F9); `max_age=0` is `prompt=login` (OIDC Core §3.1.2.1). */
 export const isFresh = (session: Session, maxAge: number | undefined) =>
-  maxAge === undefined || (maxAge > 0 && Date.now() - session.authTime.getTime() <= maxAge * 1000)
+  maxAge === undefined || (maxAge > 0 && Date.now() - session.authTime <= maxAge * 1000)

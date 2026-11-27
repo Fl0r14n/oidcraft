@@ -59,7 +59,7 @@ import { type CreationOptionsJSON, createPasskey, getPasskey, passkeysAvailable,
 import { shallowRef } from 'vue'
 import { ApiError, failureMessage, useApi } from '../shared/api'
 
-type Passkey = { credentialId: string; name: string; createdAt: string; lastUsedAt?: string }
+type Passkey = { credentialId: string; name: string; createdAt: number; lastUsedAt?: number }
 
 const { passwordless = false, twoStep = false } = defineProps<{ passkeys: Passkey[]; passwordless?: boolean; twoStep?: boolean }>()
 const emit = defineEmits<{ changed: [] }>()
@@ -73,7 +73,7 @@ const renaming = shallowRef<string>()
 const draft = shallowRef<string | undefined>('')
 const error = shallowRef('')
 
-const day = (date: string) => new Date(date).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
+const day = (instant: number) => new Date(instant).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
 
 /** WebAuthn reports a refusal and a cancellation alike as NotAllowedError, on purpose (WebAuthn, privacy considerations for clients), so neither is named. */
 const ceremonyFailure = (failure: DOMException) =>

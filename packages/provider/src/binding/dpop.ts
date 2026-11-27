@@ -20,7 +20,7 @@ export const issueNonce = async (config: ResolvedConfig, clientId: string) => {
     kind: 'dpop_nonce',
     clientId,
     payload: {},
-    expiresAt: new Date(Date.now() + config.ttl.dpopNonce * 1000)
+    expiresAt: Date.now() + config.ttl.dpopNonce * 1000
   })
   return nonce
 }

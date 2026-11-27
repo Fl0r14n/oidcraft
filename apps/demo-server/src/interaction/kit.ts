@@ -1,4 +1,4 @@
-import type { Client } from '@oidcraft/provider'
+import type { Client, Expiring } from '@oidcraft/provider'
 import type { InteractionRequest } from '@oidcraft/provider/interaction'
 import type { ScreenView } from '@oidcraft/ui'
 import { optional } from '../op/env'
@@ -34,8 +34,8 @@ export const signUp = () => optional('OIDCRAFT_SIGNUP') !== 'off'
 /** FR-I9: only an authorization sign-in can finish in the browser a link is opened in; a device one has no redirect URI. */
 export const movesBrowsers = (view: InteractionRequest) => view.redirectUri !== undefined
 
-export const lockedNotice = (until: Date) =>
-  `Too many attempts. Try again after ${until.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}.`
+export const lockedNotice = (lock: Expiring) =>
+  `Too many attempts. Try again after ${new Date(lock.expiresAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}.`
 
 const USERNAME_MESSAGES = {
   required: 'Choose a username',

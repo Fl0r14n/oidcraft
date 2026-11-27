@@ -128,9 +128,9 @@ describe('FR-C11: a logout token is signed as the client asked its ID tokens to 
     await adapter.sessions.upsert({
       id: 's1',
       accountId: 'ada',
-      authTime: new Date(),
+      authTime: Date.now(),
       clients: ['rp'],
-      expiresAt: new Date(Date.now() + 60_000)
+      expiresAt: Date.now() + 60_000
     })
     await provider.management.sessions.destroy('s1')
     expect(decodeProtectedHeader(delivered[0]?.logoutToken as string).alg).toBe('RS256')
@@ -196,9 +196,9 @@ describe('onSessionEnd', () => {
     await adapter.sessions.upsert({
       id: 's2',
       accountId: 'ada',
-      authTime: new Date(),
+      authTime: Date.now(),
       clients: [],
-      expiresAt: new Date(Date.now() + 60_000)
+      expiresAt: Date.now() + 60_000
     })
     await provider.management.sessions.destroy('s2')
     expect(ended).toEqual([{ accountId: 'ada', sessionId: 's2', cause: 'management' }])
@@ -215,9 +215,9 @@ describe('onSessionEnd', () => {
     await adapter.sessions.upsert({
       id: 's3',
       accountId: 'ada',
-      authTime: new Date(),
+      authTime: Date.now(),
       clients: [],
-      expiresAt: new Date(Date.now() + 60_000)
+      expiresAt: Date.now() + 60_000
     })
     expect(await provider.management.sessions.destroy('s3').catch(error => error)).toEqual(new Error('the audit log is down'))
     expect(ended).toEqual([{ accountId: 'ada', sessionId: 's3', cause: 'management' }])

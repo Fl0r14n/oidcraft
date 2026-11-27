@@ -1,8 +1,8 @@
 import { randomString } from '@oidcraft/core'
-import { addressBucket, type Seconds } from '@oidcraft/provider'
-import { digest, invalid, locked, type Shared, type SignInContext } from './shared'
+import { addressBucket, type Expiring, type Seconds } from '@oidcraft/provider'
+import { digest, invalid, liveLock, locked, type Shared, type SignInContext } from './shared'
 
-type Attempts = { generation: string; lockedUntil?: number }
+type Attempts = { generation: string; lock?: Expiring }
 
 type Bucket = { scope: string; limit: number; ttl: Seconds; accountId: string | undefined }
 
@@ -12,8 +12,9 @@ const SLOTS = 'sign_in'
 export const createThrottle = ({ adapter, policy, spendDecoy }: Shared) => {
   const attemptsAt = async (scope: string) => (await adapter.artifacts.find('sign_in_attempts', scope))?.payload as Attempts | undefined
   const lockedAt = async (scope: string) => {
-    const until = (await attemptsAt(scope))?.lockedUntil
-    return until && until > Date.now() ? new Date(until) : undefined
+    const attempts = (await attemptsAt(scope)) as (Attempts & { lockedUntil?: number }) | undefined
+    // NFR-D6: one written as `lockedUntil` before `lock` is still a lock; a deploy must not lift it.
+    return liveLock(attempts?.lock ?? (attempts?.lockedUntil ? { expiresAt: attempts.lockedUntil } : undefined))
   }
 
   /** Every address together, never reset by a good sign-in: otherwise the owner signing in would restart a spread-out guess (G-9). */
@@ -34,18 +35,18 @@ export const createThrottle = ({ adapter, policy, spendDecoy }: Shared) => {
   /** A username no password signs in to, counted as an account's is, so locking out names no account either (G-9). */
   const nobody = async (username: string) => `?${await digest(username)}`
 
-  const lockFor = async (accountId: string, hostLock: Date | undefined, bucket: Bucket) =>
+  const lockFor = async (accountId: string, hostLock: Expiring | undefined, bucket: Bucket) =>
     hostLock ?? (await lockedAt(accountWide(accountId).scope)) ?? (await lockedAt(bucket.scope))
 
   /** Kept as long as a slot of the generation can live; a new one frees every slot, so the account-wide lock keeps its own (G-9). */
-  const renew = async (bucket: Bucket, lockUntil?: Date, generation = randomString(8)) =>
+  const renew = async (bucket: Bucket, lock?: Expiring, generation = randomString(8)) =>
     adapter.artifacts.upsert({
       id: bucket.scope,
       kind: 'sign_in_attempts',
       clientId: '',
       ...(bucket.accountId && { accountId: bucket.accountId }),
-      payload: { generation, ...(lockUntil && { lockedUntil: lockUntil.getTime() }) } satisfies Attempts,
-      expiresAt: new Date((lockUntil?.getTime() ?? Date.now()) + bucket.ttl * 1000)
+      payload: { generation, ...(lock && { lock }) } satisfies Attempts,
+      expiresAt: (lock?.expiresAt ?? Date.now()) + bucket.ttl * 1000
     })
 
   /** Atomic: a read-then-write count lets parallel guesses all pass a check none of them has yet failed (G-9). */
@@ -57,10 +58,10 @@ export const createThrottle = ({ adapter, policy, spendDecoy }: Shared) => {
     return undefined
   }
 
-  const lockoutFromNow = () => new Date(Date.now() + policy.lockout * 1000)
+  const lockoutFromNow = () => ({ expiresAt: Date.now() + policy.lockout * 1000 })
 
   /** Before the slow verify, so at most `limit` guesses run at once; a locked account still pays one hash, or names leak (FR-I7). */
-  const admit = async (accountId: string, hostLock: Date | undefined, bucket: Bucket, password?: string) => {
+  const admit = async (accountId: string, hostLock: Expiring | undefined, bucket: Bucket, password?: string) => {
     const lockedFor = await lockFor(accountId, hostLock, bucket)
     const slot = lockedFor ? undefined : await claimSlot(bucket)
     if (slot === undefined) {
@@ -71,18 +72,18 @@ export const createThrottle = ({ adapter, policy, spendDecoy }: Shared) => {
   }
 
   const fail = async (accountId: string, bucket: Bucket, slot: number, context: SignInContext) => {
-    const until = lockoutFromNow()
+    const lock = lockoutFromNow()
     if (context.clientIp) {
       const wide = accountWide(accountId, bucket.accountId !== undefined)
       const counted = await claimSlot(wide)
       if (counted === undefined || counted === wide.limit - 1) {
-        await renew(wide, until, (await attemptsAt(wide.scope))?.generation ?? '0')
-        return locked(until)
+        await renew(wide, lock, (await attemptsAt(wide.scope))?.generation ?? '0')
+        return locked(lock)
       }
     }
     if (slot < bucket.limit - 1) return invalid
-    await renew(bucket, until)
-    return locked(until)
+    await renew(bucket, lock)
+    return locked(lock)
   }
 
   /** Only a bucket someone failed in this generation is renewed, so a clean sign-in writes nothing. */

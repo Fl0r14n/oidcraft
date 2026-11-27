@@ -47,7 +47,7 @@ describe('authorized transport', () => {
     it('refreshes an expired token before answering', async () => {
       refresh.mockResolvedValue({ access_token: 'fresh', token_type: 'Bearer', expires_in: 60 })
       oauth.setConfig({ tokenPath: '/t', clientId: 'c' })
-      oauth.setToken({ access_token: 'stale', token_type: 'Bearer', refresh_token: 'r', expires: Date.now() - 10_000 })
+      oauth.setToken({ access_token: 'stale', token_type: 'Bearer', refresh_token: 'r', expiresAt: Date.now() - 10_000 })
 
       expect(await oauth.authHeaders('/api/orders')).toEqual({ Authorization: 'Bearer fresh' })
       expect(refresh).toHaveBeenCalled()
@@ -161,7 +161,7 @@ describe('authorized transport', () => {
     it('shares one refresh across concurrent calls', async () => {
       refresh.mockResolvedValue({ access_token: 'fresh', token_type: 'Bearer', expires_in: 60 })
       oauth.setConfig({ tokenPath: '/t', clientId: 'c' })
-      oauth.setToken({ access_token: 'stale', token_type: 'Bearer', refresh_token: 'r', expires: Date.now() - 10_000 })
+      oauth.setToken({ access_token: 'stale', token_type: 'Bearer', refresh_token: 'r', expiresAt: Date.now() - 10_000 })
 
       await Promise.all([oauth.fetch(`${origin()}/api/a`), oauth.fetch(`${origin()}/api/b`), oauth.fetch(`${origin()}/api/c`)])
 

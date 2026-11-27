@@ -71,9 +71,9 @@ import { UiAlert, UiButton, UiInput, UiSection } from '@oidcraft/ui/components'
 import { shallowRef } from 'vue'
 import { failureMessage, useAdminApi } from './client'
 
-type Session = { id: string; accountId: string; authTime: string; acr?: string; amr?: string[]; idp?: string }
+type Session = { id: string; accountId: string; authTime: number; acr?: string; amr?: string[]; idp?: string }
 type Grant = { id: string; clientId: string; scopes: string[] }
-type Passkey = { credentialId: string; name: string; createdAt: string; lastUsedAt?: string }
+type Passkey = { credentialId: string; name: string; createdAt: number; lastUsedAt?: number }
 
 const api = useAdminApi()
 const accountId = shallowRef<string | undefined>('')
@@ -119,7 +119,7 @@ const method = (session: Session) => {
   return session.amr.includes('pwd') ? 'With a password and a passkey' : 'With a passkey'
 }
 
-const day = (date: string) => new Date(date).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
+const day = (instant: number) => new Date(instant).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
 
 const endSession = (id: string) => act(`/sessions/${encodeURIComponent(id)}`, 'Could not end that session.')
 const revoke = (id: string) => act(`/grants/${encodeURIComponent(id)}`, 'Could not revoke that grant.')

@@ -375,7 +375,7 @@ const suspend = async (
         upstream: { chosen: upstream.chosen?.id, candidates: upstream.candidates.map(provider => provider.id) }
       })
     },
-    expiresAt: new Date(Date.now() + config.ttl.interaction * 1000)
+    expiresAt: Date.now() + config.ttl.interaction * 1000
   }
   await writeArtifact(config.adapter.artifacts, artifact)
   return id
@@ -405,7 +405,7 @@ const issueCode = async (config: ResolvedConfig, request: AuthorizationRequest, 
       ...(request.dpopJkt && { dpopJkt: request.dpopJkt }),
       ...(claims && { claims })
     },
-    expiresAt: new Date(Date.now() + config.ttl.authorizationCode * 1000)
+    expiresAt: Date.now() + config.ttl.authorizationCode * 1000
   })
   // FR-C14: unconditional, so a client can tell which provider answered.
   return { code, iss: config.issuer }

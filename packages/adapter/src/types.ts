@@ -1,17 +1,13 @@
-import type { ClientAuthMethod, ClientCredentials } from '@oidcraft/core'
+import type { ClientAuthMethod, ClientCredentials, Created, EpochMillis, Expiring, Timestamped, Used } from '@oidcraft/core'
 
-export type { ClientAuthMethod } from '@oidcraft/core'
+export type { ClientAuthMethod, Created, EpochMillis, Expiring, Timestamped, Used } from '@oidcraft/core'
 
+/** A duration. */
 export type Seconds = number
 
 export type Entity = { id: string }
 
 export type AccountOwned = { accountId: string }
-
-export type Timestamped = { createdAt: Date; updatedAt: Date }
-
-/** A record that lapses. Storage enforces it in the query, so an expired one is never served (FR-T5). */
-export type Expiring = { expiresAt: Date }
 
 export type Client = ClientCredentials &
   Timestamped & {
@@ -76,8 +72,10 @@ export type Account = AccountOwned & {
 /** A user's authenticated session at the OP, independent of any one client (FR-C11, FR-T6). */
 export type Session = Entity &
   AccountOwned &
-  Expiring & {
-    authTime: Date
+  Expiring &
+  Used & {
+    /** `auth_time`'s instant. */
+    authTime: EpochMillis
     acr?: string
     amr?: string[]
     /** The upstream provider this session was authenticated by, when brokered (FR-F6). */
@@ -85,14 +83,12 @@ export type Session = Entity &
     /** The upstream session id, so upstream logout can terminate this one (FR-F8). */
     upstreamSessionId?: string
     clients: string[]
-    /** When the browser last used it, kept only under an idle lifetime; `expiresAt` stays the absolute end (FR-I10). */
-    lastUsedAt?: Date
   }
 
 /** A durable record of what an account allowed a client — survives token revocation (FR-I4). */
 export type Grant = Entity &
   AccountOwned &
-  Pick<Timestamped, 'createdAt'> &
+  Created &
   Partial<Expiring> & {
     clientId: string
     scopes: string[]
@@ -132,7 +128,7 @@ export type Artifact = Entity &
     familyId?: string
     clientId: string
     payload: Record<string, unknown>
-    consumedAt?: Date
+    consumedAt?: EpochMillis
   }
 
 /** A local account (FR-I7): every secret is a one-way hash or, for the TOTP secret read back, ciphertext bound to `accountId`. */
@@ -143,28 +139,29 @@ export type Credential = AccountOwned &
     /** Absent on an account that signs in with passkeys alone (FR-I8). */
     passwordHash?: string
     claims: Record<string, unknown>
-    totp?: { secret: string; confirmedAt?: Date }
+    totp?: { secret: string; confirmedAt?: EpochMillis }
     recoveryCodes?: string[]
     failedAttempts: number
-    lockedUntil?: Date
+    /** The host's suspension: honoured by every way in, lifted by nothing in the library (FR-I7). */
+    lock?: Expiring
   }
 
 /** A local account's WebAuthn credential (FR-I8): only what verifying an assertion needs, no attestation. */
-export type Passkey = AccountOwned & {
-  /** base64url, as the authenticator chose it; unique across the store. */
-  credentialId: string
-  /** base64url SubjectPublicKeyInfo, as the browser's `getPublicKey()` reports it. */
-  publicKey: string
-  /** COSE: -7 ES256, -257 RS256, -8 EdDSA. */
-  algorithm: number
-  /** The authenticator's signature counter; 0 for one that keeps none. */
-  counter: number
-  transports: string[]
-  /** The person's label for it. */
-  name: string
-  createdAt: Date
-  lastUsedAt?: Date
-}
+export type Passkey = AccountOwned &
+  Created &
+  Used & {
+    /** base64url, as the authenticator chose it; unique across the store. */
+    credentialId: string
+    /** base64url SubjectPublicKeyInfo, as the browser's `getPublicKey()` reports it. */
+    publicKey: string
+    /** COSE: -7 ES256, -257 RS256, -8 EdDSA. */
+    algorithm: number
+    /** The authenticator's signature counter; 0 for one that keeps none. */
+    counter: number
+    transports: string[]
+    /** The person's label for it. */
+    name: string
+  }
 
 /** One issuer among several in a process (FR-M4); its `id` is a DNS label, because it ends up in an issuer's host or path. */
 export type Realm = Entity &
@@ -177,10 +174,10 @@ export type Realm = Entity &
   }
 
 /** An account's link to an upstream — the brokering key (FR-F5). */
-export type LinkedIdentity = AccountOwned & {
-  upstream: string
-  subject: string
-  email?: string
-  claims: Record<string, unknown>
-  createdAt: Date
-}
+export type LinkedIdentity = AccountOwned &
+  Created & {
+    upstream: string
+    subject: string
+    email?: string
+    claims: Record<string, unknown>
+  }

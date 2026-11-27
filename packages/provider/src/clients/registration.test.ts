@@ -630,7 +630,7 @@ describe('registration management (RFC 7592)', () => {
       scopes: ['openid'],
       claims: [],
       resources: {},
-      createdAt: new Date()
+      createdAt: Date.now()
     }
     await adapter.grants.upsert(grant)
     const token = {
@@ -638,7 +638,7 @@ describe('registration management (RFC 7592)', () => {
       kind: 'access_token' as const,
       clientId: client.client_id,
       payload: {},
-      expiresAt: new Date(Date.now() + 60_000)
+      expiresAt: Date.now() + 60_000
     }
     await adapter.artifacts.upsert(token)
 

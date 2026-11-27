@@ -1,4 +1,4 @@
-import type { Adapter, Client, ClientAuthMethod, Seconds, Session } from '@oidcraft/adapter'
+import type { Adapter, Client, ClientAuthMethod, EpochMillis, Seconds, Session } from '@oidcraft/adapter'
 import { ConfigurationError, toPlainAdapter } from '@oidcraft/adapter'
 import { fapiProviderProblems } from './profile/fapi'
 import type { ExchangePolicy } from './token/exchange'
@@ -280,7 +280,7 @@ export type AccessTokenContext = {
 
 export type AuditEvent = {
   action: string
-  at: Date
+  at: EpochMillis
   clientId?: string
   accountId?: string
   sessionId?: string

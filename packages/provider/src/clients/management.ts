@@ -37,7 +37,7 @@ export const clientManagement = (config: ResolvedConfig) => ({
   async create(input: ManagementClientInput) {
     if (!config.adapter.clients.upsert) throw new Error('this adapter cannot create clients')
     assertSuppliedSecret(input.clientSecret)
-    const now = new Date()
+    const now = Date.now()
     const { client, issued } = await storableSecret(
       { ...input, clientId: input.clientId ?? randomString(), requirePkce: input.requirePkce !== false, createdAt: now, updatedAt: now },
       true
@@ -54,7 +54,7 @@ export const clientManagement = (config: ResolvedConfig) => ({
     const existing = await config.adapter.clients.find(clientId)
     if (!existing) throw new Error(`client ${clientId} does not exist`)
     assertSuppliedSecret(patch.clientSecret)
-    const { client: updated } = await storableSecret({ ...existing, ...patch, clientId, updatedAt: new Date() }, false)
+    const { client: updated } = await storableSecret({ ...existing, ...patch, clientId, updatedAt: Date.now() }, false)
     assertValid(config, updated)
     await config.adapter.clients.upsert(updated)
     await audit(config, 'client.update', { clientId, detail: { fields: Object.keys(patch) } })
@@ -65,7 +65,7 @@ export const clientManagement = (config: ResolvedConfig) => ({
     if (!config.adapter.clients.upsert) throw new Error('this adapter cannot update clients')
     const existing = await config.adapter.clients.find(clientId)
     if (!existing) throw new Error(`client ${clientId} does not exist`)
-    const { client, issued } = await rotatedSecret({ ...existing, updatedAt: new Date() })
+    const { client, issued } = await rotatedSecret({ ...existing, updatedAt: Date.now() })
     if (!issued) throw new Error(`client ${clientId} authenticates with ${existing.tokenEndpointAuthMethod}, which uses no secret`)
     await config.adapter.clients.upsert(client)
     await audit(config, 'client.rotate_secret', { clientId })

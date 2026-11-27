@@ -66,8 +66,8 @@ await upstreamAdapter.clients.upsert?.({
   // @oidcraft/core sends client_id/client_secret in the body unless `tokenEndpointAuthMethod` says otherwise,
   // and the core enforces the method a client registered, so the two have to agree.
   tokenEndpointAuthMethod: 'client_secret_post',
-  createdAt: new Date(),
-  updatedAt: new Date()
+  createdAt: Date.now(),
+  updatedAt: Date.now()
 })
 
 afterAll(() => server.stop(true))
@@ -132,7 +132,7 @@ describe('brokering to a live upstream', () => {
     expect(identity.claims).not.toHaveProperty('sub')
     expect(identity.claims).not.toHaveProperty('iss')
     // FR-F6: provenance from the upstream.
-    expect(identity.authTime).toBeInstanceOf(Date)
+    expect(identity.authTime).toBeNumber()
     // FR-F10: not retained unless the provider opted in.
     expect(identity.upstreamTokens).toBeUndefined()
   })
@@ -285,12 +285,12 @@ describe('brokering to a live upstream', () => {
       providers: [{ id: 'self', issuer: ISSUER, clientId: 'broker', clientSecret: 'a-long-enough-upstream-secret', scopes: ['openid'] }]
     })
     const { url, setCookie, state } = await fresh.start('downstream-interaction-9', 'self')
-    const started = (await downstream.artifacts.find('broker_handoff', state))?.payload as { startedAt?: number }
+    const started = (await downstream.artifacts.find('broker_handoff', state))?.payload as { createdAt?: number }
     withoutAuthTime = true
     try {
       const { identity } = await fresh.complete(await authenticateUpstream(url), cookieOf(setCookie))
-      expect(identity.authTime).toBeInstanceOf(Date)
-      expect(identity.authTime?.getTime()).toBe(started.startedAt as number)
+      expect(identity.authTime).toBeNumber()
+      expect(identity.authTime).toBe(started.createdAt as number)
     } finally {
       withoutAuthTime = false
     }
@@ -336,11 +336,11 @@ describe('logout propagated to the upstream', () => {
     const session = {
       id: 'downstream-session',
       accountId: 'local-ada',
-      authTime: new Date(),
+      authTime: Date.now(),
       idp: 'self',
       ...(identity.upstreamSessionId && { upstreamSessionId: identity.upstreamSessionId }),
       clients: [],
-      expiresAt: new Date(Date.now() + 60_000)
+      expiresAt: Date.now() + 60_000
     }
     return { identity, session }
   }

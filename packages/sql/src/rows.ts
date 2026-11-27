@@ -95,22 +95,20 @@ export const replayDigest = async (value: string) =>
     .replace(/\//g, '_')
     .replace(/=+$/, '')
 
-/** Never `new Date` on the raw value: a string there is read as a date, not as milliseconds. */
-export const at = (millis: number | string) => new Date(Number(millis))
 export const json = (value: unknown) => JSON.stringify(value)
 export const parse = <T>(value: string) => JSON.parse(value) as T
 
 export const clientRow = (client: Client): ClientRow => ({
   client_id: client.clientId,
   data: json(client),
-  created_at: client.createdAt.getTime(),
-  updated_at: client.updatedAt.getTime()
+  created_at: client.createdAt,
+  updated_at: client.updatedAt
 })
 
 export const toClient = (row: Read<ClientRow>): Client => ({
   ...parse<Client>(row.data),
-  createdAt: at(row.created_at),
-  updatedAt: at(row.updated_at)
+  createdAt: Number(row.created_at),
+  updatedAt: Number(row.updated_at)
 })
 
 /** `user_code` is lifted out of the payload so a device's code is found by index (FR-C7). */
@@ -123,8 +121,8 @@ export const artifactRow = (artifact: Artifact): ArtifactRow => ({
   family_id: artifact.familyId ?? null,
   user_code: (artifact.payload.userCode as string | undefined) ?? null,
   payload: json(artifact.payload),
-  consumed_at: artifact.consumedAt ? artifact.consumedAt.getTime() : null,
-  expires_at: artifact.expiresAt.getTime()
+  consumed_at: artifact.consumedAt ?? null,
+  expires_at: artifact.expiresAt
 })
 
 export const toArtifact = (row: Read<ArtifactRow>): Artifact => ({
@@ -135,34 +133,34 @@ export const toArtifact = (row: Read<ArtifactRow>): Artifact => ({
   ...(row.grant_id && { grantId: row.grant_id }),
   ...(row.family_id && { familyId: row.family_id }),
   payload: parse<Record<string, unknown>>(row.payload),
-  ...(row.consumed_at && { consumedAt: at(row.consumed_at) }),
-  expiresAt: at(row.expires_at)
+  ...(row.consumed_at && { consumedAt: Number(row.consumed_at) }),
+  expiresAt: Number(row.expires_at)
 })
 
 export const sessionRow = (session: Session): SessionRow => ({
   id: session.id,
   account_id: session.accountId,
-  auth_time: session.authTime.getTime(),
+  auth_time: session.authTime,
   acr: session.acr ?? null,
   amr: session.amr ? json(session.amr) : null,
   idp: session.idp ?? null,
   upstream_session_id: session.upstreamSessionId ?? null,
   clients: json(session.clients),
-  expires_at: session.expiresAt.getTime(),
-  last_used_at: session.lastUsedAt?.getTime() ?? null
+  expires_at: session.expiresAt,
+  last_used_at: session.lastUsedAt ?? null
 })
 
 export const toSession = (row: Read<SessionRow>): Session => ({
   id: row.id,
   accountId: row.account_id,
-  authTime: at(row.auth_time),
+  authTime: Number(row.auth_time),
   ...(row.acr && { acr: row.acr }),
   ...(row.amr ? { amr: parse<string[]>(row.amr) } : {}),
   ...(row.idp && { idp: row.idp }),
   ...(row.upstream_session_id && { upstreamSessionId: row.upstream_session_id }),
   clients: parse<string[]>(row.clients),
-  expiresAt: at(row.expires_at),
-  ...(row.last_used_at !== null && row.last_used_at !== undefined && { lastUsedAt: at(row.last_used_at) })
+  expiresAt: Number(row.expires_at),
+  ...(row.last_used_at !== null && row.last_used_at !== undefined && { lastUsedAt: Number(row.last_used_at) })
 })
 
 export const grantRow = (grant: Grant): GrantRow => ({
@@ -172,8 +170,8 @@ export const grantRow = (grant: Grant): GrantRow => ({
   scopes: json(grant.scopes),
   claims: json(grant.claims),
   resources: json(grant.resources),
-  created_at: grant.createdAt.getTime(),
-  expires_at: grant.expiresAt ? grant.expiresAt.getTime() : null
+  created_at: grant.createdAt,
+  expires_at: grant.expiresAt ?? null
 })
 
 export const toGrant = (row: Read<GrantRow>): Grant => ({
@@ -183,8 +181,8 @@ export const toGrant = (row: Read<GrantRow>): Grant => ({
   scopes: parse<string[]>(row.scopes),
   claims: parse<string[]>(row.claims),
   resources: parse<Record<string, string[]>>(row.resources),
-  createdAt: at(row.created_at),
-  ...(row.expires_at && { expiresAt: at(row.expires_at) })
+  createdAt: Number(row.created_at),
+  ...(row.expires_at && { expiresAt: Number(row.expires_at) })
 })
 
 export const identityRow = (identity: LinkedIdentity): IdentityRow => ({
@@ -193,7 +191,7 @@ export const identityRow = (identity: LinkedIdentity): IdentityRow => ({
   account_id: identity.accountId,
   email: identity.email ?? null,
   claims: json(identity.claims),
-  linked_at: identity.createdAt.getTime()
+  linked_at: identity.createdAt
 })
 
 export const toIdentity = (row: Read<IdentityRow>): LinkedIdentity => ({
@@ -202,7 +200,7 @@ export const toIdentity = (row: Read<IdentityRow>): LinkedIdentity => ({
   subject: row.subject,
   ...(row.email && { email: row.email }),
   claims: parse<Record<string, unknown>>(row.claims),
-  createdAt: at(row.linked_at)
+  createdAt: Number(row.linked_at)
 })
 
 export const credentialRow = (credential: Credential): CredentialRow => ({
@@ -211,12 +209,12 @@ export const credentialRow = (credential: Credential): CredentialRow => ({
   password_hash: credential.passwordHash ?? null,
   claims: json(credential.claims),
   totp_secret: credential.totp?.secret ?? null,
-  totp_confirmed_at: credential.totp?.confirmedAt?.getTime() ?? null,
+  totp_confirmed_at: credential.totp?.confirmedAt ?? null,
   recovery_codes: credential.recoveryCodes ? json(credential.recoveryCodes) : null,
   failed_attempts: credential.failedAttempts,
-  locked_until: credential.lockedUntil?.getTime() ?? null,
-  created_at: credential.createdAt.getTime(),
-  updated_at: credential.updatedAt.getTime()
+  locked_until: credential.lock?.expiresAt ?? null,
+  created_at: credential.createdAt,
+  updated_at: credential.updatedAt
 })
 
 export const toCredential = (row: Read<CredentialRow>): Credential => ({
@@ -225,13 +223,13 @@ export const toCredential = (row: Read<CredentialRow>): Credential => ({
   ...(row.password_hash && { passwordHash: row.password_hash }),
   claims: parse<Record<string, unknown>>(row.claims),
   ...(row.totp_secret && {
-    totp: { secret: row.totp_secret, ...(row.totp_confirmed_at && { confirmedAt: at(row.totp_confirmed_at) }) }
+    totp: { secret: row.totp_secret, ...(row.totp_confirmed_at && { confirmedAt: Number(row.totp_confirmed_at) }) }
   }),
   ...(row.recovery_codes ? { recoveryCodes: parse<string[]>(row.recovery_codes) } : {}),
   failedAttempts: Number(row.failed_attempts),
-  ...(row.locked_until && { lockedUntil: at(row.locked_until) }),
-  createdAt: at(row.created_at),
-  updatedAt: at(row.updated_at)
+  ...(row.locked_until && { lock: { expiresAt: Number(row.locked_until) } }),
+  createdAt: Number(row.created_at),
+  updatedAt: Number(row.updated_at)
 })
 
 export const passkeyRow = (passkey: Passkey): PasskeyRow => ({
@@ -242,8 +240,8 @@ export const passkeyRow = (passkey: Passkey): PasskeyRow => ({
   counter: passkey.counter,
   transports: json(passkey.transports),
   name: passkey.name,
-  created_at: passkey.createdAt.getTime(),
-  last_used_at: passkey.lastUsedAt?.getTime() ?? null
+  created_at: passkey.createdAt,
+  last_used_at: passkey.lastUsedAt ?? null
 })
 
 export const toPasskey = (row: Read<PasskeyRow>): Passkey => ({
@@ -254,8 +252,8 @@ export const toPasskey = (row: Read<PasskeyRow>): Passkey => ({
   counter: Number(row.counter),
   transports: parse<string[]>(row.transports),
   name: row.name,
-  createdAt: at(row.created_at),
-  ...(row.last_used_at !== null && { lastUsedAt: at(row.last_used_at) })
+  createdAt: Number(row.created_at),
+  ...(row.last_used_at !== null && { lastUsedAt: Number(row.last_used_at) })
 })
 
 export const realmRow = (realm: Realm): RealmRow => ({
@@ -263,8 +261,8 @@ export const realmRow = (realm: Realm): RealmRow => ({
   display_name: realm.displayName ?? null,
   enabled: realm.enabled ? 1 : 0,
   settings: json(realm.settings),
-  created_at: realm.createdAt.getTime(),
-  updated_at: realm.updatedAt.getTime()
+  created_at: realm.createdAt,
+  updated_at: realm.updatedAt
 })
 
 export const toRealm = (row: Read<RealmRow>): Realm => ({
@@ -272,8 +270,8 @@ export const toRealm = (row: Read<RealmRow>): Realm => ({
   ...(row.display_name && { displayName: row.display_name }),
   enabled: Boolean(Number(row.enabled)),
   settings: parse<Record<string, unknown>>(row.settings),
-  createdAt: at(row.created_at),
-  updatedAt: at(row.updated_at)
+  createdAt: Number(row.created_at),
+  updatedAt: Number(row.updated_at)
 })
 
 /** The columns `fields` set, encoded by the full row's own mapper; a field the map leaves out is a key and never written. */
@@ -292,7 +290,7 @@ const changed = <T extends object, R>(
   return set
 }
 
-const EPOCH = new Date(0)
+const EPOCH = 0
 
 export const sessionFields = (fields: Fields<Session>) =>
   changed(
@@ -321,7 +319,7 @@ export const credentialFields = (fields: Fields<Credential>) =>
       totp: ['totp_secret', 'totp_confirmed_at'],
       recoveryCodes: ['recovery_codes'],
       failedAttempts: ['failed_attempts'],
-      lockedUntil: ['locked_until'],
+      lock: ['locked_until'],
       createdAt: ['created_at'],
       updatedAt: ['updated_at']
     },

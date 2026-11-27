@@ -9,8 +9,7 @@ export const mergedGrant = (held: Grant, grant: Grant): Grant => ({
 })
 
 /** A grant past its `expiresAt` is gone: a consent after it starts a new grant, so the old one's tokens stay dead (FR-T5). */
-export const grantExpired = (grant: Pick<Grant, 'expiresAt'>, now = Date.now()) =>
-  grant.expiresAt !== undefined && grant.expiresAt.getTime() <= now
+export const grantExpired = (grant: Pick<Grant, 'expiresAt'>, now = Date.now()) => grant.expiresAt !== undefined && grant.expiresAt <= now
 
 /** How many times a compare-and-swap merge rereads before it gives up: each lost round is another consent landing. */
 export const MERGE_ROUNDS = 16

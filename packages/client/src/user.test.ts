@@ -63,7 +63,7 @@ describe('user', () => {
     const functions = mockOAuthFunctions()
     functions.userInfo.mockResolvedValue({ name: 'Restored' })
     // token already in storage + userPath configured up front: neither watch source ever changes
-    local.setItem('token', JSON.stringify({ access_token: 'at', token_type: 'Bearer', expires: Date.now() + 60_000 }))
+    local.setItem('token', JSON.stringify({ access_token: 'at', token_type: 'Bearer', expiresAt: Date.now() + 60_000 }))
     const restored = createOAuth({ functions, strictJwt: false, config: { userPath: '/userinfo' } as any })
 
     await flush()
@@ -78,7 +78,7 @@ describe('user', () => {
     oauth.setToken({ access_token: 'at', token_type: 'Bearer', expires_in: 60 })
     await flush()
     // the id_token and the authorized flag are watched as one tuple, so a single token write is a single
-    // sync however many fields it moved — and checkToken's expires write does not move either of them
+    // sync however many fields it moved — and checkToken's expiresAt write does not move either of them
     await oauth.checkToken()
     await flush()
 

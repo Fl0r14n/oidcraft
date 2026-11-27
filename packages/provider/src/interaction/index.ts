@@ -7,6 +7,8 @@ export {
   oauthFieldErrors
 } from '@oidcraft/core'
 
+import type { EpochMillis } from '@oidcraft/provider'
+
 /** `logout` asks whether to end the session, when the request to do so could not prove who sent it. */
 export type InteractionKind = 'login' | 'consent' | 'logout'
 
@@ -40,7 +42,7 @@ export type InteractionRequest = {
   redirectUri: string | undefined
   /** The request's values for the host's `extraParameters`, the ones it carried (FR-I1). */
   extraParameters: Record<string, string>
-  expiresAt: Date
+  expiresAt: EpochMillis
 }
 
 /** The interaction app's answer. The core re-runs the authorization request against it (FR-I2). */
@@ -49,7 +51,7 @@ export type InteractionResult = {
    * `authTime`, when the person authenticated earlier: a brokered login passes the upstream's `auth_time` (FR-F6).
    * One older than the request's `max_age` allows answers the client `login_required` (FR-F9).
    */
-  login?: { accountId: string; acr?: string; amr?: string[]; idp?: string; upstreamSessionId?: string; authTime?: Date }
+  login?: { accountId: string; acr?: string; amr?: string[]; idp?: string; upstreamSessionId?: string; authTime?: EpochMillis }
   /**
    * `claims` and `authorizationDetails` must repeat every one the request carried, all or nothing, as `scopes` must;
    * declining some is `access_denied`.

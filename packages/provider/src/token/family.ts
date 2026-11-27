@@ -1,7 +1,11 @@
 import type { Artifact } from '@oidcraft/adapter'
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
-import { readArtifact, writeArtifact } from '../payloads'
+import { type RefreshTokenPayload, readArtifact, writeArtifact } from '../payloads'
+
+/** A refresh token's family; one issued before `family` holds `familyExpiresAt` in seconds, and lives long enough to be read (NFR-D6). */
+export const familyOf = (payload: Partial<RefreshTokenPayload> & { familyExpiresAt?: unknown }) =>
+  payload.family ?? (typeof payload.familyExpiresAt === 'number' ? { expiresAt: payload.familyExpiresAt * 1000 } : undefined)
 
 /** Everything issued from the authorization this artifact descends from; one without a family takes its whole grant (FR-T3). */
 export const revokeFamily = async (config: ResolvedConfig, artifact: Pick<Artifact, 'familyId' | 'grantId'>) => {
@@ -12,7 +16,7 @@ export const revokeFamily = async (config: ResolvedConfig, artifact: Pick<Artifa
       kind: 'revoked_family',
       clientId: '',
       payload: {},
-      expiresAt: new Date(Date.now() + config.ttl.refreshTokenFamily * 1000)
+      expiresAt: Date.now() + config.ttl.refreshTokenFamily * 1000
     })
     await config.adapter.artifacts.destroyByFamilyId(artifact.familyId)
   } else if (artifact.grantId) await config.adapter.artifacts.destroyByGrantId(artifact.grantId)

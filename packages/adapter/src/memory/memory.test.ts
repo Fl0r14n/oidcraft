@@ -39,7 +39,7 @@ describe('memory adapter', () => {
       },
       { keys: await generatedKeyStore() }
     )
-    const expiresAt = new Date(Date.now() + 60_000)
+    const expiresAt = Date.now() + 60_000
     await adapter.artifacts.upsert({ id: 'r1', kind: 'refresh_token', clientId: 'rp', payload: {}, expiresAt })
     expect(await adapter.artifacts.consume('refresh_token', 'r1')).toBe(false)
   })
@@ -58,7 +58,7 @@ describe('memory adapter', () => {
       },
       { keys: await generatedKeyStore() }
     )
-    const grant = { id: 'g1', accountId: 'u1', clientId: 'c1', scopes: ['openid'], claims: [], resources: {}, createdAt: new Date() }
+    const grant = { id: 'g1', accountId: 'u1', clientId: 'c1', scopes: ['openid'], claims: [], resources: {}, createdAt: Date.now() }
     await adapter.grants.merge(grant)
     expect((await kv.find(lock))?.value).toBe('the next merge')
   })

@@ -1,4 +1,17 @@
-import type { Account, Artifact, ArtifactKind, Client, Credential, Grant, LinkedIdentity, Passkey, Realm, Seconds, Session } from './types'
+import type {
+  Account,
+  Artifact,
+  ArtifactKind,
+  Client,
+  Credential,
+  EpochMillis,
+  Grant,
+  LinkedIdentity,
+  Passkey,
+  Realm,
+  Seconds,
+  Session
+} from './types'
 
 /** The seven stores every provider reads, plus the optional ones its features need; `fromKv` derives them all from one KV store. */
 export type Adapter = {
@@ -68,7 +81,7 @@ export type ArtifactStore = EntityStore<Artifact, [kind: ArtifactKind, id: strin
   /** Deleting a client takes its tokens with it, those of the client-credentials grant included, which no grant reaches (FR-T7). */
   destroyByClientId(clientId: string): Promise<void>
   /** Bounded sweep of expired rows; the runtime calls it, storage does not schedule (NFR-P3). */
-  prune?(before: Date, limit: number): Promise<number>
+  prune?(before: EpochMillis, limit: number): Promise<number>
 }
 
 /** `update` writes a live session only, and never its clients, which `addClient` alone adds to (FR-I10, FR-C11). */
@@ -79,7 +92,7 @@ export type SessionStore = UpdatableStore<Session, 'id' | 'clients'> & {
   /** Upstream back-channel logout arrives keyed by the upstream session, not ours (FR-F8). */
   listByUpstreamSession?(upstream: string, upstreamSessionId: string): Promise<Session[]>
   /** Bounded sweep of expired sessions, as `ArtifactStore.prune`; storage with its own expiry omits it (NFR-P3). */
-  prune?(before: Date, limit: number): Promise<number>
+  prune?(before: EpochMillis, limit: number): Promise<number>
 }
 
 /**
@@ -120,7 +133,7 @@ export type ReplayGuard = {
   /** True for exactly one caller while the value is live; false means a replay. Atomic (NFR-S5). */
   claim(namespace: string, value: string, ttl: Seconds): Promise<boolean>
   /** Bounded sweep of lapsed entries: every `jti` and DPoP proof leaves one (NFR-P3). */
-  prune?(before: Date, limit: number): Promise<number>
+  prune?(before: EpochMillis, limit: number): Promise<number>
 }
 
 export type LinkedIdentityStore = EntityStore<LinkedIdentity, [upstream: string, subject: string]> & {

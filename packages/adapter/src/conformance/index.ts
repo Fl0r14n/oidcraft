@@ -20,7 +20,6 @@ export class ConformanceError extends Error {
 }
 
 const comparable = (value: unknown): unknown => {
-  if (value instanceof Date) return { date: value.toISOString() }
   if (Array.isArray(value)) return value.map(comparable)
   if (value && typeof value === 'object') {
     return Object.fromEntries(
@@ -43,10 +42,10 @@ const holds = (condition: boolean, what: string) => {
   if (!condition) throw new ConformanceError(what)
 }
 
-const isDate = (value: unknown, what: string) => holds(value instanceof Date && !Number.isNaN(value.getTime()), `${what} is not a Date`)
+const isInstant = (value: unknown, what: string) => holds(Number.isSafeInteger(value), `${what} is not epoch milliseconds`)
 
-const soon = (seconds = 60) => new Date(Date.now() + seconds * 1000)
-const past = () => new Date(Date.now() - 1000)
+const soon = (seconds = 60) => Date.now() + seconds * 1000
+const past = () => Date.now() - 1000
 
 const client = (clientId: string): Client => ({
   clientId,
@@ -55,8 +54,8 @@ const client = (clientId: string): Client => ({
   responseTypes: ['code'],
   scopes: ['openid'],
   tokenEndpointAuthMethod: 'none',
-  createdAt: new Date(),
-  updatedAt: new Date()
+  createdAt: Date.now(),
+  updatedAt: Date.now()
 })
 
 const artifact = (over: Partial<Artifact> = {}): Artifact => ({
@@ -71,7 +70,7 @@ const artifact = (over: Partial<Artifact> = {}): Artifact => ({
 const session = (over: Partial<Session> = {}): Session => ({
   id: 's1',
   accountId: 'u1',
-  authTime: new Date(),
+  authTime: Date.now(),
   clients: ['c1'],
   expiresAt: soon(),
   ...over
@@ -84,7 +83,7 @@ const grant = (over: Partial<Grant> = {}): Grant => ({
   scopes: ['openid'],
   claims: [],
   resources: {},
-  createdAt: new Date(),
+  createdAt: Date.now(),
   ...over
 })
 
@@ -94,8 +93,8 @@ const credential = (accountId: string, username: string) => ({
   passwordHash: '$argon2id$stub',
   claims: { name: 'Ada' },
   failedAttempts: 0,
-  createdAt: new Date(1_000),
-  updatedAt: new Date(2_000)
+  createdAt: 1_000,
+  updatedAt: 2_000
 })
 
 const passkey = (credentialId: string, accountId: string): Passkey => ({
@@ -106,7 +105,7 @@ const passkey = (credentialId: string, accountId: string): Passkey => ({
   counter: 0,
   transports: ['internal', 'hybrid'],
   name: 'Laptop',
-  createdAt: new Date(1_000)
+  createdAt: 1_000
 })
 
 const realm = (id: string): Realm => ({
@@ -114,8 +113,8 @@ const realm = (id: string): Realm => ({
   displayName: 'Acme',
   enabled: true,
   settings: { brand: { accent: '#123456' }, upstreams: ['google'] },
-  createdAt: new Date(1_000),
-  updatedAt: new Date(2_000)
+  createdAt: 1_000,
+  updatedAt: 2_000
 })
 
 const parallel = <T>(count: number, task: (index: number) => Promise<T>) =>
@@ -174,7 +173,7 @@ export const adapterConformance = (create: () => Adapter | Promise<Adapter>, opt
         await artifacts.upsert(artifact())
         same(await artifacts.consume('authorization_code', 'a1'), true, 'a consume through the spread store')
         same(
-          (await adapter.artifacts.find('authorization_code', 'a1'))?.consumedAt instanceof Date,
+          (await adapter.artifacts.find('authorization_code', 'a1'))?.consumedAt !== undefined,
           true,
           'the consume, seen by the original'
         )
@@ -188,7 +187,7 @@ export const adapterConformance = (create: () => Adapter | Promise<Adapter>, opt
         const found = await adapter.clients.find('c1')
         same(found?.clientId, 'c1', 'clientId')
         same(found?.redirectUris, ['https://rp.example.com/c1'], 'redirectUris')
-        isDate(found?.createdAt, 'createdAt')
+        isInstant(found?.createdAt, 'createdAt')
       }
     },
     {
@@ -207,7 +206,7 @@ export const adapterConformance = (create: () => Adapter | Promise<Adapter>, opt
         await adapter.artifacts.upsert(artifact())
         const found = await adapter.artifacts.find('authorization_code', 'a1')
         same(found?.id, 'a1', 'id')
-        isDate(found?.expiresAt, 'expiresAt')
+        isInstant(found?.expiresAt, 'expiresAt')
       }
     },
     {
@@ -236,7 +235,7 @@ export const adapterConformance = (create: () => Adapter | Promise<Adapter>, opt
         const adapter = await full()
         await adapter.artifacts.upsert(artifact())
         await adapter.artifacts.consume('authorization_code', 'a1')
-        isDate((await adapter.artifacts.find('authorization_code', 'a1'))?.consumedAt, 'consumedAt')
+        isInstant((await adapter.artifacts.find('authorization_code', 'a1'))?.consumedAt, 'consumedAt')
       }
     },
     {
@@ -265,7 +264,7 @@ export const adapterConformance = (create: () => Adapter | Promise<Adapter>, opt
         const stale = await adapter.artifacts.find('authorization_code', 'a1')
         same(await adapter.artifacts.consume('authorization_code', 'a1'), true, 'the first consume')
         await adapter.artifacts.upsert({ ...(stale as Artifact), payload: { polled: true } })
-        isDate((await adapter.artifacts.find('authorization_code', 'a1'))?.consumedAt, 'consumedAt after a stale upsert')
+        isInstant((await adapter.artifacts.find('authorization_code', 'a1'))?.consumedAt, 'consumedAt after a stale upsert')
         same(await adapter.artifacts.consume('authorization_code', 'a1'), false, 'a second consume after a stale upsert')
       }
     },
@@ -343,17 +342,17 @@ export const adapterConformance = (create: () => Adapter | Promise<Adapter>, opt
         await adapter.sessions.upsert(session({ id: 'dead2', expiresAt: past() }))
         await adapter.sessions.upsert(session({ id: 'live' }))
         if (adapter.sessions.prune) {
-          same(await adapter.sessions.prune(new Date(), 1), 1, 'expired sessions removed within the limit')
-          same(await adapter.sessions.prune(new Date(), 10), 1, 'the expired session the limit left')
-          same(await adapter.sessions.prune(new Date(), 10), 0, 'nothing left to remove')
+          same(await adapter.sessions.prune(Date.now(), 1), 1, 'expired sessions removed within the limit')
+          same(await adapter.sessions.prune(Date.now(), 10), 1, 'the expired session the limit left')
+          same(await adapter.sessions.prune(Date.now(), 10), 0, 'nothing left to remove')
         }
         same((await adapter.sessions.find('live'))?.id, 'live', 'the live session')
 
         await adapter.replay.claim('prune', 'spent', 0)
         await adapter.replay.claim('prune', 'held', 60)
         if (adapter.replay.prune) {
-          holds((await adapter.replay.prune(new Date(Date.now() + 1000), 10)) >= 1, 'the lapsed replay entry was not removed')
-          same(await adapter.replay.prune(new Date(Date.now() + 1000), 10), 0, 'nothing left to remove')
+          holds((await adapter.replay.prune(Date.now() + 1000, 10)) >= 1, 'the lapsed replay entry was not removed')
+          same(await adapter.replay.prune(Date.now() + 1000, 10), 0, 'nothing left to remove')
         }
         same(await adapter.replay.claim('prune', 'held', 60), false, 'a live replay entry survived the prune')
       }
@@ -367,9 +366,9 @@ export const adapterConformance = (create: () => Adapter | Promise<Adapter>, opt
         await adapter.artifacts.upsert(artifact({ id: 'dead2', expiresAt: past() }))
         await adapter.artifacts.upsert(artifact({ id: 'live' }))
         if (adapter.artifacts.prune) {
-          same(await adapter.artifacts.prune(new Date(), 1), 1, 'expired artifacts removed within the limit')
-          same(await adapter.artifacts.prune(new Date(), 10), 1, 'the expired artifact the limit left')
-          same(await adapter.artifacts.prune(new Date(), 10), 0, 'nothing left to remove')
+          same(await adapter.artifacts.prune(Date.now(), 1), 1, 'expired artifacts removed within the limit')
+          same(await adapter.artifacts.prune(Date.now(), 10), 1, 'the expired artifact the limit left')
+          same(await adapter.artifacts.prune(Date.now(), 10), 0, 'nothing left to remove')
         }
         same((await adapter.artifacts.find('authorization_code', 'live'))?.id, 'live', 'the live artifact')
       }
@@ -471,14 +470,14 @@ export const adapterConformance = (create: () => Adapter | Promise<Adapter>, opt
       name: 'a grant for a pair another id holds is written into that grant',
       run: async () => {
         const adapter = await full()
-        const createdAt = new Date(1_000)
+        const createdAt = 1_000
         await adapter.grants.upsert(grant({ createdAt, scopes: ['openid', 'email'], resources: { a: ['x'] } }))
         await adapter.grants.upsert(grant({ id: 'g2', scopes: ['openid', 'profile'] }))
         const found = await adapter.grants.findByAccountAndClient('u1', 'c1')
         same(found?.id, 'g1', 'the first id')
         same(found?.scopes, ['openid', 'profile'], 'the second write')
         same(found?.resources, {}, "the second write's resources")
-        same(found?.createdAt.getTime(), 1_000, 'the first createdAt')
+        same(found?.createdAt, 1_000, 'the first createdAt')
         same(await adapter.grants.find('g2'), undefined, 'a second grant')
         same((await adapter.grants.listForAccount('u1')).length, 1, "u1's grants")
       }
@@ -527,14 +526,14 @@ export const adapterConformance = (create: () => Adapter | Promise<Adapter>, opt
       name: 'consents merged into one grant at once all land',
       run: async () => {
         const adapter = await full()
-        await adapter.grants.merge(grant({ createdAt: new Date(1_000) }))
+        await adapter.grants.merge(grant({ createdAt: 1_000 }))
         const scopes = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
         await Promise.all(
           scopes.map((scope, i) => adapter.grants.merge(grant({ id: `m${i}`, scopes: [scope], claims: [`claim-${scope}`] })))
         )
         const found = await adapter.grants.findByAccountAndClient('u1', 'c1')
         same(found?.id, 'g1', 'the first grant, kept')
-        same(found?.createdAt.getTime(), 1_000, 'its createdAt')
+        same(found?.createdAt, 1_000, 'its createdAt')
         same(found?.scopes.toSorted(), ['openid', ...scopes].toSorted(), 'every scope consented to')
         same(found?.claims.toSorted(), scopes.map(scope => `claim-${scope}`).toSorted(), 'every claim consented to')
         same((await adapter.grants.listForAccount('u1')).length, 1, "u1's grants")
@@ -545,8 +544,8 @@ export const adapterConformance = (create: () => Adapter | Promise<Adapter>, opt
       name: 'a consent that adds nothing returns the grant as it is',
       run: async () => {
         const adapter = await full()
-        await adapter.grants.merge(grant({ createdAt: new Date(1_000) }))
-        const again = await adapter.grants.merge(grant({ id: 'g2', createdAt: new Date(2_000) }))
+        await adapter.grants.merge(grant({ createdAt: 1_000 }))
+        const again = await adapter.grants.merge(grant({ id: 'g2', createdAt: 2_000 }))
         same(again.id, 'g1', 'the grant returned')
         same(again.scopes, ['openid'], 'its scopes')
         same((await adapter.grants.findByAccountAndClient('u1', 'c1'))?.id, 'g1', 'the grant stored')
@@ -639,7 +638,7 @@ export const adapterConformance = (create: () => Adapter | Promise<Adapter>, opt
       needs: 'identities',
       run: async () => {
         const adapter = await full()
-        await adapter.identities.upsert({ accountId: 'u1', upstream: 'google', subject: 'g-1', claims: {}, createdAt: new Date() })
+        await adapter.identities.upsert({ accountId: 'u1', upstream: 'google', subject: 'g-1', claims: {}, createdAt: Date.now() })
         same((await adapter.identities.find('google', 'g-1'))?.accountId, 'u1', 'the identity by upstream and subject')
         same(await adapter.identities.find('entra', 'g-1'), undefined, 'the same subject at another upstream')
         await adapter.identities.destroy('google', 'g-1')
@@ -652,9 +651,9 @@ export const adapterConformance = (create: () => Adapter | Promise<Adapter>, opt
       needs: 'identities',
       run: async () => {
         const adapter = await full()
-        await adapter.identities.upsert({ accountId: 'u1', upstream: 'corp', subject: 'eu/42', claims: {}, createdAt: new Date() })
+        await adapter.identities.upsert({ accountId: 'u1', upstream: 'corp', subject: 'eu/42', claims: {}, createdAt: Date.now() })
         same(await adapter.identities.find('corp/eu', '42'), undefined, 'upstream corp/eu, subject 42')
-        await adapter.identities.upsert({ accountId: 'u2', upstream: 'corp/eu', subject: '42', claims: {}, createdAt: new Date() })
+        await adapter.identities.upsert({ accountId: 'u2', upstream: 'corp/eu', subject: '42', claims: {}, createdAt: Date.now() })
         same((await adapter.identities.find('corp', 'eu/42'))?.accountId, 'u1', 'upstream corp, subject eu/42')
       }
     },
@@ -665,13 +664,13 @@ export const adapterConformance = (create: () => Adapter | Promise<Adapter>, opt
         const adapter = await full()
         await adapter.sessions.upsert(session())
         await adapter.sessions.addClient('s1', 'c2')
-        same(await adapter.sessions.update('s1', { acr: 'mfa', authTime: new Date(5_000) }), true, 'an update of a live session')
+        same(await adapter.sessions.update('s1', { acr: 'mfa', authTime: 5_000 }), true, 'an update of a live session')
         const found = await adapter.sessions.find('s1')
         same(found?.acr, 'mfa', 'the updated acr')
-        same(found?.authTime.getTime(), 5_000, 'the updated authTime')
+        same(found?.authTime, 5_000, 'the updated authTime')
         same([...(found?.clients ?? [])].sort(), ['c1', 'c2'], 'the clients addClient added')
-        same(await adapter.sessions.update('s1', { lastUsedAt: new Date(6_000) }), true, 'an update of lastUsedAt')
-        same((await adapter.sessions.find('s1'))?.lastUsedAt?.getTime(), 6_000, 'the stored lastUsedAt')
+        same(await adapter.sessions.update('s1', { lastUsedAt: 6_000 }), true, 'an update of lastUsedAt')
+        same((await adapter.sessions.find('s1'))?.lastUsedAt, 6_000, 'the stored lastUsedAt')
         same(await adapter.sessions.update('s1', { acr: undefined }), true, 'an update clearing acr')
         same((await adapter.sessions.find('s1'))?.acr, undefined, 'a field an update cleared')
         same(await adapter.sessions.update('nope', { acr: 'mfa' }), false, 'an update of an unknown session')
@@ -687,15 +686,15 @@ export const adapterConformance = (create: () => Adapter | Promise<Adapter>, opt
       run: async () => {
         const adapter = await full()
         await adapter.credentials.create(credential('a1', 'ada'))
-        const lockedUntil = new Date(9_000_000_000_000)
+        const lock = { expiresAt: 9_000_000_000_000 }
         const answers = await Promise.all([
-          adapter.credentials.update('a1', { lockedUntil }),
+          adapter.credentials.update('a1', { lock }),
           adapter.credentials.update('a1', { claims: { name: 'Ada Lovelace' } }),
           adapter.credentials.update('a1', { recoveryCodes: ['h1'] })
         ])
         same(answers, [true, true, true], 'the updates')
         const found = await adapter.credentials.find('a1')
-        same(found?.lockedUntil?.getTime(), lockedUntil.getTime(), 'lockedUntil')
+        same(found?.lock, lock, 'lock')
         same(found?.claims, { name: 'Ada Lovelace' }, 'claims')
         same(found?.recoveryCodes, ['h1'], 'recoveryCodes')
         same(found?.passwordHash, '$argon2id$stub', 'the password hash no update named')
@@ -710,11 +709,11 @@ export const adapterConformance = (create: () => Adapter | Promise<Adapter>, opt
       run: async () => {
         const adapter = await full()
         await adapter.passkeys.create(passkey('k1', 'a1'))
-        const lastUsedAt = new Date(7_000)
+        const lastUsedAt = 7_000
         same(await adapter.passkeys.update('k1', { counter: 5, lastUsedAt }), true, 'an update of a passkey')
         const found = await adapter.passkeys.find('k1')
         same(found?.counter, 5, 'counter')
-        same(found?.lastUsedAt?.getTime(), 7_000, 'lastUsedAt')
+        same(found?.lastUsedAt, 7_000, 'lastUsedAt')
         same(found?.name, 'Laptop', 'the name no update named')
         same((await adapter.passkeys.listForAccount('a1')).length, 1, "a1's passkeys")
         same(await adapter.passkeys.update('k2', { counter: 1 }), false, 'an update of an unknown passkey')
@@ -756,8 +755,8 @@ export const adapterConformance = (create: () => Adapter | Promise<Adapter>, opt
       run: async () => {
         const adapter = await full()
         same(await adapter.credentials.create(credential('a1', 'ada')), true, 'the first create')
-        const totp = { secret: 'v1.iv.ct', confirmedAt: new Date(3_000) }
-        const stored = { ...credential('a1', 'ada'), totp, recoveryCodes: ['h1', 'h2'], failedAttempts: 2, lockedUntil: new Date(4_000) }
+        const totp = { secret: 'v1.iv.ct', confirmedAt: 3_000 }
+        const stored = { ...credential('a1', 'ada'), totp, recoveryCodes: ['h1', 'h2'], failedAttempts: 2, lock: { expiresAt: 4_000 } }
         await adapter.credentials.upsert(stored)
         same(await adapter.credentials.findByUsername('ada'), stored, 'the credential by username')
         same((await adapter.credentials.find('a1'))?.username, 'ada', 'the credential by account')
@@ -804,7 +803,7 @@ export const adapterConformance = (create: () => Adapter | Promise<Adapter>, opt
         await adapter.passkeys.create(passkey('cred-3', 'a2'))
         same(await adapter.passkeys.find('cred-1'), passkey('cred-1', 'a1'), 'the passkey, without a last use')
         same((await adapter.passkeys.listForAccount('a1')).map(found => found.credentialId).sort(), ['cred-1', 'cred/2+x'], 'a1’s passkeys')
-        const used = { ...passkey('cred-1', 'a1'), counter: 4_294_967_295, name: 'Work laptop', lastUsedAt: new Date(5_000) }
+        const used = { ...passkey('cred-1', 'a1'), counter: 4_294_967_295, name: 'Work laptop', lastUsedAt: 5_000 }
         await adapter.passkeys.upsert(used)
         same(await adapter.passkeys.find('cred-1'), used, 'the passkey after an upsert')
         await adapter.passkeys.destroy('cred/2+x')
@@ -842,8 +841,8 @@ export const adapterConformance = (create: () => Adapter | Promise<Adapter>, opt
         same(await adapter.realms.find('acme'), realm('acme'), 'acme')
         same(await adapter.realms.find('globex'), globex, 'globex, which has no displayName')
         same((await adapter.realms.list()).map(found => found.id).sort(), ['acme', 'globex'], 'the realms listed')
-        await adapter.realms.upsert({ ...realm('acme'), enabled: false, updatedAt: new Date(3_000) })
-        same(await adapter.realms.find('acme'), { ...realm('acme'), enabled: false, updatedAt: new Date(3_000) }, 'acme after an upsert')
+        await adapter.realms.upsert({ ...realm('acme'), enabled: false, updatedAt: 3_000 })
+        same(await adapter.realms.find('acme'), { ...realm('acme'), enabled: false, updatedAt: 3_000 }, 'acme after an upsert')
         await adapter.realms.destroy('acme')
         same(await adapter.realms.find('acme'), undefined, 'a destroyed realm')
         same(

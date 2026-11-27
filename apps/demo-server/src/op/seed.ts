@@ -19,8 +19,8 @@ export const seedDemoClient = async (adapter: Adapter) => {
     // Public: a browser app cannot keep a secret, so PKCE is what protects the code (FR-C3).
     tokenEndpointAuthMethod: 'none',
     requirePkce: true,
-    createdAt: new Date(),
-    updatedAt: new Date()
+    createdAt: Date.now(),
+    updatedAt: Date.now()
   })
   console.log(`[oidcraft] registered demo client ${clientId} -> ${origin}/oauth_callback`)
 }
@@ -53,8 +53,8 @@ export const seedConformanceClients = async (adapter: Adapter) => {
       tokenEndpointAuthMethod: method,
       // The suite sends a nonce but no PKCE; vouching for it is the host's call (FR-C3).
       requirePkce: false,
-      createdAt: new Date(),
-      updatedAt: new Date()
+      createdAt: Date.now(),
+      updatedAt: Date.now()
     })
   }
   console.log(`[oidcraft] registered the conformance suite's clients -> ${callback}`)
@@ -83,8 +83,8 @@ const seedLogoutClient = async (adapter: Adapter, suite: string, kind: 'logout' 
     scopes: ['openid', 'profile', 'email'],
     tokenEndpointAuthMethod: 'client_secret_basic',
     requirePkce: false,
-    createdAt: new Date(),
-    updatedAt: new Date()
+    createdAt: Date.now(),
+    updatedAt: Date.now()
   })
 }
 
@@ -110,8 +110,8 @@ export const seedFapiConformanceClients = async (adapter: Adapter) => {
       scopes: [...new Set([...entry.scope.split(' '), 'email'])],
       tokenEndpointAuthMethod: 'private_key_jwt',
       jwks: { keys },
-      createdAt: new Date(),
-      updatedAt: new Date()
+      createdAt: Date.now(),
+      updatedAt: Date.now()
     })
   }
   console.log(`[oidcraft] registered the FAPI conformance suite's clients -> ${callback}`)

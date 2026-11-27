@@ -259,7 +259,7 @@ describe('passkey sign-in', () => {
         accountId: 'ada',
         credentialId: device.credentialId
       })
-      expect((await accounts.passkeys.list('ada'))[0]?.lastUsedAt).toBeInstanceOf(Date)
+      expect((await accounts.passkeys.list('ada'))[0]?.lastUsedAt).toBeNumber()
     })
   }
 
@@ -377,7 +377,7 @@ describe('passkey sign-in', () => {
     const { accounts, adapter, device } = await enrolled()
     const credential = await adapter.credentials.find('ada')
     if (!credential) throw new Error('no credential')
-    await adapter.credentials.upsert({ ...credential, lockedUntil: new Date(Date.now() + 60_000) })
+    await adapter.credentials.upsert({ ...credential, lock: { expiresAt: Date.now() + 60_000 } })
     const options = await accounts.passkeys.authenticationOptions('interaction-1')
     expect(await accounts.passkeys.authenticate('interaction-1', await device.get(options))).toEqual({ ok: false, reason: 'invalid' })
     await adapter.credentials.destroy('ada')
@@ -526,9 +526,9 @@ describe('recovering an account with passkeys alone', () => {
     await adapter.sessions.upsert({
       id: 's1',
       accountId: 'linus',
-      authTime: new Date(),
+      authTime: Date.now(),
       clients: [],
-      expiresAt: new Date(Date.now() + 60_000)
+      expiresAt: Date.now() + 60_000
     })
 
     const recovered = await accounts.recover('Linus', code.toUpperCase())

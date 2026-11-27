@@ -54,7 +54,7 @@ describe('resolveConfig', () => {
     }
     const config = resolveConfig({ ...base, adapter: { ...adapter, artifacts: new Artifacts() } })
     const artifacts = { ...config.adapter.artifacts }
-    await artifacts.upsert({ id: 'x', kind: 'authorization_code', clientId: 'rp', payload: {}, expiresAt: new Date(Date.now() + 60_000) })
+    await artifacts.upsert({ id: 'x', kind: 'authorization_code', clientId: 'rp', payload: {}, expiresAt: Date.now() + 60_000 })
     expect(await artifacts.consume('authorization_code', 'x')).toBe(true)
   })
 

@@ -50,7 +50,7 @@ describe('typeorm adapter', () => {
   test('a missing value is refused, not dropped, under a host that ignores undefined in a where', async () => {
     const { adapter } = await fresh({ invalidWhereValuesBehavior: { undefined: 'ignore', null: 'ignore' } })
     const identities = adapter.identities as NonNullable<typeof adapter.identities>
-    await identities.upsert({ accountId: 'u1', upstream: 'google', subject: 'g-1', claims: {}, createdAt: new Date() })
+    await identities.upsert({ accountId: 'u1', upstream: 'google', subject: 'g-1', claims: {}, createdAt: Date.now() })
     await expect(identities.find('google', undefined as never)).rejects.toThrow(/subject/)
     await expect(identities.destroy('google', undefined as never)).rejects.toThrow(/subject/)
     await expect(adapter.grants.find(null as never)).rejects.toThrow(/id/)

@@ -8,10 +8,10 @@ export type AdminClient = {
   grantTypes: string[]
   scopes: string[]
   tokenEndpointAuthMethod: string
-  createdAt: string
+  createdAt: number
 }
 
-export type AdminRealm = { id: string; displayName?: string; enabled: boolean; createdAt: string }
+export type AdminRealm = { id: string; displayName?: string; enabled: boolean; createdAt: number }
 
 export { failureMessage } from '../shared/api'
 

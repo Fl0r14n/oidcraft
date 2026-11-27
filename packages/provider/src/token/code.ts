@@ -12,7 +12,7 @@ type SingleUse = Stored<'authorization_code' | 'refresh_token'>
 import { stillConsented } from '../authorize/claims'
 import { underFapi } from '../profile/fapi'
 import { assertBoundTo } from './access-token'
-import { revokeFamily } from './family'
+import { familyOf, revokeFamily } from './family'
 import { type Binding, issueTokens, loadGrantAndSession, loadGrantAndSignIn } from './issue'
 
 // A replay means it leaked: revoke its family, not the grant's others (FR-T3, FR-T4, NFR-S4, RFC 9700 §4.14.2).
@@ -111,8 +111,9 @@ export const redeemRefreshToken = async (config: ResolvedConfig, client: Client,
   if (artifact.consumedAt) await revokeOnReplay(config, artifact, 'refresh token', client.clientId)
   if (artifact.clientId !== client.clientId)
     await revokeOnReplay(config, artifact, 'refresh token presented by the wrong client', client.clientId)
+  const family = familyOf(artifact.payload)
   // NFR-D6: written before the family had an absolute end; read without one, every rotation would start the clock again.
-  if (typeof artifact.payload.familyExpiresAt !== 'number') {
+  if (!family) {
     throw new OAuthError('invalid_grant', { description: 'this refresh token predates its family lifetime; sign in again', spec: 'NFR-D6' })
   }
 
@@ -138,9 +139,8 @@ export const redeemRefreshToken = async (config: ResolvedConfig, client: Client,
 
   // FR-T3: a token that does not rotate still restarts its idle lifetime, within its family's and its session's.
   if (!rotate) {
-    const familyEnd = artifact.payload.familyExpiresAt * 1000
-    const sessionEnd = artifact.payload.sessionBound === true ? session.expiresAt.getTime() : Number.POSITIVE_INFINITY
-    const expiresAt = new Date(Math.min(Date.now() + config.ttl.refreshToken * 1000, familyEnd, sessionEnd))
+    const sessionEnd = artifact.payload.sessionBound === true ? session.expiresAt : Number.POSITIVE_INFINITY
+    const expiresAt = Math.min(Date.now() + config.ttl.refreshToken * 1000, family.expiresAt, sessionEnd)
     await writeArtifact(config.adapter.artifacts, { ...artifact, expiresAt })
   }
 
@@ -152,7 +152,7 @@ export const redeemRefreshToken = async (config: ResolvedConfig, client: Client,
     refreshScopes: granted,
     sessionBound: artifact.payload.sessionBound === true,
     ...(!rotate && { keepRefreshToken: presented }),
-    familyExpiresAt: artifact.payload.familyExpiresAt,
+    family,
     audience,
     resources: artifact.payload.resources ?? [],
     claims: stillConsented(config, grant, artifact.payload.claims, requested?.length ? requested : granted)

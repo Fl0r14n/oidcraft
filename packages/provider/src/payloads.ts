@@ -1,4 +1,4 @@
-import type { Artifact, ArtifactKind, ArtifactStore } from '@oidcraft/adapter'
+import type { Artifact, ArtifactKind, ArtifactStore, EpochMillis, Expiring } from '@oidcraft/adapter'
 import type { AuthorizationRequest, ResponseTarget } from './authorize/authorization'
 import type { CibaPayload } from './authorize/ciba'
 import type { RequestedClaims } from './authorize/claims'
@@ -9,7 +9,7 @@ import type { Handoff } from './broker/types'
 export type Confirmation = { jkt?: string; 'x5t#S256'?: string }
 
 /** A sign-in as an `offline_access` refresh token carries it, to outlive the session (OIDC Core §11). */
-export type SignIn = { id: string; accountId: string; authTime: number; acr?: string; amr?: string[]; idp?: string }
+export type SignIn = { id: string; accountId: string; authTime: EpochMillis; acr?: string; amr?: string[]; idp?: string }
 
 export type CodePayload = {
   redirectUri: string
@@ -44,8 +44,8 @@ export type RefreshTokenPayload = {
   sessionId: string
   signIn?: SignIn
   sessionBound?: true
-  /** Epoch seconds: the family's absolute end, which no rotation moves (FR-T6). */
-  familyExpiresAt: number
+  /** The family's absolute end, which no rotation moves, where the artifact's own `expiresAt` does (FR-T6). */
+  family: Expiring
   resources?: string[]
   cnf?: Confirmation
   claims?: RequestedClaims
@@ -69,7 +69,7 @@ type Empty = Record<string, never>
 /** What each kind of artifact carries. Nothing but the provider writes a payload, so its own type is the whole of its validation. */
 export type Payloads = {
   interaction: InteractionPayload
-  broker_handoff: Omit<Handoff, 'expiresAt'>
+  broker_handoff: Handoff
   /** Where the browser goes once the upstream has signed it out too (FR-F8). */
   broker_logout: { destination?: string }
   /** An upstream ID token kept as the `id_token_hint` of its logout, for a provider that propagates it (FR-F8). */
@@ -89,7 +89,7 @@ export type Payloads = {
   authorization_response: { target: ResponseTarget; values: Record<string, string> }
   user_code_attempts: { failures: number }
   /** Failed sign-ins at one account from one address, written by `./accounts`; a lock outlives the generation it ended (G-9). */
-  sign_in_attempts: { generation: string; lockedUntil?: number }
+  sign_in_attempts: { generation: string; lock?: Expiring }
   password_reset: Empty
   /** Written before a family's tokens are deleted, so a token written into it after the sweep is caught (FR-T3). */
   revoked_family: Empty

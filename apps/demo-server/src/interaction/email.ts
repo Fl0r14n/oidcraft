@@ -55,7 +55,7 @@ export const emailFlow = ({ provider, accounts, screens, finish }: Kit) => {
           400
         )
       }
-      return result.reason === 'locked' ? screens.message('This account is locked', lockedNotice(result.until), 429) : expired()
+      return result.reason === 'locked' ? screens.message('This account is locked', lockedNotice(result.lock), 429) : expired()
     }
     const { interactionId, accountId } = result
     if (result.secondFactor) {

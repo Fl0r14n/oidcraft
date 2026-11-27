@@ -25,7 +25,7 @@ describe('createOAuth', () => {
 })
 
 describe('autoStart / start()', () => {
-  const expiredToken = { access_token: 'at', token_type: 'Bearer', refresh_token: 'rt', expires: Date.now() - 1_000 }
+  const expiredToken = { access_token: 'at', token_type: 'Bearer', refresh_token: 'rt', expiresAt: Date.now() - 1_000 }
 
   it('touches nothing until start() when autoStart is false', async () => {
     local.setItem('inert', JSON.stringify(expiredToken))

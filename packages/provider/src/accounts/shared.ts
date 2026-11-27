@@ -1,5 +1,12 @@
 import { DEFAULT_MAX_LENGTH, oauthFieldError, randomString } from '@oidcraft/core'
-import { type BrokeringAdapter, type Credential, type CredentialsAdapter, type Seconds, toPlainAdapter } from '@oidcraft/provider'
+import {
+  type BrokeringAdapter,
+  type Credential,
+  type CredentialsAdapter,
+  type Expiring,
+  type Seconds,
+  toPlainAdapter
+} from '@oidcraft/provider'
 import { base64url } from 'jose'
 
 /** argon2id by default in the hashers the runtime entries ship; any PHC-string hasher fits. */
@@ -77,11 +84,10 @@ export const digest = async (value: string) =>
 
 export const invalid = { ok: false, reason: 'invalid' } as const
 
-export const locked = (until: Date) => ({ ok: false, reason: 'locked', until }) as const
+export const locked = (lock: Expiring) => ({ ok: false, reason: 'locked', lock }) as const
 
-/** The host's suspension, while it lasts (FR-I7). */
-export const lockedUntil = (credential: Credential) =>
-  credential.lockedUntil && credential.lockedUntil.getTime() > Date.now() ? credential.lockedUntil : undefined
+/** A lock while it lasts: the host's suspension of a credential (FR-I7), or the throttle's (G-9). */
+export const liveLock = (lock: Expiring | undefined) => (lock && lock.expiresAt > Date.now() ? lock : undefined)
 
 const DEFAULT_POLICY: AccountsPolicy = {
   minPasswordLength: 15,
@@ -130,7 +136,7 @@ export const createShared = (options: AccountsOptions) => {
   }
 }
 
-/** `lockedUntil` is the host's suspension: kept, so a new password does not lift it (FR-I7). */
+/** `lock` is the host's suspension: kept, so a new password does not lift it (FR-I7). */
 export const passwordSetter =
   ({ credentials, hasher, passwordProblem }: ReturnType<typeof createShared>) =>
   async (accountId: string, password: string) => {
@@ -138,7 +144,7 @@ export const passwordSetter =
     const problem = await passwordProblem(password, credential?.username ?? '')
     if (problem) return { ok: false, reason: 'password', problem } as const
     if (!credential) return { ok: false, reason: 'unknown' } as const
-    await credentials.update(accountId, { passwordHash: await hasher.hash(password), failedAttempts: 0, updatedAt: new Date() })
+    await credentials.update(accountId, { passwordHash: await hasher.hash(password), failedAttempts: 0, updatedAt: Date.now() })
     return { ok: true } as const
   }
 

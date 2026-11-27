@@ -16,8 +16,8 @@ const client: Client = {
   responseTypes: [],
   scopes: ['tools'],
   tokenEndpointAuthMethod: 'client_secret_basic',
-  createdAt: new Date(),
-  updatedAt: new Date()
+  createdAt: Date.now(),
+  updatedAt: Date.now()
 }
 
 let adapter: Adapter
@@ -54,7 +54,7 @@ describe('verifyAccessToken', () => {
     const verified = await provider.verifyAccessToken(at(await tokenFor(MCP)), { resource: MCP })
     if (!verified.ok) throw new Error(verified.description)
     expect(verified.token).toMatchObject({ clientId: 'rp', scopes: ['tools'], accountId: undefined, subject: undefined })
-    expect(verified.token.expiresAt.getTime()).toBeGreaterThan(Date.now())
+    expect(verified.token.expiresAt).toBeGreaterThan(Date.now())
   })
 
   // FR-C19: a token issued for one MCP server is useless at another.

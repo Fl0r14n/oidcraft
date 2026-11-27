@@ -47,8 +47,8 @@ describe.skipIf(!POSTGRES_URL)('drizzle adapter on Postgres', () => {
       responseTypes: ['code'],
       scopes: ['openid'],
       tokenEndpointAuthMethod: 'none' as const,
-      createdAt: new Date(),
-      updatedAt: new Date()
+      createdAt: Date.now(),
+      updatedAt: Date.now()
     }
     await acme.clients.upsert?.(client)
     expect(await acme.clients.find('rp')).toBeTruthy()

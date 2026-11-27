@@ -186,8 +186,8 @@ describe('management', () => {
   test('deleting a client revokes the tokens and the grants it holds', async () => {
     await provider.management.clients.create(input())
     await provider.management.clients.create(input({ clientId: 'other' }))
-    const token = { payload: {}, expiresAt: new Date(Date.now() + 60_000) }
-    const grant = { accountId: 'u1', scopes: ['openid'], claims: [], resources: {}, createdAt: new Date() }
+    const token = { payload: {}, expiresAt: Date.now() + 60_000 }
+    const grant = { accountId: 'u1', scopes: ['openid'], claims: [], resources: {}, createdAt: Date.now() }
     await adapter.grants.upsert({ ...grant, id: 'g-rp', clientId: 'rp' })
     await adapter.grants.upsert({ ...grant, id: 'g-other', clientId: 'other' })
     await adapter.artifacts.upsert({ ...token, id: 'machine', kind: 'access_token', clientId: 'rp' })
@@ -212,7 +212,7 @@ describe('management', () => {
       scopes: ['openid'],
       claims: [],
       resources: {},
-      createdAt: new Date()
+      createdAt: Date.now()
     })
     await adapter.artifacts.upsert({
       id: 'at1',
@@ -220,7 +220,7 @@ describe('management', () => {
       clientId: 'rp',
       grantId: 'g1',
       payload: {},
-      expiresAt: new Date(Date.now() + 60_000)
+      expiresAt: Date.now() + 60_000
     })
 
     await provider.management.grants.revoke('g1')
@@ -236,14 +236,14 @@ describe('management', () => {
       scopes: ['openid'],
       claims: [],
       resources: {},
-      createdAt: new Date()
+      createdAt: Date.now()
     })
     await adapter.sessions.upsert({
       id: 's1',
       accountId: 'u1',
-      authTime: new Date(),
+      authTime: Date.now(),
       clients: ['rp'],
-      expiresAt: new Date(Date.now() + 60_000)
+      expiresAt: Date.now() + 60_000
     })
 
     expect((await provider.management.grants.listForAccount('u1')).map(grant => grant.id)).toEqual(['g1'])
@@ -256,9 +256,9 @@ describe('management', () => {
     await adapter.sessions.upsert({
       id: 's1',
       accountId: 'u1',
-      authTime: new Date(),
+      authTime: Date.now(),
       clients: ['rp'],
-      expiresAt: new Date(Date.now() + 60_000)
+      expiresAt: Date.now() + 60_000
     })
 
     const notifications = await provider.management.sessions.destroy('s1')
@@ -279,7 +279,7 @@ describe('management', () => {
   })
 
   test('unlinks a linked identity', async () => {
-    await adapter.identities.upsert({ accountId: 'u1', upstream: 'entra', subject: 'up-1', claims: {}, createdAt: new Date() })
+    await adapter.identities.upsert({ accountId: 'u1', upstream: 'entra', subject: 'up-1', claims: {}, createdAt: Date.now() })
     expect(await provider.management.identities.listForAccount('u1')).toHaveLength(1)
     await provider.management.identities.unlink('u1', 'entra')
     expect(await provider.management.identities.listForAccount('u1')).toHaveLength(0)
@@ -294,6 +294,6 @@ describe('management', () => {
     await provider.management.clients.destroy('rp')
 
     expect(audit.map(event => event.action)).toEqual(['client.create', 'client.update', 'client.delete'])
-    expect(audit.every(event => event.at instanceof Date)).toBe(true)
+    expect(audit.every(event => Number.isSafeInteger(event.at))).toBe(true)
   })
 })

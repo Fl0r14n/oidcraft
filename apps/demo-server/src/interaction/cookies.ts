@@ -1,4 +1,5 @@
 /// <reference types="bun" />
+import type { Expiring } from '@oidcraft/provider'
 import { base64url } from 'jose'
 import { issuer } from '../op/env'
 
@@ -41,17 +42,17 @@ const KNOWN = 'oidcraft.demo.known'
 
 const pendingOf = async (request: Request, interactionId: string) => {
   const pending = await verified<Pending>(read(request, PENDING))
-  return pending && pending.interactionId === interactionId && pending.until > Date.now() ? pending : undefined
+  return pending && pending.interactionId === interactionId && pending.expiresAt > Date.now() ? pending : undefined
 }
 
-type Pending = { interactionId: string; accountId: string; until: number; byEmail?: true }
+type Pending = Expiring & { interactionId: string; accountId: string; byEmail?: true }
 
 /** A right first factor awaiting its second, bound to the interaction; `byEmail` may finish in another browser (FR-I9). */
 export const pendingSecondFactor = {
   set: async (interactionId: string, accountId: string, byEmail = false) =>
     serialize(
       PENDING,
-      await sign({ interactionId, accountId, until: Date.now() + 600_000, ...(byEmail && { byEmail }) } satisfies Pending),
+      await sign({ interactionId, accountId, expiresAt: Date.now() + 600_000, ...(byEmail && { byEmail }) } satisfies Pending),
       600,
       '/interaction'
     ),
@@ -73,10 +74,10 @@ const RESUME = 'oidcraft.demo.resume'
 
 /** The sign-in a reset was asked from, so finishing it leads back there; a cookie, so a link opened elsewhere resumes nothing. */
 export const resumeAfterReset = {
-  set: async (interactionId: string) => serialize(RESUME, await sign({ interactionId, until: Date.now() + 1_800_000 }), 1800, '/reset'),
+  set: async (interactionId: string) => serialize(RESUME, await sign({ interactionId, expiresAt: Date.now() + 1_800_000 }), 1800, '/reset'),
   get: async (request: Request) => {
-    const resume = await verified<{ interactionId: string; until: number }>(read(request, RESUME))
-    return resume && resume.until > Date.now() ? resume.interactionId : undefined
+    const resume = await verified<Expiring & { interactionId: string }>(read(request, RESUME))
+    return resume && resume.expiresAt > Date.now() ? resume.interactionId : undefined
   },
   clear: () => serialize(RESUME, '', 0, '/reset')
 }

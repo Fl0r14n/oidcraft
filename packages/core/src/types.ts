@@ -1,3 +1,20 @@
+/**
+ * An instant, as milliseconds since the Unix epoch: what `Date.now()` answers and every store keeps, so it passes through
+ * SQL, JSON and the browser unconverted. A protocol field keeps its claim's NumericDate seconds (RFC 7519 §2), at the wire.
+ */
+export type EpochMillis = number
+
+/** Every instant is one of these, composed, or a protocol claim's (`authTime`); none is spelled twice. */
+export type Created = { createdAt: EpochMillis }
+
+export type Timestamped = Created & { updatedAt: EpochMillis }
+
+/** Something that lapses; a store enforces it in the query, so an expired record is never served (FR-T5). */
+export type Expiring = { expiresAt: EpochMillis }
+
+/** A record whose last use counts: a passkey's sign-ins, a session's idle lifetime (FR-I8, FR-I10). */
+export type Used = { lastUsedAt?: EpochMillis }
+
 export type OAuthFetch = (input: string | URL | Request, init?: RequestInit) => Promise<Response>
 
 /** Every client authentication method in the RFC 7591 `token_endpoint_auth_method` registry. */
@@ -121,11 +138,11 @@ export type OAuthToken<TExtra = unknown> = {
   code_verifier?: string
   nonce?: string
   type?: OAuthType
-  expires?: number
   code?: string
 
   [x: string]: any
-} & TExtra
+} & Partial<Expiring> &
+  TExtra
 
 /** What an authorization request carries across the round trip; store it scoped to that one request, never process-wide. */
 export type AuthorizationHandoff = {

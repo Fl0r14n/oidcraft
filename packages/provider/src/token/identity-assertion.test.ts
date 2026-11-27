@@ -70,7 +70,7 @@ const errorOf = async (response: Response) => ((await response.json()) as { erro
 const introspect = async (token: string, as = 'rp') => (await post('/introspect', { token }, as)).json()
 
 const link = (subject: string, accountId: string, upstream = 'idp') =>
-  adapter.identities?.upsert({ accountId, upstream, subject, claims: {}, createdAt: new Date() })
+  adapter.identities?.upsert({ accountId, upstream, subject, claims: {}, createdAt: Date.now() })
 
 const withBearer = (over: Partial<Client> = {}) =>
   client({

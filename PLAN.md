@@ -294,6 +294,14 @@ Each step ends green on `bun run verify` and is committed on `main`; a release i
 4. **Provider on the new contract.** S-1 and FR-I10 with `ttl.sessionIdle`, S-10, A-6, A-7, `sealed.ts`, `safeFetch`.
 5. **Demo and conformance.** D-1 to D-10, delivering both logouts, the four plans in CI, splitting `routes.ts`.
 6. **Hardening** not already landed with its neighbour.
+7. **One time vocabulary** (done 2026-11-27, rides in the `core`, `adapter` and `client` releases). Every instant is
+   `EpochMillis` in `@oidcraft/core`'s `Created`/`Timestamped`/`Expiring`/`Used`; `Date` is gone from records,
+   payloads and results. Renamed: Handoff `startedAt` → `createdAt`, device `lastPolledAt` → `lastUsedAt`,
+   refresh `familyExpiresAt` (seconds) → `family.expiresAt`, `Credential.lockedUntil` → `lock.expiresAt`, a
+   `locked` refusal's `until` → `lock`, `OAuthToken.expires` → `expiresAt`. Read once in the old shape: a stored
+   browser token's `expires`, a refresh token's `familyExpiresAt` (drop after 90 days), a throttle's `lockedUntil`.
+   No column changed. Before upgrading `@oidcraft/client`, a host that forces expiry with `expires` must write
+   `expiresAt`: the index signature on `OAuthToken` hides it from the compiler.
 
 ### Future features
 

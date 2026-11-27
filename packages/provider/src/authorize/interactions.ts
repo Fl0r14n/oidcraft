@@ -1,3 +1,4 @@
+import type { EpochMillis } from '@oidcraft/adapter'
 import { randomString } from '@oidcraft/core'
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
@@ -149,7 +150,7 @@ const answer = async (
         target,
         values: { error: outcome.error.error, ...(outcome.error.description && { error_description: outcome.error.description }) }
       },
-      expiresAt: new Date(Date.now() + config.ttl.interaction * 1000)
+      expiresAt: Date.now() + config.ttl.interaction * 1000
     })
     const url = new URL(`${config.issuer}${config.routes.authorization}`)
     url.searchParams.set('response', responseId)
@@ -175,7 +176,7 @@ const answer = async (
         clientId: request.clientId,
         accountId,
         payload: {},
-        expiresAt: new Date(Date.now() + config.ttl.interaction * 1000)
+        expiresAt: Date.now() + config.ttl.interaction * 1000
       })
     }
   }
@@ -186,7 +187,7 @@ const answer = async (
   return { redirectTo: await authorizationUrl(config, request, outcome), setCookie }
 }
 
-const logoutView = (id: string, clientId: string, expiresAt: Date): InteractionRequest => ({
+const logoutView = (id: string, clientId: string, expiresAt: EpochMillis): InteractionRequest => ({
   id,
   kind: 'logout',
   clientId,
@@ -205,7 +206,7 @@ const logoutView = (id: string, clientId: string, expiresAt: Date): InteractionR
   expiresAt
 })
 
-const deviceView = (id: string, clientId: string, device: DeviceLogin, expiresAt: Date): InteractionRequest => ({
+const deviceView = (id: string, clientId: string, device: DeviceLogin, expiresAt: EpochMillis): InteractionRequest => ({
   ...logoutView(id, clientId, expiresAt),
   kind: 'login',
   scopes: device.scopes,
@@ -282,10 +283,10 @@ const refusedLogin = async (
 const AUTH_TIME_SKEW = 30
 
 /** A login that reports authenticating before the request arrived, by more than `max_age` (OIDC Core §3.1.2.1). */
-const staleLogin = (config: ResolvedConfig, expiresAt: Date, maxAge: number | undefined, authTime: Date | undefined) => {
+const staleLogin = (config: ResolvedConfig, expiresAt: EpochMillis, maxAge: number | undefined, authTime: EpochMillis | undefined) => {
   if (maxAge === undefined || !authTime) return false
-  const requestedAt = expiresAt.getTime() - config.ttl.interaction * 1000
-  return authTime.getTime() < requestedAt - (maxAge + AUTH_TIME_SKEW) * 1000
+  const requestedAt = expiresAt - config.ttl.interaction * 1000
+  return authTime < requestedAt - (maxAge + AUTH_TIME_SKEW) * 1000
 }
 
 // An answered prompt must go, or the replay loops; an unanswered one must stay, or it is skipped (FR-I5, OIDC Core §3.1.2.1).

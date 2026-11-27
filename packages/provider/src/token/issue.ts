@@ -1,4 +1,4 @@
-import type { Client, Grant, Session } from '@oidcraft/adapter'
+import type { Client, Expiring, Grant, Session } from '@oidcraft/adapter'
 import { randomString } from '@oidcraft/core'
 import type { RequestedClaims } from '../authorize/claims'
 import type { ResolvedConfig } from '../config'
@@ -26,7 +26,7 @@ export const issueTokens = async (
     refreshScopes = scopes,
     sessionBound = false,
     keepRefreshToken,
-    familyExpiresAt,
+    family,
     audience,
     resources = [],
     claims
@@ -42,8 +42,8 @@ export const issueTokens = async (
     sessionBound?: boolean
     /** FR-T3's one exception: the refresh token presented stays the client's, and no new one is minted. */
     keepRefreshToken?: string | undefined
-    /** Epoch seconds; carried from the token being rotated so the family's lifetime never slides. */
-    familyExpiresAt?: number | undefined
+    /** Carried from the token being rotated so the family's lifetime never slides. */
+    family?: Expiring | undefined
     /** RFC 8707: the one resource this access token is for (FR-C19). */
     audience?: string | undefined
     /** The resources the authorization covered, so a refresh can name only those. */
@@ -80,9 +80,9 @@ export const issueTokens = async (
   if (keepRefreshToken) refreshToken = keepRefreshToken
   else if ((offline || sessionBound) && client.grantTypes.includes('refresh_token')) {
     refreshToken = randomString()
-    const now = Math.floor(Date.now() / 1000)
-    const familyEnd = familyExpiresAt ?? now + config.ttl.refreshTokenFamily
-    const sessionEnd = offline ? familyEnd : Math.floor(session.expiresAt.getTime() / 1000)
+    const now = Date.now()
+    const { expiresAt: familyEnd } = family ?? { expiresAt: now + config.ttl.refreshTokenFamily * 1000 }
+    const sessionEnd = offline ? familyEnd : session.expiresAt
     await writeArtifact(config.adapter.artifacts, {
       id: refreshToken,
       kind: 'refresh_token',
@@ -92,17 +92,17 @@ export const issueTokens = async (
       familyId,
       // Kept across rotation; only a public client's is bound, as authentication holds a confidential one (RFC 9449 §5, RFC 8705 §4).
       payload: {
-        iat: now,
+        iat: Math.floor(now / 1000),
         scopes: refreshScopes,
         sessionId: session.id,
         // FR-T6: offline_access carries the sign-in it rests on; without it the token dies with the session.
         ...(offline ? { signIn: snapshotOf(session) } : { sessionBound: true }),
-        familyExpiresAt: familyEnd,
+        family: { expiresAt: familyEnd },
         ...(resources.length && { resources }),
         ...(refreshCnf && { cnf: refreshCnf }),
         ...(claims && { claims })
       },
-      expiresAt: new Date(Math.min(now + config.ttl.refreshToken, familyEnd, sessionEnd) * 1000)
+      expiresAt: Math.min(now + config.ttl.refreshToken * 1000, familyEnd, sessionEnd)
     })
   }
 
@@ -133,7 +133,7 @@ export const issueTokens = async (
 const snapshotOf = (session: Session): SignIn => ({
   id: session.id,
   accountId: session.accountId,
-  authTime: session.authTime.getTime(),
+  authTime: session.authTime,
   ...(session.acr && { acr: session.acr }),
   ...(session.amr && { amr: session.amr }),
   ...(session.idp && { idp: session.idp })
@@ -148,8 +148,7 @@ export const loadGrantAndSignIn = async (config: ResolvedConfig, artifact: Store
   if (live) return { grant, session: live }
   const { signIn } = artifact.payload
   if (!signIn) throw new OAuthError('invalid_grant', { description: 'the session behind this token has ended', spec: 'RFC 6749 §5.2' })
-  const { authTime, ...rest } = signIn
-  const session: Session = { ...rest, authTime: new Date(authTime), clients: [], expiresAt: new Date() }
+  const session: Session = { ...signIn, clients: [], expiresAt: Date.now() }
   return { grant, session }
 }
 

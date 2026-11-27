@@ -110,7 +110,7 @@ describe('account linking', () => {
 
   test('an existing (upstream, subject) link is reused', async () => {
     const adapter = await fresh()
-    await adapter.identities.upsert({ accountId: 'u1', upstream: 'entra', subject: 'up-1', claims: {}, createdAt: new Date() })
+    await adapter.identities.upsert({ accountId: 'u1', upstream: 'entra', subject: 'up-1', claims: {}, createdAt: Date.now() })
     expect(await linkIdentity(adapter, identity())).toEqual({ accountId: 'u1', created: false })
   })
 
@@ -124,7 +124,7 @@ describe('account linking', () => {
   // Q9, FR-F5: an id that is a local account's is that account, not a new one for whoever signed in upstream.
   test('a created account whose id a local account holds is refused', async () => {
     const adapter = await fresh()
-    const now = new Date()
+    const now = Date.now()
     await adapter.credentials.upsert({ accountId: 'ada', username: 'ada', claims: {}, failedAttempts: 0, createdAt: now, updatedAt: now })
     expect(linkIdentity(adapter, identity(), { createAccount: async () => 'ada' })).rejects.toThrow(/already holds/)
     expect(await adapter.identities.find('entra', 'up-1')).toBeUndefined()
@@ -215,8 +215,8 @@ describe('the provider choosing an upstream', () => {
       responseTypes: ['code'],
       scopes: ['openid'],
       tokenEndpointAuthMethod: 'none',
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
       ...((over.client as object) ?? {})
     })
     return createProvider({ issuer: ISSUER, adapter, interactionUrl: `${ISSUER}/interaction`, upstreams } as never)
@@ -270,8 +270,8 @@ describe('the provider choosing an upstream', () => {
       responseTypes: ['code'],
       scopes: ['openid'],
       tokenEndpointAuthMethod: 'none',
-      createdAt: new Date(),
-      updatedAt: new Date()
+      createdAt: Date.now(),
+      updatedAt: Date.now()
     })
     const provider = createProvider({ issuer: ISSUER, adapter, interactionUrl: `${ISSUER}/interaction` })
     const params = new URLSearchParams({

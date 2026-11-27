@@ -24,8 +24,8 @@ export const client = (over: Partial<Client> = {}): Client => ({
   responseTypes: ['code'],
   scopes: ['openid', 'profile', 'email', 'offline_access'],
   tokenEndpointAuthMethod: 'client_secret_basic',
-  createdAt: new Date(),
-  updatedAt: new Date(),
+  createdAt: Date.now(),
+  updatedAt: Date.now(),
   ...over
 })
 

@@ -1,11 +1,7 @@
 import { bigint, customType, index, integer, pgSchema, pgTable, primaryKey, text, uniqueIndex } from 'drizzle-orm/pg-core'
 
 // These map to the same JS values as the SQLite schema's columns, so one adapter body serves both dialects.
-const millis = customType<{ data: Date; driverData: string | number }>({
-  dataType: () => 'bigint',
-  toDriver: value => value.getTime(),
-  fromDriver: value => new Date(Number(value))
-})
+const millis = (name: string) => bigint(name, { mode: 'number' })
 const json = customType<{ data: unknown; driverData: string }>({
   dataType: () => 'text',
   toDriver: value => JSON.stringify(value),

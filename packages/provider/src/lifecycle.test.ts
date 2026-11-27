@@ -17,8 +17,8 @@ const client = (over: Partial<Client> = {}): Client => ({
   responseTypes: ['code'],
   scopes: ['openid', 'profile', 'offline_access'],
   tokenEndpointAuthMethod: 'client_secret_basic',
-  createdAt: new Date(),
-  updatedAt: new Date(),
+  createdAt: Date.now(),
+  updatedAt: Date.now(),
   ...over
 })
 
@@ -142,10 +142,24 @@ describe('revocation', () => {
     const issued = await tokens()
     const hashed = withHashedArtifacts(adapter).artifacts
     const stored = await hashed.find('refresh_token', issued.refresh_token)
-    const { familyExpiresAt: _, ...older } = (stored as NonNullable<typeof stored>).payload
+    const { family: _, ...older } = (stored as NonNullable<typeof stored>).payload
     await hashed.upsert({ ...(stored as NonNullable<typeof stored>), payload: older })
     const refreshed = await post('/token', { grant_type: 'refresh_token', refresh_token: issued.refresh_token }, { authorization: basic() })
     expect((await refreshed.json()).error).toBe('invalid_grant')
+  })
+
+  // NFR-D6: issued before `family`, its end was `familyExpiresAt` in seconds, and the rotation keeps that end.
+  test('a refresh token stored with familyExpiresAt keeps its family end through rotation', async () => {
+    const issued = await tokens()
+    const hashed = withHashedArtifacts(adapter).artifacts
+    const stored = (await hashed.find('refresh_token', issued.refresh_token)) as NonNullable<Awaited<ReturnType<typeof hashed.find>>>
+    const { family, ...rest } = stored.payload as { family: { expiresAt: number } }
+    const familyExpiresAt = Math.floor(family.expiresAt / 1000)
+    await hashed.upsert({ ...stored, payload: { ...rest, familyExpiresAt } })
+    const refreshed = await post('/token', { grant_type: 'refresh_token', refresh_token: issued.refresh_token }, { authorization: basic() })
+    const next = (await refreshed.json()).refresh_token as string
+    const rotated = await hashed.find('refresh_token', next)
+    expect(rotated?.payload.family).toEqual({ expiresAt: familyExpiresAt * 1000 })
   })
 
   test('revoking a refresh token takes its family with it', async () => {
@@ -444,9 +458,9 @@ describe('end session', () => {
     const other = {
       id: await storedId('other'),
       accountId: 'grace',
-      authTime: new Date(),
+      authTime: Date.now(),
       clients: [],
-      expiresAt: new Date(Date.now() + 60_000)
+      expiresAt: Date.now() + 60_000
     }
     await adapter.sessions.upsert(other)
     const response = await provider.handle(new Request(redirectTo, { headers: { cookie: `__Host-${SESSION_COOKIE}=other` } }))
@@ -491,9 +505,9 @@ describe('end session', () => {
     const other = {
       id: await storedId('other'),
       accountId: 'grace',
-      authTime: new Date(),
+      authTime: Date.now(),
       clients: [],
-      expiresAt: new Date(Date.now() + 60_000)
+      expiresAt: Date.now() + 60_000
     }
     await adapter.sessions.upsert(other)
     const asked = await provider.handle(

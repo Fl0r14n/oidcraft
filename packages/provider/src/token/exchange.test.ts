@@ -16,8 +16,8 @@ const client = (over: Partial<Client> = {}): Client => ({
   responseTypes: ['code'],
   scopes: ['openid', 'profile', 'orders'],
   tokenEndpointAuthMethod: 'client_secret_basic',
-  createdAt: new Date(),
-  updatedAt: new Date(),
+  createdAt: Date.now(),
+  updatedAt: Date.now(),
   ...over
 })
 
@@ -577,7 +577,7 @@ describe('what an exchanged token inherits', () => {
     const stored = await withHashedArtifacts(adapter).artifacts.find('access_token', issued.access_token)
     await withHashedArtifacts(adapter).artifacts.upsert({
       ...(stored as NonNullable<typeof stored>),
-      expiresAt: new Date(Date.now() + 30_000)
+      expiresAt: Date.now() + 30_000
     })
 
     const body = await (await exchange(provider, issued.access_token)).json()

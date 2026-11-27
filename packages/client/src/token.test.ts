@@ -23,14 +23,14 @@ describe('checkToken', () => {
 
   it('refreshes an expired token and keeps the refresh_token', async () => {
     refresh.mockResolvedValue({ access_token: 'fresh', expires_in: 60 })
-    oauth.setToken({ refresh_token: 'keep', access_token: 'stale', expires: Date.now() - 10_000 })
+    oauth.setToken({ refresh_token: 'keep', access_token: 'stale', expiresAt: Date.now() - 10_000 })
 
     await oauth.checkToken()
 
     expect(refresh).toHaveBeenCalled()
     expect(oauth.token().access_token).toBe('fresh')
     expect(oauth.token().refresh_token).toBe('keep')
-    expect(oauth.token().expires).toBeGreaterThan(Date.now())
+    expect(oauth.token().expiresAt).toBeGreaterThan(Date.now())
   })
 
   it('persists the RFC 6749 error body when the refresh token is rejected (invalid_grant)', async () => {
@@ -39,7 +39,7 @@ describe('checkToken', () => {
       error_description: 'Invalid refresh token',
       type: OAuthType.AUTHORIZATION_CODE
     })
-    oauth.setToken({ refresh_token: 'dead', access_token: 'stale', token_type: 'Bearer', expires: Date.now() - 10_000 })
+    oauth.setToken({ refresh_token: 'dead', access_token: 'stale', token_type: 'Bearer', expiresAt: Date.now() - 10_000 })
 
     await oauth.checkToken()
 
@@ -53,7 +53,7 @@ describe('checkToken', () => {
 
   it('keeps the old token when refresh yields neither a fresh token nor an error (transient failure)', async () => {
     refresh.mockResolvedValue(undefined)
-    const stale = { refresh_token: 'keep', access_token: 'stale', expires: Date.now() - 10_000 }
+    const stale = { refresh_token: 'keep', access_token: 'stale', expiresAt: Date.now() - 10_000 }
     oauth.setToken(stale)
 
     await oauth.checkToken()
@@ -62,7 +62,7 @@ describe('checkToken', () => {
   })
 
   it('does not refresh a token that is not expired', async () => {
-    oauth.setToken({ access_token: 'live', expires: Date.now() + 60_000 })
+    oauth.setToken({ access_token: 'live', expiresAt: Date.now() + 60_000 })
 
     await oauth.checkToken()
 
@@ -72,7 +72,7 @@ describe('checkToken', () => {
   // A request sent at the boundary would arrive with a token that has just lapsed.
   it('refreshes a token about to expire, not only one that has', async () => {
     refresh.mockResolvedValue({ access_token: 'fresh', expires_in: 3600 })
-    oauth.setToken({ refresh_token: 'r', access_token: 'ending', expires_in: 3600, expires: Date.now() + 10_000 })
+    oauth.setToken({ refresh_token: 'r', access_token: 'ending', expires_in: 3600, expiresAt: Date.now() + 10_000 })
 
     await oauth.checkToken()
 
@@ -83,7 +83,7 @@ describe('checkToken', () => {
   // FR-L5: expires_in is RECOMMENDED, not required (RFC 6749 §5.1); a provider that leaves it out still rotated.
   it('keeps a refresh response that says nothing of when it expires', async () => {
     refresh.mockResolvedValue({ access_token: 'fresh', refresh_token: 'r2' })
-    oauth.setToken({ refresh_token: 'r', access_token: 'stale', id_token: 'id', expires: Date.now() - 10_000 })
+    oauth.setToken({ refresh_token: 'r', access_token: 'stale', id_token: 'id', expiresAt: Date.now() - 10_000 })
 
     await oauth.checkToken()
 
@@ -95,7 +95,7 @@ describe('checkToken', () => {
     jest.useFakeTimers()
     const start = Date.now()
     try {
-      oauth.setToken({ access_token: 'a', token_type: 'Bearer', expires: start + 5_000 })
+      oauth.setToken({ access_token: 'a', token_type: 'Bearer', expiresAt: start + 5_000 })
       let notified = 0
       const off = oauth.tokenStore.subscribe(() => notified++)
       setSystemTime(start + 5_001)
@@ -115,7 +115,7 @@ describe('checkToken', () => {
     const start = Date.now()
     try {
       refresh.mockResolvedValue(undefined)
-      oauth.setToken({ access_token: 'a', refresh_token: 'r', token_type: 'Bearer', expires: start + 5_000 })
+      oauth.setToken({ access_token: 'a', refresh_token: 'r', token_type: 'Bearer', expiresAt: start + 5_000 })
       let notified = 0
       const off = oauth.tokenStore.subscribe(() => notified++)
       setSystemTime(start + 5_001)
@@ -138,7 +138,7 @@ describe('checkToken', () => {
     try {
       let answer: ((token: OAuthToken) => void) | undefined
       refresh.mockImplementation(() => new Promise(resolve => (answer = resolve)))
-      oauth.setToken({ refresh_token: 'r', access_token: 'stale', expires: Date.now() - 10_000 })
+      oauth.setToken({ refresh_token: 'r', access_token: 'stale', expiresAt: Date.now() - 10_000 })
 
       const checking = oauth.checkToken()
       for (let tick = 0; !answer && tick < 100; tick++) await Promise.resolve()
@@ -159,7 +159,7 @@ describe('checkToken', () => {
       oauth.setStorageKey('tenant-b')
       return { access_token: 'fresh', refresh_token: 'r2', expires_in: 60 }
     })
-    oauth.setToken({ refresh_token: 'r', access_token: 'stale', expires: Date.now() - 10_000 })
+    oauth.setToken({ refresh_token: 'r', access_token: 'stale', expiresAt: Date.now() - 10_000 })
 
     await oauth.checkToken()
 
@@ -168,17 +168,17 @@ describe('checkToken', () => {
     expect(JSON.parse(globalThis.localStorage.getItem('token') ?? '{}')).toMatchObject({ access_token: 'fresh', refresh_token: 'r2' })
   })
 
-  it('derives expires from expires_in on a token that has none', async () => {
+  it('derives expiresAt from expires_in on a token that has none', async () => {
     oauth.setToken({ access_token: 'live', expires_in: 60 })
 
     await oauth.checkToken()
 
-    expect(oauth.token().expires).toBeGreaterThan(Date.now())
+    expect(oauth.token().expiresAt).toBeGreaterThan(Date.now())
   })
 
   it('deduplicates concurrent calls', async () => {
     refresh.mockResolvedValue({ access_token: 'fresh', expires_in: 60 })
-    oauth.setToken({ refresh_token: 'r', access_token: 'stale', expires: Date.now() - 10_000 })
+    oauth.setToken({ refresh_token: 'r', access_token: 'stale', expiresAt: Date.now() - 10_000 })
 
     await Promise.all([oauth.checkToken(), oauth.checkToken(), oauth.checkToken()])
 
@@ -188,7 +188,7 @@ describe('checkToken', () => {
   it('refreshes a stored token that is already expired at startup', async () => {
     // the watch source is the raw access_token, not the derived (expiry-aware) accessToken — which is
     // undefined here, i.e. exactly the case that has to trigger a refresh
-    local.setItem('token', JSON.stringify({ refresh_token: 'r', access_token: 'stale', token_type: 'Bearer', expires: Date.now() - 1 }))
+    local.setItem('token', JSON.stringify({ refresh_token: 'r', access_token: 'stale', token_type: 'Bearer', expiresAt: Date.now() - 1 }))
     const functions = mockOAuthFunctions()
     functions.refresh.mockResolvedValue({ access_token: 'fresh', token_type: 'Bearer', expires_in: 60 })
 
@@ -232,7 +232,7 @@ describe('checkToken across tabs', () => {
   })
 
   it('refreshes once, and the other tab takes the token it wrote', async () => {
-    local.setItem('token', JSON.stringify({ refresh_token: 'r1', access_token: 'stale', token_type: 'Bearer', expires: Date.now() - 1 }))
+    local.setItem('token', JSON.stringify({ refresh_token: 'r1', access_token: 'stale', token_type: 'Bearer', expiresAt: Date.now() - 1 }))
     const functions = mockOAuthFunctions()
     functions.refresh.mockImplementation(async () => {
       await new Promise(resolve => setTimeout(resolve, 5))
@@ -253,7 +253,7 @@ describe('checkToken across tabs', () => {
   // R-5: the lock released at the caller's patience let the other tab present r1 again while the first request was in flight.
   it('holds the lock while a slow refresh is in flight, so the other tab never presents the same token', async () => {
     jest.useFakeTimers()
-    local.setItem('token', JSON.stringify({ refresh_token: 'r1', access_token: 'stale', token_type: 'Bearer', expires: Date.now() - 1 }))
+    local.setItem('token', JSON.stringify({ refresh_token: 'r1', access_token: 'stale', token_type: 'Bearer', expiresAt: Date.now() - 1 }))
     let answer: ((token: OAuthToken) => void) | undefined
     const functions = mockOAuthFunctions()
     functions.refresh.mockImplementation(() => new Promise(resolve => (answer = resolve)))
@@ -353,12 +353,19 @@ describe('token accessors', () => {
   it('accessToken goes undefined once the token expires', () => {
     const oauth = createOAuth({ functions: mockOAuthFunctions() })
 
-    oauth.setToken({ access_token: 'at', token_type: 'Bearer', expires: Date.now() + 60_000 })
+    oauth.setToken({ access_token: 'at', token_type: 'Bearer', expiresAt: Date.now() + 60_000 })
     expect(oauth.accessToken()).toBe('Bearer at')
 
     // handing out a dead bearer guarantees a 401, which the fetch layer then stores as the IdP's error —
     // a session that could not be refreshed should send nothing rather than something known-broken
-    oauth.setToken({ access_token: 'at', token_type: 'Bearer', expires: Date.now() - 1 })
+    oauth.setToken({ access_token: 'at', token_type: 'Bearer', expiresAt: Date.now() - 1 })
+    expect(oauth.accessToken()).toBeUndefined()
+  })
+
+  it('reads a token stored with `expires` by its expiry, so an old one is not served forever', () => {
+    local.setItem('token', JSON.stringify({ access_token: 'old', token_type: 'Bearer', expires: Date.now() - 1 }))
+    const oauth = createOAuth({ functions: mockOAuthFunctions() })
+    expect(oauth.token().expiresAt).toBeLessThan(Date.now())
     expect(oauth.accessToken()).toBeUndefined()
   })
 
@@ -367,11 +374,11 @@ describe('token accessors', () => {
 
     expect(oauth.status()).toBe(OAuthStatus.NOT_AUTHORIZED)
 
-    oauth.setToken({ access_token: 'at', expires: Date.now() + 60_000 })
+    oauth.setToken({ access_token: 'at', expiresAt: Date.now() + 60_000 })
     expect(oauth.status()).toBe(OAuthStatus.AUTHORIZED)
     expect(oauth.isAuthorized()).toBe(true)
 
-    oauth.setToken({ access_token: 'at', expires: Date.now() - 1 })
+    oauth.setToken({ access_token: 'at', expiresAt: Date.now() - 1 })
     expect(oauth.status()).toBe(OAuthStatus.NOT_AUTHORIZED)
 
     oauth.setToken({ error: 'nope', error_description: 'because' })
@@ -394,7 +401,7 @@ describe('cross-tab', () => {
   })
 
   it('signs out when another tab logs out', () => {
-    local.setItem('token', JSON.stringify({ access_token: 'at', token_type: 'Bearer', expires: Date.now() + 60_000 }))
+    local.setItem('token', JSON.stringify({ access_token: 'at', token_type: 'Bearer', expiresAt: Date.now() + 60_000 }))
     const oauth = createOAuth({ config: { tokenPath: '/t', clientId: 'c' }, functions: mockOAuthFunctions() })
     expect(oauth.isAuthorized()).toBe(true)
 
@@ -407,10 +414,10 @@ describe('cross-tab', () => {
   })
 
   it("adopts another tab's refreshed token", () => {
-    local.setItem('token', JSON.stringify({ access_token: 'old', token_type: 'Bearer', expires: Date.now() + 60_000 }))
+    local.setItem('token', JSON.stringify({ access_token: 'old', token_type: 'Bearer', expiresAt: Date.now() + 60_000 }))
     const oauth = createOAuth({ config: { tokenPath: '/t', clientId: 'c' }, functions: mockOAuthFunctions() })
 
-    local.setItem('token', JSON.stringify({ access_token: 'new', token_type: 'Bearer', expires: Date.now() + 60_000 }))
+    local.setItem('token', JSON.stringify({ access_token: 'new', token_type: 'Bearer', expiresAt: Date.now() + 60_000 }))
     globalThis.dispatchEvent(new StorageEvent('storage', { key: 'token' }))
 
     expect(oauth.accessToken()).toBe('Bearer new')
@@ -428,13 +435,13 @@ describe('cross-tab', () => {
 })
 
 describe('isExpiredToken', () => {
-  it('is false without an expires field', () => {
+  it('is false without an expiresAt field', () => {
     expect(isExpiredToken({ access_token: 'at' })).toBe(false)
     expect(isExpiredToken(undefined)).toBe(false)
   })
 
-  it('is true once expires is in the past', () => {
-    expect(isExpiredToken({ expires: Date.now() - 1 })).toBe(true)
-    expect(isExpiredToken({ expires: Date.now() + 60_000 })).toBe(false)
+  it('is true once expiresAt is in the past', () => {
+    expect(isExpiredToken({ expiresAt: Date.now() - 1 })).toBe(true)
+    expect(isExpiredToken({ expiresAt: Date.now() + 60_000 })).toBe(false)
   })
 })

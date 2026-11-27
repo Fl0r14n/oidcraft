@@ -1,4 +1,4 @@
-import type { Artifact, Client } from '@oidcraft/adapter'
+import type { Artifact, Client, Used } from '@oidcraft/adapter'
 import { randomString } from '@oidcraft/core'
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
@@ -19,7 +19,7 @@ export type Answer = {
 }
 
 /** A request as the poll holds it: the clock the client is kept to, and what an answer fills in. */
-export type Polled = Answer & { interval: number; lastPolledAt?: number }
+export type Polled = Answer & Used & { interval: number }
 
 type Request = Omit<Artifact, 'kind' | 'payload'>
 
@@ -56,10 +56,10 @@ const poll = async <R extends Request, P extends Polled>(config: ResolvedConfig,
   if (request.consumedAt) throw refuse('invalid_grant', `this ${flow.noun} was already redeemed`)
 
   const now = Date.now()
-  const since = requested.lastPolledAt ? (now - requested.lastPolledAt) / 1000 : Number.POSITIVE_INFINITY
+  const since = requested.lastUsedAt ? (now - requested.lastUsedAt) / 1000 : Number.POSITIVE_INFINITY
   const slowDown = since < requested.interval
   const interval = requested.interval + (slowDown ? DEFAULT_INTERVAL : 0)
-  await flow.keepClock(config, request, { ...requested, lastPolledAt: now, interval })
+  await flow.keepClock(config, request, { ...requested, lastUsedAt: now, interval })
   if (slowDown) throw new OAuthError('slow_down', { description: `poll no more often than every ${interval} seconds`, spec: flow.spec })
 
   const payload = await answered(config, flow, request, requested)

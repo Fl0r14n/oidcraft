@@ -21,8 +21,8 @@ const setup = async () => {
     responseTypes: ['code'],
     scopes: ['openid'],
     tokenEndpointAuthMethod: 'none',
-    createdAt: new Date(),
-    updatedAt: new Date()
+    createdAt: Date.now(),
+    updatedAt: Date.now()
   })
   const provider = createProvider({ issuer: ISSUER, adapter, interactionUrl: `${ISSUER}/interaction` })
   return { adapter, provider }

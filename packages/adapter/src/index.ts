@@ -32,8 +32,10 @@ export type {
   ArtifactKind,
   Client,
   ClientAuthMethod,
+  Created,
   Credential,
   Entity,
+  EpochMillis,
   Expiring,
   Grant,
   LinkedIdentity,
@@ -41,5 +43,6 @@ export type {
   Realm,
   Seconds,
   Session,
-  Timestamped
+  Timestamped,
+  Used
 } from './types'

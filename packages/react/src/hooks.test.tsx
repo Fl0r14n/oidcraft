@@ -74,7 +74,7 @@ describe('useOAuth', () => {
     mount(<OAuthProbe />)
     expect(screen.getByTestId('p').textContent).toBe(`${OAuthStatus.NOT_AUTHORIZED}|false|false|-|-`)
 
-    act(() => oauth.setToken({ access_token: 'at', token_type: 'Bearer', expires: Date.now() + 60_000 }))
+    act(() => oauth.setToken({ access_token: 'at', token_type: 'Bearer', expiresAt: Date.now() + 60_000 }))
     expect(screen.getByTestId('p').textContent).toBe(`${OAuthStatus.AUTHORIZED}|true|false|-|Bearer at`)
 
     act(() => oauth.setToken({ error: 'access_denied', error_description: 'nope' }))

@@ -36,7 +36,9 @@ Read the relevant one before anything else.
 - **One word per meaning (ARCHITECTURE.md §9.3).** Storage verbs: `find`/`findBy*` (one or
   `undefined`), `list`/`listBy*`, `upsert` and `destroy` (unconditional), `create` and `destroyIf`
   (atomic, resolve a boolean), `update` (only the fields given, never creating, resolves whether the
-  record existed). _Provider_ is oidcraft; an external IdP is an _upstream_, though a
+  record existed). An instant is `EpochMillis` everywhere but a protocol claim, and a record composes
+  `Created`/`Timestamped`/`Expiring`/`Used` rather than declaring `createdAt` and kin again; the end of
+  something a record holds is that thing's `Expiring`, nested (`family.expiresAt`, `lock.expiresAt`). _Provider_ is oidcraft; an external IdP is an _upstream_, though a
   field named for a token claim keeps the claim's name (`idp`). _Sign up_ makes an account,
   _register_ adds a WebAuthn credential, _client registration_ is FR-C9's. A _grant_ is the consent
   record; a _grant type_ is never shortened to _grant_ in a name. Above storage the verbs are fixed

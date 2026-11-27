@@ -30,20 +30,20 @@ const withSessions = async () => {
   await adapter.sessions.upsert({
     id: 'local-1',
     accountId: 'ada',
-    authTime: new Date(),
+    authTime: Date.now(),
     idp: 'entra',
     upstreamSessionId: 'up-1',
     clients: ['rp'],
-    expiresAt: new Date(Date.now() + 60_000)
+    expiresAt: Date.now() + 60_000
   })
   await adapter.sessions.upsert({
     id: 'local-2',
     accountId: 'bob',
-    authTime: new Date(),
+    authTime: Date.now(),
     idp: 'entra',
     upstreamSessionId: 'up-2',
     clients: ['rp'],
-    expiresAt: new Date(Date.now() + 60_000)
+    expiresAt: Date.now() + 60_000
   })
   return adapter
 }
@@ -58,7 +58,7 @@ describe('upstream back-channel logout', () => {
 
   test('falls back to the linked account when only sub is given', async () => {
     const adapter = await withSessions()
-    await adapter.identities.upsert({ accountId: 'ada', upstream: 'entra', subject: 'up-sub', claims: {}, createdAt: new Date() })
+    await adapter.identities.upsert({ accountId: 'ada', upstream: 'entra', subject: 'up-sub', claims: {}, createdAt: Date.now() })
     const result = await upstreamLogout(adapter, provider, await logoutToken({ sub: 'up-sub' }), jwks)
     expect(result.sessions.map(session => session.id)).toEqual(['local-1'])
   })

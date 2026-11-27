@@ -1,3 +1,4 @@
+import type { EpochMillis } from '@oidcraft/adapter'
 import { proofOptions, verifyDpopProof } from '../binding/dpop'
 import type { ResolvedConfig } from '../config'
 import type { ClientCertificate } from '../context'
@@ -129,7 +130,7 @@ export type VerifiedAccessToken = {
   authorizationDetails: unknown[] | undefined
   /** RFC 8693 §4.1: who is acting for the subject. */
   actor: { client_id: string } | undefined
-  expiresAt: Date
+  expiresAt: EpochMillis
 }
 
 export type AccessTokenVerification =

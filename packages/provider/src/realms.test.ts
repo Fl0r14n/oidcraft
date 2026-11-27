@@ -16,8 +16,8 @@ const service = (): Client => ({
   responseTypes: [],
   scopes: ['orders'],
   tokenEndpointAuthMethod: 'client_secret_basic',
-  createdAt: new Date(),
-  updatedAt: new Date()
+  createdAt: Date.now(),
+  updatedAt: Date.now()
 })
 
 /** One store for the records, one adapter per realm: what `provision` would create and `retire` drop. */

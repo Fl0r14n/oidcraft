@@ -46,7 +46,7 @@ export const createRecovery = ({ adapter, credentials, policy }: Shared, hashing
     if (current) {
       await credentials.update(accountId, {
         recoveryCodes: (current.recoveryCodes ?? []).filter(stored => stored !== hash),
-        updatedAt: new Date()
+        updatedAt: Date.now()
       })
     }
     return true

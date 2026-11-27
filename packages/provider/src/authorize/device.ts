@@ -60,7 +60,7 @@ export const deviceAuthorizationEndpoint = async (
   const deviceCode = randomString()
   const code = userCode()
   const expiresIn = config.ttl.deviceCode
-  const expiresAt = new Date(Date.now() + expiresIn * 1000)
+  const expiresAt = Date.now() + expiresIn * 1000
 
   await writeArtifact(config.adapter.artifacts, {
     id: deviceCode,
@@ -144,7 +144,7 @@ const attemptsFor = async (config: ResolvedConfig, context: UserCodeContext) => 
         kind: 'user_code_attempts',
         clientId: '',
         payload: { failures: (record?.payload.failures ?? 0) + 1 },
-        expiresAt: record?.expiresAt ?? new Date(Date.now() + ATTEMPT_WINDOW_SECONDS * 1000)
+        expiresAt: record?.expiresAt ?? Date.now() + ATTEMPT_WINDOW_SECONDS * 1000
       })
     }
   }
@@ -195,7 +195,7 @@ export const deviceSignIn = async (config: ResolvedConfig, typed: string, { cook
     kind: 'interaction',
     clientId: found.artifact.clientId,
     payload: { interactionKind: 'login', browser, device: { userCode: found.payload.userCode, scopes: found.payload.scopes } },
-    expiresAt: new Date(Math.min(Date.now() + config.ttl.interaction * 1000, found.artifact.expiresAt.getTime()))
+    expiresAt: Math.min(Date.now() + config.ttl.interaction * 1000, found.artifact.expiresAt)
   })
   return { redirectTo: `${config.interactionUrl}/${id}`, setCookie }
 }

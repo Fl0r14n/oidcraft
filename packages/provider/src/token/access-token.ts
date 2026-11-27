@@ -1,4 +1,4 @@
-import type { Client } from '@oidcraft/adapter'
+import type { Client, EpochMillis } from '@oidcraft/adapter'
 import { randomString } from '@oidcraft/core'
 import { createLocalJWKSet, type JSONWebKeySet, jwtVerify } from 'jose'
 import type { ResolvedConfig } from '../config'
@@ -41,7 +41,7 @@ export type AccessTokenRequest = {
   /** FR-C18: what this client was told the user is called. */
   subject?: string | undefined
   /** A cap on the access token lifetime; an exchange caps it at its subject token's. */
-  expiresAt?: Date | undefined
+  expiresAt?: EpochMillis | undefined
   authorizationDetails?: unknown[] | undefined
   /** RFC 8693 §4.1: who is acting, so a resource server can tell delegation from the real thing. */
   actor?: { client_id: string } | undefined
@@ -68,7 +68,7 @@ export const issueAccessToken = async (config: ResolvedConfig, request: AccessTo
       spec: 'RFC 8707 §2'
     })
   const jwt = request.client.accessTokenFormat === 'jwt' || resource?.accessTokenFormat === 'jwt'
-  const lifetime = new Date(Date.now() + (resource?.accessTokenTtl ?? config.ttl.accessToken) * 1000)
+  const lifetime = Date.now() + (resource?.accessTokenTtl ?? config.ttl.accessToken) * 1000
   const expiresAt = request.expiresAt && request.expiresAt < lifetime ? request.expiresAt : lifetime
   // RFC 9449 §6: the confirmation claim is what makes the token useless without the key.
   const cnf = confirmationOf(request.binding)
@@ -124,7 +124,7 @@ export const issueAccessToken = async (config: ResolvedConfig, request: AccessTo
   return {
     token,
     tokenType: request.binding.jkt ? 'DPoP' : 'Bearer',
-    expiresIn: Math.max(0, Math.floor((expiresAt.getTime() - Date.now()) / 1000))
+    expiresIn: Math.max(0, Math.floor((expiresAt - Date.now()) / 1000))
   }
 }
 
@@ -134,7 +134,7 @@ export type AccessTokenInput = {
   id: string
   subject: string | undefined
   scopes: string[]
-  expiresAt: Date
+  expiresAt: EpochMillis
   audience?: string | undefined
   confirmation?: Record<string, string> | undefined
   actor?: { client_id: string } | undefined
@@ -158,7 +158,7 @@ export const mintJwtAccessToken = async (config: ResolvedConfig, input: AccessTo
       sub: input.subject ?? input.client.clientId,
       aud: input.audience ?? config.issuer,
       iat: Math.floor(Date.now() / 1000),
-      exp: Math.floor(input.expiresAt.getTime() / 1000),
+      exp: Math.floor(input.expiresAt / 1000),
       scope: input.scopes.join(' '),
       client_id: input.client.clientId,
       jti: input.id,

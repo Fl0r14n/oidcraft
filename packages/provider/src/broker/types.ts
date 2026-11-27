@@ -1,5 +1,5 @@
 import type { ClientCredentials, TokenAuthMethod } from '@oidcraft/core'
-import type { LinkedIdentity } from '@oidcraft/provider'
+import type { Created, EpochMillis, LinkedIdentity } from '@oidcraft/provider'
 
 /** An upstream OP this provider brokers to. Discovery is by issuer; nothing is hardcoded (FR-F1). */
 export type UpstreamProvider = ClientCredentials & {
@@ -35,7 +35,8 @@ export type ClaimMapper = (upstream: Record<string, unknown>) => Record<string, 
  */
 export type LinkPolicy = 'subject' | 'verified-email' | 'interactive'
 
-export type Handoff = {
+/** Its expiry is the artifact's that holds it; `createdAt` is the sign-in's `auth_time` when the upstream reports none (FR-F6). */
+export type Handoff = Created & {
   provider: string
   state: string
   nonce: string
@@ -44,9 +45,6 @@ export type Handoff = {
   interactionId: string
   /** A hash of the cookie set on the browser that started it; the callback must carry the cookie (FR-F3). */
   browserBinding: string
-  /** Epoch milliseconds: the sign-in's `auth_time` when the upstream reports none (FR-F6). */
-  startedAt?: number
-  expiresAt: Date
 }
 
 /** How the upstream round trip ended, for the host to act on. */
@@ -59,11 +57,11 @@ export type BrokerCallback = {
 
 export type BrokeredIdentity = Omit<LinkedIdentity, 'accountId' | 'createdAt'> & {
   /** Present only when the upstream issued one and `retainTokens` is set. */
-  upstreamTokens?: { accessToken: string; refreshToken?: string; expiresAt?: Date }
+  upstreamTokens?: { accessToken: string; refreshToken?: string; expiresAt?: EpochMillis }
   upstreamSessionId?: string
   acr?: string
   amr?: string[]
-  authTime?: Date
+  authTime?: EpochMillis
   /** The upstream's own `linkPolicy`, which `linkIdentity` never loosens (FR-F5). */
   linkPolicy?: LinkPolicy
 }

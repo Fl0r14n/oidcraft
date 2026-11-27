@@ -73,10 +73,10 @@ export const createFlows = (
       if (!store || !handoff.state) return
       for (let i = store.length - 1; i >= 0; i--) {
         const key = store.key(i)
-        if (key?.startsWith(handoffPrefix()) && !(Number(JSON.parse(store.getItem(key) ?? '{}').expires) > Date.now()))
+        if (key?.startsWith(handoffPrefix()) && !(Number(JSON.parse(store.getItem(key) ?? '{}').expiresAt) > Date.now()))
           store.removeItem(key)
       }
-      store.setItem(`${handoffPrefix()}${handoff.state}`, JSON.stringify({ ...handoff, expires: Date.now() + HANDOFF_TTL }))
+      store.setItem(`${handoffPrefix()}${handoff.state}`, JSON.stringify({ ...handoff, expiresAt: Date.now() + HANDOFF_TTL }))
     } catch {}
   }
   const takeHandoff = (state: string | undefined): Partial<AuthorizationHandoff> | undefined => {
@@ -90,8 +90,8 @@ export const createFlows = (
         const raw = store?.getItem(key)
         // RFC 9700 §4.7: anyone can send a browser to the callback with an error and no state; only a callback naming it spends the sign-in.
         if (state) store?.removeItem(key)
-        const { expires, ...handoff } = raw ? JSON.parse(raw) : { expires: 0 }
-        if (Number(expires) > Date.now()) stored = handoff
+        const { expiresAt, ...handoff } = raw ? JSON.parse(raw) : { expiresAt: 0 }
+        if (Number(expiresAt) > Date.now()) stored = handoff
       }
     } catch {}
     const handoff = stored ?? (state === undefined || pending?.state === state ? pending : undefined)

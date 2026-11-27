@@ -291,9 +291,7 @@ export const createBroker = (given: BrokerConfig) => {
 
       const failure = upstreamFailure(provider.id, result)
       if (failure || !result?.ok) throw failure
-      const { token } = result
-
-      const claims = await verify(token?.id_token)
+      const { token, claims } = result
       if (!claims.sub)
         throw new OAuthError('server_error', { description: `the ID token from ${provider.id} carried no subject`, spec: 'FR-F7' })
 

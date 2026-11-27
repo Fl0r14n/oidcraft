@@ -1,5 +1,5 @@
 import { resolveOAuthFunctions } from './functions'
-import { createIdTokenVerifier, type IdTokenVerifier } from './jwt'
+import { createIdTokenVerifier, type IdTokenClaims, type IdTokenVerifier } from './jwt'
 import { parseRedirectParameters, type RedirectSource } from './redirect'
 import { isTenantTemplate, sameIssuer } from './secure'
 import {
@@ -33,7 +33,8 @@ export type CallbackCheck = 'state' | 'issuer' | 'nonce' | 'id_token' | 'token'
 
 /** How a callback ended (FR-L2): `refused` by the provider, `invalid` on a failed check, `unreachable` when the token endpoint was. */
 export type AuthorizationResult =
-  | { ok: true; token: OAuthToken }
+  /** `claims` are the ID token's, verified once here, so a caller never checks the same signature again. */
+  | { ok: true; token: OAuthToken; claims: IdTokenClaims }
   | { ok: false; reason: 'refused'; error: string; errorDescription?: string }
   | { ok: false; reason: 'invalid'; check: CallbackCheck; message: string }
   | { ok: false; reason: 'unreachable' }
@@ -71,7 +72,7 @@ const checkIdToken = async (token: OAuthToken, handoff: Partial<AuthorizationHan
   const claims = await verify(token.id_token)
   if (claims?.error) return invalid('id_token', (claims.error as string) || 'Invalid token')
   if (claims?.nonce !== handoff?.nonce) return invalid('nonce', 'Invalid nonce')
-  return { ok: true, token } as const
+  return { ok: true, token, claims } as const
 }
 
 /** Returns the URL to send the user to and the handoff to keep until they return; touches no storage or `location`. */

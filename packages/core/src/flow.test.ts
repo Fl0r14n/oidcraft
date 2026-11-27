@@ -52,6 +52,20 @@ describe('completeAuthorization', () => {
     expect(token).toMatchObject({ ok: true, token: { access_token: 'at' } })
   })
 
+  // Verified once: a caller that needs the claims, as the broker does, takes these rather than checking the signature again.
+  it('answers the claims of the ID token it verified', async () => {
+    const authorize = jest.fn().mockResolvedValue({ access_token: 'at', id_token: 'id', type: OAuthType.AUTHORIZATION_CODE })
+    const verifyIdToken = jest.fn(claims({ sub: 'ada', nonce: 'n1' }))
+    const result = await completeAuthorization(
+      config,
+      'https://app.com/cb?code=c1&state=s1',
+      { redirect_uri: 'https://app.com/cb', state: 's1', nonce: 'n1' },
+      { functions: { authorize }, verifyIdToken }
+    )
+    expect(result).toMatchObject({ ok: true, claims: { sub: 'ada' } })
+    expect(verifyIdToken).toHaveBeenCalledTimes(1)
+  })
+
   it('refuses a state that is not the one it issued', async () => {
     const authorize = jest.fn()
 

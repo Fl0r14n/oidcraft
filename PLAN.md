@@ -12,7 +12,8 @@ functional requirement in `REQUIREMENTS.md`.
 `metadata.test.ts` exercises every advertised discovery value rather than reading it. Published as
 `@oidcraft/*`, each from a GitHub release with provenance; on 2026-11-27, after the 2026-11-26 review,
 `core` 0.6.0, `client` 0.5.0, `adapter` 0.4.0, the provider 0.10.0, the four storage adapters 0.4.0,
-`vue` 11.0.0, `react` 6.0.0 and `angular` 13.0.0 — with the docs site at https://fl0r14n.github.io/oidcraft/.
+`vue` 11.0.0, `react` 6.0.0 and `angular` 13.0.0, then `core` 0.6.1, `adapter` 0.4.1 and the provider 0.10.1 —
+with the docs site at https://fl0r14n.github.io/oidcraft/.
 Each release's notes, what to change when upgrading included, are on its GitHub release.
 
 **Provider 0.3.0 and earlier are not to be put in front of real identities**: they ship a session

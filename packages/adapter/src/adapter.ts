@@ -46,7 +46,8 @@ export type EntityStore<T, Id extends unknown[] = [id: string]> = {
  * different fields of one record both land, as two `upsert`s of what each read would not.
  */
 export type UpdatableStore<T, Key extends keyof T> = EntityStore<T> & {
-  update(id: string, fields: Partial<Omit<T, Key>>): Promise<boolean>
+  /** A field given as `undefined` is cleared. */
+  update(id: string, fields: { [Field in Exclude<keyof T, Key>]?: T[Field] | undefined }): Promise<boolean>
 }
 
 /** Writes are optional so a deployment can serve a fixed set of clients; registration then refuses (FR-C9). */

@@ -82,7 +82,8 @@ const entitiesFor = (dialect: 'sqlite' | 'postgres' | 'mysql') => {
       idp: key(255, { nullable: true }),
       upstream_session_id: key(255, { nullable: true }),
       clients: document(),
-      expires_at: millis()
+      expires_at: millis(),
+      last_used_at: millis({ nullable: true })
     },
     indices: [
       { name: 'oidc_sessions_account_idx', columns: ['account_id'] },

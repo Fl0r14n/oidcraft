@@ -1,5 +1,6 @@
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
+import { findLiveSession } from '../session/session'
 
 const refuse = (description: string, spec = 'FR-I4') => new OAuthError('invalid_request', { description, spec, status: 400 })
 
@@ -20,7 +21,7 @@ export const assertApproval = async (
   if (expectedAccountId !== undefined && approval.accountId !== expectedAccountId) {
     throw refuse('the approving account is not the one this request was made for', 'OIDC CIBA 1.0 §7.1')
   }
-  const session = await config.adapter.sessions.find(approval.sessionId)
+  const session = await findLiveSession(config, approval.sessionId)
   if (!session || session.accountId !== approval.accountId) throw refuse('that session does not belong to the approving account', 'FR-I2')
   return approval.scopes
 }

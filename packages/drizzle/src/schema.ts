@@ -44,7 +44,8 @@ export const sessions = sqliteTable(
     idp: text('idp'),
     upstreamSessionId: text('upstream_session_id'),
     clients: text('clients', { mode: 'json' }).notNull(),
-    expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull()
+    expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
+    lastUsedAt: integer('last_used_at', { mode: 'timestamp_ms' })
   },
   table => [
     index('oidc_sessions_account_idx').on(table.accountId),

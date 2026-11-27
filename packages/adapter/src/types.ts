@@ -85,6 +85,8 @@ export type Session = Entity &
     /** The upstream session id, so upstream logout can terminate this one (FR-F8). */
     upstreamSessionId?: string
     clients: string[]
+    /** When the browser last used it, kept only under an idle lifetime; `expiresAt` stays the absolute end (FR-I10). */
+    lastUsedAt?: Date
   }
 
 /** A durable record of what an account allowed a client — survives token revocation (FR-I4). */

@@ -58,3 +58,11 @@ export const logoutTokens = async (config: ResolvedConfig, session: Session): Pr
   }
   return notifications
 }
+
+/** Ends a session as every logout does: what its clients are told is worked out first, then the session goes (FR-C11). */
+export const endSession = async (config: ResolvedConfig, session: Session) => {
+  const notifications = await logoutTokens(config, session)
+  const frontChannel = await frontChannelLogouts(config, session)
+  await config.adapter.sessions.destroy(session.id)
+  return { notifications, frontChannel }
+}

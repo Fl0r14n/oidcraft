@@ -79,7 +79,7 @@ export const authorizationEndpoint = async (config: ResolvedConfig, request: Req
 
   try {
     const { browser, setCookie } = await bindBrowser(config, request.headers.get('cookie'))
-    const outcome = await authorize(config, validated, await readSession(config, request), client, browser)
+    const outcome = await authorize(config, validated, await readSession(config, request, { use: true }), client, browser)
     if (outcome.kind === 'response') return authorizationResponse(config.issuer, validated, outcome.values)
 
     return seeOther(`${config.interactionUrl}/${outcome.id}`, setCookie)

@@ -68,6 +68,11 @@ export const MYSQL_MIGRATIONS: Migration[] = [
       `create table oidc_passkeys (credential_id varchar(1400) character set ascii collate ascii_bin primary key, account_id varchar(255) not null, public_key text not null, algorithm integer not null, counter bigint not null, transports text not null, name varchar(255) not null, created_at bigint not null, last_used_at bigint) ${TABLE}`,
       'create index oidc_passkeys_account_idx on oidc_passkeys (account_id)'
     ]
+  },
+  {
+    // FR-I10: an idle lifetime measures from the last use, which the absolute end cannot stand in for.
+    id: '0007_session_last_used',
+    statements: ['alter table oidc_sessions add column last_used_at bigint']
   }
 ]
 export type { Migration } from './migration'

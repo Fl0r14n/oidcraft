@@ -4,7 +4,7 @@ import { OAuthError } from '../errors'
 import type { InteractionCompletion, InteractionRequest, InteractionResult } from '../interaction'
 import { type DeviceLogin, type InteractionPayload, readArtifact, type Stored, writeArtifact } from '../payloads'
 import { assertSameBrowser, isSameBrowser } from '../session/browser'
-import { startSession } from '../session/session'
+import { establishSession } from '../session/session'
 import {
   type AuthorizationRequest,
   detailsConsentId,
@@ -74,8 +74,8 @@ export const interactions = (config: ResolvedConfig) => ({
     const { artifact, payload } = await load(config, id)
     await assertSameBrowser(config, cookie, payload.browser)
     if (payload.interactionKind === 'logout') return confirmLogout(config, id, payload, given)
-    if ('device' in payload) return completeDeviceLogin(config, id, artifact.clientId, payload.device, given)
-    return answer(config, id, artifact, payload.request, given)
+    if ('device' in payload) return completeDeviceLogin(config, id, payload.device, given, cookie)
+    return answer(config, id, artifact, payload.request, given, cookie)
   },
 
   /**
@@ -86,11 +86,11 @@ export const interactions = (config: ResolvedConfig) => ({
     const { artifact, payload } = await load(config, id)
     if (await isSameBrowser(config, cookie, payload.browser)) {
       if (payload.interactionKind === 'logout') throw notASignIn()
-      if ('device' in payload) return completeDeviceLogin(config, id, artifact.clientId, payload.device, { login })
-      return answer(config, id, artifact, payload.request, { login })
+      if ('device' in payload) return completeDeviceLogin(config, id, payload.device, { login }, cookie)
+      return answer(config, id, artifact, payload.request, { login }, cookie)
     }
     if (payload.interactionKind !== 'login' || !('request' in payload)) throw notASignIn()
-    return answer(config, id, artifact, payload.request, { login })
+    return answer(config, id, artifact, payload.request, { login }, cookie)
   }
 })
 
@@ -106,7 +106,8 @@ const answer = async (
   id: string,
   artifact: Stored<'interaction'>,
   request: AuthorizationRequest,
-  given: InteractionResult
+  given: InteractionResult,
+  cookie: string | null
 ) => {
   // FR-F9: max_age went upstream with the login, so an auth_time older than it says it was not honoured.
   const outcome: InteractionResult = staleLogin(config, artifact.expiresAt, request.maxAge, given.login?.authTime)
@@ -159,7 +160,7 @@ const answer = async (
   let accountId = artifact.accountId
 
   if (outcome.login) {
-    const started = await startSession(config, outcome.login, request.clientId)
+    const started = await establishSession(config, outcome.login, cookie)
     setCookie = started.cookie
     accountId = started.session.accountId
   }
@@ -215,9 +216,9 @@ const deviceView = (id: string, clientId: string, device: DeviceLogin, expiresAt
 const completeDeviceLogin = async (
   config: ResolvedConfig,
   id: string,
-  clientId: string,
   device: DeviceLogin,
-  outcome: InteractionResult
+  outcome: InteractionResult,
+  cookie: string | null
 ) => {
   if (!outcome.login) {
     throw new OAuthError('invalid_request', { description: 'a device sign-in is completed only by signing in', status: 400, spec: 'FR-I2' })
@@ -226,11 +227,11 @@ const completeDeviceLogin = async (
   if (!(await config.adapter.artifacts.consume('interaction', id))) {
     throw new OAuthError('invalid_request', { description: 'this interaction was already completed', status: 404, spec: 'FR-I2' })
   }
-  const { cookie } = await startSession(config, outcome.login, clientId)
+  const started = await establishSession(config, outcome.login, cookie)
   await config.adapter.artifacts.destroy('interaction', id)
   const url = new URL(`${config.issuer}${config.routes.deviceVerification}`)
   url.searchParams.set('user_code', device.userCode)
-  return { redirectTo: url.toString(), setCookie: cookie }
+  return { redirectTo: url.toString(), setCookie: started.cookie }
 }
 
 /** The person confirmed; end-session runs again with a single-use proof of it (OIDC RP-Initiated Logout 1.0 §2). */

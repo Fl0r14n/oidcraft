@@ -132,7 +132,7 @@ marks a finding reproduced by a throwaway test. Paths are under `packages/provid
 
 Medium:
 
-- [ ] S-1 `[test]` a login never ends the browser's previous session (`authorize/interactions.ts:193`, `session/session.ts:37`).
+- [x] S-1 `[test]` a login never ends the browser's previous session (`authorize/interactions.ts:193`, `session/session.ts:37`).
 - [x] S-2 `[test]` assertion `aud` accepts the token endpoint and arrays (`clients/assertion.ts:23`).
 - [x] S-3 `[test]` introspection accepts a `none` client; RFC 7592 update keeps operator fields (`resource/introspection.ts:45`, `clients/registration.ts:401`).
 - [x] S-4 `[test]` cert-bound client without a certificate gets bearer tokens; `dpopBoundAccessTokens` ignored with DPoP off (`token/endpoint.ts:22,59`).

@@ -92,6 +92,20 @@ token exchange endpoints alike (FR-T6).
 client under the FAPI 2.0 profile, which is a single switch that brings all of that profile's other
 refusals with it. Nothing turns off rotation on its own.
 
+### One session per browser, and none left behind
+
+A browser holds one session per issuer, in a `__Host-` cookie on https (FR-I10). Signing in again
+as the same account updates that session in place: `auth_time`, `acr` and `amr` renewed, its id and
+`sid` kept, so the person's other applications stay signed in and their logouts still match. Signing
+in as another account ends the old session first, exactly as a logout does — back- and
+front-channel notices to its clients, `onSessionEnd` — so no session is left that no logout reaches.
+The cookie is not rotated on a step-up: the `sid` is the cookie's hash, which session-bound refresh
+tokens name, and a host-only `HttpOnly` cookie already takes a compromised browser to steal.
+
+A session lives `ttl.session`, counted from the latest sign-in. `ttl.sessionIdle`, unset by default,
+also ends it that long after its last use, a sign-in, an authorization request or a refresh of a
+token bound to it; the refresh tokens bound to it end with it.
+
 ### Replaying a single-use artifact revokes what it produced
 
 FR-T4: an authorization code is single-use, and redeeming it a second time revokes the family it

@@ -33,6 +33,7 @@ export type SessionsTable = {
   upstream_session_id: string | null
   clients: string
   expires_at: Millis
+  last_used_at: Millis | null
 }
 
 export type GrantsTable = {

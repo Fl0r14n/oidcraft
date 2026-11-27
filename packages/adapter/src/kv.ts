@@ -223,7 +223,7 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
   }
   const readSession = async (id: string) => {
     const session = dec<Session>(await read(`session/${id}`))
-    return session && revive(session, ['authTime', 'expiresAt'])
+    return session && revive(session, ['authTime', 'expiresAt', 'lastUsedAt'])
   }
 
   const sessions: BrokeringAdapter['sessions'] = {

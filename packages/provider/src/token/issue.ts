@@ -4,6 +4,7 @@ import type { RequestedClaims } from '../authorize/claims'
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
 import { type SignIn, type Stored, writeArtifact } from '../payloads'
+import { findLiveSession } from '../session/session'
 import { type Binding, confirmationOf, issueAccessToken } from './access-token'
 import { assertFamilyLive } from './family'
 import { mintIdToken } from './id-token'
@@ -142,7 +143,8 @@ const snapshotOf = (session: Session): SignIn => ({
 export const loadGrantAndSignIn = async (config: ResolvedConfig, artifact: Stored<'refresh_token'>) => {
   const grant = artifact.grantId ? await config.adapter.grants.find(artifact.grantId) : undefined
   if (!grant) throw new OAuthError('invalid_grant', { description: 'the grant behind this token no longer exists', spec: 'RFC 6749 §5.2' })
-  const live = await config.adapter.sessions.find(artifact.payload.sessionId)
+  // A refresh is the session in use, so under an idle lifetime it keeps the session alive (FR-I10).
+  const live = await findLiveSession(config, artifact.payload.sessionId, { use: true })
   if (live) return { grant, session: live }
   const { signIn } = artifact.payload
   if (!signIn) throw new OAuthError('invalid_grant', { description: 'the session behind this token has ended', spec: 'RFC 6749 §5.2' })
@@ -153,13 +155,13 @@ export const loadGrantAndSignIn = async (config: ResolvedConfig, artifact: Store
 
 /** FR-T6, FR-T7: a refresh token without offline access is over when its session is, wherever it is presented. */
 export const outlivedItsSession = async (config: ResolvedConfig, artifact: Stored<'access_token' | 'refresh_token'>) =>
-  artifact.kind === 'refresh_token' && !artifact.payload.signIn && !(await config.adapter.sessions.find(artifact.payload.sessionId))
+  artifact.kind === 'refresh_token' && !artifact.payload.signIn && !(await findLiveSession(config, artifact.payload.sessionId))
 
 export const loadGrantAndSession = async (config: ResolvedConfig, artifact: Stored<'authorization_code'>) => {
   const grant = artifact.grantId ? await config.adapter.grants.find(artifact.grantId) : undefined
   if (!grant) throw new OAuthError('invalid_grant', { description: 'the grant behind this token no longer exists', spec: 'RFC 6749 §5.2' })
 
-  const session = await config.adapter.sessions.find(artifact.payload.sessionId)
+  const session = await findLiveSession(config, artifact.payload.sessionId)
   if (!session) throw new OAuthError('invalid_grant', { description: 'the session behind this token has ended', spec: 'RFC 6749 §5.2' })
 
   return { grant, session }

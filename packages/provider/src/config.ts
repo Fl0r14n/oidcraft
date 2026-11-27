@@ -50,6 +50,8 @@ export type Ttl = {
   refreshTokenFamily: Seconds
   idToken: Seconds
   session: Seconds
+  /** Unset, a session lives its absolute `session` lifetime however long it goes unused; set, it also ends this long after its last use (FR-I10). */
+  sessionIdle?: Seconds | undefined
   /** From landing on the sign-in screen to finishing it: long enough for a passkey ceremony begun inside it (FR-I8). */
   interaction: Seconds
   deviceCode: Seconds
@@ -376,6 +378,7 @@ export const resolveConfig = (config: ProviderConfig): ResolvedConfig => {
 
   const ttl = { ...DEFAULT_TTL, ...config.ttl }
   for (const [name, seconds] of Object.entries(ttl)) {
+    if (seconds === undefined) continue
     if (!Number.isInteger(seconds) || seconds <= 0) problems.push(`ttl.${name} must be a positive whole number of seconds, got ${seconds}`)
   }
 

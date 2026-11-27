@@ -63,7 +63,8 @@ export const postgresTables = (schema?: string) => {
       idp: text('idp'),
       upstreamSessionId: text('upstream_session_id'),
       clients: json('clients').notNull(),
-      expiresAt: millis('expires_at').notNull()
+      expiresAt: millis('expires_at').notNull(),
+      lastUsedAt: millis('last_used_at')
     },
     t => [
       index('oidc_sessions_account_idx').on(t.accountId),

@@ -25,6 +25,7 @@ export type SessionRow = {
   upstream_session_id: string | null
   clients: string
   expires_at: number
+  last_used_at: number | null
 }
 
 export type GrantRow = {
@@ -147,7 +148,8 @@ export const sessionRow = (session: Session): SessionRow => ({
   idp: session.idp ?? null,
   upstream_session_id: session.upstreamSessionId ?? null,
   clients: json(session.clients),
-  expires_at: session.expiresAt.getTime()
+  expires_at: session.expiresAt.getTime(),
+  last_used_at: session.lastUsedAt?.getTime() ?? null
 })
 
 export const toSession = (row: Read<SessionRow>): Session => ({
@@ -159,7 +161,8 @@ export const toSession = (row: Read<SessionRow>): Session => ({
   ...(row.idp && { idp: row.idp }),
   ...(row.upstream_session_id && { upstreamSessionId: row.upstream_session_id }),
   clients: parse<string[]>(row.clients),
-  expiresAt: at(row.expires_at)
+  expiresAt: at(row.expires_at),
+  ...(row.last_used_at !== null && row.last_used_at !== undefined && { lastUsedAt: at(row.last_used_at) })
 })
 
 export const grantRow = (grant: Grant): GrantRow => ({
@@ -274,13 +277,16 @@ export const toRealm = (row: Read<RealmRow>): Realm => ({
 })
 
 /** The columns `fields` set, encoded by the full row's own mapper; a field the map leaves out is a key and never written. */
+/** What `update` takes: each field optional, and `undefined` to clear it. */
+type Fields<T> = { [Field in keyof T]?: T[Field] | undefined }
+
 const changed = <T extends object, R>(
   toRow: (value: T) => R,
   blank: T,
   columns: Partial<Record<keyof T, (keyof R)[]>>,
-  fields: Partial<T>
+  fields: Fields<T>
 ) => {
-  const row = toRow({ ...blank, ...fields })
+  const row = toRow({ ...blank, ...fields } as T)
   const set: Partial<R> = {}
   for (const field of Object.keys(fields) as (keyof T)[]) for (const column of columns[field] ?? []) set[column] = row[column]
   return set
@@ -288,7 +294,7 @@ const changed = <T extends object, R>(
 
 const EPOCH = new Date(0)
 
-export const sessionFields = (fields: Partial<Session>) =>
+export const sessionFields = (fields: Fields<Session>) =>
   changed(
     sessionRow,
     { id: '', accountId: '', authTime: EPOCH, clients: [], expiresAt: EPOCH },
@@ -299,12 +305,13 @@ export const sessionFields = (fields: Partial<Session>) =>
       amr: ['amr'],
       idp: ['idp'],
       upstreamSessionId: ['upstream_session_id'],
-      expiresAt: ['expires_at']
+      expiresAt: ['expires_at'],
+      lastUsedAt: ['last_used_at']
     },
     fields
   )
 
-export const credentialFields = (fields: Partial<Credential>) =>
+export const credentialFields = (fields: Fields<Credential>) =>
   changed(
     credentialRow,
     { accountId: '', username: '', claims: {}, failedAttempts: 0, createdAt: EPOCH, updatedAt: EPOCH },
@@ -321,7 +328,7 @@ export const credentialFields = (fields: Partial<Credential>) =>
     fields
   )
 
-export const passkeyFields = (fields: Partial<Passkey>) =>
+export const passkeyFields = (fields: Fields<Passkey>) =>
   changed(
     passkeyRow,
     { credentialId: '', accountId: '', publicKey: '', algorithm: 0, counter: 0, transports: [], name: '', createdAt: EPOCH },

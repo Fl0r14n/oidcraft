@@ -1,6 +1,6 @@
-import { oauthFieldError, randomString } from '@oidcraft/core'
+import { randomString } from '@oidcraft/core'
 import type { Credential } from '@oidcraft/provider'
-import { digest, invalid, locked, lockedUntil, normalizeUsername, type Shared } from './shared'
+import { digest, invalid, locked, lockedUntil, normalizeUsername, type Shared, usernameProblem } from './shared'
 
 export type AddressProblem = 'required' | 'tooLong' | 'invalid'
 
@@ -27,8 +27,9 @@ type EmailSignInPayload = {
   signUp?: { claims: Record<string, unknown> }
 }
 
+// The address becomes the username, so it is one first (RFC 8265), then an address.
 const addressProblem = (address: string): AddressProblem | undefined =>
-  oauthFieldError(address) ?? (/^[^\s@]+@[^\s@]+$/.test(address) ? undefined : 'invalid')
+  usernameProblem(address) ?? (/^[^@]+@[^@]+$/.test(address) ? undefined : 'invalid')
 
 /** Sign-in, and sign-up where the host offers it, by a single-use link to an address (FR-I9). */
 export const createEmailSignIn = (shared: Shared, generationOf: (accountId: string) => Promise<string>) => {

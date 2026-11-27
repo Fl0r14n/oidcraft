@@ -1,4 +1,4 @@
-import { DEFAULT_MAX_LENGTH, randomString } from '@oidcraft/core'
+import { DEFAULT_MAX_LENGTH, oauthFieldError, randomString } from '@oidcraft/core'
 import { type BrokeringAdapter, type Credential, type CredentialsAdapter, type Seconds, toPlainAdapter } from '@oidcraft/provider'
 import { base64url } from 'jose'
 
@@ -59,8 +59,18 @@ export type SignInContext = { clientIp?: string | undefined }
 
 export type PasswordProblem = 'required' | 'tooShort' | 'tooLong' | 'rejected'
 
-/** Usernames compare the way people read them: compatibility-normalized, trimmed, case-folded. */
-export const normalizeUsername = (username: string) => username.normalize('NFKC').trim().toLowerCase()
+/** RFC 8265 §3.3, UsernameCaseMapped: width-mapped by NFKC, trimmed, case-mapped, then NFC, so it compares as people read it. */
+export const normalizeUsername = (username: string) => username.normalize('NFKC').trim().toLowerCase().normalize('NFC')
+
+// RFC 8264 §4.2's IdentifierClass, closely: letters, marks and digits of any script, and printable ASCII, never a space,
+// a control or format character, or a symbol that renders like another.
+const IDENTIFIER = /^[\p{L}\p{M}\p{Nd}\x21-\x7E]+$/u
+
+export type UsernameProblem = 'required' | 'tooLong' | 'invalid'
+
+/** A normalised username's problem, if it has one. */
+export const usernameProblem = (username: string): UsernameProblem | undefined =>
+  oauthFieldError(username) ?? (IDENTIFIER.test(username) ? undefined : 'invalid')
 
 export const digest = async (value: string) =>
   base64url.encode(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))))

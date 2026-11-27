@@ -248,6 +248,19 @@ describe('passwords', () => {
     expect(credential?.passwordHash).toBe('h:battery staple')
   })
 
+  // RFC 8265 §3.3: a username compares as people read it, and holds nothing that reads as something else.
+  test('usernames are RFC 8265 identifiers, compared as people read them', async () => {
+    const { accounts } = await setup()
+    expect(await accounts.signUp({ username: 'ＡＤＡ', password: 'correct horse' })).toEqual({ ok: true, accountId: 'id-ada' })
+    expect(await accounts.signUp({ username: 'ada', password: 'correct horse' })).toEqual({ ok: false, reason: 'taken' })
+    expect((await accounts.signUp({ username: 'A\u0301da', password: 'correct horse' })).ok).toBe(true)
+    expect(await accounts.authenticate('\u00c1DA', 'correct horse')).toMatchObject({ ok: true })
+    for (const username of ['ada lovelace', 'ada\u200b', 'ada\u0007', 'ada\u2028x']) {
+      expect(await accounts.signUp({ username, password: 'correct horse' })).toEqual({ ok: false, reason: 'username', problem: 'invalid' })
+    }
+    expect((await accounts.signUp({ username: 'grace.hopper+navy@example.com', password: 'correct horse' })).ok).toBe(true)
+  })
+
   // Q9, FR-I7: a username chosen to read as `google:<sub>` must not become that person's account.
   test('sign-up refuses an id that linked identities already name', async () => {
     const { adapter, accounts } = await setup()

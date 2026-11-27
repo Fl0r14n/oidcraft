@@ -285,8 +285,8 @@ neither read nor plant one: the session cookie, `oidcraft.sid`, which carries a 
 the session's id and `sid` (NFR-S11, FR-I10), and `oidcraft.browser`, which binds an interaction to
 the browser it was started in (FR-I2). `session/cookies.ts` names both, per issuer. No timers, no
 background sweeps, no connection pool, no process-level cache that survives a request (FR-A1,
-NFR-P3), so two processes behind a load balancer behave as one. No cap on a request body's size:
-that is the host's, in front of the provider (NFR-S12).
+NFR-P3), so two processes behind a load balancer behave as one. A request body is read up to
+1 MiB and refused past it, 413, unread; any tighter cap is the host's, in front of the provider (NFR-S12).
 
 ### 3.3 The FAPI 2.0 profile
 

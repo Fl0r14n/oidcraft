@@ -6,6 +6,7 @@ import { CIBA_GRANT_TYPE } from '../authorize/ciba'
 import type { ResolvedConfig } from '../config'
 import { supportedGrantTypes } from '../discovery'
 import { OAuthError } from '../errors'
+import { readJson } from '../form'
 import { guarded } from '../hooks'
 import { signingAlgorithms } from '../keys/keys'
 import { defaultSigningAlg, underFapi } from '../profile/fapi'
@@ -328,12 +329,9 @@ export const registrationEndpoint = async (config: ResolvedConfig, request: Requ
 
   if (request.method === 'POST') {
     const decision = config.registrationPolicy ? await config.registrationPolicy(request.clone(), { existing: undefined }) : undefined
-    const body = objectFrom(
-      await request.json().catch(() => {
-        throw invalid('the registration request must be JSON')
-      }),
-      'the registration request'
-    )
+    const parsed = await readJson(request)
+    if (parsed === undefined) throw invalid('the registration request must be JSON')
+    const body = objectFrom(parsed, 'the registration request')
 
     const { client, issued } = await storableSecret(metadataFrom(config, body), true)
     await settleIdTokenAlg(config, client)
@@ -363,12 +361,9 @@ export const registrationEndpoint = async (config: ResolvedConfig, request: Requ
 
   // The host vets an update as it vetted the first registration; its answer, not the stored client, decides PKCE (FR-C3).
   const decision = config.registrationPolicy ? await config.registrationPolicy(request.clone(), { existing: client }) : undefined
-  const body = objectFrom(
-    await request.json().catch(() => {
-      throw invalid('the update must be JSON')
-    }),
-    'the update'
-  )
+  const parsed = await readJson(request)
+  if (parsed === undefined) throw invalid('the update must be JSON')
+  const body = objectFrom(parsed, 'the update')
   const metadata = metadataFrom(config, body, client)
   // A secret survives a method change only where it is kept the same way; otherwise a new one is issued.
   const sameSecret = secretKind(metadata.tokenEndpointAuthMethod) === secretKind(client.tokenEndpointAuthMethod)

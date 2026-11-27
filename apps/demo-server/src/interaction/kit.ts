@@ -37,8 +37,14 @@ export const movesBrowsers = (view: InteractionRequest) => view.redirectUri !== 
 export const lockedNotice = (until: Date) =>
   `Too many attempts. Try again after ${until.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}.`
 
-export const usernameMessage = (problem: 'required' | 'tooLong' | 'taken') =>
-  problem === 'required' ? 'Choose a username' : problem === 'tooLong' ? 'That username is too long' : 'That username is taken'
+const USERNAME_MESSAGES = {
+  required: 'Choose a username',
+  tooLong: 'That username is too long',
+  invalid: 'Use letters, digits and punctuation, without spaces',
+  taken: 'That username is taken'
+} as const
+
+export const usernameMessage = (problem: keyof typeof USERNAME_MESSAGES) => USERNAME_MESSAGES[problem]
 
 /** What the sign-in a reset led back to says first, by a fixed key: the query names it, never words it. */
 export const afterReset = (changed: string | null) =>

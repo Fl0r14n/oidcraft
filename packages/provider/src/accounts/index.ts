@@ -1,4 +1,4 @@
-import { DEFAULT_MAX_LENGTH, oauthFieldError } from '@oidcraft/core'
+import { DEFAULT_MAX_LENGTH } from '@oidcraft/core'
 import type { AccountStore } from '@oidcraft/provider'
 import { createEmailSignIn } from './email'
 import { createTotpEnrolment } from './enrolment'
@@ -14,7 +14,9 @@ import {
   normalizeUsername,
   type PasswordProblem,
   passwordSetter,
-  type SignInContext
+  type SignInContext,
+  type UsernameProblem,
+  usernameProblem
 } from './shared'
 import { createThrottle } from './throttle'
 import { matchingCounter, TOTP_PERIOD } from './totp'
@@ -38,7 +40,9 @@ export {
   normalizeUsername,
   type PasswordHasher,
   type PasswordProblem,
-  type SignInContext
+  type SignInContext,
+  type UsernameProblem,
+  usernameProblem
 } from './shared'
 export { hotp } from './totp'
 
@@ -77,7 +81,7 @@ export type SecondFactorResult =
 export type PasskeySignUpOptionsResult<Options> =
   | { ok: true; options: Options }
   | { ok: false; reason: 'taken' }
-  | { ok: false; reason: 'username'; problem: 'required' | 'tooLong' }
+  | { ok: false; reason: 'username'; problem: UsernameProblem }
 
 export type PasskeySignUpResult =
   | { ok: true; accountId: string; recoveryCodes: string[] }
@@ -92,7 +96,7 @@ export type RecoveryResult =
 export type SignUpResult =
   | { ok: true; accountId: string }
   | { ok: false; reason: 'taken' }
-  | { ok: false; reason: 'username'; problem: 'required' | 'tooLong' }
+  | { ok: false; reason: 'username'; problem: UsernameProblem }
   | { ok: false; reason: 'password'; problem: PasswordProblem }
 
 const signUpBinding = (interactionId: string) => `sign-up:${interactionId}`
@@ -122,7 +126,7 @@ export const createAccounts = (options: AccountsOptions) => {
      */
     async signUpOptions(interactionId: string, input: { username: string; claims?: Record<string, unknown> }) {
       const username = normalizeUsername(input.username)
-      const problem = oauthFieldError(username)
+      const problem = usernameProblem(username)
       if (problem) return { ok: false, reason: 'username', problem } as const
       if (await credentials.findByUsername(username)) return { ok: false, reason: 'taken' } as const
       const claims = input.claims ?? {}
@@ -179,8 +183,8 @@ export const createAccounts = (options: AccountsOptions) => {
 
     async signUp(input: { username: string; password: string; claims?: Record<string, unknown> }): Promise<SignUpResult> {
       const username = normalizeUsername(input.username)
-      const usernameProblem = oauthFieldError(username)
-      if (usernameProblem) return { ok: false, reason: 'username', problem: usernameProblem }
+      const invalidName = usernameProblem(username)
+      if (invalidName) return { ok: false, reason: 'username', problem: invalidName }
       const problem = await shared.passwordProblem(input.password, username)
       if (problem) return { ok: false, reason: 'password', problem }
       const now = new Date()

@@ -176,10 +176,11 @@ Low:
 - [x] R-8 `grants.upsert` unions in `fromKv`, overwrites in SQL.
 - [x] R-9 state-less error callback consumes the pending sign-in (`packages/client/src/flows.ts:174`).
 
-Hardening: security headers on HTML; device user-code limits (global cap, /64, modulo bias); password and body
-length caps; `cf-connecting-ip` and proxy options per runtime; realm key check by thumbprint; RFC 8265 usernames;
-per-upstream callback path; client-assertion `jti` namespaced by client; PKCE value formats; `request_uri`
-without `client_id`; MySQL PAD SPACE collations (done, in `0001_init`); email cap per normalised address.
+Hardening, all done but the per-upstream callback path, decided against: security headers on HTML (D-7, NFR-S13);
+device user-code limits (global cap, /64, modulo bias); password and body length caps (128 characters, 1 MiB);
+`cf-connecting-ip` and proxy options per runtime (`trustProxy` on Node, Bun and Deno); realm key check by thumbprint;
+RFC 8265 usernames; client-assertion `jti` namespaced by client; PKCE value formats; `request_uri` without `client_id`;
+MySQL PAD SPACE collations (in `0001_init`); email cap per normalised address.
 
 Reference deployment (`apps/demo-server/src`):
 

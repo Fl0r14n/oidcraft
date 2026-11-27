@@ -53,7 +53,7 @@ export type {
   Ttl
 } from './config'
 export { DEFAULT_TTL } from './config'
-export type { ClientCertificate, ContextProvider, RequestContext } from './context'
+export { type ClientCertificate, type ContextProvider, type ProxyTrust, proxiedClientIp, type RequestContext } from './context'
 export { errorResponse, OAuthError, type OAuthErrorCode, type OAuthErrorInit } from './errors'
 export type { Management, ManagementClientInput } from './management'
 export { createProvider, type LogoutDelivery, type Provider } from './provider'

@@ -1,11 +1,16 @@
-import { createSafeFetch, type RequestContext } from '@oidcraft/provider'
+import { createSafeFetch, type ProxyTrust, proxiedClientIp, type RequestContext } from '@oidcraft/provider'
 
 export type DenoServeInfo = { remoteAddr: { hostname?: string } }
 
+/** The context, with `trustProxy` naming the header a proxy that is the only way in reports the client in (FR-R4, NFR-S6). */
+export const createDenoContext =
+  (options: { trustProxy?: ProxyTrust } = {}) =>
+  (request: Request, info: DenoServeInfo): RequestContext => ({
+    clientIp: proxiedClientIp(request.headers, options.trustProxy) ?? info.remoteAddr.hostname
+  })
+
 /** `Deno.serve` takes the core's handler directly; the peer address arrives as its second argument. */
-export const denoContext = (_request: Request, info: DenoServeInfo): RequestContext => ({
-  clientIp: info.remoteAddr.hostname
-})
+export const denoContext = createDenoContext()
 
 declare const Deno: { resolveDns(name: string, type: 'A' | 'AAAA'): Promise<string[]> }
 

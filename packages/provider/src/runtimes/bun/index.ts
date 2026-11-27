@@ -1,13 +1,17 @@
 /// <reference types="bun" />
-import { createSafeFetch, type RequestContext } from '@oidcraft/provider'
+import { createSafeFetch, type ProxyTrust, proxiedClientIp, type RequestContext } from '@oidcraft/provider'
 
 type BunServer = { requestIP(request: Request): { address: string } | null }
 
-/** Supplies only what `Request` omits (FR-R4). Bun exposes no peer certificate, so mTLS client auth is unavailable here (G-8). */
+/**
+ * Supplies only what `Request` omits (FR-R4). Bun exposes no peer certificate, so mTLS client auth is unavailable here (G-8).
+ * Behind a proxy that is the only way in, `trustProxy` names the header it reports the client in; otherwise every client
+ * is the proxy's address.
+ */
 export const bunContext =
-  (server: BunServer) =>
+  (server: BunServer, options: { trustProxy?: ProxyTrust } = {}) =>
   (request: Request): RequestContext => ({
-    clientIp: server.requestIP(request)?.address
+    clientIp: proxiedClientIp(request.headers, options.trustProxy) ?? server.requestIP(request)?.address
   })
 
 /** argon2id through `Bun.password`, for `@oidcraft/provider/accounts` (FR-I7). PHC strings, so a Node host can verify them too. */

@@ -20,7 +20,7 @@ in production.
 | runtime            | entry              | HTTP bridge     | client IP from                                  | client certificate                     | password hasher      |
 | ------------------ | ------------------ | --------------- | ----------------------------------------------- | -------------------------------------- | -------------------- |
 | Bun                | `runtimes/bun`     | none            | `server.requestIP(request)`                     | never (G-8)                            | `bunPasswordHasher`  |
-| Node               | `runtimes/node`    | `toNodeHandler` | the socket, or `X-Forwarded-For` if you opt in  | thumbprint only, if the TLS layer verified it | `nodePasswordHasher` |
+| Node               | `runtimes/node`    | `toNodeHandler` | the socket, or a proxy header if you opt in       | thumbprint only, if the TLS layer verified it | `nodePasswordHasher` |
 | Fastify            | `runtimes/fastify` | `toFastifyPlugin`, on the Node bridge | as Node                     | as Node                                | as Node              |
 | Deno               | `runtimes/deno`    | none            | the handler's `info.remoteAddr`                 | not supplied                           | none shipped         |
 | Cloudflare Workers | `runtimes/workerd` | none            | the `CF-Connecting-IP` header                   | from `request.cf`, if the edge verified it | none shipped     |
@@ -55,7 +55,11 @@ runtime, so every runtime needs a context provider (FR-R3, FR-R4):
   screen to `accounts.authenticate` and `verifySecondFactor`, which count failures per address.
 
 Nothing reads `X-Forwarded-*` on its own authority (FR-R4, NFR-S6). Where a forwarded address is
-used at all, it is because you turned it on, on Node.
+used at all, it is because you turned it on: `trustProxy` on the Node, Bun and Deno contexts
+(`nodeContext`, `bunContext(server, options)`, `createDenoContext(options)`). `true` takes the
+right-most `X-Forwarded-For` hop, the one your proxy appended; `'cf-connecting-ip'` takes the header
+Cloudflare sets, for a server behind Cloudflare that is not itself a Worker. Either is the client's
+own text unless your proxy is the only way in.
 
 ## Bun
 

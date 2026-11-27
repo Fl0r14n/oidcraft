@@ -120,6 +120,28 @@ describe('realms', () => {
     await expect(careless.get('globex')).rejects.toThrow(/acme and globex share signing key/)
   })
 
+  // One key renamed is still one key: compared by kid, a second realm given it under a new name passed.
+  test('the same key under another kid is still refused', async () => {
+    const { options, storage } = await setup()
+    const shared = await generateKey('ES256')
+    const renamed = (kid: string) => ({
+      ...shared,
+      kid,
+      privateJwk: { ...(shared.privateJwk as object), kid },
+      publicJwk: { ...(shared.publicJwk as object), kid }
+    })
+    const careless = createRealms({
+      ...options,
+      provision: async realm => {
+        storage.set(realm.id, await memoryAdapter({ keys: staticKeyStore([renamed(`${realm.id}-key`), await generateKey('RS256')]) }))
+      }
+    })
+    await careless.management.create({ id: 'acme' })
+    await careless.management.create({ id: 'globex' })
+    expect(await careless.get('acme')).toBeDefined()
+    await expect(careless.get('globex')).rejects.toThrow(/acme and globex share signing key globex-key/)
+  })
+
   // NFR-S6: a request selects a realm; it never makes one, whatever its Host says.
   test('a name that is not a realm, or not a DNS label, resolves to nothing without building anything', async () => {
     const { realms, configured } = await setup()

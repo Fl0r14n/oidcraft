@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { certificateThumbprint } from '../binding/mtls'
 import type { RequestContext } from '../context'
 import { bunContext } from './bun'
-import { denoContext } from './deno'
+import { createDenoContext, denoContext } from './deno'
 import { workerdContext } from './workerd'
 
 /**
@@ -42,6 +42,29 @@ describe('deno', () => {
 
   test('tolerates info without a hostname', () => {
     expect(denoContext(request(), { remoteAddr: {} }).clientIp).toBeUndefined()
+  })
+})
+
+// FR-R4, NFR-S6: behind a proxy every client is the proxy's address, and a header naming the client is believed only when
+// the host says its proxy is the only way in.
+describe('behind a proxy', () => {
+  const proxied = new Request('https://op.example.com/', {
+    headers: { 'x-forwarded-for': '192.0.2.9, 198.51.100.20', 'cf-connecting-ip': '203.0.113.30' }
+  })
+  const proxy = { requestIP: () => ({ address: '10.0.0.2' }) }
+
+  test('a proxy header is ignored unless trusted', () => {
+    expect(bunContext(proxy)(proxied).clientIp).toBe('10.0.0.2')
+    expect(denoContext(proxied, { remoteAddr: { hostname: '10.0.0.2' } }).clientIp).toBe('10.0.0.2')
+  })
+
+  test('trusted, the right-most X-Forwarded-For hop, the one the proxy appended, or Cloudflare’s header', () => {
+    expect(bunContext(proxy, { trustProxy: true })(proxied).clientIp).toBe('198.51.100.20')
+    expect(bunContext(proxy, { trustProxy: 'cf-connecting-ip' })(proxied).clientIp).toBe('203.0.113.30')
+    expect(createDenoContext({ trustProxy: true })(proxied, { remoteAddr: { hostname: '10.0.0.2' } }).clientIp).toBe('198.51.100.20')
+    expect(createDenoContext({ trustProxy: 'cf-connecting-ip' })(request(), { remoteAddr: { hostname: '10.0.0.2' } }).clientIp).toBe(
+      '10.0.0.2'
+    )
   })
 })
 

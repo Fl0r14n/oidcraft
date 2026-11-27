@@ -29,3 +29,17 @@ export type ClientCertificate = {
 
 /** Builds the context for one request. Each runtime entry exports one of these. */
 export type ContextProvider<TExtra = unknown> = (request: Request, extra: TExtra) => RequestContext
+
+/**
+ * Which proxy header names the peer, when the host vouches that its proxy is the only way in: `true` takes the right-most
+ * `X-Forwarded-For` hop, the one its own proxy appended; `'cf-connecting-ip'` the header Cloudflare sets. Either is
+ * attacker-supplied without that proxy in front, so it is opt-in (FR-R4, NFR-S6).
+ */
+export type ProxyTrust = boolean | 'cf-connecting-ip'
+
+/** The client address a trusted proxy reports, or undefined to fall back to the socket's. */
+export const proxiedClientIp = (headers: Headers, trust: ProxyTrust | undefined) => {
+  if (trust === 'cf-connecting-ip') return headers.get('cf-connecting-ip')?.trim() || undefined
+  if (!trust) return undefined
+  return headers.get('x-forwarded-for')?.split(',').at(-1)?.trim() || undefined
+}

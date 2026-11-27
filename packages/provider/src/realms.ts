@@ -1,5 +1,6 @@
 import type { Realm, RealmStore, Seconds } from '@oidcraft/adapter'
 import { toPlainStore } from '@oidcraft/adapter'
+import { calculateJwkThumbprint, type JWK } from 'jose'
 import type { AuditEvent, ProviderConfig } from './config'
 import { createProvider, type Provider } from './provider'
 
@@ -41,16 +42,22 @@ export const createRealms = (options: RealmsConfig) => {
   const cache = new Map<string, Entry>()
   const signers = new Map<string, string>()
 
-  // A key two realms share lets one's tokens verify against the other's JWKS, as with `generatedKeyStore()` (FR-M4).
+  // A key two realms share lets one's tokens verify against the other's JWKS, as with `generatedKeyStore()` (FR-M4). Known
+  // by its RFC 7638 thumbprint, not its kid: the same key under two names is still one key.
   const claimKeys = async (id: string, provider: Provider) => {
-    const kids = (await provider.config.adapter.keys.list()).map(key => key.kid)
-    for (const kid of kids) {
-      const owner = signers.get(kid)
+    const keys = await Promise.all(
+      (await provider.config.adapter.keys.list()).map(async key => ({
+        kid: key.kid,
+        thumbprint: await calculateJwkThumbprint(key.publicJwk as JWK)
+      }))
+    )
+    for (const { kid, thumbprint } of keys) {
+      const owner = signers.get(thumbprint)
       if (owner !== undefined && owner !== id)
         throw new Error(`realms ${owner} and ${id} share signing key ${kid}; each realm needs its own keys`)
     }
-    for (const [kid, owner] of signers) if (owner === id) signers.delete(kid)
-    for (const kid of kids) signers.set(kid, id)
+    for (const [thumbprint, owner] of signers) if (owner === id) signers.delete(thumbprint)
+    for (const { thumbprint } of keys) signers.set(thumbprint, id)
   }
 
   const load = async (id: string, previous: Promise<Built | undefined> | undefined): Promise<Built | undefined> => {

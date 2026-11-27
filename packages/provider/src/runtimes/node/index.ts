@@ -3,11 +3,11 @@ import { lookup } from 'node:dns/promises'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { request as httpsRequest } from 'node:https'
 import { Readable } from 'node:stream'
-import { type ClientCertificate, createSafeFetch, type RequestContext } from '@oidcraft/provider'
+import { type ClientCertificate, createSafeFetch, type ProxyTrust, proxiedClientIp, type RequestContext } from '@oidcraft/provider'
 
 export type NodeBridgeOptions = {
-  /** Take the client IP from the right-most `X-Forwarded-For` hop, only when your proxy is the only route in (FR-R4, NFR-S6). */
-  trustProxy?: boolean
+  /** The header a proxy that is the only route in reports the client in: `true` the right-most `X-Forwarded-For` hop (FR-R4, NFR-S6). */
+  trustProxy?: ProxyTrust
 }
 
 type TlsSocket = {
@@ -79,18 +79,18 @@ const peerCertificate = (socket: TlsSocket): ClientCertificate | undefined => {
 }
 
 // The trusted proxy appended the right-most hop; everything left of it is whatever the client wrote (NFR-S6).
-const forwardedIp = (request: IncomingMessage) => {
-  const header = request.headers['x-forwarded-for']
-  const last = (Array.isArray(header) ? header.join(',') : header)?.split(',').at(-1)?.trim()
-  return last || undefined
-}
-
 /** The context for one request. `trustProxy` is opt-in: `X-Forwarded-For` is attacker-supplied (FR-R4, NFR-S6). */
 export const nodeContext =
   (options: NodeBridgeOptions = {}) =>
   (request: IncomingMessage): RequestContext => {
     const socket = socketOf(request)
-    const clientIp = (options.trustProxy ? forwardedIp(request) : undefined) ?? socket.remoteAddress
+    const forwarded = request.headers['x-forwarded-for']
+    const cloudflare = request.headers['cf-connecting-ip']
+    const headers = new Headers({
+      ...(forwarded && { 'x-forwarded-for': [forwarded].flat().join(',') }),
+      ...(cloudflare && { 'cf-connecting-ip': [cloudflare].flat().join(',') })
+    })
+    const clientIp = proxiedClientIp(headers, options.trustProxy) ?? socket.remoteAddress
     const certificate = peerCertificate(socket)
     return { ...(clientIp && { clientIp }), ...(certificate && { clientCertificate: certificate }) }
   }

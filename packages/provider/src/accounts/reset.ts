@@ -121,11 +121,7 @@ export const createReset = (
       const kept = await passkeys.keep(created.passkey(passkeyName))
       if (!kept.ok) return { ok: false, reason: 'taken' }
       const { codes, hashes } = await recovery.issueRecoveryCodes(accountId)
-      const credential = await credentials.find(accountId)
-      if (credential) {
-        const { passwordHash: _, totp: __, ...rest } = credential
-        await credentials.upsert({ ...rest, recoveryCodes: hashes, updatedAt: new Date() })
-      }
+      await credentials.update(accountId, { passwordHash: undefined, totp: undefined, recoveryCodes: hashes, updatedAt: new Date() })
       await afterReset(accountId, context)
       return { ok: true, accountId, recoveryCodes: codes }
     },

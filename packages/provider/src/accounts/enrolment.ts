@@ -13,7 +13,7 @@ export const createTotpEnrolment = ({ adapter, credentials, options }: Shared, k
     // A second factor follows a password; an account without one signs in with a passkey, already two (FR-I8).
     if (!credential.passwordHash) return { ok: false, reason: 'passwordless' } as const
     const secret = crypto.getRandomValues(new Uint8Array(20))
-    await credentials.upsert({ ...credential, totp: { secret: await seal(await key, accountId, secret) }, updatedAt: new Date() })
+    await credentials.update(accountId, { totp: { secret: await seal(await key, accountId, secret) }, updatedAt: new Date() })
     const encoded = base32(secret)
     return { ok: true, secret: encoded, uri: otpauthUri(encoded, options.issuer, credential.username) } as const
   },
@@ -25,8 +25,7 @@ export const createTotpEnrolment = ({ adapter, credentials, options }: Shared, k
     const counter = await matchingCounter(await open(await key, accountId, credential.totp.secret), code.replace(/\s/g, ''))
     if (counter === undefined || !(await adapter.replay.claim('totp', `${accountId}:${counter}`, 3 * TOTP_PERIOD))) return undefined
     const { codes, hashes } = await recovery.issueRecoveryCodes(accountId)
-    await credentials.upsert({
-      ...credential,
+    await credentials.update(accountId, {
       totp: { secret: credential.totp.secret, confirmedAt: new Date() },
       recoveryCodes: hashes,
       updatedAt: new Date()
@@ -35,10 +34,7 @@ export const createTotpEnrolment = ({ adapter, credentials, options }: Shared, k
   },
 
   async remove(accountId: string) {
-    const credential = await credentials.find(accountId)
-    if (!credential) return
-    const { totp: _, recoveryCodes: __, ...rest } = credential
-    await credentials.upsert({ ...rest, updatedAt: new Date() })
+    await credentials.update(accountId, { totp: undefined, recoveryCodes: undefined, updatedAt: new Date() })
   },
 
   async status(accountId: string) {

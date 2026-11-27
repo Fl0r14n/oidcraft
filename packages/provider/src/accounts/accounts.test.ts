@@ -219,6 +219,35 @@ describe('passwords', () => {
     expect(await accounts.authenticate('ada', 'another staple')).toMatchObject({ ok: false, reason: 'locked' })
   })
 
+  // A-6: setPassword wrote back the whole row it read before hashing, undoing whatever landed in between.
+  test('a write landing while a password is set is kept', async () => {
+    const adapter = await memoryAdapter()
+    const suspended = new Date(Date.now() + 3_600_000)
+    let during: (() => Promise<unknown>) | undefined
+    const accounts = createAccounts({
+      adapter,
+      hasher: {
+        async hash(password) {
+          await during?.()
+          return `h:${password}`
+        },
+        async verify(password, hash) {
+          return hash === `h:${password}`
+        }
+      },
+      secretKey: generateSecretKey(),
+      issuer: 'oidcraft test',
+      newAccountId: username => `id-${username}`,
+      policy: { minPasswordLength: 8 }
+    })
+    await accounts.signUp({ username: 'ada', password: 'correct horse' })
+    during = () => adapter.credentials.update('id-ada', { lockedUntil: suspended })
+    expect(await accounts.setPassword('id-ada', 'battery staple')).toEqual({ ok: true })
+    const credential = await adapter.credentials.find('id-ada')
+    expect(credential?.lockedUntil).toEqual(suspended)
+    expect(credential?.passwordHash).toBe('h:battery staple')
+  })
+
   // Q9, FR-I7: a username chosen to read as `google:<sub>` must not become that person's account.
   test('sign-up refuses an id that linked identities already name', async () => {
     const { adapter, accounts } = await setup()

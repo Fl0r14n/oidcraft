@@ -163,7 +163,7 @@ Low:
 - [x] A-3 `UpstreamProvider.linkPolicy` never read (`broker/types.ts:207`).
 - [x] A-4 reset by passkey keeps the password (`accounts/index.ts:721`).
 - [x] A-5 reset leaves other reset/email tokens live (`accounts/index.ts:376`).
-- [ ] A-6 credential writes undo each other (`accounts/index.ts:475,562-609`).
+- [x] A-6 credential writes undo each other (`accounts/index.ts:475,562-609`).
 - [ ] A-7 brokered login without upstream `auth_time` stamped now (`session/session.ts:43`).
 - [x] A-8 known/unknown username timing via slot probing (`accounts/index.ts:275`).
 - [x] A-9 `setPassword` clears a host-set `lockedUntil` (`accounts/index.ts:474`).

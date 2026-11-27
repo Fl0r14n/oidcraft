@@ -262,7 +262,7 @@ export const createAccounts = (options: AccountsOptions) => {
       const credential = await credentials.find(accountId)
       if (!credential || (credential.passwordHash && !credential.totp?.confirmedAt)) return undefined
       const { codes, hashes } = await recovery.issueRecoveryCodes(accountId)
-      await credentials.upsert({ ...credential, recoveryCodes: hashes, updatedAt: new Date() })
+      await credentials.update(accountId, { recoveryCodes: hashes, updatedAt: new Date() })
       return { recoveryCodes: codes }
     },
 

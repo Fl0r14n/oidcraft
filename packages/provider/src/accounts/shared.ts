@@ -128,7 +128,7 @@ export const passwordSetter =
     const problem = await passwordProblem(password, credential?.username ?? '')
     if (problem) return { ok: false, reason: 'password', problem } as const
     if (!credential) return { ok: false, reason: 'unknown' } as const
-    await credentials.upsert({ ...credential, passwordHash: await hasher.hash(password), failedAttempts: 0, updatedAt: new Date() })
+    await credentials.update(accountId, { passwordHash: await hasher.hash(password), failedAttempts: 0, updatedAt: new Date() })
     return { ok: true } as const
   }
 

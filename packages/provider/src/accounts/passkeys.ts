@@ -287,7 +287,7 @@ export const createPasskeys = ({ adapter, origin: configured, name, hashingKey, 
       if ((counter !== 0 || passkey.counter !== 0) && counter <= passkey.counter) return { ok: false, reason: 'counter' }
       const credential = await adapter.credentials.find(passkey.accountId)
       if (!credential || (credential.lockedUntil && credential.lockedUntil.getTime() > Date.now())) return invalid
-      await adapter.passkeys.upsert({ ...passkey, counter, lastUsedAt: new Date() })
+      await adapter.passkeys.update(passkey.credentialId, { counter, lastUsedAt: new Date() })
       return { ok: true, accountId: passkey.accountId, credentialId: passkey.credentialId }
     },
 
@@ -302,7 +302,7 @@ export const createPasskeys = ({ adapter, origin: configured, name, hashingKey, 
       if (problem) return { ok: false, reason: 'name', problem } as const
       const passkey = await adapter.passkeys.find(credentialId)
       if (passkey?.accountId !== accountId) return { ok: false, reason: 'unknown' } as const
-      await adapter.passkeys.upsert({ ...passkey, name: passkeyName })
+      await adapter.passkeys.update(credentialId, { name: passkeyName })
       return { ok: true } as const
     },
 

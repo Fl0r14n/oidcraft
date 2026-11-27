@@ -41,11 +41,10 @@ export const createRecovery = ({ adapter, credentials, policy }: Shared, hashing
     ) {
       return false
     }
-    // Read again after the claim: written from the copy read before, a reset or TOTP change in between would be undone.
+    // Read again after the claim, and only the codes written: a reset or TOTP change in between must not be undone.
     const current = await credentials.find(accountId)
     if (current) {
-      await credentials.upsert({
-        ...current,
+      await credentials.update(accountId, {
         recoveryCodes: (current.recoveryCodes ?? []).filter(stored => stored !== hash),
         updatedAt: new Date()
       })

@@ -1,91 +1,47 @@
 /// <reference types="bun" />
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
-import {
-  type Adapter,
-  hashClientSecret,
-  type Provider,
-  protectedResourceMetadata,
-  protectedResourceMetadataUrl,
-  type ResourceDescriptor
-} from '@oidcraft/provider'
+import { type Provider, protectedResourceMetadata, protectedResourceMetadataUrl, type ResourceDescriptor } from '@oidcraft/provider'
+import { safeFetch } from '@oidcraft/provider/runtimes/bun'
 import { issuer, optional } from '../op/env'
 
 /** Off unless OIDCRAFT_MCP=on, since an MCP resource (FR-C19) also opens client registration (FR-C9, FR-C20). */
 export const mcpEnabled = optional('OIDCRAFT_MCP') === 'on'
 
 export const MCP_PATH = '/mcp'
-const MCP_RESOURCE_SERVER = 'oidcraft-mcp'
 const mcpUri = () => `${issuer()}${MCP_PATH}`
 
-/** Only this process introspects with it, so it is minted per boot and never written down. */
-const secret = crypto.randomUUID()
+export const mcpResources = (): ResourceDescriptor[] => (mcpEnabled ? [{ uri: mcpUri(), scopes: ['openid', 'profile'] }] : [])
 
-export const mcpResources = (): ResourceDescriptor[] =>
-  mcpEnabled ? [{ uri: mcpUri(), resourceServer: MCP_RESOURCE_SERVER, scopes: ['openid', 'profile'] }] : []
-
-export const seedMcpResourceServer = async (adapter: Adapter) => {
-  if (!mcpEnabled) return
-  const now = new Date()
-  await adapter.clients.upsert?.({
-    clientId: MCP_RESOURCE_SERVER,
-    clientSecretHash: await hashClientSecret(secret),
-    clientName: 'oidcraft MCP server',
-    redirectUris: [],
-    grantTypes: [],
-    responseTypes: [],
-    scopes: [],
-    tokenEndpointAuthMethod: 'client_secret_basic',
-    createdAt: now,
-    updatedAt: now
-  })
-  console.log(`[oidcraft] MCP server at ${mcpUri()}`)
-}
-
-/** Fetched as FR-C20 leaves to the host: short timeout, no redirects, small body; the core already refused a non-canonical URL. */
+/**
+ * Fetched as FR-C20 leaves to the host, through safeFetch (D-6): a client_id is any URL its client chose, so no address
+ * inside this network, no redirect, a short deadline and a small body; the core already refused a non-canonical URL.
+ */
 export const resolveClientMetadata = async (clientId: string) => {
-  const response = await fetch(clientId, { redirect: 'error', signal: AbortSignal.timeout(5000) }).catch(() => undefined)
-  if (!response?.ok) return undefined
-  const body = await response.text()
-  if (body.length > 5_000) return undefined
-  return JSON.parse(body) as unknown
+  const response = await safeFetch(clientId, { maxBytes: 5_120, timeoutMs: 5_000 }).catch(() => undefined)
+  return response?.ok ? ((await response.json().catch(() => undefined)) as unknown) : undefined
 }
 
 const metadataUrl = () => protectedResourceMetadataUrl(mcpUri())
-
-/** Introspected in this process, as the MCP server's own client: a token for any other audience is refused. */
-const callerOf = async (provider: Provider, request: Request) => {
-  const header = request.headers.get('authorization')
-  if (!header?.toLowerCase().startsWith('bearer ')) return undefined
-  const token = header.slice(7).trim()
-  const response = await provider.handle(
-    new Request(`${provider.config.issuer}${provider.config.routes.introspection}`, {
-      method: 'POST',
-      headers: {
-        authorization: `Basic ${btoa(`${MCP_RESOURCE_SERVER}:${secret}`)}`,
-        'content-type': 'application/x-www-form-urlencoded'
-      },
-      body: new URLSearchParams({ token })
-    })
-  )
-  const body = (await response.json()) as { active?: boolean; aud?: string; sub?: string; client_id?: string; scope?: string }
-  if (!body.active || body.aud !== mcpUri()) {
-    console.log(`[mcp] refused a token: active=${body.active} aud=${body.aud}`)
-    return undefined
-  }
-  return { token, clientId: body.client_id ?? '', scopes: body.scope?.split(' ') ?? [], extra: { sub: body.sub } }
-}
-
-/** MCP 2025-06-18 §2.3.1: the 401 names the metadata, which names this OP. */
-const unauthorized = () =>
-  new Response(null, { status: 401, headers: { 'www-authenticate': `Bearer resource_metadata="${metadataUrl()}"` } })
 
 export const mcpRoutes = async (provider: Provider, request: Request, url: URL) => {
   if (url.pathname === new URL(metadataUrl()).pathname) return Response.json(protectedResourceMetadata(provider.config, mcpUri()))
   if (url.pathname !== MCP_PATH) return undefined
 
-  const authInfo = await callerOf(provider, request)
-  if (!authInfo) return unauthorized()
+  // D-8: a token for this resource alone, its DPoP proof or certificate included; a refusal's 401 names the metadata, which
+  // names this OP, as MCP 2025-06-18 §2.3.1 asks.
+  const verified = await provider.verifyAccessToken(request, { resource: mcpUri(), url: `${mcpUri()}${url.search}` })
+  if (!verified.ok) {
+    console.log(`[mcp] refused a token: ${verified.reason}`)
+    return verified.response
+  }
+  const { token } = verified
+  const authInfo = {
+    token: request.headers.get('authorization')?.replace(/^\S+\s+/, '') ?? '',
+    clientId: token.clientId,
+    scopes: token.scopes,
+    extra: { sub: token.subject }
+  }
   console.log(`[mcp] ${request.method} from ${authInfo.clientId} as ${authInfo.extra.sub}`)
 
   // Stateless: a server and a transport per request, so nothing outlives the token that authorised it.

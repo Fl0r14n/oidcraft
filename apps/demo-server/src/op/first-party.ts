@@ -1,15 +1,10 @@
 /// <reference types="bun" />
-import { type Adapter, type CredentialsAdapter, hashClientSecret, type Provider } from '@oidcraft/provider'
+import type { Adapter, CredentialsAdapter, Provider } from '@oidcraft/provider'
 import { optional } from './env'
 
 export const ADMIN_CLIENT_ID = 'oidcraft-admin'
 export const ACCOUNT_CLIENT_ID = 'oidcraft-account'
-/** The resource server both apps' APIs introspect as; not a client anyone signs in to. */
-export const API_CLIENT_ID = 'oidcraft-api'
-export const FIRST_PARTY = [ADMIN_CLIENT_ID, ACCOUNT_CLIENT_ID, API_CLIENT_ID]
-
-/** Only this process introspects with it, so it is minted per boot and never written down. */
-const apiSecret = crypto.randomUUID()
+export const FIRST_PARTY = [ADMIN_CLIENT_ID, ACCOUNT_CLIENT_ID]
 
 /** The library never decides who administers (FR-M1): OIDCRAFT_ADMINS names usernames, and empty means nobody, never everybody. */
 const administrators = () =>
@@ -32,31 +27,16 @@ const publicClient = (clientId: string, clientName: string, issuer: string, path
     scopes: ['openid', 'profile'],
     tokenEndpointAuthMethod: 'none' as const,
     requirePkce: true,
-    // Both APIs act on account ids, so the subject must be one rather than a pairwise alias.
     subjectType: 'public' as const,
     createdAt: now,
     updatedAt: now
   }
 }
 
-/** Re-registered at boot, so the API's per-boot secret is current. */
+/** Re-registered at boot, so a changed issuer reaches their redirect URIs. */
 export const seedFirstPartyClients = async (adapter: Adapter, issuer: string) => {
   await adapter.clients.upsert?.(publicClient(ADMIN_CLIENT_ID, 'oidcraft admin', issuer, '/admin'))
   await adapter.clients.upsert?.(publicClient(ACCOUNT_CLIENT_ID, 'oidcraft account', issuer, '/account'))
-  const now = new Date()
-  await adapter.clients.upsert?.({
-    clientId: API_CLIENT_ID,
-    clientSecretHash: await hashClientSecret(apiSecret),
-    clientName: 'oidcraft first-party API',
-    redirectUris: [],
-    grantTypes: [],
-    responseTypes: [],
-    scopes: [],
-    tokenEndpointAuthMethod: 'client_secret_basic',
-    resourceServer: true,
-    createdAt: now,
-    updatedAt: now
-  })
 }
 
 /** By username, so OIDCRAFT_ADMINS names people; an account with no local credential, a brokered one, administers nothing. */
@@ -65,20 +45,10 @@ export const administratorName = async (provider: Provider, accountId: string) =
   return credential && administrators().has(credential.username) ? credential.username : undefined
 }
 
-/** Only a live token issued to `clientId` counts, not one the same person holds for another client (RFC 7662). */
+/** D-8: a live token issued to `clientId` for no resource, a DPoP-bound one only with its proof; its account, or nothing. */
 export const callerOf = async (provider: Provider, request: Request, clientId: string) => {
-  const header = request.headers.get('authorization')
-  if (!header?.toLowerCase().startsWith('bearer ')) return undefined
-  const credentials = btoa(`${encodeURIComponent(API_CLIENT_ID)}:${encodeURIComponent(apiSecret)}`)
-  const response = await provider.handle(
-    new Request(`${provider.config.issuer}${provider.config.routes.introspection}`, {
-      method: 'POST',
-      headers: { authorization: `Basic ${credentials}`, 'content-type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ token: header.slice(7).trim() })
-    })
-  )
-  const body = (await response.json()) as { active?: boolean; client_id?: string; sub?: string }
-  return body.active && body.client_id === clientId ? body.sub : undefined
+  const verified = await provider.verifyAccessToken(request)
+  return verified.ok && verified.token.clientId === clientId ? verified.token.accountId : undefined
 }
 
 export const json = (body: unknown, status = 200) => Response.json(body, { status, headers: { 'cache-control': 'no-store' } })

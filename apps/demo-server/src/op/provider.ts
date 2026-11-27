@@ -3,7 +3,7 @@ import { generateKey, staticKeyStore } from '@oidcraft/adapter'
 import { createProvider } from '@oidcraft/provider'
 import { seedFapiDemoClient } from '../fapi/demo'
 import { screens } from '../interaction/screens'
-import { mcpEnabled, mcpResources, resolveClientMetadata, seedMcpResourceServer } from '../mcp/server'
+import { mcpEnabled, mcpResources, resolveClientMetadata } from '../mcp/server'
 import { accountStore, createDemoAccounts, seedDemoAccounts } from './accounts'
 import { devSecret } from './dev-secrets'
 import { issuer, optional } from './env'
@@ -51,7 +51,6 @@ await seedFirstPartyClients(adapter, issuer())
 await seedConformanceClients(adapter)
 await seedFapiConformanceClients(adapter)
 await seedFapiDemoClient(adapter, issuer())
-await seedMcpResourceServer(adapter)
 
 // OIDCRAFT_PROFILE=fapi2 puts every client under FAPI 2.0 for its conformance plan; off, only the FAPI demo client (FR-C21).
 const profile = optional('OIDCRAFT_PROFILE')

@@ -674,8 +674,8 @@ its text fails the build. `bundles.test.ts` fails on any `process` read left in 
 the dev cycle shows only in a browser.
 
 **The admin and account apps are clients of this OP.** Each signs in with `@oidcraft/vue` as its own
-public client (`oidcraft-admin`, `oidcraft-account`), and each API introspects the bearer token
-in-process as the resource server `oidcraft-api`. The admin API also requires a local account whose
+public client (`oidcraft-admin`, `oidcraft-account`), and each API checks the bearer token with
+`provider.verifyAccessToken`, as issued to its own app. The admin API also requires a local account whose
 username is in `OIDCRAFT_ADMINS`, the decision FR-M1 leaves to the host; the account API acts only on the token's
 own subject. The interaction routes answer consent for these first-party clients themselves. Each
 app tries `prompt=none` before it mounts, so a person with a provider session is signed in without a
@@ -726,9 +726,9 @@ callback redeems the code with DPoP and calls UserInfo. With an http issuer it i
 **MCP is opt-in (`OIDCRAFT_MCP=on`, FR-C19, FR-C20).** `src/mcp/server.ts` serves an MCP server at
 `/mcp` with one tool, `whoami`, through the official SDK's web-standard transport, stateless. A
 request without a token gets the RFC 9728 401 pointing at its resource metadata; a token must be one
-this OP issued for `/mcp`, checked by introspecting in-process as the resource's named server. It
-also turns on registration and a metadata-document resolver, so an MCP client can register either
-way.
+this OP issued for `/mcp`, checked with `provider.verifyAccessToken`, whose refusal is that 401. It
+also turns on registration and a metadata-document resolver, which fetches through `safeFetch`, so an
+MCP client can register either way.
 
 ### 8.2 `apps/demo-vue` — the demo relying party
 

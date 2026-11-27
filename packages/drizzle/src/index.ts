@@ -26,7 +26,14 @@ export type DrizzleAdapterOptions = {
 
 type Runs = {
   all(query: SQL): Promise<Record<string, unknown>[]>
+  run(query: SQL): Promise<unknown>
   execute(query: SQL): Promise<unknown>
+}
+
+// better-sqlite3 throws when `all` runs a statement that returns nothing, where bun:sqlite answers []: each goes to its own call.
+const returnsRows = (strings: readonly string[]) => {
+  const text = strings.join(' ').trimStart().toLowerCase()
+  return text.startsWith('select') || text.startsWith('with') || /\breturning\b/.test(text)
 }
 
 /** node-postgres answers a result with `rows`, postgres.js the rows themselves; mysql2 a pair whose first is rows or a header. */
@@ -47,7 +54,11 @@ export const drizzleAdapter = (options: DrizzleAdapterOptions): FullAdapter => {
   const execute: Execute = async ({ strings, slots }) => {
     const parts = slots.map(slot => ('table' in slot ? byName.get(slot.table) : slot.value))
     const query = sql(strings as unknown as TemplateStringsArray, ...(parts as never[]))
-    if (dialect === 'sqlite') return { rows: await db.all(query), affected: 0 }
+    if (dialect === 'sqlite') {
+      if (returnsRows(strings)) return { rows: await db.all(query), affected: 0 }
+      await db.run(query)
+      return { rows: [], affected: 0 }
+    }
     return executed(dialect, await db.execute(query))
   }
   return sqlAdapter({ dialect, execute, keys: options.keys, accounts: options.accounts })

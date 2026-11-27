@@ -49,31 +49,49 @@ describe('a sign-in in a browser that has a session (FR-I10)', () => {
     const done = await on.interactions.complete(id, { login: { accountId } }, cookie)
     return (done.setCookie as string).split(';')[0] as string
   }
-  const idOf = async (pair: string) => storedId(pair.split('=')[1] as string)
+  const idOf = (pair: string) => (pair.split('=')[1] as string).split('.')[0] as string
 
   // S-1: the old session stayed in storage, unreachable by any logout, with every client it had signed in.
   test('another account ends the browser’s session first, as a logout does', async () => {
     const ended: string[] = []
     const on = build({ onSessionEnd: session => void ended.push(session.accountId) })
     const ada = await signIn(on, 'ada')
-    await adapter.sessions.addClient(await idOf(ada), 'rp')
+    await adapter.sessions.addClient(idOf(ada), 'rp')
     const bob = await signIn(on, 'bob', ada)
-    expect(await adapter.sessions.find(await idOf(ada))).toBeUndefined()
+    expect(await adapter.sessions.find(idOf(ada))).toBeUndefined()
     expect(ended).toEqual(['ada'])
-    expect((await adapter.sessions.find(await idOf(bob)))?.accountId).toBe('bob')
+    expect((await adapter.sessions.find(idOf(bob)))?.accountId).toBe('bob')
   })
 
-  test('the same account updates its session in place, its sid and clients kept', async () => {
+  test('the same account updates its session in place, its sid and clients kept, under a new secret', async () => {
     const on = build()
     setSystemTime(new Date('2026-11-27T10:00:00Z'))
     const first = await signIn(on, 'ada')
-    await adapter.sessions.addClient(await idOf(first), 'rp')
+    await adapter.sessions.addClient(idOf(first), 'rp')
     setSystemTime(new Date('2026-11-27T11:00:00Z'))
     const again = await signIn(on, 'ada', first)
-    expect(again).toBe(first)
-    const session = await adapter.sessions.find(await idOf(first))
+    expect(idOf(again)).toBe(idOf(first))
+    expect(again).not.toBe(first)
+    const session = await adapter.sessions.find(idOf(first))
     expect(session?.authTime).toBe(Date.parse('2026-11-27T11:00:00.000Z'))
     expect(session?.clients).toEqual(['rp'])
+    expect((await on.session(new Request(ISSUER, { headers: { cookie: again } })))?.accountId).toBe('ada')
+    // NFR-S11: a copy of the cookie from before gains nothing the later sign-in proved.
+    expect(await on.session(new Request(ISSUER, { headers: { cookie: first } }))).toBeUndefined()
+  })
+
+  // NFR-S11: a cookie set before the id and secret were apart is the secret alone, and the session's id its hash.
+  test('a session from before the split opens with its old cookie until the next sign-in replaces it', async () => {
+    const on = build()
+    const secret = 'an-old-secret-of-enough-length-to-pass-for-one'
+    const id = await storedId(secret)
+    await adapter.sessions.upsert({ id, accountId: 'ada', authTime: Date.now(), clients: ['rp'], expiresAt: Date.now() + 60_000 })
+    const old = `__Host-oidcraft.sid=${secret}`
+    expect((await on.session(new Request(ISSUER, { headers: { cookie: old } })))?.id).toBe(id)
+    const again = await signIn(on, 'ada', old)
+    expect(idOf(again)).toBe(id)
+    expect(await on.session(new Request(ISSUER, { headers: { cookie: old } }))).toBeUndefined()
+    expect((await on.session(new Request(ISSUER, { headers: { cookie: again } })))?.clients).toEqual(['rp'])
   })
 
   test('without an idle lifetime, a session unused for days is still there', async () => {
@@ -94,6 +112,6 @@ describe('a sign-in in a browser that has a session (FR-I10)', () => {
     expect((await on.session(new Request(ISSUER, { headers: { cookie: ada } })))?.accountId).toBe('ada')
     setSystemTime(new Date('2026-11-27T10:28:01Z'))
     expect(await on.session(new Request(ISSUER, { headers: { cookie: ada } }))).toBeUndefined()
-    expect(await adapter.sessions.find(await idOf(ada))).toBeUndefined()
+    expect(await adapter.sessions.find(idOf(ada))).toBeUndefined()
   })
 })

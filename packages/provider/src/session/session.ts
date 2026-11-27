@@ -1,5 +1,5 @@
 import type { EpochMillis, Session } from '@oidcraft/adapter'
-import { randomString } from '@oidcraft/core'
+import { constantTimeEquals, randomString } from '@oidcraft/core'
 import { storedId } from '../artifacts'
 import type { ResolvedConfig } from '../config'
 import { settled } from '../hooks'
@@ -18,9 +18,15 @@ const idleEnded = (config: ResolvedConfig, session: Session) =>
  * The session, unless it ended. A session idle past `ttl.sessionIdle` ends here, as an expired one does: quietly, so the
  * refresh tokens bound to it end too (FR-T6). With `use`, it is recorded as used, at most once a minute (FR-I10).
  */
-export const findLiveSession = async (config: ResolvedConfig, id: string, { use = false }: { use?: boolean } = {}) => {
+export const findLiveSession = async (
+  config: ResolvedConfig,
+  id: string,
+  { use = false, secret }: { use?: boolean; secret?: string } = {}
+) => {
   const session = await config.adapter.sessions.find(id)
   if (!session) return undefined
+  // NFR-S11: a cookie opens only the session its secret is the latest of; one from before the split hashes to the id.
+  if (secret !== undefined && !(await constantTimeEquals(await storedId(secret), session.secretHash ?? session.id))) return undefined
   if (idleEnded(config, session)) {
     await config.adapter.sessions.destroy(id)
     return undefined
@@ -35,13 +41,21 @@ export const findLiveSession = async (config: ResolvedConfig, id: string, { use 
   return session
 }
 
-const secretOf = (config: ResolvedConfig, cookie: string | null) => parseCookies(cookie).get(sessionCookie(config))
-
-// NFR-S11: the cookie carries a secret and the session is stored under its hash, which is the `sid` clients are told.
-export const readSession = async (config: ResolvedConfig, request: Request, options?: { use?: boolean }) => {
-  const secret = secretOf(config, request.headers.get('cookie'))
-  return secret ? findLiveSession(config, await storedId(secret), options) : undefined
+/** NFR-S11: the cookie is `<id>.<secret>`, the id being the `sid` clients are told; one from before is the secret alone, its hash the id. */
+const heldIn = async (config: ResolvedConfig, cookie: string | null) => {
+  const value = parseCookies(cookie).get(sessionCookie(config))
+  if (!value) return undefined
+  const dot = value.indexOf('.')
+  return dot < 0 ? { id: await storedId(value), secret: value } : { id: value.slice(0, dot), secret: value.slice(dot + 1) }
 }
+
+const sessionIn = async (config: ResolvedConfig, cookie: string | null, options: { use?: boolean } = {}) => {
+  const held = await heldIn(config, cookie)
+  return held ? findLiveSession(config, held.id, { ...options, secret: held.secret }) : undefined
+}
+
+export const readSession = (config: ResolvedConfig, request: Request, options?: { use?: boolean }) =>
+  sessionIn(config, request.headers.get('cookie'), options)
 
 export type LoginInput = {
   accountId: string
@@ -67,14 +81,15 @@ const signedIn = (config: ResolvedConfig, login: LoginInput) => {
   }
 }
 
-const cookieFor = (config: ResolvedConfig, secret: string) =>
-  serializeCookie(sessionCookie(config), secret, { maxAge: config.ttl.session, secure: isSecure(config) })
+const cookieFor = (config: ResolvedConfig, id: string, secret: string) =>
+  serializeCookie(sessionCookie(config), `${id}.${secret}`, { maxAge: config.ttl.session, secure: isSecure(config) })
 
 export const startSession = async (config: ResolvedConfig, login: LoginInput) => {
   const secret = randomString()
   const { acr, amr, idp, upstreamSessionId, ...times } = signedIn(config, login)
   const session: Session = {
-    id: await storedId(secret),
+    id: randomString(),
+    secretHash: await storedId(secret),
     accountId: login.accountId,
     ...times,
     ...(acr && { acr }),
@@ -85,20 +100,20 @@ export const startSession = async (config: ResolvedConfig, login: LoginInput) =>
     clients: []
   }
   await config.adapter.sessions.upsert(session)
-  return { session, cookie: cookieFor(config, secret) }
+  return { session, cookie: cookieFor(config, session.id, secret) }
 }
 
 /**
  * FR-I10: a browser holds one session per issuer, and a sign-in never leaves the one it had where no logout reaches it.
- * The same account's is updated in place, its id and `sid` kept so the person's other applications stay signed in; the
- * cookie is set again with the same secret, so it lives as long as the session. Another account's is ended first, as a
- * logout ends it.
+ * The same account's is updated in place, its id and `sid` kept so the person's other applications stay signed in, under a
+ * new secret, so a copy of the old cookie gains nothing this sign-in proved (NFR-S11). Another account's is ended first, as
+ * a logout ends it.
  */
 export const establishSession = async (config: ResolvedConfig, login: LoginInput, cookie: string | null) => {
-  const secret = secretOf(config, cookie)
-  const current = secret ? await findLiveSession(config, await storedId(secret)) : undefined
-  if (secret && current?.accountId === login.accountId) {
-    const fields = signedIn(config, login)
+  const current = await sessionIn(config, cookie)
+  if (current?.accountId === login.accountId) {
+    const secret = randomString()
+    const fields = { ...signedIn(config, login), secretHash: await storedId(secret) }
     if (await config.adapter.sessions.update(current.id, fields)) {
       const { acr, amr, idp, upstreamSessionId, ...rest } = { ...current, ...fields }
       const session: Session = {
@@ -108,7 +123,7 @@ export const establishSession = async (config: ResolvedConfig, login: LoginInput
         ...(idp && { idp }),
         ...(upstreamSessionId && { upstreamSessionId })
       }
-      return { session, cookie: cookieFor(config, secret) }
+      return { session, cookie: cookieFor(config, current.id, secret) }
     }
   } else if (current) {
     const { notifications, frontChannel } = await endSession(config, current)

@@ -83,6 +83,8 @@ export type Session = Entity &
     /** The upstream session id, so upstream logout can terminate this one (FR-F8). */
     upstreamSessionId?: string
     clients: string[]
+    /** The cookie's secret, hashed; a new one at every sign-in, so a copied cookie gains nothing later (NFR-S11, FR-I10). */
+    secretHash?: string
   }
 
 /** A durable record of what an account allowed a client — survives token revocation (FR-I4). */

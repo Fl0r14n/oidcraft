@@ -132,15 +132,15 @@ describe('NFR-S11: no bearer credential is stored as itself', () => {
   })
 
   // The ID token's `sid` reaches every client the person signs in to; as the cookie it would be them.
-  test('a session cookie, of which the sid is the hash and not the value', async () => {
+  test('a session cookie, of which the store keeps only the secret’s hash, and the sid alone opens nothing', async () => {
     await adapter.clients.upsert?.(client())
     const provider = build()
     const issued = await tokensFor(provider)
-    const secret = issued.cookie.split('=')[1] as string
+    const [id, secret] = (issued.cookie.split('=')[1] as string).split('.') as [string, string]
     const sid = decodeJwt(issued.id_token).sid as string
-    expect(sid).toBe(await hashOf(secret))
-    expect(await adapter.sessions.find(sid)).toBeDefined()
-    expect(await adapter.sessions.find(secret)).toBeUndefined()
+    expect(sid).toBe(id)
+    expect((await adapter.sessions.find(sid))?.secretHash).toBe(await hashOf(secret))
+    expect(JSON.stringify(await adapter.sessions.find(sid))).not.toContain(secret)
 
     const silently = (cookie: string) =>
       provider.handle(
@@ -157,8 +157,10 @@ describe('NFR-S11: no bearer credential is stored as itself', () => {
           { headers: { cookie } }
         )
       )
-    const replayed = new URL((await silently(`__Host-${SESSION_COOKIE}=${sid}`)).headers.get('location') as string)
-    expect(replayed.searchParams.get('error')).toBe('login_required')
+    for (const forged of [sid, `${sid}.${sid}`, `${sid}.${await hashOf(secret)}`]) {
+      const replayed = new URL((await silently(`__Host-${SESSION_COOKIE}=${forged}`)).headers.get('location') as string)
+      expect(replayed.searchParams.get('error')).toBe('login_required')
+    }
     const owned = new URL((await silently(issued.cookie)).headers.get('location') as string)
     expect(owned.searchParams.get('code')).toBeTruthy()
   })

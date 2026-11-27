@@ -662,12 +662,14 @@ export const adapterConformance = (create: () => Adapter | Promise<Adapter>, opt
       name: 'a session updates in place, keeps its clients, and an update never creates one',
       run: async () => {
         const adapter = await full()
-        await adapter.sessions.upsert(session())
+        await adapter.sessions.upsert(session({ secretHash: 'h1' }))
+        same((await adapter.sessions.find('s1'))?.secretHash, 'h1', 'the stored secretHash')
         await adapter.sessions.addClient('s1', 'c2')
-        same(await adapter.sessions.update('s1', { acr: 'mfa', authTime: 5_000 }), true, 'an update of a live session')
+        same(await adapter.sessions.update('s1', { acr: 'mfa', authTime: 5_000, secretHash: 'h2' }), true, 'an update of a live session')
         const found = await adapter.sessions.find('s1')
         same(found?.acr, 'mfa', 'the updated acr')
         same(found?.authTime, 5_000, 'the updated authTime')
+        same(found?.secretHash, 'h2', 'the replaced secretHash')
         same([...(found?.clients ?? [])].sort(), ['c1', 'c2'], 'the clients addClient added')
         same(await adapter.sessions.update('s1', { lastUsedAt: 6_000 }), true, 'an update of lastUsedAt')
         same((await adapter.sessions.find('s1'))?.lastUsedAt, 6_000, 'the stored lastUsedAt')

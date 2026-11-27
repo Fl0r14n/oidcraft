@@ -26,6 +26,7 @@ export type SessionRow = {
   clients: string
   expires_at: number
   last_used_at: number | null
+  secret_hash: string | null
 }
 
 export type GrantRow = {
@@ -147,7 +148,8 @@ export const sessionRow = (session: Session): SessionRow => ({
   upstream_session_id: session.upstreamSessionId ?? null,
   clients: json(session.clients),
   expires_at: session.expiresAt,
-  last_used_at: session.lastUsedAt ?? null
+  last_used_at: session.lastUsedAt ?? null,
+  secret_hash: session.secretHash ?? null
 })
 
 export const toSession = (row: Read<SessionRow>): Session => ({
@@ -160,7 +162,8 @@ export const toSession = (row: Read<SessionRow>): Session => ({
   ...(row.upstream_session_id && { upstreamSessionId: row.upstream_session_id }),
   clients: parse<string[]>(row.clients),
   expiresAt: Number(row.expires_at),
-  ...(row.last_used_at !== null && row.last_used_at !== undefined && { lastUsedAt: Number(row.last_used_at) })
+  ...(row.last_used_at !== null && row.last_used_at !== undefined && { lastUsedAt: Number(row.last_used_at) }),
+  ...(row.secret_hash && { secretHash: row.secret_hash })
 })
 
 export const grantRow = (grant: Grant): GrantRow => ({
@@ -274,10 +277,10 @@ export const toRealm = (row: Read<RealmRow>): Realm => ({
   updatedAt: Number(row.updated_at)
 })
 
-/** The columns `fields` set, encoded by the full row's own mapper; a field the map leaves out is a key and never written. */
 /** What `update` takes: each field optional, and `undefined` to clear it. */
 type Fields<T> = { [Field in keyof T]?: T[Field] | undefined }
 
+/** The columns `fields` set, encoded by the full row's own mapper; a field the map leaves out is a key and never written. */
 const changed = <T extends object, R>(
   toRow: (value: T) => R,
   blank: T,
@@ -304,7 +307,8 @@ export const sessionFields = (fields: Fields<Session>) =>
       idp: ['idp'],
       upstreamSessionId: ['upstream_session_id'],
       expiresAt: ['expires_at'],
-      lastUsedAt: ['last_used_at']
+      lastUsedAt: ['last_used_at'],
+      secretHash: ['secret_hash']
     },
     fields
   )

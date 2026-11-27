@@ -50,13 +50,20 @@ export const noAccounts: AccountStore = {
 
 const enc = (value: unknown) => JSON.stringify(value)
 
-const dec = <T>(raw: string | undefined): T | undefined => (raw === undefined ? undefined : (JSON.parse(raw) as T))
+const INSTANTS = new Set(['createdAt', 'updatedAt', 'expiresAt', 'authTime', 'lastUsedAt', 'confirmedAt', 'consumedAt', 'lockedUntil'])
+const ISO_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/
 
-const secondsUntil = (expiresAt: EpochMillis): Seconds => Math.max(1, Math.ceil((expiresAt - Date.now()) / 1000))
+// NFR-D6: a record 0.3 wrote holds each instant as the ISO string `Date` serialized to; read as one, it is milliseconds.
+const instant = (key: string, value: unknown) =>
+  typeof value === 'string' && INSTANTS.has(key) && ISO_INSTANT.test(value) ? Date.parse(value) : value
+
+const dec = <T>(raw: string | undefined): T | undefined => (raw === undefined ? undefined : (JSON.parse(raw, instant) as T))
+
+const secondsUntil = (expiresAt: EpochMillis) => Math.max(1, Math.ceil((expiresAt - Date.now()) / 1000))
 
 const collect = async <T>(kv: KvStore, prefix: string) => {
   const out: T[] = []
-  for await (const { value } of kv.scan(prefix)) out.push(JSON.parse(value) as T)
+  for await (const { value } of kv.scan(prefix)) out.push(dec<T>(value) as T)
   return out
 }
 
@@ -100,7 +107,10 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
   const withConsumption = async (artifact: Artifact) => {
     const consumedAt = await read(consumedKey(artifact.kind, artifact.id))
     const { consumedAt: _, ...rest } = artifact
-    return consumedAt ? { ...rest, consumedAt: Number(consumedAt) } : rest
+    if (!consumedAt) return rest
+    // NFR-D6: 0.3 marked it with the ISO string of the moment.
+    const at = Number(consumedAt)
+    return { ...rest, consumedAt: Number.isNaN(at) ? Date.parse(consumedAt) : at }
   }
 
   const artifacts: ArtifactStore = {
@@ -206,10 +216,12 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
     ...(session.idp && session.upstreamSessionId ? [`${upstreamSessions(session.idp, session.upstreamSessionId)}${part(session.id)}`] : [])
   ]
   const sessionLock = (id: string) => `session-lock/${part(id)}`
+  // A sign-in moves the session's expiry (FR-I10), so every key beside it is written again with the record's.
   const writeSession = async (session: Session) => {
     const ttl = secondsUntil(session.expiresAt)
     await kv.upsert({ key: `session/${session.id}`, value: enc(session), ttl })
     for (const key of sessionIndexes(session)) await kv.upsert({ key, value: '', ttl })
+    for await (const { key } of kv.scan(sessionClientPrefix(session.id))) await kv.upsert({ key, value: '', ttl })
   }
   const readSession = async (id: string) => dec<Session>(await read(`session/${id}`))
 
@@ -337,7 +349,13 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
   const credentialKey = (accountId: string) => `credential/${accountId}`
   const usernameKey = (username: string) => `username/${username}`
   const credentialLock = (accountId: string) => `credential-lock/${part(accountId)}`
-  const readCredential = async (accountId: string) => dec<Credential>(await read(credentialKey(accountId)))
+  const readCredential = async (accountId: string) => {
+    const stored = dec<Credential & { lockedUntil?: EpochMillis }>(await read(credentialKey(accountId)))
+    if (!stored) return undefined
+    // NFR-D6: the host's suspension, written as `lockedUntil` before `lock`, is still one; a deploy must not lift it.
+    const { lockedUntil, ...credential } = stored
+    return lockedUntil && !credential.lock ? { ...credential, lock: { expiresAt: lockedUntil } } : credential
+  }
 
   // The username index is claimed with `create`, so uniqueness rests on the same atomic write as single use.
   const credentials: CredentialStore = {

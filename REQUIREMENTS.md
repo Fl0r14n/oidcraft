@@ -589,9 +589,9 @@ browser that already has a session never leaves that session where no logout can
 same account the session is updated in place — `auth_time`, `acr` and `amr` renewed, the client
 added, its id and `sid` kept — so the person's other applications stay signed in and their logouts
 still match (FR-T6, FR-C11). For another account the old session is ended first, exactly as a logout
-ends it, then the new one starts. Updating in place does not rotate the cookie on a step-up, as
-session guidance prefers: the `sid` is the cookie's hash (NFR-S11) and session-bound refresh tokens
-name it; a cookie that is `HttpOnly` and host-only already takes a compromised browser to steal. How
+ends it, then the new one starts. Every sign-in, in place or not, sets the cookie with a new secret,
+so a copy of an earlier cookie gains nothing a later sign-in proved, a step-up least of all; the
+secret is apart from the session's id, so the `sid` survives it (NFR-S11). How
 many sessions an account may hold across browsers is the host's policy, through the management API
 (FR-M1).
 
@@ -754,8 +754,8 @@ stand-in for email. Tokens appear in logs as a prefix and a hash, if at all.
 **NFR-S11** — No bearer credential is stored as itself. Authorization codes, access and refresh
 tokens, device codes, pushed-request references, CIBA `auth_req_id`s, interaction ids, stored
 authorization responses, registration access tokens, password-reset and email sign-in tokens and the session cookie are stored under a SHA-256 of their value, so a copy of the database
-yields no usable token. The session's hash is also the `sid` clients are told, so the cookie must
-not be it. A client secret used with `client_secret_basic` or `client_secret_post` is stored hashed
+yields no usable token. The session cookie carries the session's id beside its secret; the id is
+the `sid` clients are told, and only the secret's hash is stored. A client secret used with `client_secret_basic` or `client_secret_post` is stored hashed
 the same way. `client_secret_jwt` is the necessary exception — the secret is the HMAC key — and a
 reason to prefer `private_key_jwt`. The device `user_code` is the other: short enough to type is
 short enough that a hash hides nothing, and it lives minutes (NFR-S3).

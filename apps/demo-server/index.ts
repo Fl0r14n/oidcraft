@@ -2,7 +2,7 @@
 
 import { bunContext } from '@oidcraft/provider/runtimes/bun'
 import { ASSETS, assets } from '@oidcraft/ui'
-import { serve } from 'bun'
+import { type Server, serve } from 'bun'
 import { accountApi } from './src/account/api'
 import { adminApi } from './src/admin/api'
 import { fapiDemoRoutes } from './src/fapi/demo'
@@ -10,7 +10,7 @@ import { brokerCallback } from './src/interaction/broker'
 import { routesFor } from './src/interaction/routes'
 import { mcpEnabled, mcpRoutes } from './src/mcp/server'
 import { issuer, optional } from './src/op/env'
-import { handleWithLogout } from './src/op/logout'
+import { withFrontChannel } from './src/op/logout'
 import { control } from './src/op/provider'
 import { realms, realmsEnabled, siteOf } from './src/op/realms'
 
@@ -43,51 +43,53 @@ const server = serve({
     '/account': account,
     '/account/*': account
   },
-  async fetch(request, server) {
-    const url = new URL(request.url)
-    const site = await siteOf(request)
-    if (!site) return new Response('No such realm', { status: 404 })
-    const { provider, screens } = site
-    const routes = routesFor(site)
-    const context = bunContext(server)(request)
-    if (url.pathname.startsWith('/interaction/')) {
-      const response = await routes.interactionRoutes(request, url, context.clientIp)
-      if (response) return response
-    }
-    if (url.pathname === '/reset') return routes.resetRoutes(request, url, context.clientIp)
-    if (url.pathname === '/email-sign-in') return routes.emailSignInRoutes(request, url)
-    if (url.pathname === '/federation/callback' && site.brokering) {
-      const response = await brokerCallback(request, url)
-      if (response) return response
-    }
-    if (mcpEnabled && site === control) {
-      const response = await mcpRoutes(provider, request, url)
-      if (response) return response
-    }
-    if (url.pathname.startsWith('/fapi-demo') && site === control) {
-      const response = await fapiDemoRoutes(provider, request, url)
-      if (response) return response
-    }
-    if (url.pathname === '/device' || url.pathname === '/device/decide') {
-      const response = await routes.deviceRoutes(request, url, context.clientIp)
-      if (response) return response
-    }
-    const response = await handleWithLogout(provider, request, () => provider.handle(request, context))
-    const browserFacing = url.pathname === '/authorize' || url.pathname === provider.config.routes.endSession
-    // D-9: the code alone; a description can carry what the request chose, a client id among it, onto this server's page.
-    if (browserFacing && response.status >= 400 && response.headers.get('content-type')?.includes('json')) {
-      const { error } = await response.json()
-      return screens.error(error, undefined, response.status)
-    }
-    // The provider answers a logout with nowhere to go back to in plain text; a person is shown a page, its cookie still cleared.
-    if (url.pathname === provider.config.routes.endSession && response.headers.get('content-type')?.startsWith('text/plain')) {
-      const page = await screens.message('You are signed out', 'You can close this page.')
-      for (const cookie of response.headers.getSetCookie()) page.headers.append('set-cookie', cookie)
-      return page
-    }
-    return response
-  }
+  fetch: (request, server) => withFrontChannel(() => route(request, server))
 })
+
+async function route(request: Request, server: Server<undefined>) {
+  const url = new URL(request.url)
+  const site = await siteOf(request)
+  if (!site) return new Response('No such realm', { status: 404 })
+  const { provider, screens } = site
+  const routes = routesFor(site)
+  const context = bunContext(server)(request)
+  if (url.pathname.startsWith('/interaction/')) {
+    const response = await routes.interactionRoutes(request, url, context.clientIp)
+    if (response) return response
+  }
+  if (url.pathname === '/reset') return routes.resetRoutes(request, url, context.clientIp)
+  if (url.pathname === '/email-sign-in') return routes.emailSignInRoutes(request, url)
+  if (url.pathname === '/federation/callback' && site.brokering) {
+    const response = await brokerCallback(request, url)
+    if (response) return response
+  }
+  if (mcpEnabled && site === control) {
+    const response = await mcpRoutes(provider, request, url)
+    if (response) return response
+  }
+  if (url.pathname.startsWith('/fapi-demo') && site === control) {
+    const response = await fapiDemoRoutes(provider, request, url)
+    if (response) return response
+  }
+  if (url.pathname === '/device' || url.pathname === '/device/decide') {
+    const response = await routes.deviceRoutes(request, url, context.clientIp)
+    if (response) return response
+  }
+  const response = await provider.handle(request, context)
+  const browserFacing = url.pathname === '/authorize' || url.pathname === provider.config.routes.endSession
+  // D-9: the code alone; a description can carry what the request chose, a client id among it, onto this server's page.
+  if (browserFacing && response.status >= 400 && response.headers.get('content-type')?.includes('json')) {
+    const { error } = await response.json()
+    return screens.error(error, undefined, response.status)
+  }
+  // The provider answers a logout with nowhere to go back to in plain text; a person is shown a page, its cookie still cleared.
+  if (url.pathname === provider.config.routes.endSession && response.headers.get('content-type')?.startsWith('text/plain')) {
+    const page = await screens.message('You are signed out', 'You can close this page.')
+    for (const cookie of response.headers.getSetCookie()) page.headers.append('set-cookie', cookie)
+    return page
+  }
+  return response
+}
 
 const base = issuer()
 console.log(`op on ${server.url.origin}, issuer ${base}`)

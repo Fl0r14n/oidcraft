@@ -233,6 +233,19 @@ describe('approval', () => {
     await expect(provider.device.find('WRONG-CODE', { clientIp: '198.51.100.77' })).rejects.toThrow(/too many wrong codes/)
   })
 
+  // The cap all addresses share is also one anyone with enough addresses can spend, so the host sets it.
+  test('the limits are the host’s', async () => {
+    const settings = { interactionUrl: 'https://op.example.com/interaction', issuer: ISSUER, adapter }
+    const tight = createProvider({ ...settings, features: { deviceFlow: true }, userCodeAttempts: { perAddress: 2, all: 3 } })
+    for (let attempt = 0; attempt < 2; attempt++) await tight.device.find('WRONG-CODE', { clientIp: '198.51.100.1' })
+    await expect(tight.device.find('WRONG-CODE', { clientIp: '198.51.100.1' })).rejects.toThrow(/too many wrong codes/)
+    await tight.device.find('WRONG-CODE', { clientIp: '198.51.100.2' })
+    await expect(tight.device.find('WRONG-CODE', { clientIp: '198.51.100.3' })).rejects.toThrow(/too many wrong codes/)
+    expect(() => createProvider({ ...settings, userCodeAttempts: { all: 0 } })).toThrow(
+      /userCodeAttempts.all must be a positive whole number/
+    )
+  })
+
   test('an unknown code is refused', async () => {
     expect(provider.device.find('ZZZZ-ZZZZ')).resolves.toBeUndefined()
     expect(provider.device.resolve('ZZZZ-ZZZZ', { denied: true })).rejects.toThrow(/not one we are waiting for/)

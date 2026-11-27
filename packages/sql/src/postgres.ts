@@ -68,6 +68,11 @@ export const POSTGRES_MIGRATIONS: Migration[] = [
     // FR-I10: an idle lifetime measures from the last use, which the absolute end cannot stand in for.
     id: '0007_session_last_used',
     statements: ['alter table oidc_sessions add column last_used_at bigint']
+  },
+  {
+    // NFR-S11, FR-I10: the cookie's secret apart from the session's id, so a sign-in replaces it and the sid stays.
+    id: '0008_session_secret',
+    statements: ['alter table oidc_sessions add column secret_hash text']
   }
 ]
 export type { Migration } from './migration'

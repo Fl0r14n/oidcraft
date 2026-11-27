@@ -99,8 +99,9 @@ as the same account updates that session in place: `auth_time`, `acr` and `amr` 
 `sid` kept, so the person's other applications stay signed in and their logouts still match. Signing
 in as another account ends the old session first, exactly as a logout does — back- and
 front-channel notices to its clients, `onSessionEnd` — so no session is left that no logout reaches.
-The cookie is not rotated on a step-up: the `sid` is the cookie's hash, which session-bound refresh
-tokens name, and a host-only `HttpOnly` cookie already takes a compromised browser to steal.
+Every sign-in sets the cookie again with a new secret, the `sid` unchanged: a copy of the cookie
+taken before a step-up or a `prompt=login` opens nothing after it. The store keeps only the secret's
+hash, beside the session's id.
 
 A session lives `ttl.session`, counted from the latest sign-in. `ttl.sessionIdle`, unset by default,
 also ends it that long after its last use, a sign-in, an authorization request or a refresh of a
@@ -217,8 +218,8 @@ not:
 - **Randomness and comparison (NFR-S3).** Every token, code and identifier comes from
   `crypto.getRandomValues` with at least 256 bits of entropy, and is compared in constant time where
   it is compared at all. The exception is the device `user_code`, which a person types. It follows
-  RFC 8628 §6.1 and is protected instead by a short lifetime and a limit on wrong guesses per client
-  IP.
+  RFC 8628 §6.1 and is protected instead by a short lifetime and limits on wrong guesses, per client
+  IP (an IPv6 /64) and from every address together (`userCodeAttempts`).
 - **One-time values (NFR-S5).** `jti`, DPoP proofs and upstream nonces are checked against
   `ReplayGuard` within their validity window. A JWT client assertion is also checked for its audience
   and for a lifetime under five minutes. Without the audience check, any provider a client talks to
@@ -313,6 +314,13 @@ the clause behind the refusal.
   read-modify-write, so a burst can get a few guesses past the limit. The local-accounts counters do
   not have this property: each attempt claims its slot atomically before the hash is checked
   ([ARCHITECTURE.md §6.1](/reference/architecture#_6-1-local-accounts)).
+- **Anyone with enough addresses can close device-code entry for everyone.** Wrong user codes from
+  every address together are capped, by default at 1,000 in ten minutes, because that cap is what
+  ends a guess spread over a botnet or an IPv6 prefix. The same cap is spent by whoever sends that
+  many wrong codes, about two hundred /64s' worth at the default, and every person typing a code is
+  refused until the window passes. A deployment that depends on the device flow raises
+  `userCodeAttempts.all`, against better odds for a guesser: with 100 codes live, about 0.004% a day
+  at the default, about 1% a day for a /48 with no cap at all.
 - **A missing FAPI key fails late.** Signing keys are only readable asynchronously. A provider under
   the FAPI 2.0 profile with no PS256, ES256 or EdDSA key is therefore refused at its first signature,
   not at construction (ARCHITECTURE.md §3.3).

@@ -302,6 +302,13 @@ Each step ends green on `bun run verify` and is committed on `main`; a release i
    browser token's `expires`, a refresh token's `familyExpiresAt` (drop after 90 days), a throttle's `lockedUntil`.
    No column changed. Before upgrading `@oidcraft/client`, a host that forces expiry with `expires` must write
    `expiresAt`: the index signature on `OAuthToken` hides it from the compiler.
+8. **Review of everything since provider 0.9.0** (2026-11-27). Fixed: a KV store 0.3 wrote is read with its ISO
+   instants and `lockedUntil`, so a deploy lifts no suspension; a KV session's clients live as long as it does; Drizzle
+   on better-sqlite3 runs writes with `run`; the demo delivers front-channel logout from any request that ends a
+   session. Decided: the session cookie is `<id>.<secret>` with `secretHash` stored (`0008_session_secret`), a new
+   secret at every sign-in and the `sid` kept (NFR-S11, FR-I10), where a cookie from before still opens its session
+   until then; the device flow's wrong-code limits are `userCodeAttempts`, the global one documented as spendable.
+   Kept: `http://localhost` alone does not make a registration native (S-15, RFC 8252 §8.3).
 
 ### Future features
 

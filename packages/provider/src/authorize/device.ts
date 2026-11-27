@@ -114,11 +114,6 @@ const deviceFlow: Flow<Stored<'device_code'>, DevicePayload> = {
 export type DeviceApproval = Exclude<Approval, { denied: true }>
 
 const ATTEMPT_WINDOW_SECONDS = 600
-const MAX_FAILURES = 5
-// Without a peer address every guesser shares one bucket, so it is wider, or one person locks out all.
-const MAX_ANONYMOUS_FAILURES = 50
-// Every address together: a guess spread over a botnet's addresses still ends, as an account's does (G-9).
-const MAX_GLOBAL_FAILURES = 1000
 
 /** Who is typing codes, as far as the host can tell. Only the peer address counts (FR-R4). */
 export type UserCodeContext = Pick<RequestContext, 'clientIp'>
@@ -126,11 +121,13 @@ export type UserCodeContext = Pick<RequestContext, 'clientIp'>
 // RFC 8628 §5.1: wrong guesses are limited per peer, by its /64 for IPv6, and across all peers together, by a
 // read-then-write count that bounds guessing, not an exact quota.
 const attemptsFor = async (config: ResolvedConfig, context: UserCodeContext) => {
+  const limits = config.userCodeAttempts
+  // Without a peer address every guesser shares one bucket, so it is wider; every address together ends a spread-out guess (G-9).
   const buckets = [
     context.clientIp
-      ? { id: `ip:${addressBucket(context.clientIp)}`, limit: MAX_FAILURES }
-      : { id: 'anonymous', limit: MAX_ANONYMOUS_FAILURES },
-    { id: 'all', limit: MAX_GLOBAL_FAILURES }
+      ? { id: `ip:${addressBucket(context.clientIp)}`, limit: limits.perAddress }
+      : { id: 'anonymous', limit: limits.anonymous },
+    { id: 'all', limit: limits.all }
   ]
   const records = await Promise.all(buckets.map(bucket => readArtifact(config.adapter.artifacts, 'user_code_attempts', bucket.id)))
   if (buckets.some((bucket, index) => (records[index]?.payload.failures ?? 0) >= bucket.limit)) {

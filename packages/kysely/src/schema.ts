@@ -34,6 +34,7 @@ export type SessionsTable = {
   clients: string
   expires_at: Millis
   last_used_at: Millis | null
+  secret_hash: string | null
 }
 
 export type GrantsTable = {

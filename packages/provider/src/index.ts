@@ -55,9 +55,10 @@ export type {
   ResolvedConfig,
   ResourceDescriptor,
   Routes,
-  Ttl
+  Ttl,
+  UserCodeAttempts
 } from './config'
-export { DEFAULT_TTL } from './config'
+export { DEFAULT_TTL, DEFAULT_USER_CODE_ATTEMPTS } from './config'
 export { type ClientCertificate, type ContextProvider, type ProxyTrust, proxiedClientIp, type RequestContext } from './context'
 export { errorResponse, OAuthError, type OAuthErrorCode, type OAuthErrorInit } from './errors'
 export type { Management, ManagementClientInput } from './management'

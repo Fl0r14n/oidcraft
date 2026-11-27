@@ -1,6 +1,6 @@
 /// <reference types="bun" />
 import { AsyncLocalStorage } from 'node:async_hooks'
-import type { FrontChannelLogout, LogoutNotification, Provider } from '@oidcraft/provider'
+import type { FrontChannelLogout, LogoutNotification } from '@oidcraft/provider'
 import { safeFetch } from '@oidcraft/provider/runtimes/bun'
 import { optional } from './env'
 
@@ -32,7 +32,7 @@ const deliverBackChannel = async (notifications: LogoutNotification[]) => {
   )
 }
 
-// The front-channel URLs of the logout this request is, for the page that answers it.
+// The front-channel URLs of the logout this request caused, for the page that answers it.
 const pending = new AsyncLocalStorage<{ frontChannel: FrontChannelLogout[] }>()
 
 /** The provider's logout hooks, as this deployment delivers them (FR-C11). */
@@ -66,9 +66,11 @@ const frontChannelPage = (targets: FrontChannelLogout[], response: Response) => 
   )
 }
 
-/** Handles a request with the provider, and a logout that has front-channel clients to reach with the page that reaches them. */
-export const handleWithLogout = (provider: Provider, request: Request, handle: () => Promise<Response>) => {
-  if (new URL(request.url).pathname !== new URL(`${provider.config.issuer}${provider.config.routes.endSession}`).pathname) return handle()
+/**
+ * Answers any request that ended a session with front-channel clients — a logout, or a sign-in replacing another account's
+ * session (FR-I10) — with the page that reaches them, then goes where the response was going (FR-C11).
+ */
+export const withFrontChannel = (handle: () => Promise<Response>) => {
   const store = { frontChannel: [] as FrontChannelLogout[] }
   return pending.run(store, async () => {
     const response = await handle()

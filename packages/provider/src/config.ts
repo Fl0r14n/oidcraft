@@ -163,7 +163,18 @@ export type ProviderSettings = {
    * sector, which two colluding relying parties can recompute and correlate (FR-C18, OIDC Core §8.1).
    */
   pairwiseSalt?: string
+  /**
+   * How many wrong user codes the device flow takes in ten minutes before it answers 429 (RFC 8628 §5.1): per address
+   * (an IPv6 /64), from callers with no address, and from everyone together. The last is what bounds a guess spread over
+   * many addresses, and also what anyone with that many can spend to refuse every user for the window: raise it where
+   * the device flow matters more than the odds of a guess (G-9).
+   */
+  userCodeAttempts?: Partial<UserCodeAttempts>
 }
+
+export type UserCodeAttempts = { perAddress: number; anonymous: number; all: number }
+
+export const DEFAULT_USER_CODE_ATTEMPTS: UserCodeAttempts = { perAddress: 5, anonymous: 50, all: 1000 }
 
 /** Asked during a request: the answer, or a throw, is the outcome. Each one that fetches does so for a URL the core will not fetch (FR-A1). */
 export type ProviderHooks = {
@@ -302,6 +313,7 @@ type Defaulted = {
   extraParameters: string[]
   subjectType: 'public' | 'pairwise'
   authorizationDetailTypes: string[]
+  userCodeAttempts: UserCodeAttempts
 }
 
 export type ResolvedConfig = Omit<ProviderConfig, keyof Defaulted> & Defaulted & { issuerUrl: URL }
@@ -380,6 +392,11 @@ export const resolveConfig = (config: ProviderConfig): ResolvedConfig => {
   for (const [name, seconds] of Object.entries(ttl)) {
     if (seconds === undefined) continue
     if (!Number.isInteger(seconds) || seconds <= 0) problems.push(`ttl.${name} must be a positive whole number of seconds, got ${seconds}`)
+  }
+
+  const userCodeAttempts = { ...DEFAULT_USER_CODE_ATTEMPTS, ...config.userCodeAttempts }
+  for (const [name, limit] of Object.entries(userCodeAttempts)) {
+    if (!Number.isInteger(limit) || limit <= 0) problems.push(`userCodeAttempts.${name} must be a positive whole number, got ${limit}`)
   }
 
   const scopes = config.scopes ?? DEFAULT_SCOPES
@@ -472,7 +489,8 @@ export const resolveConfig = (config: ProviderConfig): ResolvedConfig => {
     resources,
     extraParameters,
     subjectType: config.subjectType ?? 'public',
-    authorizationDetailTypes: config.authorizationDetailTypes ?? []
+    authorizationDetailTypes: config.authorizationDetailTypes ?? [],
+    userCodeAttempts
   }
 }
 

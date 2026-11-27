@@ -65,7 +65,8 @@ export const mysqlTables = (database?: string) => {
       upstreamSessionId: varchar('upstream_session_id', { length: 255 }),
       clients: json('clients').notNull(),
       expiresAt: millis('expires_at').notNull(),
-      lastUsedAt: millis('last_used_at')
+      lastUsedAt: millis('last_used_at'),
+      secretHash: varchar('secret_hash', { length: 64 })
     },
     t => [
       index('oidc_sessions_account_idx').on(t.accountId),

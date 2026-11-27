@@ -178,7 +178,7 @@ Low:
 Hardening: security headers on HTML; device user-code limits (global cap, /64, modulo bias); password and body
 length caps; `cf-connecting-ip` and proxy options per runtime; realm key check by thumbprint; RFC 8265 usernames;
 per-upstream callback path; client-assertion `jti` namespaced by client; PKCE value formats; `request_uri`
-without `client_id`; MySQL PAD SPACE collations; email cap per normalised address.
+without `client_id`; MySQL PAD SPACE collations (done, migration `0007_exact_keys`); email cap per normalised address.
 
 Reference deployment (`apps/demo-server/src`):
 

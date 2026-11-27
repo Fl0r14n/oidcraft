@@ -145,6 +145,19 @@ export const adapterConformance = (create: () => Adapter | Promise<Adapter>, opt
       }
     },
     {
+      // MySQL's PAD SPACE collations matched `c1 ` to `c1`; a key compares exactly, as every other store's does.
+      name: 'a key with a trailing space names another record',
+      run: async () => {
+        const adapter = await full()
+        await adapter.clients.upsert?.(client('c1'))
+        await adapter.artifacts.upsert(artifact())
+        await adapter.sessions.upsert(session())
+        same(await adapter.clients.find('c1 '), undefined, 'clients.find with a trailing space')
+        same(await adapter.artifacts.find('authorization_code', 'a1 '), undefined, 'artifacts.find with a trailing space')
+        same(await adapter.sessions.find(`${session().id} `), undefined, 'sessions.find with a trailing space')
+      }
+    },
+    {
       name: 'a client round-trips',
       run: async () => {
         const adapter = await full()

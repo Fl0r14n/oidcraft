@@ -412,8 +412,9 @@ counts matched rows as affected by default and a host may turn that off, so inse
 duplicate-key error 1062, every conditional `UPDATE` excludes a row it would not change, and a merge
 that adds nothing returns before writing. `ON DUPLICATE KEY UPDATE` answers a clash on any unique
 key, so the one table with two, `oidc_credentials`, is upserted by key instead: a username taken by
-another account fails rather than rewriting that account's row. Every table is `utf8mb4_bin`, since
-every id compares case-sensitively and MySQL's default collations do not. Keys are sized `varchar`,
+another account fails rather than rewriting that account's row. Every table is `utf8mb4_0900_bin`,
+since every id compares case-sensitively and MySQL's default collations do not, and exactly:
+`utf8mb4_bin` pads with spaces, so `rp ` found the client `rp`. MariaDB has the collation from 11.4.5. Keys are sized `varchar`,
 each index under InnoDB's 3072 bytes; a passkey's credential id, up to 1364 characters, is `ascii`
 to fit, and the replay guard stores a SHA-256 of each value, since a client chooses its `jti`'s
 length. A prune is `DELETE … ORDER BY expires_at LIMIT n`, as MySQL refuses a `LIMIT` in an `IN`

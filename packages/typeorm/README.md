@@ -32,6 +32,6 @@ before you deploy; the adapter never creates or alters a table at startup.
 
 It returns a `FullAdapter`, so it satisfies every `@oidcraft/provider` entry point: brokering, local
 accounts and realms included. It passes the shared suite in `@oidcraft/adapter/conformance`, on
-SQLite, Postgres, MySQL 8.4 and MariaDB 11.
+SQLite, Postgres, MySQL 8.4 and MariaDB 11.4.5 or later.
 
 See the [storage guide](https://github.com/Fl0r14n/oidcraft/blob/main/apps/docs/guide/adapters.md).

@@ -98,7 +98,7 @@
     },
     "packages/adapter": {
       "name": "@oidcraft/adapter",
-      "version": "0.3.1",
+      "version": "0.4.0",
       "dependencies": {
         "@oidcraft/core": "workspace:^",
         "jose": "^6.2.17",
@@ -106,7 +106,7 @@
     },
     "packages/angular": {
       "name": "@oidcraft/angular",
-      "version": "12.0.0",
+      "version": "13.0.0",
       "dependencies": {
         "@oidcraft/client": "workspace:^",
         "@oidcraft/core": "workspace:^",
@@ -121,7 +121,7 @@
     },
     "packages/client": {
       "name": "@oidcraft/client",
-      "version": "0.4.0",
+      "version": "0.5.0",
       "dependencies": {
         "@oidcraft/core": "workspace:^",
         "jose": "^6.2.17",
@@ -129,14 +129,14 @@
     },
     "packages/core": {
       "name": "@oidcraft/core",
-      "version": "0.5.0",
+      "version": "0.6.0",
       "dependencies": {
         "jose": "^6.2.17",
       },
     },
     "packages/drizzle": {
       "name": "@oidcraft/drizzle",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "devDependencies": {
         "@oidcraft/adapter": "workspace:^",
         "@oidcraft/sql": "workspace:*",
@@ -152,7 +152,7 @@
     },
     "packages/kysely": {
       "name": "@oidcraft/kysely",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "devDependencies": {
         "@oidcraft/adapter": "workspace:^",
         "@oidcraft/sql": "workspace:*",
@@ -169,7 +169,7 @@
     },
     "packages/provider": {
       "name": "@oidcraft/provider",
-      "version": "0.9.0",
+      "version": "0.10.0",
       "dependencies": {
         "@oidcraft/adapter": "workspace:^",
         "@oidcraft/core": "workspace:^",
@@ -187,7 +187,7 @@
     },
     "packages/react": {
       "name": "@oidcraft/react",
-      "version": "5.0.0",
+      "version": "6.0.0",
       "dependencies": {
         "@oidcraft/client": "workspace:^",
         "@oidcraft/core": "workspace:^",
@@ -225,7 +225,7 @@
     },
     "packages/redis": {
       "name": "@oidcraft/redis",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "devDependencies": {
         "@oidcraft/adapter": "workspace:^",
       },
@@ -245,7 +245,7 @@
     },
     "packages/typeorm": {
       "name": "@oidcraft/typeorm",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "devDependencies": {
         "@oidcraft/adapter": "workspace:^",
         "@oidcraft/sql": "workspace:*",
@@ -278,7 +278,7 @@
     },
     "packages/vue": {
       "name": "@oidcraft/vue",
-      "version": "10.0.0",
+      "version": "11.0.0",
       "dependencies": {
         "@oidcraft/client": "workspace:^",
         "@oidcraft/core": "workspace:^",

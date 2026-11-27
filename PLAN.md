@@ -126,7 +126,7 @@ marks a finding reproduced by a throwaway test. Paths are under `packages/provid
 
 - [x] One SQL kernel in `@oidcraft/sql` for drizzle/kysely/typeorm.
 - [ ] Split `authorize/authorization.ts`, `clients/registration.ts`, refresh paths in
-      `token/code.ts`, the demo's `interaction/routes.ts`. `accounts/index.ts` is split.
+      `token/code.ts`. `accounts/index.ts` and the demo's `interaction/routes.ts` are split.
 - [ ] `broker.complete` verifies twice; `sealed.ts` has no key id (done: HKDF and a key id, `v1` still read).
 
 ### 4. Security

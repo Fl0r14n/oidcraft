@@ -271,7 +271,7 @@ forever. A pushed request is pushed again rather than replayed by reference (RFC
   it throws: nobody is signed in to consent.
 - **Whose consent to ask is yours to decide.** The provider has no notion of a first-party client.
   The reference deployment completes consent without a screen for its own applications
-  (`apps/demo-server/src/interaction/routes.ts`); that is a policy, and it is the host's.
+  (`apps/demo-server/src/interaction/sign-in.ts`); that is a policy, and it is the host's.
 
 Leaving a scope out is refused, not stored as a narrower grant:
 
@@ -447,5 +447,5 @@ on the password screen as you answer a wrong password, or the difference confirm
 - Bind any half-finished state, such as a pending second factor, to the browser and the interaction.
 - Finish an email sign-in with `completeHere`, and nothing else: it is the one answer that may come
   from another browser. Take the link's `POST` only from your own origin.
-- The reference implementation of all of this is `apps/demo-server/src/interaction/routes.ts`, with
+- The reference implementation of all of this is `apps/demo-server/src/interaction/`, a file per flow, with
   the screens in `packages/ui`; replace both wholesale (FR-I3).

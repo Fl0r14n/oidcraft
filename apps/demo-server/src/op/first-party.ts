@@ -1,5 +1,6 @@
 /// <reference types="bun" />
-import type { Adapter, CredentialsAdapter, Provider } from '@oidcraft/provider'
+import type { Adapter, Provider } from '@oidcraft/provider'
+import { credentialsOf } from './accounts'
 import { optional } from './env'
 
 export const ADMIN_CLIENT_ID = 'oidcraft-admin'
@@ -41,7 +42,7 @@ export const seedFirstPartyClients = async (adapter: Adapter, issuer: string) =>
 
 /** By username, so OIDCRAFT_ADMINS names people; an account with no local credential, a brokered one, administers nothing. */
 export const administratorName = async (provider: Provider, accountId: string) => {
-  const credential = await (provider.config.adapter as Partial<CredentialsAdapter>).credentials?.find(accountId)
+  const credential = await credentialsOf(provider)?.find(accountId)
   return credential && administrators().has(credential.username) ? credential.username : undefined
 }
 

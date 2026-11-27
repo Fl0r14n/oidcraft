@@ -1,5 +1,5 @@
 /// <reference types="bun" />
-import type { AccountStore, Adapter, CredentialsAdapter } from '@oidcraft/provider'
+import type { AccountStore, Adapter, CredentialsAdapter, Provider } from '@oidcraft/provider'
 import { type Accounts, createAccounts, type EmailSignInIssue, generateSecretKey } from '@oidcraft/provider/accounts'
 import { bunPasswordHasher } from '@oidcraft/provider/runtimes/bun'
 import { devSecret } from './dev-secrets'
@@ -16,6 +16,9 @@ const secretKey = async () => {
 }
 
 const totpKey = await secretKey()
+
+/** The provider's credential store, where its adapter has one: a brokered account has no credential, and no username. */
+export const credentialsOf = (provider: Provider) => (provider.config.adapter as Partial<CredentialsAdapter>).credentials
 
 export const createDemoAccounts = (adapter: CredentialsAdapter, issuerName: string, issuerUrl: string) =>
   createAccounts({

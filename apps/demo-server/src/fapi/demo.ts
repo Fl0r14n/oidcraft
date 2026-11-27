@@ -65,14 +65,29 @@ const post = async (provider: Provider, path: string, body: Record<string, strin
   )
 }
 
-const pending = new Map<string, string>()
+// D-10: the verifier waits in this browser, for ten minutes, never in a map of this process that anyone's visit grows.
+const PENDING = 'fapi-demo'
+const PENDING_TTL = 600
 
-export const fapiDemoRoutes = async (provider: Provider, url: URL) => {
+const pendingCookie = (value: string, maxAge: number) =>
+  `${PENDING}=${value}; Path=/fapi-demo; HttpOnly; Secure; SameSite=Lax; Max-Age=${maxAge}`
+
+const pendingOf = (request: Request) => {
+  for (const pair of request.headers.get('cookie')?.split(';') ?? []) {
+    const [name, value] = pair.trim().split('=')
+    if (name === PENDING && value) {
+      const [state, verifier] = value.split('.')
+      if (state && verifier) return { state, verifier }
+    }
+  }
+  return undefined
+}
+
+export const fapiDemoRoutes = async (provider: Provider, request: Request, url: URL) => {
   const { issuer } = provider.config
   if (url.pathname === '/fapi-demo') {
     const verifier = random()
     const state = random()
-    pending.set(state, verifier)
     const pushed = await post(provider, '/request', {
       response_type: 'code',
       client_id: FAPI_DEMO_CLIENT_ID,
@@ -84,15 +99,24 @@ export const fapiDemoRoutes = async (provider: Provider, url: URL) => {
     })
     if (!pushed.ok) return pushed
     const { request_uri } = (await pushed.json()) as { request_uri: string }
-    return Response.redirect(`${issuer}/authorize?${new URLSearchParams({ client_id: FAPI_DEMO_CLIENT_ID, request_uri })}`, 303)
+    return new Response(null, {
+      status: 303,
+      headers: {
+        location: `${issuer}/authorize?${new URLSearchParams({ client_id: FAPI_DEMO_CLIENT_ID, request_uri })}`,
+        'set-cookie': pendingCookie(`${state}.${verifier}`, PENDING_TTL)
+      }
+    })
   }
 
   if (url.pathname === '/fapi-demo/callback') {
-    const state = url.searchParams.get('state') ?? ''
-    const verifier = pending.get(state)
-    pending.delete(state)
+    const held = pendingOf(request)
+    const verifier = held?.state === url.searchParams.get('state') ? held?.verifier : undefined
+    const spent = { 'set-cookie': pendingCookie('', 0) }
     if (url.searchParams.has('error') || !verifier) {
-      return Response.json({ error: url.searchParams.get('error') ?? 'unknown state' }, { status: 400 })
+      return Response.json(
+        { error: url.searchParams.get('error') ?? 'no sign-in was started in this browser' },
+        { status: 400, headers: spent }
+      )
     }
     const token = await post(provider, '/token', {
       grant_type: 'authorization_code',
@@ -101,19 +125,22 @@ export const fapiDemoRoutes = async (provider: Provider, url: URL) => {
       code_verifier: verifier
     })
     const body = (await token.json()) as Record<string, string>
-    if (!token.ok) return Response.json(body, { status: token.status })
+    if (!token.ok) return Response.json(body, { status: token.status, headers: spent })
     const userinfo = await provider.handle(
       new Request(`${issuer}/userinfo`, {
         headers: { authorization: `DPoP ${body.access_token}`, dpop: await proof('GET', `${issuer}/userinfo`, body.access_token) }
       })
     )
-    return Response.json({
-      token_type: body.token_type,
-      scope: body.scope,
-      refresh_token: body.refresh_token ? 'issued; under FAPI 2.0 it does not rotate' : 'not issued',
-      id_token: body.id_token && decodeJwt(body.id_token),
-      userinfo: await userinfo.json()
-    })
+    return Response.json(
+      {
+        token_type: body.token_type,
+        scope: body.scope,
+        refresh_token: body.refresh_token ? 'issued; under FAPI 2.0 it does not rotate' : 'not issued',
+        id_token: body.id_token && decodeJwt(body.id_token),
+        userinfo: await userinfo.json()
+      },
+      { headers: spent }
+    )
   }
   return undefined
 }

@@ -64,7 +64,7 @@ const server = serve({
       if (response) return response
     }
     if (url.pathname.startsWith('/fapi-demo') && site === control) {
-      const response = await fapiDemoRoutes(provider, url)
+      const response = await fapiDemoRoutes(provider, request, url)
       if (response) return response
     }
     if (url.pathname === '/device' || url.pathname === '/device/decide') {
@@ -72,9 +72,10 @@ const server = serve({
       if (response) return response
     }
     const response = await provider.handle(request, context)
+    // D-9: the code alone; a description can carry what the request chose, a client id among it, onto this server's page.
     if (url.pathname === '/authorize' && response.status >= 400 && response.headers.get('content-type')?.includes('json')) {
-      const { error, error_description } = await response.json()
-      return screens.error(error, error_description, response.status)
+      const { error } = await response.json()
+      return screens.error(error, undefined, response.status)
     }
     return response
   }

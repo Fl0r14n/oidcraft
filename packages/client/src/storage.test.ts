@@ -25,6 +25,24 @@ const withStorage = (overrides: Partial<Storage>, fn: () => void) => {
   }
 }
 
+// R-3, FR-L4: a server runtime's `localStorage` is shared by every request the process serves.
+describe('outside a browser', () => {
+  it('reads and writes no localStorage, even where the runtime has one', () => {
+    const had = Object.getOwnPropertyDescriptor(globalThis, 'document')
+    delete (globalThis as { document?: unknown }).document
+    try {
+      local.setItem('k', JSON.stringify({ a: 'someone else' }))
+      const store = createStorageStore('k', { a: 'mine' })
+      expect(store.get()).toEqual({ a: 'mine' })
+      store.set({ a: 'written' })
+      expect(local.getItem('k')).toBe(JSON.stringify({ a: 'someone else' }))
+    } finally {
+      // The test DOM is process-wide (scripts/test-dom.ts): it goes back whatever happens here.
+      if (had) Object.defineProperty(globalThis, 'document', had)
+    }
+  })
+})
+
 describe('createStorageStore', () => {
   it('falls back to the initial value when nothing is stored', () => {
     expect(createStorageStore('k', { a: 1 }).get()).toEqual({ a: 1 })

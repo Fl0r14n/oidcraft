@@ -142,7 +142,7 @@ describe('checkToken', () => {
 
       const checking = oauth.checkToken()
       for (let tick = 0; !answer && tick < 100; tick++) await Promise.resolve()
-      jest.advanceTimersByTime(30_001)
+      jest.advanceTimersByTime(60_001)
       await checking
       answer?.({ access_token: 'late', refresh_token: 'r2', expires_in: 60 })
       for (let tick = 0; tick < 10; tick++) await Promise.resolve()
@@ -249,6 +249,35 @@ describe('checkToken across tabs', () => {
     expect(second.token().refresh_token).toBe('r2')
     first.dispose()
     second.dispose()
+  })
+  // R-5: the lock released at the caller's patience let the other tab present r1 again while the first request was in flight.
+  it('holds the lock while a slow refresh is in flight, so the other tab never presents the same token', async () => {
+    jest.useFakeTimers()
+    local.setItem('token', JSON.stringify({ refresh_token: 'r1', access_token: 'stale', token_type: 'Bearer', expires: Date.now() - 1 }))
+    let answer: ((token: OAuthToken) => void) | undefined
+    const functions = mockOAuthFunctions()
+    functions.refresh.mockImplementation(() => new Promise(resolve => (answer = resolve)))
+    const config = { config: { tokenPath: '/t', clientId: 'c' }, functions }
+    const first = create(config)
+    const second = create(config)
+    try {
+      const firstCheck = first.checkToken()
+      for (let tick = 0; !answer && tick < 100; tick++) await Promise.resolve()
+      jest.advanceTimersByTime(60_001)
+      await firstCheck
+      const secondCheck = second.checkToken()
+      for (let tick = 0; tick < 50; tick++) await Promise.resolve()
+      expect(functions.refresh).toHaveBeenCalledTimes(1)
+
+      answer?.({ access_token: 'fresh', refresh_token: 'r2', token_type: 'Bearer', expires_in: 60 })
+      await secondCheck
+      expect(functions.refresh).toHaveBeenCalledTimes(1)
+      expect(second.token().refresh_token).toBe('r2')
+    } finally {
+      jest.useRealTimers()
+      first.dispose()
+      second.dispose()
+    }
   })
 })
 

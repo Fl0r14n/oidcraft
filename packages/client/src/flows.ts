@@ -18,6 +18,7 @@ import {
 } from '@oidcraft/core'
 import type { ConfigContext } from './config'
 import type { Jwt } from './jwt'
+import { browserStorage } from './storage'
 import { createStore } from './store'
 import type { TokenContext } from './token'
 import type { RedirectOptions } from './types'
@@ -68,7 +69,7 @@ export const createFlows = (
   const saveHandoff = (handoff: Partial<AuthorizationHandoff>) => {
     pending = handoff
     try {
-      const store = globalThis.localStorage
+      const store = browserStorage()
       if (!store || !handoff.state) return
       for (let i = store.length - 1; i >= 0; i--) {
         const key = store.key(i)
@@ -81,19 +82,20 @@ export const createFlows = (
   const takeHandoff = (state: string | undefined): Partial<AuthorizationHandoff> | undefined => {
     let stored: Partial<AuthorizationHandoff> | undefined
     try {
-      const store = globalThis.localStorage
+      const store = browserStorage()
       // An error answered without its state, as RFC 6749 §4.1.2.1 forbids but servers do, is matched only when one is pending.
       const keys = Array.from({ length: store?.length ?? 0 }, (_, i) => store?.key(i)).filter(key => key?.startsWith(handoffPrefix()))
       const key = state ? `${handoffPrefix()}${state}` : keys.length === 1 ? keys[0] : undefined
       if (key) {
-        const raw = globalThis.localStorage?.getItem(key)
-        globalThis.localStorage?.removeItem(key)
+        const raw = store?.getItem(key)
+        // RFC 9700 §4.7: anyone can send a browser to the callback with an error and no state; only a callback naming it spends the sign-in.
+        if (state) store?.removeItem(key)
         const { expires, ...handoff } = raw ? JSON.parse(raw) : { expires: 0 }
         if (Number(expires) > Date.now()) stored = handoff
       }
     } catch {}
     const handoff = stored ?? (state === undefined || pending?.state === state ? pending : undefined)
-    pending = undefined
+    if (state) pending = undefined
     return handoff
   }
 

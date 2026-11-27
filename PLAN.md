@@ -139,8 +139,8 @@ Medium:
 - [x] A-1 `[test]` account-wide lockout renews the generation, freeing every slot (`accounts/index.ts:264,302`).
 - [x] A-2 `allowedUpstreams` not enforced at `interactions.complete` (`authorize/interactions.ts:292`).
 - [ ] R-1 `fromKv` `destroyByClientId` scans, reachable from RFC 7592 DELETE (`packages/adapter/src/kv.ts:156,303`).
-- [ ] R-2 ID token `iss` unchecked without a configured issuer (`packages/core/src/jwt.ts:170`).
-- [ ] R-3 `@oidcraft/client` uses a server-side process-wide `localStorage` (`packages/client/src/storage.ts:5`).
+- [x] R-2 ID token `iss` unchecked without a configured issuer (`packages/core/src/jwt.ts:170`).
+- [x] R-3 `@oidcraft/client` uses a server-side process-wide `localStorage` (`packages/client/src/storage.ts:5`).
 
 Low:
 
@@ -168,12 +168,12 @@ Low:
 - [x] A-8 known/unknown username timing via slot probing (`accounts/index.ts:275`).
 - [x] A-9 `setPassword` clears a host-set `lockedUntil` (`accounts/index.ts:474`).
 - [x] A-10 claim-mapping doc vs default mapper (`broker/types.ts:201`).
-- [ ] R-4 `oauthFetch(Request)` drops its headers (`packages/client/src/fetch.ts:20`).
-- [ ] R-5 refresh lock released mid-request (`packages/client/src/token.ts:192`).
-- [ ] R-6 ID token without `exp`/`iat` accepted; no `algorithms` (`packages/core/src/jwt.ts:176`).
-- [ ] R-7 whitespace-prefixed `http` passes `assertSecure` (`packages/core/src/secure.ts:90`).
+- [x] R-4 `oauthFetch(Request)` drops its headers (`packages/client/src/fetch.ts:20`).
+- [x] R-5 refresh lock released mid-request (`packages/client/src/token.ts:192`).
+- [x] R-6 ID token without `exp`/`iat` accepted; no `algorithms` (`packages/core/src/jwt.ts:176`).
+- [x] R-7 whitespace-prefixed `http` passes `assertSecure` (`packages/core/src/secure.ts:90`).
 - [ ] R-8 `grants.upsert` unions in `fromKv`, overwrites in SQL.
-- [ ] R-9 state-less error callback consumes the pending sign-in (`packages/client/src/flows.ts:174`).
+- [x] R-9 state-less error callback consumes the pending sign-in (`packages/client/src/flows.ts:174`).
 
 Hardening: security headers on HTML; device user-code limits (global cap, /64, modulo bias); password and body
 length caps; `cf-connecting-ip` and proxy options per runtime; realm key check by thumbprint; RFC 8265 usernames;

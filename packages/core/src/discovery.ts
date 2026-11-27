@@ -43,6 +43,7 @@ export const applyDiscovery = (config: Partial<OpenIdConfig> | undefined, discov
     ...(discovered.introspection_endpoint && { introspectionPath: discovered.introspection_endpoint }),
     ...(discovered.end_session_endpoint && { logoutPath: discovered.end_session_endpoint }),
     ...(discovered.jwks_uri && { jwksUri: discovered.jwks_uri }),
+    ...(discovered.id_token_signing_alg_values_supported && { idTokenSigningAlgs: discovered.id_token_signing_alg_values_supported }),
     // RFC 9207: a provider that advertises it is a provider whose silence on `iss` is an error.
     ...(discovered.authorization_response_iss_parameter_supported !== undefined && {
       issuerParameter: discovered.authorization_response_iss_parameter_supported

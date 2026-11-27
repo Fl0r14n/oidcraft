@@ -24,6 +24,7 @@ const verifierFor = (config?: Partial<OpenIdConfig>, verifyIdToken?: IdTokenVeri
     jwksUri: (config as OpenIdConfig)?.jwksUri,
     issuer: (config as OpenIdConfig)?.issuer || (config as OpenIdConfig)?.issuerPath,
     audience: config?.clientId,
+    algorithms: (config as OpenIdConfig)?.idTokenSigningAlgs,
     allowInsecure: (config as OpenIdConfig)?.allowInsecure
   })
 

@@ -12,13 +12,17 @@ are built on, and what a framework without a binding here builds on directly.
 A sign-in in progress keeps its handoff — `state`, `nonce`, the PKCE verifier — under its own `state`
 in `localStorage`, expiring after ten minutes, never in the token every tab shares: starting a
 sign-in in one tab signs none of the others out, and the callback may land in any tab. A callback
-that fails, or that nobody started, never ends a live session.
+that fails, or that nobody started, never ends a live session, and one carrying an error but no
+`state` spends no sign-in in progress. Storage is the browser's only: a server runtime's
+`localStorage` is one for the whole process, so while rendering on a server nothing is read or
+written there.
 
 Refresh is one at a time across tabs, not only within one: it runs under a Web Lock named after the
 storage key, and reads storage again once it holds it, so a tab that waited takes the token another
 tab just wrote instead of presenting the refresh token that tab spent. A provider that rotates
-refresh tokens treats that as a replay and signs the browser out. Where Web Locks are missing, as
-when rendering on a server, each instance is on its own.
+refresh tokens treats that as a replay and signs the browser out. The lock is held until the refresh
+answers, up to five minutes, even after the caller has stopped waiting at a minute. Where Web Locks
+are missing, as when rendering on a server, each instance queues its own refreshes.
 
 The access token goes only to this page's origin, the provider's, and the origins named in
 `resourceOrigins` — an API on another host is listed there (`resourceOrigins: ['https://api.example.com']`).
@@ -27,7 +31,8 @@ and its 401 leaves the session alone. A 401 from where the token did go ends the
 body only `error` and `error_description` become the token state. An HTTP client of your own reports
 a 401 through `onUnauthorized(url, body)`, which applies the same rule; the axios interceptors do.
 
-The ID token is verified against the provider's `jwks_uri`, and refused when there is none.
+The ID token is verified against the provider's `jwks_uri`, issuer and client id, with the
+algorithms discovery advertises, and refused when any is missing.
 `strictJwt: false` is the explicit way to accept one unchecked, for a provider that publishes no keys.
 
 Its consumers are those three and any other browser client. `@oidcraft/provider` uses `@oidcraft/core`

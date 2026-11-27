@@ -18,6 +18,14 @@ describe('assertSecure', () => {
     expect(assertSecure('http://localhost:3000/token', true)).toBe('http://localhost:3000/token')
   })
 
+  // R-7, WHATWG URL §4.4: the parser drops leading spaces and controls and every tab and newline, so they hide nothing.
+  it('refuses http hidden behind whitespace, as the URL parser reads it', () => {
+    for (const url of [' http://auth.com/token', '\x01http://auth.com/token', 'ht\ttp://auth.com/token', 'h\nttp://auth.com/token']) {
+      expect(new URL(url).protocol).toBe('http:')
+      expect(() => assertSecure(url)).toThrow(InsecureEndpointError)
+    }
+  })
+
   it('leaves a relative path alone: it inherits an origin this library does not choose', () => {
     expect(assertSecure('/oauth/token')).toBe('/oauth/token')
     expect(assertSecure(undefined)).toBeUndefined()

@@ -67,6 +67,8 @@ export type OpenIdConfig = AuthorizationCodePKCEConfig & {
   jwksUri?: string
   /** RFC 9207: the provider returns `iss` on the authorization response, so a missing one is an error. Set by discovery. */
   issuerParameter?: boolean
+  /** The algorithms an ID token may be signed with. Set by discovery. */
+  idTokenSigningAlgs?: string[]
 }
 
 export type ResourceOwnerParameters = {
@@ -159,6 +161,7 @@ export type OpenIdConfiguration = {
   scopes_supported?: string[]
   code_challenge_methods_supported?: string[]
   authorization_response_iss_parameter_supported?: boolean
+  id_token_signing_alg_values_supported?: string[]
 
   [x: string]: any
 }

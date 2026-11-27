@@ -60,6 +60,7 @@ describe('jwt verify (jwks configured)', () => {
         .setProtectedHeader({ alg: 'RS256', kid })
         .setIssuer(ISSUER)
         .setAudience(AUDIENCE)
+        .setIssuedAt()
         .setExpirationTime('5m')
         .sign(key)
 

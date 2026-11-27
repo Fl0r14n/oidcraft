@@ -161,6 +161,7 @@ export const createBroker = (config: BrokerConfig) => {
         jwksUri: resolved.jwksUri,
         issuer: resolved.issuer || resolved.issuerPath,
         audience: provider.clientId,
+        algorithms: resolved.idTokenSigningAlgs,
         ...(config.allowInsecure && { allowInsecure: true })
       })
       verifiers.set(provider.id, verifier)

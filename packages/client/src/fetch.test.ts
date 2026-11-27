@@ -83,6 +83,16 @@ describe('authorized transport', () => {
       expect(seen[0]?.authorization).toBe('Bearer at')
     })
 
+    // R-4: headers passed in `init` replace a Request's own, so a Request lost every header it carried.
+    it('keeps the headers of a Request, and adds the bearer to them', async () => {
+      oauth.setToken({ access_token: 'at', token_type: 'Bearer' })
+
+      await oauth.fetch(new Request(`${origin()}/api/orders`, { headers: { accept: 'text/csv' } }))
+
+      expect(seen[0]?.accept).toBe('text/csv')
+      expect(seen[0]?.authorization).toBe('Bearer at')
+    })
+
     it('does not send it to an ignored path', async () => {
       oauth.setToken({ access_token: 'at', token_type: 'Bearer' })
 

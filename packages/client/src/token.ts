@@ -18,7 +18,7 @@ export const isExpiredToken = (token?: OAuthToken) => (token?.expires && Date.no
 const refreshAhead = (token: OAuthToken) => Math.min(30_000, ((Number(token.expires_in) || Number.POSITIVE_INFINITY) * 1e3) / 2)
 const isExpiringToken = (token?: OAuthToken) => (token?.expires && Date.now() + refreshAhead(token) > token.expires) || false
 
-// FR-L5: Web Locks span the origin's tabs; without them, this tab alone.
+// How long a caller waits on discovery, then on the refresh itself.
 const REFRESH_PATIENCE = 30_000
 /** setTimeout's ceiling, about 24.8 days; a later expiry is waited for in steps. */
 const LONGEST_TIMER = 2 ** 31 - 1
@@ -38,10 +38,8 @@ const answeredWithin = async <T>(ms: number, task: Promise<T>) => {
   }
 }
 
-const exclusively = (name: string, task: () => Promise<void>): Promise<void> => {
-  const locks = globalThis.navigator?.locks
-  return locks ? locks.request(name, task) : task()
-}
+/** How long the refresh lock waits on an answer before giving up on it; the caller stops waiting long before. */
+const LOCK_CEILING = 5 * 60_000
 
 export interface TokenState {
   type: OAuthType | undefined
@@ -107,6 +105,16 @@ export const createToken = (
 
   let inFlight: Promise<void> | undefined
 
+  // FR-L5: Web Locks span the origin's tabs; without them, a queue spans this instance's calls.
+  let queue: Promise<unknown> = Promise.resolve()
+  const exclusively = (name: string, task: () => Promise<void>): Promise<void> => {
+    const locks = globalThis.navigator?.locks
+    if (locks) return locks.request(name, task)
+    const run = queue.then(task)
+    queue = run.catch(() => undefined)
+    return run
+  }
+
   const checkToken = () => {
     if (inFlight) return inFlight
     inFlight = (async () => {
@@ -115,7 +123,7 @@ export const createToken = (
         return
       }
       const key = storageKey()
-      await exclusively(`oidcraft.refresh.${key}`, async () => {
+      const held = exclusively(`oidcraft.refresh.${key}`, async () => {
         // FR-L5, FR-T3: another tab may have rotated the refresh token while this one waited
         storage.reload()
         const t = token()
@@ -133,11 +141,13 @@ export const createToken = (
           if (storageKey() === key) setToken(next)
           else writeSlot(key, next)
         }
-        const refreshed = await answeredWithin(REFRESH_PATIENCE, request)
-        // Given up on, not abandoned: a rotated refresh token arriving late is the only one left, and replaying the old one revokes it.
-        if (refreshed === ELAPSED) void request.then(settle, () => undefined)
-        else settle(refreshed)
+        // FR-L5, FR-T3: held until the answer. Released with the request in flight, another tab presents the same refresh token,
+        // which a provider that rotates takes for a replay; and a rotated token arriving late is the only one left.
+        const refreshed = await answeredWithin(LOCK_CEILING, request)
+        if (refreshed !== ELAPSED) settle(refreshed)
       })
+      // The caller stops waiting, the lock does not.
+      await answeredWithin(2 * REFRESH_PATIENCE, held)
     })().finally(() => {
       inFlight = undefined
     })

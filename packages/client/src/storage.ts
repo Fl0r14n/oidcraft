@@ -1,8 +1,11 @@
 import { createStore, type Subscribable } from './store'
 
+/** FR-L4: a browser's own; a server runtime's `localStorage` is one for the whole process, and would hand one user's tokens to the next. */
+export const browserStorage = () => ('document' in globalThis ? globalThis.localStorage : undefined)
+
 export const readSlot = (key: string) => {
   try {
-    const value = globalThis.localStorage?.getItem(key)
+    const value = browserStorage()?.getItem(key)
     return (value && JSON.parse(value)) || undefined
   } catch {
     return undefined
@@ -11,7 +14,7 @@ export const readSlot = (key: string) => {
 
 export const writeSlot = (key: string, value: any) => {
   try {
-    globalThis.localStorage?.setItem(key, JSON.stringify(value))
+    browserStorage()?.setItem(key, JSON.stringify(value))
   } catch {
     /* in-memory state stands on its own */
   }

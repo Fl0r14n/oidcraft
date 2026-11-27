@@ -264,6 +264,20 @@ describe('oauthCallback', () => {
     expect(elsewhere.token().access_token).toBe('from-elsewhere')
   })
 
+  // R-9, RFC 9700 §4.7: anyone can send this browser to the callback with an error and no state.
+  it('an error without a state does not spend the sign-in in progress', async () => {
+    functions.authorize.mockResolvedValue({ access_token: 'signed-in', token_type: 'Bearer' })
+    pending('st')
+
+    await oauth.oauthCallback('https://h/callback?error=access_denied')
+    await createOAuth({ config: { tokenPath: '/t', clientId: 'c', authorizePath: '/a' }, functions }).oauthCallback(
+      'https://h/callback?code=c&state=st'
+    )
+
+    expect(handoffOf().state).toBeUndefined()
+    expect(functions.authorize).toHaveBeenCalledTimes(1)
+  })
+
   it('ignores a url with neither a code nor a token', async () => {
     await oauth.oauthCallback('https://h/callback')
     expect(functions.authorize).not.toHaveBeenCalled()

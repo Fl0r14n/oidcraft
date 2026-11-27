@@ -17,7 +17,8 @@ export const createFetch = (
 
   const oauthFetch: OAuthFetch = async (input, init) => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
-    const headers = new Headers(init?.headers)
+    // FR-L6: a Request's own headers are its call's, and passing new ones in `init` would replace them all.
+    const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined))
     for (const [key, value] of Object.entries(await authHeaders(url))) {
       headers.set(key, value)
     }

@@ -11,10 +11,18 @@ export class InsecureEndpointError extends Error {
 
 const SCHEME = /^([a-z][a-z0-9+.-]*):/i
 
+/** WHATWG URL §4.4: the parser drops leading C0 controls and spaces and every tab and newline, so the scheme is read as it will. */
+const asParsed = (url: string) => {
+  const stripped = url.replace(/[\t\n\r]/g, '')
+  let start = 0
+  while (start < stripped.length && stripped.charCodeAt(start) <= 0x20) start++
+  return stripped.slice(start)
+}
+
 /** Every absolute endpoint must be https unless `allowInsecure` is set; `localhost` is not exempt. */
 export const assertSecure = <T extends string | undefined>(url: T, allowInsecure?: boolean): T => {
   if (!url || allowInsecure) return url
-  const scheme = SCHEME.exec(url)?.[1]?.toLowerCase()
+  const scheme = SCHEME.exec(asParsed(url))?.[1]?.toLowerCase()
   // a relative path inherits the document's origin
   if (!scheme || scheme === 'https') return url
   throw new InsecureEndpointError(url)

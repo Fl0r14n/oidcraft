@@ -86,6 +86,31 @@ describe('createIdTokenVerifier', () => {
       ).toEqual({ error: 'Invalid token' })
     })
 
+    // R-2, FR-L2: with nothing to compare against, any provider's token for any client passed.
+    it('refuses to verify with no issuer or no audience to compare against', async () => {
+      const token = await sign({ iss: 'https://provider.example', aud: CLIENT_ID, sub: 'u1' })
+
+      expect(await createIdTokenVerifier({ jwksUri: JWKS_URI, audience: CLIENT_ID })(token)).toMatchObject({ error: expect.any(String) })
+      expect(await createIdTokenVerifier({ jwksUri: JWKS_URI, issuer: 'https://provider.example' })(token)).toMatchObject({
+        error: expect.any(String)
+      })
+    })
+
+    // R-6, OIDC Core §2: `exp` and `iat` are required, and the algorithm is the provider's.
+    it('rejects a token without iat, or signed with an algorithm the provider does not use', async () => {
+      const withoutIat = await new SignJWT({ iss: 'https://provider.example', aud: CLIENT_ID, sub: 'u1' })
+        .setProtectedHeader({ alg: 'ES256', kid: 'k1' })
+        .setExpirationTime('5m')
+        .sign(privateKey)
+      expect(await verifier('https://provider.example')(withoutIat)).toEqual({ error: 'Invalid token' })
+
+      const token = await sign({ iss: 'https://provider.example', aud: CLIENT_ID, sub: 'u1' })
+      const only = (algorithms: string[]) =>
+        createIdTokenVerifier({ jwksUri: JWKS_URI, issuer: 'https://provider.example', audience: CLIENT_ID, algorithms })(token)
+      expect(await only(['RS256'])).toEqual({ error: 'Invalid token' })
+      expect(await only(['RS256', 'ES256'])).toMatchObject({ sub: 'u1' })
+    })
+
     it('accepts any of a set', async () => {
       const verify = verifier(['https://a.example', 'https://provider.example'])
 

@@ -8,9 +8,9 @@ export const createJwt = ({ config, strictJwt }: Pick<ConfigContext, 'config' | 
   let last: string | undefined
 
   const verifier = () => {
-    const { jwksUri, issuer, issuerPath, clientId, allowInsecure } = (config() || {}) as OpenIdConfig
+    const { jwksUri, issuer, issuerPath, clientId, allowInsecure, idTokenSigningAlgs } = (config() || {}) as OpenIdConfig
     const strict = strictJwt()
-    const key = `${jwksUri}|${issuer || issuerPath}|${clientId}|${strict}|${allowInsecure}`
+    const key = `${jwksUri}|${issuer || issuerPath}|${clientId}|${strict}|${allowInsecure}|${idTokenSigningAlgs}`
     if (key !== last || !verify) {
       last = key
       verify = createIdTokenVerifier({
@@ -18,6 +18,7 @@ export const createJwt = ({ config, strictJwt }: Pick<ConfigContext, 'config' | 
         issuer: issuer || issuerPath,
         audience: clientId,
         strict,
+        algorithms: idTokenSigningAlgs,
         allowInsecure
       })
     }

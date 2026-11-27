@@ -7,7 +7,8 @@ import { readArtifact, type Stored, writeArtifact } from '../payloads'
 import { isFresh } from '../session/session'
 import { subjectFor } from '../token/subjects'
 import { selectUpstream } from '../upstreams/selection'
-import { type ClaimsRequest, heldClaims, individuallyRequested, parseClaimsRequest, type RequestedClaims } from './claims'
+import { type ClaimsRequest, parseClaimsRequest, type RequestedClaims } from './claims'
+import { outstandingConsent } from './consent'
 import { assertChallenge } from './pkce'
 import { requestedResources } from './resources'
 
@@ -260,14 +261,6 @@ export const authorizationResponse = (issuer: string, target: ResponseTarget, va
 export const detailsConsentId = async (accountId: string, clientId: string, details: AuthorizationDetail[]) =>
   base64url.encode(await sha256(JSON.stringify([accountId, clientId, details])))
 
-const missingScopes = (request: AuthorizationRequest, grant: Grant | undefined) =>
-  request.scopes.filter(scope => !grant?.scopes.includes(scope))
-
-const missingClaims = (config: ResolvedConfig, request: AuthorizationRequest, grant: Grant | undefined) => {
-  const held = heldClaims(config, grant)
-  return individuallyRequested(config, request.scopes, request.claims).filter(name => !held.has(name))
-}
-
 /** Every acr the login is asked for, by `acr_values` or by the `claims` parameter, for the screens and the upstream (FR-C22). */
 export const requestedAcrValues = (request: Pick<AuthorizationRequest, 'acrValues' | 'claims' | 'defaultAcrValues'>) => {
   const values = [...new Set([...(request.acrValues ?? []), ...(request.claims?.acr?.values ?? []), ...(request.defaultAcrValues ?? [])])]
@@ -317,7 +310,8 @@ export const authorize = async (
   }
 
   const grant = await config.adapter.grants.findByAccountAndClient(session.accountId, request.clientId)
-  const outstanding = [...missingScopes(request, grant), ...missingClaims(config, request, grant)]
+  const { scopes, claims } = outstandingConsent(config, request, grant)
+  const outstanding = [...scopes, ...claims]
   const detailsConsent = request.authorizationDetails
     ? await detailsConsentId(session.accountId, request.clientId, request.authorizationDetails)
     : undefined

@@ -114,7 +114,8 @@ marks a finding reproduced by a throwaway test. Paths are under `packages/provid
 - [ ] A3 host obligations with no reference implementation: SSRF-safe fetch, mail delivery, security headers,
       DPoP-aware resource check. `provider.verifyAccessToken` landed; `safeFetch` waits for step 4.
 - [ ] A4 invariants at call sites: family liveness (`issueAccessToken`), consent rule twice, sender-constraint
-      matching ×3, token visibility ×4, cookies ×3, error factories.
+      matching ×3, token visibility ×4, cookies ×3, error factories. All but the cookies, which land with S-10 (step 4):
+      `outstandingConsent`/`assertConsentCovers`, `assertAccessToken` and its `refused`, `StoredId`.
 - [x] A5 `authorize ↔ token ↔ clients` import cycle; authorization endpoint inside `provider.ts`.
 - [ ] A6 throttling on `ReplayGuard` slots → an atomic counter on the adapter.
 - [ ] A7 whole-row credential writes → field merge or CAS.

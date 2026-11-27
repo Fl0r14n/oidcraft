@@ -13,8 +13,8 @@ import {
   requestedAcrValues,
   subjectMismatch
 } from './authorization'
-import { heldClaims, individuallyRequested } from './claims'
-import { recordConsent } from './consent'
+import { individuallyRequested } from './claims'
+import { assertConsentCovers, recordConsent } from './consent'
 import { pushParameters } from './par'
 
 const load = async (config: ResolvedConfig, id: string) => {
@@ -113,43 +113,11 @@ const answer = async (
     ? { error: { error: 'login_required', description: 'the sign-in is older than max_age allows' } }
     : ((await refusedLogin(config, request, given.login)) ?? given)
   if (outcome.consent) {
-    const consented = outcome.consent.scopes
-    const unasked = consented.filter(scope => !request.scopes.includes(scope))
-    if (unasked.length) {
-      throw new OAuthError('invalid_request', {
-        description: `consent grants ${unasked.join(', ')}, which this request did not ask for`,
-        spec: 'FR-I4'
-      })
-    }
-    // All or nothing: a partial consent would be stored, then asked for again in full (FR-I4).
     const accountId = outcome.login?.accountId ?? artifact.accountId
     // Before the consume below, like every other refusal: a refused answer must not spend the interaction (FR-I2).
     if (!accountId) throw new OAuthError('invalid_request', { description: 'consent was given without a logged-in account', spec: 'FR-I2' })
     const held = await config.adapter.grants.findByAccountAndClient(accountId, request.clientId)
-    const declined = request.scopes.filter(scope => !consented.includes(scope) && !held?.scopes.includes(scope))
-    if (declined.length) {
-      throw new OAuthError('invalid_request', {
-        description: `consent must approve every requested scope, or answer access_denied; it leaves out ${declined.join(', ')}`,
-        spec: 'FR-I4'
-      })
-    }
-    const asked = individuallyRequested(config, request.scopes, request.claims)
-    const named = outcome.consent.claims ?? []
-    const unaskedClaims = named.filter(name => !asked.includes(name))
-    if (unaskedClaims.length) {
-      throw new OAuthError('invalid_request', {
-        description: `consent grants the claims ${unaskedClaims.join(', ')}, which this request did not ask for`,
-        spec: 'FR-C22'
-      })
-    }
-    const holding = heldClaims(config, held)
-    const declinedClaims = asked.filter(name => !named.includes(name) && !holding.has(name))
-    if (declinedClaims.length) {
-      throw new OAuthError('invalid_request', {
-        description: `consent must approve every requested claim, or answer access_denied; it leaves out ${declinedClaims.join(', ')}`,
-        spec: 'FR-C22'
-      })
-    }
+    assertConsentCovers(config, request, held, outcome.consent)
   }
   if (outcome.login) await knownAccount(config, outcome.login.accountId)
   const requestedDetails = request.authorizationDetails

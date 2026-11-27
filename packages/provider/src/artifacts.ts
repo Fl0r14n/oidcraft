@@ -19,7 +19,7 @@ export const storedId = async (value: string) => base64url.encode(await sha256(v
 
 const idFor = (kind: ArtifactKind, id: string) => (BEARER.has(kind) ? storedId(id) : id)
 
-// NFR-S11: a record found other than by its value (`findByUserCode`) carries the stored id and must not be written back.
+// NFR-S11: a record found other than by its value (`findByUserCode`) carries the stored id; `StoredId` keeps it from being written back.
 const hashedArtifacts = (store: ArtifactStore): ArtifactStore => ({
   ...store,
   async find(kind, id) {

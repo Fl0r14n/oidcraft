@@ -107,8 +107,13 @@ export type Stored<K extends ArtifactKind = ArtifactKind> = K extends ArtifactKi
 export const readArtifact = async <K extends ArtifactKind>(store: ArtifactStore, kind: K, id: string) =>
   (await store.find(kind, id)) as Stored<K> | undefined
 
-export const readByUserCode = async (store: ArtifactStore, userCode: string) =>
-  (await store.findByUserCode?.(userCode)) as Stored<'device_code'> | undefined
+declare const stored: unique symbol
 
-export const writeArtifact = <K extends ArtifactKind>(store: ArtifactStore, artifact: Stored<K>) =>
+/** NFR-S11: an id as the store holds it, already hashed, which `writeArtifact` refuses: written back, it would be hashed twice. */
+export type StoredId = string & { readonly [stored]: true }
+
+export const readByUserCode = async (store: ArtifactStore, userCode: string) =>
+  (await store.findByUserCode?.(userCode)) as (Stored<'device_code'> & { id: StoredId }) | undefined
+
+export const writeArtifact = <A extends Stored>(store: ArtifactStore, artifact: A extends { id: StoredId } ? never : A) =>
   store.upsert(artifact as unknown as Artifact)

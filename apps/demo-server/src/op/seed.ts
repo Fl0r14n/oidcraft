@@ -58,6 +58,34 @@ export const seedConformanceClients = async (adapter: Adapter) => {
     })
   }
   console.log(`[oidcraft] registered the conformance suite's clients -> ${callback}`)
+  for (const kind of ['logout', 'frontchannel', 'backchannel'] as const) await seedLogoutClient(adapter, suite, kind)
+}
+
+/**
+ * One client per logout plan, under its own alias: a test fails on a logout call it did not expect, so each registers
+ * only its own kind, at the paths the suite serves for a static client beside its callback (NFR-C1).
+ */
+const seedLogoutClient = async (adapter: Adapter, suite: string, kind: 'logout' | 'frontchannel' | 'backchannel') => {
+  const plan = await Bun.file(new URL(`../../../../conformance/${kind}-plan.json`, import.meta.url)).json()
+  const base = `${suite.replace(/\/$/, '')}/test/a/${plan.alias}`
+  const entry = plan.client as PlanClient
+  if (await adapter.clients.find(entry.client_id)) return
+  await adapter.clients.upsert?.({
+    clientId: entry.client_id,
+    clientSecretHash: await hashClientSecret(entry.client_secret),
+    clientName: `conformance suite (${entry.client_id})`,
+    redirectUris: [`${base}/callback`],
+    postLogoutRedirectUris: [`${base}/post_logout_redirect`],
+    ...(kind === 'frontchannel' && { frontchannelLogoutUri: `${base}/frontchannel_logout`, frontchannelLogoutSessionRequired: true }),
+    ...(kind === 'backchannel' && { backchannelLogoutUri: `${base}/backchannel_logout`, backchannelLogoutSessionRequired: true }),
+    grantTypes: ['authorization_code'],
+    responseTypes: ['code'],
+    scopes: ['openid', 'profile', 'email'],
+    tokenEndpointAuthMethod: 'client_secret_basic',
+    requirePkce: false,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  })
 }
 
 type FapiPlanClient = { client_id: string; scope: string; jwks: { keys: Record<string, unknown>[] } }

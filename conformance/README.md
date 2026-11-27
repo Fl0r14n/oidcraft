@@ -1,8 +1,9 @@
 # Conformance
 
-`NFR-C1` requires the OpenID Foundation conformance suite to run in CI for the `basic` and `config`
-OP profiles. **Both are green locally (last 2026-11-13), and the `conformance` job in
-`.github/workflows/ci.yml` runs them against every push, pinned to the suite's `SUITE_VERSION`.**
+`NFR-C1` requires the OpenID Foundation conformance suite to run in CI for the `basic`, `config`,
+Form Post, RP-Initiated Logout, Front-Channel Logout and Back-Channel Logout OP profiles, and FAPI 2.0.
+**All are green locally (2026-11-27), and the `conformance` job in `.github/workflows/ci.yml` runs
+each as a job of its own against every push, pinned to the suite's `SUITE_VERSION`.**
 
 `dynamic` is not a target. It tests a Dynamic OpenID Provider (OIDC Core §15.2), which must offer
 the `id_token` and `id_token token` response types and `request_uri` — FR-C1 and FR-C12 rule out
@@ -79,6 +80,35 @@ Pre-checked 2026-11-13 from the page source the suite stores, for whoever certif
 in this plan and the FAPI one, is the page its module asks for — the login form for the two second
 logins, and the error page naming the refused `redirect_uri` or `request_uri` for the rest. Uploading
 the screenshots and signing off stays a person's job.
+
+## Form Post and logout
+
+`bun run conformance formpost`, `logout`, `frontchannel` and `backchannel` run one plan each, against
+the same demo as the `basic` plan. **Green locally, 2026-11-27:**
+
+| plan                                                             | modules | result                                          |
+| ---------------------------------------------------------------- | ------- | ----------------------------------------------- |
+| `oidcc-formpost-basic-certification-test-plan`                   | 36      | as `basic`: the same expected failure and skips |
+| `oidcc-rp-initiated-logout-certification-test-plan`              | 11      | 3 passed, 8 REVIEW, no failures                 |
+| `oidcc-frontchannel-rp-initiated-logout-certification-test-plan` | 2       | passed                                          |
+| `oidcc-backchannel-rp-initiated-logout-certification-test-plan`  | 2       | passed                                          |
+
+Form Post uses `plan.json`. Each logout plan has a file and a client of its own
+(`logout-plan.json`, `frontchannel-plan.json`, `backchannel-plan.json`): a test fails on a logout call
+it did not expect, so each client registers only its own kind of logout, at the paths the suite serves
+for a static client beside its callback (`post_logout_redirect`, `frontchannel_logout`,
+`backchannel_logout`). The demo seeds all three when `OIDCRAFT_CONFORMANCE_SUITE` is set. The logout
+plans share `expected-failures-logout.json` and `expected-skips-logout.json`, both empty.
+
+The demo delivers both logouts (FR-C11): it POSTs each logout token, and answers a logout with
+front-channel clients with a page that loads their URLs in iframes and then goes where the provider
+was sending the browser (`apps/demo-server/src/op/logout.ts`). To the suite only, whose name resolves
+to 127.0.0.1 behind a self-signed certificate, a back-channel token goes by plain `fetch`; to any other
+client, through `safeFetch`.
+
+The eight REVIEW modules each ask for a screenshot of a page the plan waits for: the error page for a
+missing, modified or foreign `id_token_hint`, an unregistered `post_logout_redirect_uri` or one with a
+query added; and the signed-out page when there is nowhere to go back to.
 
 ## FAPI 2.0
 

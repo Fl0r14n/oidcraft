@@ -94,14 +94,31 @@ jobs:
     needs: check
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    # NFR-C1's basic and config plans, and FAPI 2.0's (FR-C21) against the same demo under the profile.
-    # The FAPI run forgets consent, so the module where the user refuses has a screen to do it on (conformance/README.md).
+    # NFR-C1's basic and config plans, Form Post and the three logout OP plans, each a job of its own, and FAPI 2.0's
+    # (FR-C21) against the same demo under the profile. The FAPI run forgets consent, so the module where the user
+    # refuses has a screen to do it on (conformance/README.md).
     strategy:
       fail-fast: false
       matrix:
         include:
           - plan: oidc
             args: ""
+            profile: ""
+            forget_consent: ""
+          - plan: formpost
+            args: formpost
+            profile: ""
+            forget_consent: ""
+          - plan: logout
+            args: logout
+            profile: ""
+            forget_consent: ""
+          - plan: frontchannel
+            args: frontchannel
+            profile: ""
+            forget_consent: ""
+          - plan: backchannel
+            args: backchannel
             profile: ""
             forget_consent: ""
           - plan: fapi

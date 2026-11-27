@@ -10,6 +10,7 @@ import { brokerCallback } from './src/interaction/broker'
 import { routesFor } from './src/interaction/routes'
 import { mcpEnabled, mcpRoutes } from './src/mcp/server'
 import { issuer, optional } from './src/op/env'
+import { handleWithLogout } from './src/op/logout'
 import { control } from './src/op/provider'
 import { realms, realmsEnabled, siteOf } from './src/op/realms'
 
@@ -71,11 +72,18 @@ const server = serve({
       const response = await routes.deviceRoutes(request, url, context.clientIp)
       if (response) return response
     }
-    const response = await provider.handle(request, context)
+    const response = await handleWithLogout(provider, request, () => provider.handle(request, context))
+    const browserFacing = url.pathname === '/authorize' || url.pathname === provider.config.routes.endSession
     // D-9: the code alone; a description can carry what the request chose, a client id among it, onto this server's page.
-    if (url.pathname === '/authorize' && response.status >= 400 && response.headers.get('content-type')?.includes('json')) {
+    if (browserFacing && response.status >= 400 && response.headers.get('content-type')?.includes('json')) {
       const { error } = await response.json()
       return screens.error(error, undefined, response.status)
+    }
+    // The provider answers a logout with nowhere to go back to in plain text; a person is shown a page, its cookie still cleared.
+    if (url.pathname === provider.config.routes.endSession && response.headers.get('content-type')?.startsWith('text/plain')) {
+      const page = await screens.message('You are signed out', 'You can close this page.')
+      for (const cookie of response.headers.getSetCookie()) page.headers.append('set-cookie', cookie)
+      return page
     }
     return response
   }

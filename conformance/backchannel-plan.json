@@ -1,0 +1,56 @@
+{
+  "alias": "oidcraft-backchannel",
+  "description": "oidcraft OP, Back-Channel Logout OP certification profile",
+  "server": {
+    "discoveryUrl": "https://localhost:3001/.well-known/openid-configuration"
+  },
+  "client": {
+    "client_id": "conformance-backchannel",
+    "client_secret": "conformance-backchannel-secret-long-enough-for-the-suite",
+    "scope": "openid profile email"
+  },
+  "consent": {},
+  "browser": [
+    {
+      "match": "https://localhost:3001/authorize*",
+      "tasks": [
+        {
+          "task": "Sign in, or pick the signed-in account",
+          "optional": true,
+          "match": "https://localhost:3001/interaction/*",
+          "commands": [
+            ["text", "id", "u", "conformance-user", "optional"],
+            ["text", "id", "p", "conformance-password", "optional"],
+            ["click", "css", "button[type=submit]"]
+          ]
+        },
+        {
+          "task": "Consent",
+          "optional": true,
+          "match": "https://localhost:3001/interaction/*",
+          "commands": [["click", "css", "button[value=allow]"]]
+        },
+        {
+          "task": "Verify Complete",
+          "match": "*/test/*/callback*",
+          "commands": [["wait", "id", "submission_complete", 10]]
+        }
+      ]
+    },
+    {
+      "match": "https://localhost:3001/session/end*",
+      "tasks": [
+        {
+          "task": "Confirm signing out, when asked",
+          "optional": true,
+          "match": "https://localhost:3001/interaction/*",
+          "commands": [["click", "css", "button[value=yes]"]]
+        },
+        {
+          "task": "Verify Complete",
+          "match": "*/test/*/post*"
+        }
+      ]
+    }
+  ]
+}

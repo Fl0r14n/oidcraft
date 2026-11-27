@@ -5,6 +5,7 @@ import { createRealms } from '@oidcraft/provider'
 import { screensFor } from '../interaction/screens'
 import { accountStore, createDemoAccounts } from './accounts'
 import { issuer, optional } from './env'
+import { logoutDelivery } from './logout'
 import { control, controlAdapter } from './provider'
 import { seedDemoClient } from './seed'
 import type { Site } from './site'
@@ -76,7 +77,8 @@ export const realms = realmsEnabled
           issuer: realmIssuer(realm.id),
           adapter: { ...storage, accounts: accountStore(storage, accounts) },
           interactionUrl: `${realmIssuer(realm.id)}/interaction`,
-          features: { deviceFlow: true, pushedAuthorizationRequests: true, dpop: true }
+          features: { deviceFlow: true, pushedAuthorizationRequests: true, dpop: true },
+          ...logoutDelivery
         }
       },
       // The host's half of the lifecycle: storage and keys exist before the realm is served.

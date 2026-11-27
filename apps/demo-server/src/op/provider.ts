@@ -9,6 +9,7 @@ import { devSecret } from './dev-secrets'
 import { issuer, optional } from './env'
 import { seedFirstPartyClients } from './first-party'
 import { forgettingConsent } from './forget-consent'
+import { logoutDelivery } from './logout'
 import { seedConformanceClients, seedDemoClient, seedFapiConformanceClients } from './seed'
 import type { Site } from './site'
 import { openStorage, storageLocation } from './storage'
@@ -65,6 +66,8 @@ export const provider = createProvider({
   // Descriptors only: the admin API lists these, and an upstream's client secret is not for it.
   upstreams: upstreams.map(({ id, label, domains }) => ({ id, ...(label && { label }), ...(domains && { domains }) })),
   features: { deviceFlow: true, pushedAuthorizationRequests: true, dpop: true, dynamicRegistration: mcpEnabled },
+  // Both logouts, delivered: back-channel tokens POSTed, front-channel URLs loaded by the browser (FR-C11).
+  ...logoutDelivery,
   // An MCP client registers itself, or names a metadata document it serves (FR-C9, FR-C20).
   ...(mcpEnabled && { resources: mcpResources(), resolveClientMetadata })
 })

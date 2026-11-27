@@ -723,6 +723,12 @@ confidential: `/fapi-demo` pushes the request with a client assertion and a DPoP
 callback redeems the code with DPoP and calls UserInfo. With an http issuer it is not seeded.
 `OIDCRAFT_PROFILE=fapi2` puts the whole provider under the profile for the FAPI conformance plan.
 
+**The demo delivers both logouts (FR-C11).** `src/op/logout.ts` is its `onLogout` and
+`onFrontChannelLogout`: each logout token POSTed through `safeFetch`, and a logout with front-channel
+clients answered by a page that loads their URLs in iframes, then goes where the provider was
+sending the browser. A refused logout shows the error page, and one with nowhere to return to the
+signed-out page, as the RP-Initiated Logout plan expects.
+
 **MCP is opt-in (`OIDCRAFT_MCP=on`, FR-C19, FR-C20).** `src/mcp/server.ts` serves an MCP server at
 `/mcp` with one tool, `whoami`, through the official SDK's web-standard transport, stateless. A
 request without a token gets the RFC 9728 401 pointing at its resource metadata; a token must be one

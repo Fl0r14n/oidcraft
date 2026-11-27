@@ -103,7 +103,7 @@ marks a finding reproduced by a throwaway test. Paths are under `packages/provid
       client_credentials; sender-constraint fails closed; DCR (initial access token, https for web, RFC 7592 update
       keeping operator fields); local vs brokered account-id namespace; what a reset voids; account suspension;
       payload evolution across upgrades; request object `exp`; `prompt=create`.
-- [ ] NFR-C1: RP-Initiated Logout, Back-/Front-Channel Logout and Form Post OP plans are not run.
+- [x] NFR-C1: RP-Initiated Logout, Back-/Front-Channel Logout and Form Post OP plans are not run.
 - [ ] Sub-ids for FR-C20, FR-C22, FR-C24, FR-I9.
 
 ### 2. Architecture

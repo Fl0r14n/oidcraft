@@ -194,7 +194,11 @@ export const createBroker = (given: BrokerConfig) => {
       const provider = required(providerId)
       const resolved = await configurationFor(provider)
 
-      const prompt = Array.isArray(options.prompt) ? options.prompt.join(' ') : options.prompt
+      const asked = (Array.isArray(options.prompt) ? options.prompt : (options.prompt?.split(' ') ?? [])).filter(Boolean)
+      // A-7: a fresh login the downstream requires is one the upstream must perform: its own session, with no auth_time
+      // to say how old it is, would otherwise answer at once, and the sign-in would pass for one made now.
+      const fresh = options.maxAge !== undefined && !asked.includes('none') && !asked.includes('login')
+      const prompt = [...asked, ...(fresh ? ['login'] : [])].join(' ')
       const uiLocales = Array.isArray(options.uiLocales) ? options.uiLocales.join(' ') : options.uiLocales
 
       const request = await beginAuthorization(resolved, {
@@ -228,7 +232,8 @@ export const createBroker = (given: BrokerConfig) => {
         nonce,
         codeVerifier: code_verifier,
         interactionId,
-        browserBinding: await hashOf(binding)
+        browserBinding: await hashOf(binding),
+        startedAt: Date.now()
       }
 
       await config.adapter.artifacts.upsert({
@@ -251,6 +256,8 @@ export const createBroker = (given: BrokerConfig) => {
       const stored = await config.adapter.artifacts.find('broker_handoff', state)
       if (!stored) throw new Error('this sign-in did not start here, or it expired')
       const handoff = stored.payload as Omit<Handoff, 'expiresAt'>
+      // A handoff stored before startedAt was kept started one lifetime before it expires.
+      const startedAt = handoff.startedAt ?? stored.expiresAt.getTime() - (config.handoffTtl ?? DEFAULT_HANDOFF_TTL) * 1000
       // Before the handoff is spent, so a stranger holding the callback URL cannot burn it.
       const presented = cookieValue(cookieHeader, bindingCookie(state))
       const expected = handoff.browserBinding
@@ -313,7 +320,8 @@ export const createBroker = (given: BrokerConfig) => {
         // FR-F6: provenance is the upstream's answer, never invented locally.
         ...(typeof claims.acr === 'string' && { acr: claims.acr }),
         ...(Array.isArray(claims.amr) && { amr: claims.amr as string[] }),
-        ...(typeof claims.auth_time === 'number' && { authTime: new Date(claims.auth_time * 1000) }),
+        // A-7: without an upstream auth_time, the sign-in is no fresher than the round trip that made it.
+        authTime: typeof claims.auth_time === 'number' ? new Date(claims.auth_time * 1000) : new Date(startedAt),
         ...(typeof claims.sid === 'string' && { upstreamSessionId: claims.sid }),
         ...(provider.linkPolicy && { linkPolicy: provider.linkPolicy }),
         // FR-F10 / NFR-S9: opt-in per provider, because keeping these makes us a credential store.

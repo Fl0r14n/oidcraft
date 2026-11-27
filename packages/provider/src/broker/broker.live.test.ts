@@ -2,6 +2,7 @@
 import { afterAll, describe, expect, test } from 'bun:test'
 import { hashClientSecret } from '@oidcraft/adapter'
 import { memoryAdapter } from '@oidcraft/adapter/memory'
+import { decodeJwt, exportJWK, generateKeyPair, SignJWT } from 'jose'
 import { createProvider } from '../provider'
 import { browserOf } from '../test-flow'
 import { createBroker } from './broker'
@@ -25,11 +26,26 @@ const upstreamAdapter = await memoryAdapter({
 
 // Set to make the upstream's UserInfo answer for someone other than the ID token's subject.
 let tamperUserInfo = false
+// Set to make the upstream's ID token carry no auth_time, as an upstream may: re-signed with a key its JWKS also publishes.
+let withoutAuthTime = false
+const reSigning = await generateKeyPair('ES256', { extractable: true })
+const reSigningJwk = { ...(await exportJWK(reSigning.publicKey)), kid: 'no-auth-time', alg: 'ES256', use: 'sig' }
 const server = Bun.serve({
   port: 0,
   fetch: async request => {
     const response = await upstream.handle(request)
-    if (!tamperUserInfo || new URL(request.url).pathname !== '/userinfo') return response
+    const path = new URL(request.url).pathname
+    if (withoutAuthTime && path === '/jwks') {
+      const jwks = (await response.json()) as { keys: unknown[] }
+      return Response.json({ keys: [...jwks.keys, reSigningJwk] })
+    }
+    if (withoutAuthTime && path === '/token') {
+      const tokens = (await response.json()) as { id_token: string }
+      const { auth_time: _, ...claims } = decodeJwt(tokens.id_token)
+      const id_token = await new SignJWT(claims).setProtectedHeader({ alg: 'ES256', kid: 'no-auth-time' }).sign(reSigning.privateKey)
+      return Response.json({ ...tokens, id_token })
+    }
+    if (!tamperUserInfo || path !== '/userinfo') return response
     return Response.json({ ...(await response.json()), sub: 'mallory', email: 'mallory@evil.test' })
   }
 })
@@ -248,6 +264,36 @@ describe('brokering to a live upstream', () => {
     expect(params.get('acr_values')).toBe('mfa')
     expect(params.get('login_hint')).toBe('ada@upstream.test')
     expect(params.get('ui_locales')).toBe('de en')
+  })
+
+  // A-7: an upstream session answers at once, and with no auth_time the sign-in passed for one made now.
+  test('a fresh login required downstream asks the upstream for one', async () => {
+    const params = async (options: Parameters<typeof broker.start>[2]) =>
+      new URL((await broker.start('downstream-interaction-8', 'self', options)).url).searchParams
+    expect((await params({ maxAge: 300 })).get('prompt')).toBe('login')
+    expect((await params({ maxAge: 300, prompt: ['consent'] })).get('prompt')).toBe('consent login')
+    expect((await params({ maxAge: 300, prompt: ['none'] })).get('prompt')).toBe('none')
+    expect((await params({})).get('prompt')).toBeNull()
+  })
+
+  test('without an upstream auth_time, the sign-in is as old as the round trip that made it', async () => {
+    // A broker of its own: jose keeps the key set it fetched, and does not fetch again for an unknown kid within 30 s.
+    const fresh = createBroker({
+      adapter: downstream,
+      callbackUri: CALLBACK,
+      allowInsecure: true,
+      providers: [{ id: 'self', issuer: ISSUER, clientId: 'broker', clientSecret: 'a-long-enough-upstream-secret', scopes: ['openid'] }]
+    })
+    const { url, setCookie, state } = await fresh.start('downstream-interaction-9', 'self')
+    const started = (await downstream.artifacts.find('broker_handoff', state))?.payload as { startedAt?: number }
+    withoutAuthTime = true
+    try {
+      const { identity } = await fresh.complete(await authenticateUpstream(url), cookieOf(setCookie))
+      expect(identity.authTime).toBeInstanceOf(Date)
+      expect(identity.authTime?.getTime()).toBe(started.startedAt as number)
+    } finally {
+      withoutAuthTime = false
+    }
   })
 
   test('a handoff is recorded against the downstream interaction it will resume', async () => {

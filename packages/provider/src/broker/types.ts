@@ -44,6 +44,8 @@ export type Handoff = {
   interactionId: string
   /** A hash of the cookie set on the browser that started it; the callback must carry the cookie (FR-F3). */
   browserBinding: string
+  /** Epoch milliseconds: the sign-in's `auth_time` when the upstream reports none (FR-F6). */
+  startedAt?: number
   expiresAt: Date
 }
 

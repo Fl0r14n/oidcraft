@@ -66,6 +66,17 @@ describe('completeAuthorization', () => {
     expect(verifyIdToken).toHaveBeenCalledTimes(1)
   })
 
+  it('answers empty claims when a host verifier answers nothing', async () => {
+    const authorize = jest.fn().mockResolvedValue({ access_token: 'at', type: OAuthType.AUTHORIZATION_CODE })
+    const result = await completeAuthorization(
+      config,
+      'https://app.com/cb?code=c1&state=s1',
+      { redirect_uri: 'https://app.com/cb', state: 's1' },
+      { functions: { authorize }, verifyIdToken: (async () => undefined) as never }
+    )
+    expect(result).toMatchObject({ ok: true, claims: {} })
+  })
+
   it('refuses a state that is not the one it issued', async () => {
     const authorize = jest.fn()
 

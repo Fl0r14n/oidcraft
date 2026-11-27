@@ -69,9 +69,10 @@ const checkIssuer = (parameters: Record<string, string>, config?: Partial<OpenId
 }
 
 const checkIdToken = async (token: OAuthToken, handoff: Partial<AuthorizationHandoff> | undefined, verify: IdTokenVerifier) => {
-  const claims = await verify(token.id_token)
-  if (claims?.error) return invalid('id_token', (claims.error as string) || 'Invalid token')
-  if (claims?.nonce !== handoff?.nonce) return invalid('nonce', 'Invalid nonce')
+  // A host's own verifier may answer nothing for a token without one; the result still carries claims, if none.
+  const claims: IdTokenClaims = (await verify(token.id_token)) ?? {}
+  if (claims.error) return invalid('id_token', (claims.error as string) || 'Invalid token')
+  if (claims.nonce !== handoff?.nonce) return invalid('nonce', 'Invalid nonce')
   return { ok: true, token, claims } as const
 }
 

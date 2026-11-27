@@ -1,10 +1,25 @@
-import { DEFAULT_MAX_LENGTH, oauthFieldError, randomString } from '@oidcraft/core'
-import type { AccountStore, BrokeringAdapter, Credential, CredentialsAdapter, Seconds } from '@oidcraft/provider'
-import { base64url } from 'jose'
+import { DEFAULT_MAX_LENGTH, oauthFieldError } from '@oidcraft/core'
+import type { AccountStore } from '@oidcraft/provider'
+import { createEmailSignIn } from './email'
+import { createTotpEnrolment } from './enrolment'
 import { createPasskeys, displayNameOf, nameProblem, type PasskeyNameProblem, type RegistrationResponseJSON } from './passkeys'
-import { importHashingKey, importSecretKey, open, seal } from './sealed'
-import { base32, matchingCounter, otpauthUri, TOTP_PERIOD } from './totp'
+import { createRecovery } from './recovery'
+import { createReset } from './reset'
+import { importHashingKey, importSecretKey, open } from './sealed'
+import {
+  type AccountsOptions,
+  createShared,
+  invalid,
+  lockedUntil,
+  normalizeUsername,
+  type PasswordProblem,
+  passwordSetter,
+  type SignInContext
+} from './shared'
+import { createThrottle } from './throttle'
+import { matchingCounter, TOTP_PERIOD } from './totp'
 
+export type { AddressProblem, EmailSignInInteraction, EmailSignInIssue, EmailSignInResult } from './email'
 export type {
   AuthenticationResponseJSON,
   PasskeyAuthenticationResult,
@@ -14,60 +29,18 @@ export type {
   PasskeySummary,
   RegistrationResponseJSON
 } from './passkeys'
+export type { PasskeyResetResult } from './reset'
 export { generateSecretKey } from './sealed'
+export {
+  type AccountsOptions,
+  type AccountsPolicy,
+  normalizeUsername,
+  type PasswordHasher,
+  type PasswordProblem,
+  type SignInContext
+} from './shared'
+export { addressBucket } from './throttle'
 export { hotp } from './totp'
-
-/** argon2id by default in the hashers the runtime entries ship; any PHC-string hasher fits. */
-export type PasswordHasher = {
-  hash(password: string): Promise<string>
-  verify(password: string, hash: string): Promise<boolean>
-}
-
-export type AccountsPolicy = {
-  /** NIST SP 800-63B-4 §3.1.1.2, for a password used alone (FR-I7). @default 15 */
-  minPasswordLength: number
-  /** Failures from one address before it is locked out of the account; without an address, before the account locks. @default 5 */
-  maxFailedAttempts: number
-  /** Failed attempts from all addresses together before the account locks for everyone (G-9). @default 50 */
-  maxFailedAttemptsPerAccount: number
-  /** How long the account-wide count of the attempt above remembers a failure. @default 86400 */
-  failureWindow: Seconds
-  /** @default 900 */
-  lockout: Seconds
-  /** How long a reset token lives. @default 1800 */
-  resetTtl: Seconds
-  /** @default 10 */
-  recoveryCodes: number
-  /** How long a passkey ceremony may take, a phone scanned for one included: WebAuthn L3 §15.1's upper bound (FR-I8). @default 600 */
-  passkeyTimeout: Seconds
-  /** How long an email sign-in token lives, never past its interaction (FR-I9). @default 900 */
-  emailSignInTtl: Seconds
-  /** Email sign-in tokens issued to one address within `emailSignInWindow` (NFR-S12). @default 5 */
-  emailSignInsPerAddress: number
-  /** @default 3600 */
-  emailSignInWindow: Seconds
-}
-
-export type AccountsOptions = {
-  adapter: CredentialsAdapter
-  hasher: PasswordHasher
-  /** 32 random bytes, base64url, that seal TOTP secrets at rest. `generateSecretKey()` makes one. */
-  secretKey: string
-  /** The name an authenticator app shows beside the code, and a passkey prompt shows for the site. */
-  issuer: string
-  /** The issuer's URL. Passkeys need it: their relying party ID is its host name, and an assertion must come from its origin (FR-I8). */
-  origin?: string
-  policy?: Partial<AccountsPolicy>
-  /** scope → the stored claims it releases. @default OIDC Core §5.4's standard scopes */
-  claims?: Record<string, string[]>
-  /**
-   * @default a random id, so a username can change without changing the subject. One id names one account: sign-up refuses
-   * an id that already has linked identities, so a username chosen to read `google:<sub>` takes no one's account (FR-I7, FR-F5).
-   */
-  newAccountId?: (username: string) => string
-  /** A blocklist, which no dependency-free library can ship (NFR-D4): true refuses the password as `rejected` (FR-I7). */
-  rejectPassword?: (password: string, account: { username: string }) => boolean | Promise<boolean>
-}
 
 const STANDARD_CLAIMS: Record<string, string[]> = {
   profile: [
@@ -91,39 +64,6 @@ const STANDARD_CLAIMS: Record<string, string[]> = {
   phone: ['phone_number', 'phone_number_verified']
 }
 
-/** The peer address from the runtime's context (FR-R4). With it a guesser locks out only their own address; else the account (G-9). */
-export type SignInContext = { clientIp?: string | undefined }
-
-type Attempts = { generation: string; lockedUntil?: number }
-
-type Bucket = { scope: string; limit: number; ttl: Seconds; accountId: string | undefined }
-
-/** IPv6 counts by its /64: one subscriber is routinely given a whole one, so by address a guesser has 2^64 of them (G-9). */
-export const addressBucket = (ip: string) => {
-  if (!ip.includes(':')) return ip
-  const written = ip
-    .toLowerCase()
-    .replace(/^\[|\]$/g, '')
-    .split('%')[0] as string
-  const dotted = /^(.*:)(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(written)
-  const [, lead = '', a = 0, b = 0, c = 0, d = 0] = dotted ?? []
-  const address = dotted ? `${lead}${((+a << 8) | +b).toString(16)}:${((+c << 8) | +d).toString(16)}` : written
-  const [head = '', tail] = address.split('::')
-  const left = head ? head.split(':') : []
-  const right = tail ? tail.split(':') : []
-  const groups = tail === undefined ? left : [...left, ...Array<string>(Math.max(0, 8 - left.length - right.length)).fill('0'), ...right]
-  const words = groups.map(group => Number.parseInt(group || '0', 16))
-  const [w0, w1, w2, w3, w4, w5, w6 = 0, w7 = 0] = words
-  // G-9: an IPv4 peer reached through a mapped address or a NAT64/SIIT translator (RFC 6052 §2.1) counts by its own address, not the translator's /64.
-  if ((!w0 && !w1 && !w2 && !w3 && !w4 && w5 === 0xffff) || (w0 === 0x64 && w1 === 0xff9b && !w2 && !w3 && !w4 && !w5)) {
-    return [w6 >> 8, w6 & 255, w7 >> 8, w7 & 255].join('.')
-  }
-  return `${words
-    .slice(0, 4)
-    .map(word => word.toString(16))
-    .join(':')}::/64`
-}
-
 export type AuthenticationResult =
   | { ok: true; accountId: string; secondFactor: boolean }
   | { ok: false; reason: 'invalid' }
@@ -133,8 +73,6 @@ export type SecondFactorResult =
   | { ok: true; method: 'otp' | 'recovery' }
   | { ok: false; reason: 'invalid' }
   | { ok: false; reason: 'locked'; until: Date }
-
-export type PasswordProblem = 'required' | 'tooShort' | 'tooLong' | 'rejected'
 
 export type PasskeySignUpOptionsResult<Options> =
   | { ok: true; options: Options }
@@ -151,212 +89,23 @@ export type RecoveryResult =
   | { ok: false; reason: 'invalid' }
   | { ok: false; reason: 'locked'; until: Date }
 
-export type PasskeyResetResult =
-  | { ok: true; accountId: string; recoveryCodes: string[] }
-  | { ok: false; reason: 'invalid' | 'taken' }
-  | { ok: false; reason: 'name'; problem: PasskeyNameProblem }
-
 export type SignUpResult =
   | { ok: true; accountId: string }
   | { ok: false; reason: 'taken' }
   | { ok: false; reason: 'username'; problem: 'required' | 'tooLong' }
   | { ok: false; reason: 'password'; problem: PasswordProblem }
 
-export type AddressProblem = 'required' | 'tooLong' | 'invalid'
+const signUpBinding = (interactionId: string) => `sign-up:${interactionId}`
 
-/** FR-I9: every refusal but `address` is answered as a success is; `passkey` and `unverified` say what to send instead. */
-export type EmailSignInIssue =
-  | { ok: true; token: string; address: string; accountId: string | undefined }
-  | { ok: false; reason: 'address'; problem: AddressProblem }
-  | { ok: false; reason: 'passkey' | 'unverified' | 'unknown'; address: string }
-  | { ok: false; reason: 'locked'; until: Date }
-
-/** `interactionId` is the one to finish with `provider.interactions.completeHere`, after the TOTP step when `secondFactor`. */
-export type EmailSignInResult =
-  | { ok: true; accountId: string; interactionId: string; secondFactor: boolean; signedUp: boolean }
-  | { ok: false; reason: 'invalid' | 'passkey' }
-  | { ok: false; reason: 'locked'; until: Date }
-
-/** What an email sign-in token is issued for: `provider.interactions.find`'s answer is one. */
-export type EmailSignInInteraction = { id: string; clientId: string; expiresAt: Date }
-
-type EmailSignInPayload = {
-  address: string
-  interactionId: string
-  generation?: string
-  signUp?: { claims: Record<string, unknown> }
-}
-
-/** Usernames compare the way people read them: compatibility-normalized, trimmed, case-folded. */
-export const normalizeUsername = (username: string) => username.normalize('NFKC').trim().toLowerCase()
-
-const digest = async (value: string) =>
-  base64url.encode(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))))
-
-const SLOTS = 'sign_in'
-
-const addressProblem = (address: string): AddressProblem | undefined =>
-  oauthFieldError(address) ?? (/^[^\s@]+@[^\s@]+$/.test(address) ? undefined : 'invalid')
-
-/** Ten base32 characters in two groups: about 50 bits, enough for a code that is also rate-limited. */
-const recoveryCode = () => {
-  const text = base32(crypto.getRandomValues(new Uint8Array(7)))
-    .slice(0, 10)
-    .toLowerCase()
-  return `${text.slice(0, 5)}-${text.slice(5)}`
-}
-
-const normalizeRecoveryCode = (code: string) => code.trim().toLowerCase().replace(/[\s-]/g, '')
-
-/** Long enough that a used recovery code cannot come back while it could still be on someone's paper. */
-const RECOVERY_TOMBSTONE: Seconds = 10 * 365 * 24 * 3600
-
-/** Never a token's digest, which has no colon, so it shares the reset tokens' kind without being one. */
-const generationId = (accountId: string) => `generation:${accountId}`
-
-/** Local accounts over the adapter's `credentials` store (FR-I7); a host without sign-up never calls `register`. */
+/** Local accounts over the adapter's `credentials` store (FR-I7); a host without sign-up never mounts `signUp`. */
 export const createAccounts = (options: AccountsOptions) => {
-  const { credentials } = options.adapter
-  const { adapter, hasher } = options
-  const policy: AccountsPolicy = {
-    minPasswordLength: 15,
-    maxFailedAttempts: 5,
-    maxFailedAttemptsPerAccount: 50,
-    failureWindow: 86_400,
-    lockout: 900,
-    resetTtl: 1800,
-    recoveryCodes: 10,
-    passkeyTimeout: 600,
-    emailSignInTtl: 900,
-    emailSignInsPerAddress: 5,
-    emailSignInWindow: 3600,
-    ...options.policy
-  }
+  const shared = createShared(options)
+  const { adapter, credentials, hasher, policy, spendDecoy } = shared
   const scopes = options.claims ?? STANDARD_CLAIMS
   const key = importSecretKey(options.secretKey)
-  // An unknown username still pays for one verification, so response time does not say which names exist.
-  let decoy: Promise<string> | undefined
-  const spendDecoy = (password: string) => {
-    decoy ??= hasher.hash(randomString(32))
-    return decoy.then(hash => hasher.verify(password, hash))
-  }
-
-  const passwordProblem = async (password: string | undefined, username: string): Promise<PasswordProblem | undefined> => {
-    if (!password) return 'required'
-    if (password.length < policy.minPasswordLength) return 'tooShort'
-    if (password.length > DEFAULT_MAX_LENGTH) return 'tooLong'
-    if (await options.rejectPassword?.(password, { username })) return 'rejected'
-    return undefined
-  }
-
-  /** FR-I7, FR-F5: one id names one account, so an id an upstream's identities already name is taken. */
-  const linkedElsewhere = async (accountId: string) =>
-    Boolean((await (adapter as Partial<BrokeringAdapter>).identities?.listForAccount(accountId))?.length)
-
-  const lockedUntil = (credential: Credential) =>
-    credential.lockedUntil && credential.lockedUntil.getTime() > Date.now() ? credential.lockedUntil : undefined
-
-  const attemptsAt = async (scope: string) => (await adapter.artifacts.find('sign_in_attempts', scope))?.payload as Attempts | undefined
-  const lockedAt = async (scope: string) => {
-    const until = (await attemptsAt(scope))?.lockedUntil
-    return until && until > Date.now() ? new Date(until) : undefined
-  }
-
-  /** Every address together, never reset by a good sign-in: otherwise the owner signing in would restart a spread-out guess (G-9). */
-  const accountWide = (accountId: string, owned = true): Bucket => ({
-    scope: `${accountId}:*`,
-    limit: policy.maxFailedAttemptsPerAccount,
-    ttl: policy.failureWindow,
-    accountId: owned ? accountId : undefined
-  })
-  /** This address, or the account when there is none (G-9); a second factor's apart, so a known password does not reset it. */
-  const ownBucket = (accountId: string, factor: 'password' | 'code', context: SignInContext, owned = true): Bucket => ({
-    scope: `${accountId}:${factor === 'code' ? 'code:' : ''}${context.clientIp ? addressBucket(context.clientIp) : '-'}`,
-    limit: policy.maxFailedAttempts,
-    ttl: policy.lockout,
-    accountId: owned ? accountId : undefined
-  })
-
-  /** A username no password signs in to, counted as an account's is, so locking out names no account either (G-9). */
-  const nobody = async (username: string) => `?${await digest(username)}`
-
-  const lockFor = async (accountId: string, hostLock: Date | undefined, bucket: Bucket) =>
-    hostLock ?? (await lockedAt(accountWide(accountId).scope)) ?? (await lockedAt(bucket.scope))
-
-  /** Kept as long as a slot of the generation can live; a new one frees every slot, so the account-wide lock keeps its own (G-9). */
-  const renew = async (bucket: Bucket, lockUntil?: Date, generation = randomString(8)) =>
-    adapter.artifacts.upsert({
-      id: bucket.scope,
-      kind: 'sign_in_attempts',
-      clientId: '',
-      ...(bucket.accountId && { accountId: bucket.accountId }),
-      payload: { generation, ...(lockUntil && { lockedUntil: lockUntil.getTime() }) } satisfies Attempts,
-      expiresAt: new Date((lockUntil?.getTime() ?? Date.now()) + bucket.ttl * 1000)
-    })
-
-  /** Atomic: a read-then-write count lets parallel guesses all pass a check none of them has yet failed (G-9). */
-  const claimSlot = async (bucket: Bucket) => {
-    const generation = (await attemptsAt(bucket.scope))?.generation ?? '0'
-    for (let slot = 0; slot < bucket.limit; slot++) {
-      if (await adapter.replay.claim(SLOTS, `${bucket.scope}:${generation}:${slot}`, bucket.ttl)) return slot
-    }
-    return undefined
-  }
-
-  const locked = (until: Date) => ({ ok: false, reason: 'locked', until }) as const
-  const invalid = { ok: false, reason: 'invalid' } as const
-  const lockoutFromNow = () => new Date(Date.now() + policy.lockout * 1000)
-
-  /** Before the slow verify, so at most `limit` guesses run at once; a locked account still pays one hash, or names leak (FR-I7). */
-  const admit = async (accountId: string, hostLock: Date | undefined, bucket: Bucket, password?: string) => {
-    const lockedFor = await lockFor(accountId, hostLock, bucket)
-    const slot = lockedFor ? undefined : await claimSlot(bucket)
-    if (slot === undefined) {
-      if (password !== undefined) await spendDecoy(password)
-      return { refused: locked(lockedFor ?? lockoutFromNow()) }
-    }
-    return { slot }
-  }
-
-  const fail = async (accountId: string, bucket: Bucket, slot: number, context: SignInContext) => {
-    const until = lockoutFromNow()
-    if (context.clientIp) {
-      const wide = accountWide(accountId, bucket.accountId !== undefined)
-      const counted = await claimSlot(wide)
-      if (counted === undefined || counted === wide.limit - 1) {
-        await renew(wide, until, (await attemptsAt(wide.scope))?.generation ?? '0')
-        return locked(until)
-      }
-    }
-    if (slot < bucket.limit - 1) return invalid
-    await renew(bucket, until)
-    return locked(until)
-  }
-
-  /** Only a bucket someone failed in this generation is renewed, so a clean sign-in writes nothing. */
-  const succeed = async (bucket: Bucket, slot: number) => {
-    if (slot > 0) await renew(bucket)
-  }
-
-  /** Every way in to an account nothing signs in to by this secret pays what one that does would, lockout included (G-9). */
-  const guessAtNobody = async (username: string, secret: string, factor: 'password' | 'code', context: SignInContext) => {
-    const id = await nobody(username)
-    const bucket = ownBucket(id, factor, context, false)
-    const admitted = await admit(id, undefined, bucket, secret)
-    if (admitted.refused) return admitted.refused
-    await spendDecoy(secret)
-    return fail(id, bucket, admitted.slot, context)
-  }
-
   const hashingKey = importHashingKey(options.secretKey)
-  /** Keyed and bound to the account: 50 bits unsalted are a dictionary away from a dump (FR-I7). */
-  const recoveryHash = async (accountId: string, code: string) =>
-    base64url.encode(
-      new Uint8Array(
-        await crypto.subtle.sign('HMAC', await hashingKey, new TextEncoder().encode(`${accountId}:${normalizeRecoveryCode(code)}`))
-      )
-    )
-
+  const throttle = createThrottle(shared)
+  const recovery = createRecovery(shared, hashingKey)
   const { creationOptions, verifyCreation, keep, ...passkeys } = createPasskeys({
     adapter,
     origin: options.origin,
@@ -364,108 +113,7 @@ export const createAccounts = (options: AccountsOptions) => {
     hashingKey,
     ttl: policy.passkeyTimeout
   })
-
-  const issueRecoveryCodes = async (accountId: string) => {
-    const codes = Array.from({ length: policy.recoveryCodes }, recoveryCode)
-    return { codes, hashes: await Promise.all(codes.map(code => recoveryHash(accountId, code))) }
-  }
-
-  /** Spends one of the account's recovery codes, once (NFR-S5). */
-  const redeemRecoveryCode = async (credential: Credential, code: string) => {
-    const { accountId } = credential
-    const hash = await recoveryHash(accountId, code)
-    if (
-      !credential.recoveryCodes?.includes(hash) ||
-      !(await adapter.replay.claim('recovery', `${accountId}:${hash}`, RECOVERY_TOMBSTONE))
-    ) {
-      return false
-    }
-    // Read again after the claim: written from the copy read before, a reset or TOTP change in between would be undone.
-    const current = await credentials.find(accountId)
-    if (current) {
-      await credentials.upsert({
-        ...current,
-        recoveryCodes: (current.recoveryCodes ?? []).filter(stored => stored !== hash),
-        updatedAt: new Date()
-      })
-    }
-    return true
-  }
-
-  const generationOf = async (accountId: string) =>
-    ((await adapter.artifacts.find('password_reset', generationId(accountId)))?.payload as { generation?: string } | undefined)
-      ?.generation ?? '0'
-
-  const issueResetToken = async (accountId: string) => {
-    const token = randomString(43)
-    await adapter.artifacts.upsert({
-      id: await digest(token),
-      kind: 'password_reset',
-      clientId: '',
-      accountId,
-      payload: { generation: await generationOf(accountId) },
-      expiresAt: new Date(Date.now() + policy.resetTtl * 1000)
-    })
-    return token
-  }
-
-  /** FR-I7: a completed reset spends every other reset and email sign-in token of the account, issued under an older generation. */
-  const liveReset = async (id: string) => {
-    const artifact = await adapter.artifacts.find('password_reset', id)
-    if (!artifact?.accountId || artifact.consumedAt) return undefined
-    const { generation } = artifact.payload as { generation?: string }
-    return generation === (await generationOf(artifact.accountId)) ? { ...artifact, accountId: artifact.accountId } : undefined
-  }
-
-  /** What a reset finishes with, whichever credential it set: the old ones' sessions end and their tokens are revoked (FR-T7). */
-  const afterReset = async (accountId: string, context: SignInContext) => {
-    await adapter.artifacts.upsert({
-      id: generationId(accountId),
-      kind: 'password_reset',
-      clientId: '',
-      accountId,
-      payload: { generation: randomString(8) },
-      expiresAt: new Date(Date.now() + RECOVERY_TOMBSTONE * 1000)
-    })
-    // G-9: guesses at a password that is gone lock nothing; a fresh generation, so no slot of the old one counts.
-    const buckets = [accountWide(accountId), ownBucket(accountId, 'password', {}), ownBucket(accountId, 'code', {})]
-    if (context.clientIp) buckets.push(ownBucket(accountId, 'password', context), ownBucket(accountId, 'code', context))
-    for (const bucket of buckets) await renew(bucket)
-    for (const session of await adapter.sessions.listForAccount(accountId)) await adapter.sessions.destroy(session.id)
-    // FR-T7: an offline refresh token carries its own sign-in and would outlive the sessions. The consent stays, under a
-    // new id, so a token a racing refresh writes after the sweep names a grant that is gone (FR-T3).
-    for (const grant of await adapter.grants.listForAccount(accountId)) {
-      await adapter.grants.destroy(grant.id)
-      await adapter.artifacts.destroyByGrantId(grant.id)
-      await adapter.grants.merge({ ...grant, id: randomString() })
-    }
-  }
-
-  /** Counted per address whether or not an account has it, so the count names no account either (NFR-S12). */
-  const admitEmailSignIn = async (address: string) => {
-    for (let slot = 0; slot < policy.emailSignInsPerAddress; slot++) {
-      if (await adapter.replay.claim('email_sign_in', `${address}:${slot}`, policy.emailSignInWindow)) return true
-    }
-    return false
-  }
-
-  /** FR-I9: a password beside an address never proven on it may be whoever signed up with someone else's address. */
-  const checkEmailSignIn = async (credential: Credential, address: string) => {
-    if ((await adapter.passkeys.listForAccount(credential.accountId)).length) return { ok: false, reason: 'passkey' } as const
-    const { email, email_verified } = credential.claims
-    const proven = email_verified === true && typeof email === 'string' && normalizeUsername(email) === address
-    return credential.passwordHash && !proven ? ({ ok: false, reason: 'unverified' } as const) : ({ ok: true } as const)
-  }
-
-  const liveEmailSignIn = async (id: string) => {
-    const artifact = await adapter.artifacts.find('email_sign_in', id)
-    if (!artifact || artifact.consumedAt) return undefined
-    const { generation } = artifact.payload as EmailSignInPayload
-    return !artifact.accountId || generation === (await generationOf(artifact.accountId)) ? artifact : undefined
-  }
-
-  const signUpBinding = (interactionId: string) => `sign-up:${interactionId}`
-  const resetBinding = (tokenDigest: string) => `reset:${tokenDigest}`
+  const { generationOf, issueResetToken, reset } = createReset(shared, throttle, recovery, { creationOptions, verifyCreation, keep })
 
   const passkeySignUp = {
     /**
@@ -478,8 +126,8 @@ export const createAccounts = (options: AccountsOptions) => {
       if (problem) return { ok: false, reason: 'username', problem } as const
       if (await credentials.findByUsername(username)) return { ok: false, reason: 'taken' } as const
       const claims = input.claims ?? {}
-      const accountId = options.newAccountId?.(username) ?? randomString(24)
-      if (await linkedElsewhere(accountId)) return { ok: false, reason: 'taken' } as const
+      const accountId = shared.newAccountId(username)
+      if (await shared.linkedElsewhere(accountId)) return { ok: false, reason: 'taken' } as const
       const created = await creationOptions(
         { accountId, username, displayName: displayNameOf(username, claims) },
         { ceremony: 'create', binding: signUpBinding(interactionId), signUp: { username, claims } }
@@ -495,10 +143,10 @@ export const createAccounts = (options: AccountsOptions) => {
       const created = await verifyCreation(response, { ceremony: 'create', binding: signUpBinding(interactionId) })
       if (!created?.signUp) return invalid
       const { accountId, signUp } = created
-      const { codes, hashes } = await issueRecoveryCodes(accountId)
+      const { codes, hashes } = await recovery.issueRecoveryCodes(accountId)
       const now = new Date()
       const account = { accountId, ...signUp, recoveryCodes: hashes, failedAttempts: 0, createdAt: now, updatedAt: now }
-      if ((await linkedElsewhere(accountId)) || !(await credentials.create(account))) return { ok: false, reason: 'taken' }
+      if ((await shared.linkedElsewhere(accountId)) || !(await credentials.create(account))) return { ok: false, reason: 'taken' }
       // FR-I8: an account with neither a password nor a passkey has no way in, so it does not stay.
       if (!(await keep(created.passkey(passkeyName))).ok) {
         await credentials.destroy(accountId)
@@ -522,16 +170,6 @@ export const createAccounts = (options: AccountsOptions) => {
     }
   }
 
-  /** `lockedUntil` is the host's suspension: kept, so a new password does not lift it (FR-I7). */
-  const setPassword = async (accountId: string, password: string) => {
-    const credential = await credentials.find(accountId)
-    const problem = await passwordProblem(password, credential?.username ?? '')
-    if (problem) return { ok: false, reason: 'password', problem } as const
-    if (!credential) return { ok: false, reason: 'unknown' } as const
-    await credentials.upsert({ ...credential, passwordHash: await hasher.hash(password), failedAttempts: 0, updatedAt: new Date() })
-    return { ok: true } as const
-  }
-
   return {
     /** Pass as the adapter's `accounts`: `createProvider({ adapter: { ...adapter, accounts: accounts.store } })`. */
     store,
@@ -543,11 +181,11 @@ export const createAccounts = (options: AccountsOptions) => {
       const username = normalizeUsername(input.username)
       const usernameProblem = oauthFieldError(username)
       if (usernameProblem) return { ok: false, reason: 'username', problem: usernameProblem }
-      const problem = await passwordProblem(input.password, username)
+      const problem = await shared.passwordProblem(input.password, username)
       if (problem) return { ok: false, reason: 'password', problem }
       const now = new Date()
-      const accountId = options.newAccountId?.(username) ?? randomString(24)
-      if (await linkedElsewhere(accountId)) return { ok: false, reason: 'taken' }
+      const accountId = shared.newAccountId(username)
+      if (await shared.linkedElsewhere(accountId)) return { ok: false, reason: 'taken' }
       const created = await credentials.create({
         accountId,
         username,
@@ -568,13 +206,13 @@ export const createAccounts = (options: AccountsOptions) => {
       }
       const normalized = normalizeUsername(username)
       const credential = await credentials.findByUsername(normalized)
-      if (!credential?.passwordHash) return guessAtNobody(normalized, password, 'password', context)
+      if (!credential?.passwordHash) return throttle.guessAtNobody(normalized, password, 'password', context)
       const { passwordHash } = credential
-      const bucket = ownBucket(credential.accountId, 'password', context)
-      const admitted = await admit(credential.accountId, lockedUntil(credential), bucket, password)
+      const bucket = throttle.ownBucket(credential.accountId, 'password', context)
+      const admitted = await throttle.admit(credential.accountId, lockedUntil(credential), bucket, password)
       if (admitted.refused) return admitted.refused
-      if (!(await hasher.verify(password, passwordHash))) return fail(credential.accountId, bucket, admitted.slot, context)
-      await succeed(bucket, admitted.slot)
+      if (!(await hasher.verify(password, passwordHash))) return throttle.fail(credential.accountId, bucket, admitted.slot, context)
+      await throttle.succeed(bucket, admitted.slot)
       return { ok: true, accountId: credential.accountId, secondFactor: Boolean(credential.totp?.confirmedAt) }
     },
 
@@ -582,22 +220,22 @@ export const createAccounts = (options: AccountsOptions) => {
     async verifySecondFactor(accountId: string, code: string, context: SignInContext = {}): Promise<SecondFactorResult> {
       const credential = await credentials.find(accountId)
       if (!credential?.totp?.confirmedAt) return invalid
-      const bucket = ownBucket(accountId, 'code', context)
-      const admitted = await admit(accountId, lockedUntil(credential), bucket)
+      const bucket = throttle.ownBucket(accountId, 'code', context)
+      const admitted = await throttle.admit(accountId, lockedUntil(credential), bucket)
       if (admitted.refused) return admitted.refused
 
       const counter = await matchingCounter(await open(await key, accountId, credential.totp.secret), code.replace(/\s/g, ''))
       if (counter !== undefined && (await adapter.replay.claim('totp', `${accountId}:${counter}`, 3 * TOTP_PERIOD))) {
-        await succeed(bucket, admitted.slot)
+        await throttle.succeed(bucket, admitted.slot)
         return { ok: true, method: 'otp' }
       }
 
-      if (await redeemRecoveryCode(credential, code)) {
-        await succeed(bucket, admitted.slot)
+      if (await recovery.redeemRecoveryCode(credential, code)) {
+        await throttle.succeed(bucket, admitted.slot)
         return { ok: true, method: 'recovery' }
       }
 
-      return fail(accountId, bucket, admitted.slot, context)
+      return throttle.fail(accountId, bucket, admitted.slot, context)
     },
 
     /**
@@ -608,14 +246,14 @@ export const createAccounts = (options: AccountsOptions) => {
       const normalized = normalizeUsername(username)
       const credential = await credentials.findByUsername(normalized)
       // G-9: every answer pays one hash, as a password's does, so how long it takes names no account.
-      if (!credential || credential.passwordHash) return guessAtNobody(normalized, code, 'code', context)
+      if (!credential || credential.passwordHash) return throttle.guessAtNobody(normalized, code, 'code', context)
       const { accountId } = credential
-      const bucket = ownBucket(accountId, 'code', context)
-      const admitted = await admit(accountId, lockedUntil(credential), bucket, code)
+      const bucket = throttle.ownBucket(accountId, 'code', context)
+      const admitted = await throttle.admit(accountId, lockedUntil(credential), bucket, code)
       if (admitted.refused) return admitted.refused
-      const [redeemed] = await Promise.all([redeemRecoveryCode(credential, code), spendDecoy(code)])
-      if (!redeemed) return fail(accountId, bucket, admitted.slot, context)
-      await succeed(bucket, admitted.slot)
+      const [redeemed] = await Promise.all([recovery.redeemRecoveryCode(credential, code), spendDecoy(code)])
+      if (!redeemed) return throttle.fail(accountId, bucket, admitted.slot, context)
+      await throttle.succeed(bucket, admitted.slot)
       return { ok: true, accountId, token: await issueResetToken(accountId) }
     },
 
@@ -623,207 +261,21 @@ export const createAccounts = (options: AccountsOptions) => {
     async regenerateRecoveryCodes(accountId: string) {
       const credential = await credentials.find(accountId)
       if (!credential || (credential.passwordHash && !credential.totp?.confirmedAt)) return undefined
-      const { codes, hashes } = await issueRecoveryCodes(accountId)
+      const { codes, hashes } = await recovery.issueRecoveryCodes(accountId)
       await credentials.upsert({ ...credential, recoveryCodes: hashes, updatedAt: new Date() })
       return { recoveryCodes: codes }
     },
 
-    setPassword,
+    setPassword: passwordSetter(shared),
 
     /** WebAuthn: a sign-in of its own, by autofill, or a second factor beside TOTP; and an account's only credential (FR-I8). */
     passkeys: { ...passkeys, ...passkeySignUp },
 
-    totp: {
-      /** Starts enrolment. The secret only takes effect once `confirm` sees a code generated from it. */
-      async begin(accountId: string) {
-        const credential = await credentials.find(accountId)
-        if (!credential) return undefined
-        if (credential.totp?.confirmedAt) return { ok: false, reason: 'enrolled' } as const
-        // A second factor follows a password; an account without one signs in with a passkey, already two (FR-I8).
-        if (!credential.passwordHash) return { ok: false, reason: 'passwordless' } as const
-        const secret = crypto.getRandomValues(new Uint8Array(20))
-        await credentials.upsert({ ...credential, totp: { secret: await seal(await key, accountId, secret) }, updatedAt: new Date() })
-        const encoded = base32(secret)
-        return { ok: true, secret: encoded, uri: otpauthUri(encoded, options.issuer, credential.username) } as const
-      },
+    totp: createTotpEnrolment(shared, key, recovery),
 
-      /** The first code proves the app holds the secret. Returns the recovery codes, shown once and stored hashed. */
-      async confirm(accountId: string, code: string) {
-        const credential = await credentials.find(accountId)
-        if (!credential?.totp || credential.totp.confirmedAt) return undefined
-        const counter = await matchingCounter(await open(await key, accountId, credential.totp.secret), code.replace(/\s/g, ''))
-        if (counter === undefined || !(await adapter.replay.claim('totp', `${accountId}:${counter}`, 3 * TOTP_PERIOD))) return undefined
-        const { codes, hashes } = await issueRecoveryCodes(accountId)
-        await credentials.upsert({
-          ...credential,
-          totp: { secret: credential.totp.secret, confirmedAt: new Date() },
-          recoveryCodes: hashes,
-          updatedAt: new Date()
-        })
-        return { recoveryCodes: codes }
-      },
+    emailSignIn: createEmailSignIn(shared, generationOf),
 
-      async remove(accountId: string) {
-        const credential = await credentials.find(accountId)
-        if (!credential) return
-        const { totp: _, recoveryCodes: __, ...rest } = credential
-        await credentials.upsert({ ...rest, updatedAt: new Date() })
-      },
-
-      async status(accountId: string) {
-        const credential = await credentials.find(accountId)
-        return {
-          enrolled: Boolean(credential?.totp?.confirmedAt),
-          recoveryCodesLeft: credential?.recoveryCodes?.length ?? 0
-        }
-      }
-    },
-
-    emailSignIn: {
-      /** A single-use token for the host to send (FR-A1); an address with no account gets one only with `signUp` (FR-I9). */
-      async issue(
-        address: string,
-        interaction: EmailSignInInteraction,
-        options: { signUp?: { claims?: Record<string, unknown> } } = {}
-      ): Promise<EmailSignInIssue> {
-        const normalized = normalizeUsername(address)
-        const problem = addressProblem(normalized)
-        if (problem) return { ok: false, reason: 'address', problem }
-        if (!(await admitEmailSignIn(normalized))) {
-          return { ok: false, reason: 'locked', until: new Date(Date.now() + policy.emailSignInWindow * 1000) }
-        }
-        const credential = await credentials.findByUsername(normalized)
-        if (!credential && !options.signUp) return { ok: false, reason: 'unknown', address: normalized }
-        const checked = credential ? await checkEmailSignIn(credential, normalized) : undefined
-        if (checked && !checked.ok) return { ok: false, reason: checked.reason, address: normalized }
-        const token = randomString(43)
-        const payload: EmailSignInPayload = {
-          address: normalized,
-          interactionId: interaction.id,
-          ...(credential ? { generation: await generationOf(credential.accountId) } : { signUp: { claims: options.signUp?.claims ?? {} } })
-        }
-        await adapter.artifacts.upsert({
-          id: await digest(token),
-          kind: 'email_sign_in',
-          clientId: interaction.clientId,
-          ...(credential && { accountId: credential.accountId }),
-          payload,
-          expiresAt: new Date(Math.min(Date.now() + policy.emailSignInTtl * 1000, interaction.expiresAt.getTime()))
-        })
-        return { ok: true, token, address: normalized, accountId: credential?.accountId }
-      },
-
-      /** A live token's address and interaction, spending nothing: mail scanners open links too (FR-I9). */
-      async find(token: string) {
-        const artifact = await liveEmailSignIn(await digest(token))
-        if (!artifact) return undefined
-        const { address, interactionId } = artifact.payload as EmailSignInPayload
-        return { address, interactionId }
-      },
-
-      async redeem(token: string): Promise<EmailSignInResult> {
-        const id = await digest(token)
-        const artifact = await liveEmailSignIn(id)
-        if (!artifact || !(await adapter.artifacts.consume('email_sign_in', id))) return invalid
-        const { address, interactionId, signUp } = artifact.payload as EmailSignInPayload
-        let credential = artifact.accountId ? await credentials.find(artifact.accountId) : undefined
-        let signedUp = false
-        if (!artifact.accountId && signUp) {
-          const now = new Date()
-          const accountId = options.newAccountId?.(address) ?? randomString(24)
-          if (await linkedElsewhere(accountId)) return invalid
-          const account: Credential = {
-            accountId,
-            username: address,
-            claims: { ...signUp.claims, email: address, email_verified: true },
-            failedAttempts: 0,
-            createdAt: now,
-            updatedAt: now
-          }
-          signedUp = await credentials.create(account)
-          credential = signedUp ? account : await credentials.findByUsername(address)
-        }
-        if (credential?.username !== address) return invalid
-        const checked = signedUp ? undefined : await checkEmailSignIn(credential, address)
-        if (checked && !checked.ok) return checked.reason === 'passkey' ? { ok: false, reason: 'passkey' } : invalid
-        const until = lockedUntil(credential)
-        if (until) return locked(until)
-        return { ok: true, accountId: credential.accountId, interactionId, secondFactor: Boolean(credential.totp?.confirmedAt), signedUp }
-      }
-    },
-
-    reset: {
-      /** A single-use token for the host to deliver (FR-A1); undefined for an unknown username, which the host must answer identically. */
-      async issue(username: string) {
-        const credential = await credentials.findByUsername(normalizeUsername(username))
-        if (!credential) return undefined
-        return { token: await issueResetToken(credential.accountId), accountId: credential.accountId, claims: credential.claims }
-      },
-
-      /** The same, for an administrator to send someone who lost every way in. Who may ask is the host's decision (FR-M1). */
-      async issueForAccount(accountId: string) {
-        const credential = await credentials.find(accountId)
-        if (!credential) return undefined
-        return { token: await issueResetToken(accountId), accountId, claims: credential.claims }
-      },
-
-      /** Creation options for a new passkey in place of the password, or of a lost passkey; undefined for a token that is not live. */
-      async passkeyOptions(token: string) {
-        const id = await digest(token)
-        const artifact = await liveReset(id)
-        const credential = artifact && (await credentials.find(artifact.accountId))
-        if (!credential) return undefined
-        const { accountId, username, claims } = credential
-        return creationOptions(
-          { accountId, username, displayName: displayNameOf(username, claims) },
-          { ceremony: 'create', binding: resetBinding(id) }
-        )
-      },
-
-      /**
-       * Adds the passkey made from `passkeyOptions` in place of the password and TOTP, with new recovery codes to show once, and, as
-       * `complete` does, ends what the old credentials opened: after a compromise, the password left beside it is the intruder's (FR-I7).
-       */
-      async completeWithPasskey(
-        token: string,
-        response: RegistrationResponseJSON,
-        label: string,
-        context: SignInContext = {}
-      ): Promise<PasskeyResetResult> {
-        const passkeyName = label.trim()
-        const problem = nameProblem(passkeyName)
-        if (problem) return { ok: false, reason: 'name', problem }
-        const id = await digest(token)
-        const created = await verifyCreation(response, { ceremony: 'create', binding: resetBinding(id) })
-        if (!created) return invalid
-        const { accountId } = created
-        const artifact = await liveReset(id)
-        if (artifact?.accountId !== accountId || !(await adapter.artifacts.consume('password_reset', id))) return invalid
-        const kept = await keep(created.passkey(passkeyName))
-        if (!kept.ok) return { ok: false, reason: 'taken' }
-        const { codes, hashes } = await issueRecoveryCodes(accountId)
-        const credential = await credentials.find(accountId)
-        if (credential) {
-          const { passwordHash: _, totp: __, ...rest } = credential
-          await credentials.upsert({ ...rest, recoveryCodes: hashes, updatedAt: new Date() })
-        }
-        await afterReset(accountId, context)
-        return { ok: true, accountId, recoveryCodes: codes }
-      },
-
-      /** Sets the new password, ends every session the old one opened and revokes the tokens issued to the account (FR-T7). */
-      async complete(token: string, password: string, context: SignInContext = {}) {
-        const id = await digest(token)
-        const artifact = await liveReset(id)
-        const problem = await passwordProblem(password, artifact ? ((await credentials.find(artifact.accountId))?.username ?? '') : '')
-        if (problem) return { ok: false, reason: 'password', problem } as const
-        if (!artifact || !(await adapter.artifacts.consume('password_reset', id))) return { ok: false, reason: 'invalid' } as const
-        const set = await setPassword(artifact.accountId, password)
-        if (!set.ok) return { ok: false, reason: 'invalid' } as const
-        await afterReset(artifact.accountId, context)
-        return { ok: true, accountId: artifact.accountId } as const
-      }
-    }
+    reset
   }
 }
 

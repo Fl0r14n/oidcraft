@@ -115,7 +115,7 @@ marks a finding reproduced by a throwaway test. Paths are under `packages/provid
       DPoP-aware resource check.
 - [ ] A4 invariants at call sites: family liveness (`issueAccessToken`), consent rule twice, sender-constraint
       matching ×3, token visibility ×4, cookies ×3, error factories.
-- [ ] A5 `authorize ↔ token ↔ clients` import cycle; authorization endpoint inside `provider.ts`.
+- [x] A5 `authorize ↔ token ↔ clients` import cycle; authorization endpoint inside `provider.ts`.
 - [ ] A6 throttling on `ReplayGuard` slots → an atomic counter on the adapter.
 - [ ] A7 whole-row credential writes → field merge or CAS.
 - [ ] A8 Redis single `~keys` set; no injectable clock.

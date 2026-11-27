@@ -111,8 +111,9 @@ marks a finding reproduced by a throwaway test. Paths are under `packages/provid
 - [x] A1 store wrappers spread (`artifacts.ts:23`, `clients/metadata-document.ts:81`, `keys/signer.ts:25`): a
       class-based adapter loses prototype methods inside the provider.
 - [x] A2 artifact payloads unversioned and cast (`payloads.ts`); e.g. `token/code.ts:141` on a pre-`familyExpiresAt` token.
-- [ ] A3 host obligations with no reference implementation: SSRF-safe fetch, mail delivery, security headers,
-      DPoP-aware resource check. `provider.verifyAccessToken` landed; `safeFetch` waits for step 4.
+- [x] A3 host obligations with no reference implementation: SSRF-safe fetch, mail delivery, security headers,
+      DPoP-aware resource check. `provider.verifyAccessToken` and each runtime's `safeFetch` landed; mail and headers are
+      demo items (D-3, D-7).
 - [ ] A4 invariants at call sites: family liveness (`issueAccessToken`), consent rule twice, sender-constraint
       matching ×3, token visibility ×4, cookies ×3, error factories. All but the cookies, which land with S-10 (step 4):
       `outstandingConsent`/`assertConsentCovers`, `assertAccessToken` and its `refused`, `StoredId`.

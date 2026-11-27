@@ -60,6 +60,14 @@ export { createRealms, isRealmId, type RealmInput, type RealmPatch, type Realms,
 export { protectedResourceMetadata, protectedResourceMetadataUrl } from './resource/protected-resource'
 export { authenticationOf, meetsRequirement, type StepUpRequirement, type StepUpVerdict } from './resource/step-up'
 export type { AccessTokenRefusal, AccessTokenVerification, VerifiedAccessToken, VerifyAccessTokenOptions } from './resource/verify'
+export {
+  createSafeFetch,
+  isPublicAddress,
+  type SafeFetch,
+  type SafeFetchOptions,
+  type SafeFetchRuntime,
+  UnsafeFetchError
+} from './safe-fetch'
 export type { FrontChannelLogout, LogoutNotification } from './session/logout'
 export { resolveAccessToken } from './token/access-token'
 export type { ExchangeDecision, ExchangePolicy } from './token/exchange'

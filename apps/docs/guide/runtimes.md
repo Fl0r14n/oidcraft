@@ -186,6 +186,27 @@ Discovery then advertises the method and `tls_client_certificate_bound_access_to
 capability, neither is advertised, because advertising what the runtime cannot do would be a lie
 (G-8).
 
+## Fetching a URL a client chose
+
+A client names URLs the host fetches or delivers to: a metadata document's `client_id`, `jwks_uri`,
+`sector_identifier_uri`, the logout and CIBA endpoints. The provider refuses any that is not https,
+names an address or carries credentials (NFR-S14), but only the host resolves names, so only the
+host can refuse one that resolves inside its network. Each runtime entry exports `safeFetch` for
+that: https only, every resolved address public under RFC 6890 (cloud metadata at 169.254.169.254
+included), no redirect followed, a deadline and a cap on the body, refusing with
+`UnsafeFetchError`.
+
+| Entry      | Checks the name's addresses | Connects to the address it checked |
+| ---------- | --------------------------- | ---------------------------------- |
+| `node`     | yes                         | yes                                |
+| `bun`      | yes                         | no: `fetch` resolves again         |
+| `deno`     | yes                         | no: `fetch` resolves again         |
+| `workerd`  | no: a Worker cannot resolve | no                                 |
+
+Where it does not connect to the checked address, a name that rebinds between the check and the
+connection is not caught. `createSafeFetch({ resolve, send })` from the root builds one for any other
+runtime.
+
 ## Password hashers
 
 `@oidcraft/provider/accounts` takes any `{ hash, verify }` as its `hasher` (FR-I7). Two ship, one per

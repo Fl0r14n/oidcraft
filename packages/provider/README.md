@@ -364,6 +364,7 @@ so a token issued for one MCP server is useless at another.
 
 ```ts
 import { createProvider, protectedResourceMetadata, protectedResourceMetadataUrl } from '@oidcraft/provider'
+import { safeFetch } from '@oidcraft/provider/runtimes/node' // or /bun, /deno, /workerd
 
 const MCP = 'https://mcp.example.com/mcp'
 
@@ -374,9 +375,8 @@ const provider = createProvider({
   resources: [{ uri: MCP, resourceServer: 'mcp-server', scopes: ['tools'] }],
   // MCP clients identify themselves by a URL serving their metadata; fetching it is yours to do
   resolveClientMetadata: async clientId => {
-    const response = await fetch(clientId, { redirect: 'error', signal: AbortSignal.timeout(3000) })
-    const body = response.ok ? await response.text() : ''
-    return body && body.length <= 5120 ? JSON.parse(body) : undefined
+    const response = await safeFetch(clientId, { maxBytes: 5120, timeoutMs: 3000 }).catch(() => undefined)
+    return response?.ok ? response.json() : undefined
   }
 })
 
@@ -409,8 +409,11 @@ resources: [
 accessTokenClaims: ({ grantId }) => ({ grant_id: grantId })
 ```
 
-A production `resolveClientMetadata` should also refuse addresses inside your network after DNS resolution, and
-cache documents as their HTTP headers allow. oidcraft validates whatever it returns, and the consent
+`safeFetch` refuses anything but https, a name with any address inside your network (RFC 6890, cloud
+metadata included), a redirect, a slow answer and a large body. Node's connects to the very address it
+checked; Bun and Deno resolve the name again to connect, so a name that changes its answer in between
+is not caught there, and a Worker cannot resolve names at all. A production `resolveClientMetadata`
+should also cache documents as their HTTP headers allow. oidcraft validates whatever it returns, and the consent
 screen shows the client's host and where the person will be sent back. Older MCP clients that
 register dynamically are served by `features: { dynamicRegistration: true }`, and may register
 `http://localhost` callbacks when they say they are `native`.

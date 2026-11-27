@@ -1,5 +1,5 @@
 /// <reference types="bun" />
-import type { RequestContext } from '@oidcraft/provider'
+import { createSafeFetch, type RequestContext } from '@oidcraft/provider'
 
 type BunServer = { requestIP(request: Request): { address: string } | null }
 
@@ -15,3 +15,12 @@ export const bunPasswordHasher = {
   hash: (password: string) => Bun.password.hash(password, { algorithm: 'argon2id', memoryCost: 65536, timeCost: 3 }),
   verify: (password: string, hash: string) => Bun.password.verify(password, hash)
 }
+
+/**
+ * `fetch` for a URL a client chose (NFR-S14): every address the name resolves to must be public. Bun's `fetch` takes no
+ * address to connect to, so it resolves the name again: a name that rebinds between the two is not caught.
+ */
+export const safeFetch = createSafeFetch({
+  resolve: async hostname => (await Bun.dns.lookup(hostname)).map(({ address }) => address),
+  send: (url, init) => fetch(url, init)
+})

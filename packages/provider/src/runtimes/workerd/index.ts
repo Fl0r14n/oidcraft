@@ -1,4 +1,4 @@
-import type { ClientCertificate, RequestContext } from '@oidcraft/provider'
+import { type ClientCertificate, createSafeFetch, type RequestContext } from '@oidcraft/provider'
 
 /** The part of Cloudflare's `request.cf` this entry reads. */
 export type IncomingCf = {
@@ -32,3 +32,9 @@ export const workerdContext = (request: Request, cf: IncomingCf = {}): RequestCo
   clientIp: request.headers.get('cf-connecting-ip') ?? undefined,
   clientCertificate: certificate(cf)
 })
+
+/**
+ * `fetch` for a URL a client chose (NFR-S14), within a deadline and a cap on the body. A Worker cannot resolve a name, so
+ * names are not checked here; an address literal still is, and Cloudflare's own fetch does not reach a private network.
+ */
+export const safeFetch = createSafeFetch({ send: (url, init) => fetch(url, init) })

@@ -1,7 +1,9 @@
 import { argon2, createHash, randomBytes, timingSafeEqual, X509Certificate } from 'node:crypto'
+import { lookup } from 'node:dns/promises'
 import type { IncomingMessage, ServerResponse } from 'node:http'
+import { request as httpsRequest } from 'node:https'
 import { Readable } from 'node:stream'
-import type { ClientCertificate, RequestContext } from '@oidcraft/provider'
+import { type ClientCertificate, createSafeFetch, type RequestContext } from '@oidcraft/provider'
 
 export type NodeBridgeOptions = {
   /** Take the client IP from the right-most `X-Forwarded-For` hop, only when your proxy is the only route in (FR-R4, NFR-S6). */
@@ -170,3 +172,50 @@ export const nodePasswordHasher = {
     return key.length === target.length && timingSafeEqual(key, target)
   }
 }
+
+const NO_BODY = new Set([101, 204, 205, 304])
+
+const bodyOf = (body: RequestInit['body']) => {
+  if (body === undefined || body === null) return undefined
+  if (typeof body === 'string' || body instanceof Uint8Array) return body
+  if (body instanceof URLSearchParams) return body.toString()
+  throw new TypeError('safeFetch sends a string, a Uint8Array or URLSearchParams as a body')
+}
+
+/**
+ * `fetch` for a URL a client chose (NFR-S14). Every address the name resolves to must be public, and the connection goes
+ * to the one checked: no second lookup that a name rebinding to an internal address could answer differently.
+ */
+export const safeFetch = createSafeFetch({
+  resolve: async hostname => (await lookup(hostname, { all: true })).map(({ address }) => address),
+  send: (url, init, addresses) =>
+    new Promise<Response>((resolve, reject) => {
+      const address = addresses[0] as string
+      const family = address.includes(':') ? 6 : 4
+      const body = bodyOf(init.body)
+      const request = httpsRequest(
+        url,
+        {
+          method: init.method ?? 'GET',
+          headers: Object.fromEntries(new Headers(init.headers)),
+          lookup: (_hostname, options, callback) =>
+            (options as { all?: boolean }).all
+              ? (callback as (error: null, addresses: { address: string; family: number }[]) => void)(null, [{ address, family }])
+              : callback(null, address, family),
+          ...(init.signal && { signal: init.signal })
+        },
+        response => {
+          const headers = new Headers()
+          for (const [name, value] of Object.entries(response.headers)) {
+            for (const each of [value ?? []].flat()) headers.append(name, each)
+          }
+          const status = response.statusCode ?? 502
+          const stream = NO_BODY.has(status) ? null : (Readable.toWeb(response) as unknown as ReadableStream<Uint8Array>)
+          if (!stream) response.resume()
+          resolve(new Response(stream, { status, statusText: response.statusMessage ?? '', headers }))
+        }
+      )
+      request.on('error', reject)
+      request.end(body)
+    })
+})

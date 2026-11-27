@@ -1,4 +1,5 @@
 import type { Adapter, Artifact, Client, FullAdapter, Grant, Passkey, Realm, Session } from '@oidcraft/adapter'
+import { toPlainAdapter, toPlainStore } from '@oidcraft/adapter'
 
 /** The stores beyond the core seven; a check that needs one runs only when the adapter claims it. */
 export type OptionalStore = 'identities' | 'credentials' | 'passkeys' | 'realms'
@@ -155,6 +156,28 @@ export const adapterConformance = (create: () => Adapter | Promise<Adapter>, opt
         same(await adapter.clients.find('c1 '), undefined, 'clients.find with a trailing space')
         same(await adapter.artifacts.find('authorization_code', 'a1 '), undefined, 'artifacts.find with a trailing space')
         same(await adapter.sessions.find(`${session().id} `), undefined, 'sessions.find with a trailing space')
+      }
+    },
+    {
+      // A1: the provider holds every adapter as toPlainAdapter makes it, and wraps its stores by spreading them.
+      name: 'made plain and spread, every store keeps its methods and still works',
+      run: async () => {
+        const adapter = await full()
+        const plain = toPlainAdapter(adapter)
+        for (const name of ['clients', 'artifacts', 'sessions', 'grants', 'accounts', 'keys', 'replay'] as const) {
+          const methods = (store: object) => Object.keys(store).filter(key => typeof (store as Record<string, unknown>)[key] === 'function')
+          for (const method of methods(toPlainStore(adapter[name]))) {
+            holds(typeof ({ ...plain[name] } as Record<string, unknown>)[method] === 'function', `${name}.${method} after a spread`)
+          }
+        }
+        const artifacts = { ...plain.artifacts }
+        await artifacts.upsert(artifact())
+        same(await artifacts.consume('authorization_code', 'a1'), true, 'a consume through the spread store')
+        same(
+          (await adapter.artifacts.find('authorization_code', 'a1'))?.consumedAt instanceof Date,
+          true,
+          'the consume, seen by the original'
+        )
       }
     },
     {

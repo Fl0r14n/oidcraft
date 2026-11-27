@@ -15,7 +15,7 @@ import {
   sha256
 } from '@oidcraft/core'
 import type { BrokeringAdapter, Session } from '@oidcraft/provider'
-import { DEFAULT_TTL, OAuthError, type SelectionHints, selectUpstream } from '@oidcraft/provider'
+import { DEFAULT_TTL, OAuthError, type SelectionHints, selectUpstream, toPlainAdapter } from '@oidcraft/provider'
 import { base64url } from 'jose'
 import { pickClaims } from './claims'
 import { logoutHintId } from './logout'
@@ -94,7 +94,9 @@ const cookieValue = (header: string | null | undefined, name: string) => {
 
 const hashOf = async (value: string) => base64url.encode(await sha256(value))
 
-export const createBroker = (config: BrokerConfig) => {
+export const createBroker = (given: BrokerConfig) => {
+  // A1: a class-based adapter's methods survive the spreads below only once made plain.
+  const config = { ...given, adapter: toPlainAdapter(given.adapter) }
   const callback = new URL(config.callbackUri)
   const secure = callback.protocol === 'https:'
   // FR-F3: binds the handoff to the browser that started it, or a callback URL is a bearer credential (login CSRF).

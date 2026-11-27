@@ -333,6 +333,12 @@ first, and one atomic claim.
 returns `FullAdapter`, which satisfies each. `createProvider` takes a plain `Adapter` and refuses
 `upstreams` without the brokering stores at construction (NFR-D2).
 
+An adapter may be a class. The provider wraps stores by spreading them, which would drop a class's
+prototype methods, so `resolveConfig`, `createAccounts`, `createBroker` and `createRealms` first make
+it plain with `toPlainAdapter`: each store an object of its own and inherited methods, bound to the
+original. `resolveConfig` then names any method the contract requires that is missing. The provider
+holds that copy, so replacing a method on the adapter after construction no longer reaches it.
+
 **A consent is a merge, never a write over another (FR-I4).** `grants.merge` adds scopes and claims
 to the one grant of an account and client, or starts it, and treats an expired grant as gone, so its
 tokens are not revived under a new consent. The SQL adapters compare-and-swap on the stored columns;

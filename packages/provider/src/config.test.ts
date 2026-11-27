@@ -18,6 +18,46 @@ const problemsOf = (fn: () => unknown) => {
 }
 
 describe('resolveConfig', () => {
+  // A1, NFR-D2: a missing method is named at construction, never met at the first request that calls it.
+  test('refuses an adapter missing a method every provider calls, by name', () => {
+    const { update: _, ...sessions } = adapter.sessions
+    expect(problemsOf(() => resolveConfig({ ...base, adapter: { ...adapter, sessions } as never }))).toEqual([
+      'adapter.sessions has no update, which every provider calls (FR-A1)'
+    ])
+  })
+
+  // A1: the provider wraps stores by spreading them, which used to drop a class's methods.
+  test('a class-based adapter keeps its methods inside the provider', async () => {
+    class Artifacts {
+      readonly #inner = adapter.artifacts
+      find(...args: Parameters<typeof adapter.artifacts.find>) {
+        return this.#inner.find(...args)
+      }
+      upsert(artifact: Parameters<typeof adapter.artifacts.upsert>[0]) {
+        return this.#inner.upsert(artifact)
+      }
+      destroy(...args: Parameters<typeof adapter.artifacts.destroy>) {
+        return this.#inner.destroy(...args)
+      }
+      consume(...args: Parameters<typeof adapter.artifacts.consume>) {
+        return this.#inner.consume(...args)
+      }
+      destroyByGrantId(id: string) {
+        return this.#inner.destroyByGrantId(id)
+      }
+      destroyByFamilyId(id: string) {
+        return this.#inner.destroyByFamilyId(id)
+      }
+      destroyByClientId(id: string) {
+        return this.#inner.destroyByClientId(id)
+      }
+    }
+    const config = resolveConfig({ ...base, adapter: { ...adapter, artifacts: new Artifacts() } })
+    const artifacts = { ...config.adapter.artifacts }
+    await artifacts.upsert({ id: 'x', kind: 'authorization_code', clientId: 'rp', payload: {}, expiresAt: new Date(Date.now() + 60_000) })
+    expect(await artifacts.consume('authorization_code', 'x')).toBe(true)
+  })
+
   test('accepts a minimal configuration and fills the defaults', () => {
     const config = resolveConfig(base)
     expect(config.issuer).toBe('https://op.example.com')

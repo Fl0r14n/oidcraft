@@ -1,5 +1,5 @@
 import type { Adapter, Client, ClientAuthMethod, Seconds, Session } from '@oidcraft/adapter'
-import { ConfigurationError } from '@oidcraft/adapter'
+import { ConfigurationError, toPlainAdapter } from '@oidcraft/adapter'
 import { fapiProviderProblems } from './profile/fapi'
 import type { ExchangePolicy } from './token/exchange'
 import type { AssertionTrust } from './token/identity-assertion'
@@ -330,6 +330,17 @@ export const routePath = (config: ResolvedConfig, pathname: string) => {
 /** Where a route is published: the issuer plus the route, whatever URL the request arrived on (NFR-S6). */
 export const publicUrl = (config: ResolvedConfig, request: Request) => `${config.issuer}${routePath(config, new URL(request.url).pathname)}`
 
+/** What the contract makes required of each store the provider reads: checked at construction, not at the first request (NFR-D2). */
+const REQUIRED_METHODS: Record<string, string[]> = {
+  clients: ['find'],
+  artifacts: ['find', 'upsert', 'destroy', 'consume', 'destroyByGrantId', 'destroyByFamilyId', 'destroyByClientId'],
+  sessions: ['find', 'upsert', 'destroy', 'update', 'listForAccount', 'addClient'],
+  grants: ['find', 'upsert', 'destroy', 'findByAccountAndClient', 'listForAccount', 'destroyByClientId', 'merge'],
+  accounts: ['find', 'claims'],
+  keys: ['list'],
+  replay: ['claim']
+}
+
 export const resolveConfig = (config: ProviderConfig): ResolvedConfig => {
   const problems: string[] = []
 
@@ -347,7 +358,14 @@ export const resolveConfig = (config: ProviderConfig): ResolvedConfig => {
     }
   }
 
-  if (!config.adapter) problems.push('adapter is required: the core performs no I/O of its own (FR-A1)')
+  // A1: the provider wraps stores by spreading them, which drops a class's prototype methods; made plain first, they survive.
+  const adapter = config.adapter && toPlainAdapter(config.adapter)
+  if (!adapter) problems.push('adapter is required: the core performs no I/O of its own (FR-A1)')
+  for (const [store, methods] of Object.entries(adapter ? REQUIRED_METHODS : {})) {
+    const held = (adapter as unknown as Record<string, Record<string, unknown> | undefined>)[store]
+    const missing = methods.filter(method => typeof held?.[method] !== 'function')
+    if (missing.length) problems.push(`adapter.${store} has no ${missing.join(', ')}, which every provider calls (FR-A1)`)
+  }
 
   const routes = { ...DEFAULT_ROUTES, ...config.routes }
   for (const [name, path] of Object.entries(routes)) {
@@ -396,7 +414,7 @@ export const resolveConfig = (config: ProviderConfig): ResolvedConfig => {
     )
   }
 
-  if (features.dynamicRegistration && !config.adapter?.clients.upsert) {
+  if (features.dynamicRegistration && !adapter?.clients.upsert) {
     problems.push('features.dynamicRegistration needs an adapter whose clients store implements upsert (FR-C9)')
   }
 
@@ -413,10 +431,10 @@ export const resolveConfig = (config: ProviderConfig): ResolvedConfig => {
   if (features.ciba && !config.resolveCibaUser) {
     problems.push('features.ciba needs a resolveCibaUser; the provider will not guess which hint means which account (FR-C17)')
   }
-  if (config.assertionTrust && !config.adapter?.identities) {
+  if (config.assertionTrust && !adapter?.identities) {
     problems.push("assertionTrust needs an adapter with an identities store: an assertion's subject is found through its link (FR-C24)")
   }
-  if (config.upstreams?.length && (!config.adapter?.identities || !config.adapter.sessions.listByUpstreamSession)) {
+  if (config.upstreams?.length && (!adapter?.identities || !adapter.sessions.listByUpstreamSession)) {
     problems.push(
       'upstreams need an adapter with an identities store and sessions.listByUpstreamSession, ' +
         'or linking and upstream logout have nowhere to go (FR-F5, FR-F8)'
@@ -429,7 +447,7 @@ export const resolveConfig = (config: ProviderConfig): ResolvedConfig => {
     problems.push(...fapiProviderProblems({ features, ttl, clientAuthMethods, clientCertificate: capabilities.clientCertificate }))
   }
 
-  if (features.deviceFlow && !config.adapter?.artifacts.findByUserCode) {
+  if (features.deviceFlow && !adapter?.artifacts.findByUserCode) {
     problems.push('features.deviceFlow needs an adapter whose artifacts store implements findByUserCode (FR-C7)')
   }
 
@@ -437,6 +455,7 @@ export const resolveConfig = (config: ProviderConfig): ResolvedConfig => {
 
   return {
     ...config,
+    adapter,
     issuer: stripTrailingSlash(config.issuer),
     issuerUrl: issuerUrl as URL,
     routes,

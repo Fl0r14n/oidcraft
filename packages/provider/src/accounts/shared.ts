@@ -1,5 +1,5 @@
 import { DEFAULT_MAX_LENGTH, randomString } from '@oidcraft/core'
-import type { BrokeringAdapter, Credential, CredentialsAdapter, Seconds } from '@oidcraft/provider'
+import { type BrokeringAdapter, type Credential, type CredentialsAdapter, type Seconds, toPlainAdapter } from '@oidcraft/provider'
 import { base64url } from 'jose'
 
 /** argon2id by default in the hashers the runtime entries ship; any PHC-string hasher fits. */
@@ -89,7 +89,9 @@ const DEFAULT_POLICY: AccountsPolicy = {
 
 /** What every part of the accounts entry reads: the adapter, the policy with its defaults, and the rules more than one applies. */
 export const createShared = (options: AccountsOptions) => {
-  const { adapter, hasher } = options
+  const { hasher } = options
+  // A1: a class-based adapter keeps its prototype methods however the stores below are passed around.
+  const adapter = toPlainAdapter(options.adapter)
   const policy: AccountsPolicy = { ...DEFAULT_POLICY, ...options.policy }
   // An unknown username still pays for one verification, so response time does not say which names exist.
   let decoy: Promise<string> | undefined

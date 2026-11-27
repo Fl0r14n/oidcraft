@@ -212,6 +212,13 @@ describe('private_key_jwt', () => {
       if (namespace === 'client-assertion') ttls.push(ttl)
       return claim(namespace, value, ttl)
     }
+    // The provider holds the adapter as it was given (A1), so the spy goes in before it is built.
+    provider = createProvider({
+      interactionUrl: 'https://op.example.com/interaction',
+      issuer: ISSUER,
+      adapter,
+      scopes: ['openid', 'profile', 'orders']
+    })
     const now = Math.floor(Date.now() / 1000)
     expect((await authenticate(await timed(now, now + 290))).status).toBe(200)
     expect(ttls[0]).toBeGreaterThanOrEqual(290)

@@ -24,6 +24,7 @@ export { ConfigurationError } from './errors'
 export { grantExpired, MERGE_ROUNDS, mergedGrant } from './grants'
 export { generatedKeyStore, generateKey, staticKeyStore } from './keys'
 export { type FromKvOptions, fromKv, type KvEntry, type KvStore, noAccounts } from './kv'
+export { toPlainAdapter, toPlainStore } from './plain'
 export type {
   Account,
   AccountOwned,

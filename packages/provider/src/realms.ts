@@ -1,4 +1,5 @@
 import type { Realm, RealmStore, Seconds } from '@oidcraft/adapter'
+import { toPlainStore } from '@oidcraft/adapter'
 import type { AuditEvent, ProviderConfig } from './config'
 import { createProvider, type Provider } from './provider'
 
@@ -35,7 +36,7 @@ type Entry = { built: Promise<Built | undefined>; checkedAt: number }
 
 /** Several issuers in one process, each an ordinary `Provider` built on first use (FR-M4). One issuer needs only `createProvider`. */
 export const createRealms = (options: RealmsConfig) => {
-  const { store } = options
+  const store = toPlainStore(options.store)
   const revalidate = (options.revalidate ?? 30) * 1000
   const cache = new Map<string, Entry>()
   const signers = new Map<string, string>()

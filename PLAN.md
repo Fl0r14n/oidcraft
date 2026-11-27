@@ -108,7 +108,7 @@ marks a finding reproduced by a throwaway test. Paths are under `packages/provid
 
 ### 2. Architecture
 
-- [ ] A1 store wrappers spread (`artifacts.ts:23`, `clients/metadata-document.ts:81`, `keys/signer.ts:25`): a
+- [x] A1 store wrappers spread (`artifacts.ts:23`, `clients/metadata-document.ts:81`, `keys/signer.ts:25`): a
       class-based adapter loses prototype methods inside the provider.
 - [x] A2 artifact payloads unversioned and cast (`payloads.ts`); e.g. `token/code.ts:141` on a pre-`familyExpiresAt` token.
 - [ ] A3 host obligations with no reference implementation: SSRF-safe fetch, mail delivery, security headers,

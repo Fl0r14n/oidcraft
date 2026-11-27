@@ -1,4 +1,5 @@
 /// <reference types="bun" />
+import { chmod, mkdir, writeFile } from 'node:fs/promises'
 import { type ActiveKey, type FullAdapter, generateKey, type Realm, staticKeyStore } from '@oidcraft/adapter'
 import { createRealms } from '@oidcraft/provider'
 import { screensFor } from '../interaction/screens'
@@ -35,9 +36,15 @@ const file = (id: string, extension: string) => `${directory}/${id}.${extension}
 const keysInMemory = new Map<string, ActiveKey[]>()
 const readKeys = async (id: string): Promise<ActiveKey[]> =>
   memory ? (keysInMemory.get(id) ?? []) : JSON.parse(await Bun.file(file(id, 'jwks.json')).text())
+// D-5: private keys, so readable by this user alone; a mode given to writeFile applies only to a file it creates.
 const writeKeys = async (id: string, keys: ActiveKey[]) => {
-  if (memory) keysInMemory.set(id, keys)
-  else await Bun.write(file(id, 'jwks.json'), JSON.stringify(keys))
+  if (memory) {
+    keysInMemory.set(id, keys)
+    return
+  }
+  await mkdir(directory, { recursive: true, mode: 0o700 })
+  await writeFile(file(id, 'jwks.json'), JSON.stringify(keys), { mode: 0o600 })
+  await chmod(file(id, 'jwks.json'), 0o600)
 }
 
 const storages = new Map<string, FullAdapter>()

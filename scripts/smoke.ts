@@ -259,6 +259,7 @@ const steps: [string, () => Promise<void>][] = [
   [
     'turn on TOTP with a code from the key it shows',
     async () => {
+      await fill('#totp-current', PASSWORDS[0] as string)
       await press('#totp-setup')
       await appears('#totp-secret')
       secret = String(await view.evaluate(`document.querySelector('#totp-secret').textContent.trim()`))

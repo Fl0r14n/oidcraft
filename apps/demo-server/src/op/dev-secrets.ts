@@ -14,7 +14,7 @@ export const devSecret = async <T>(name: string, generate: () => Promise<T> | T)
   const file = Bun.file(path)
   if (await file.exists()) return (await file.json()) as T
   const value = await generate()
-  await mkdir(directory(), { recursive: true })
+  await mkdir(directory(), { recursive: true, mode: 0o700 })
   await writeFile(path, JSON.stringify(value), { mode: 0o600 })
   return value
 }

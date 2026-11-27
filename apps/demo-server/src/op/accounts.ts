@@ -108,16 +108,25 @@ const seedConformanceUser = (signUp: SignUp) =>
     }
   })
 
+/**
+ * The demo has no mail transport, so it prints its mail, and only outside production: a link in a production log is an
+ * account for whoever reads the log. A deployment sends these by mail and never shows them.
+ */
+const consoleMail = (message: string) => {
+  if (Bun.env.NODE_ENV === 'production') console.warn('[demo mail] not sent: the demo prints mail only outside production')
+  else console.log(`[demo mail] ${message}`)
+}
+
 /** The demo's mail for an email sign-in (FR-I9): a link, a pointer to the way this account signs in, or nothing at all. */
 export const sendEmailSignIn = (issued: EmailSignInIssue, issuer: string) => {
   if (issued.ok) {
-    console.log(`[demo mail] to ${issued.address}: sign in at ${new URL(`/email-sign-in?token=${issued.token}`, issuer)}`)
+    consoleMail(`to ${issued.address}: sign in at ${new URL(`/email-sign-in?token=${issued.token}`, issuer)}`)
   } else if (issued.reason === 'passkey' || issued.reason === 'unverified') {
     const way = issued.reason === 'passkey' ? 'its passkey' : 'its password'
-    console.log(`[demo mail] to ${issued.address}: this account does not sign in by email; use ${way} on the sign-in screen`)
+    consoleMail(`to ${issued.address}: this account does not sign in by email; use ${way} on the sign-in screen`)
   }
 }
 
 /** The demo's mail: a deployment emails this link and never shows it, or the form hands accounts to anyone. */
 export const sendRecoveryLink = (accountId: string, token: string, issuer: string) =>
-  console.log(`[demo mail] to ${accountId}: get back into your account at ${new URL(`/reset?token=${token}`, issuer)}`)
+  consoleMail(`to ${accountId}: get back into your account at ${new URL(`/reset?token=${token}`, issuer)}`)

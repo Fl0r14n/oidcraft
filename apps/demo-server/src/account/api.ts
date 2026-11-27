@@ -127,7 +127,10 @@ export const accountApi = async (request: Request, url: URL): Promise<Response |
       : json({ error: 'not_found', error_description: 'No such passkey.' }, 404)
   }
 
+  // D-4: a second factor enrolled with the token alone would be the token's holder's, so it takes the password or a passkey.
   if (request.method === 'POST' && path === '/totp') {
+    const refused = await proveSignIn(await request.json().catch(() => ({})))
+    if (refused) return refused
     const begun = await accounts.totp.begin(accountId)
     if (!begun?.ok) {
       return begun?.reason === 'passwordless'

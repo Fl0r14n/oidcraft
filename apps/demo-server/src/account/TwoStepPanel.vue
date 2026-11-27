@@ -46,10 +46,11 @@
       </form>
     </div>
 
-    <div v-else class="flex flex-wrap items-center gap-4 rounded-sheet border border-rule bg-sheet p-6">
-      <p class="text-[0.9375rem]">Off. Your password alone signs you in.</p>
-      <UiButton id="totp-setup" class="ml-auto" @click="begin">Set up</UiButton>
-    </div>
+    <form v-else class="flex flex-wrap items-end gap-4 rounded-sheet border border-rule bg-sheet p-6" @submit.prevent="begin">
+      <p class="w-full text-[0.9375rem]">Off. Your password alone signs you in.</p>
+      <UiField id="totp-current" v-model="current" type="password" label="Your current password" autocomplete="current-password" required class="flex-1" />
+      <UiButton id="totp-setup" type="submit">Set up</UiButton>
+    </form>
   </UiSection>
 </template>
 
@@ -65,6 +66,7 @@ const api = useApi('/account/api')
 const setup = shallowRef<{ secret: string; uri: string; qr: string }>()
 const codes = shallowRef<string[]>()
 const code = shallowRef<string | undefined>('')
+const current = shallowRef<string | undefined>('')
 const error = shallowRef('')
 
 const attempt = async (action: () => Promise<void>, fallback: string) => {
@@ -82,7 +84,8 @@ function post<T>(path: string, method = 'POST') {
 
 const begin = () =>
   attempt(async () => {
-    setup.value = await api('/totp', { method: 'POST' })
+    setup.value = await api('/totp', { method: 'POST', body: JSON.stringify({ current: current.value }) })
+    current.value = ''
   }, 'Setup could not start.')
 
 const confirm = () =>

@@ -309,6 +309,35 @@ describe('FR-C21: client assertions under the profile', () => {
     )
     expect((await pushWith(await assertion({ key: es384, alg: 'ES384' }))).status).toBe(401)
   })
+
+  // §5.4.1: an RSA key under 2048 bits. jose will not sign with one, so the assertion is put together by hand.
+  test('an assertion from an RSA key under 2048 bits is refused', async () => {
+    const pushedBy = async (modulusLength: number) => {
+      const rsa = await crypto.subtle.generateKey(
+        { name: 'RSA-PSS', modulusLength, publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256' },
+        true,
+        ['sign', 'verify']
+      )
+      await adapter.clients.upsert?.(
+        await fapiClient({ jwks: { keys: [{ ...(await exportJWK(rsa.publicKey)), alg: 'PS256', use: 'sig' }] } })
+      )
+      const now = Math.floor(Date.now() / 1000)
+      const part = (value: object) => base64url.encode(JSON.stringify(value))
+      const input = `${part({ alg: 'PS256' })}.${part({ iss: 'bank', sub: 'bank', aud: ISSUER, jti: randomString(), iat: now, exp: now + 60 })}`
+      const signature = await crypto.subtle.sign({ name: 'RSA-PSS', saltLength: 32 }, rsa.privateKey, new TextEncoder().encode(input))
+      return (await pushWith(`${input}.${base64url.encode(new Uint8Array(signature))}`)).status
+    }
+    expect(await pushedBy(2048)).toBe(201)
+    expect(await pushedBy(1024)).toBe(401)
+  })
+
+  // §5.3.2.2: a pushed request names its redirect_uri; here every authorization request does.
+  test('a pushed request without redirect_uri is refused', async () => {
+    const { redirect_uri: _, ...params } = await authorizationParams()
+    const response = await post('/request', await authenticated(params), { dpop: await dpop('POST', `${ISSUER}/request`) })
+    expect(response.status).toBe(400)
+    expect((await response.json()).error_description).toContain('redirect_uri is required')
+  })
 })
 
 describe('FR-C21: one client under the profile, the rest as before', () => {

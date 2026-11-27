@@ -57,6 +57,38 @@ describe('memory adapter', () => {
     expect((await adapter.artifacts.find('authorization_code', 'c1'))?.consumedAt).toBe(1_000)
   })
 
+  // NFR-P1: every sign-up lists an account's identities, so the listing reads that account's index, not every identity.
+  test('an account’s identities are listed by its index, those written before it indexed once', async () => {
+    const kv = memoryKv()
+    const scanned: string[] = []
+    const adapter = fromKv(
+      {
+        ...kv,
+        scan(prefix) {
+          scanned.push(prefix)
+          return kv.scan(prefix)
+        }
+      },
+      { keys: await generatedKeyStore() }
+    )
+    const identity = (accountId: string, subject: string) => ({ accountId, upstream: 'google', subject, claims: {}, createdAt: 1_000 })
+    // As 0.4.0 wrote them: the record alone.
+    await kv.upsert({ key: 'identity/google/g-1', value: JSON.stringify(identity('ada', 'g-1')) })
+    await kv.upsert({ key: 'identity/google/g-2', value: JSON.stringify(identity('bob', 'g-2')) })
+
+    expect((await adapter.identities.listForAccount('ada')).map(found => found.subject)).toEqual(['g-1'])
+    scanned.length = 0
+    expect((await adapter.identities.listForAccount('bob')).map(found => found.subject)).toEqual(['g-2'])
+    expect(scanned).toEqual(['account-identity/bob/'])
+
+    await adapter.identities.upsert(identity('bob', 'g-1'))
+    expect(await adapter.identities.listForAccount('ada')).toEqual([])
+    expect((await adapter.identities.listForAccount('bob')).map(found => found.subject).sort()).toEqual(['g-1', 'g-2'])
+    await adapter.identities.destroy('google', 'g-2')
+    expect((await adapter.identities.listForAccount('bob')).map(found => found.subject)).toEqual(['g-1'])
+    expect([...(await Array.fromAsync(kv.scan('account-identity/')))].map(entry => entry.key)).toEqual(['account-identity/bob/google/g-1'])
+  })
+
   // FR-C11: a sign-in that extends a session keeps the clients it holds for as long as it lives.
   test('extending a session extends the clients it lists', async () => {
     const kv = memoryKv()

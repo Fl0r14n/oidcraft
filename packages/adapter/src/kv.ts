@@ -330,20 +330,58 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
   }
 
   const identityKey = (provider: string, subject: string) => `identity/${part(provider)}/${part(subject)}`
+  // An index key per account beside each identity, so listing an account's, which every sign-up does, reads its own (NFR-P1).
+  const accountIdentities = (accountId: string) => `account-identity/${part(accountId)}/`
+  const identityIndex = (identity: LinkedIdentity) =>
+    `${accountIdentities(identity.accountId)}${part(identity.upstream)}/${part(identity.subject)}`
+  const identityLock = (upstream: string, subject: string) => `identity-lock/${part(upstream)}/${part(subject)}`
+  const IDENTITIES_INDEXED = 'identity-index'
+  // NFR-D6: identities written before the index have no entry in it, so the first listing indexes them all, once per store.
+  let indexing: Promise<void> | undefined
+  const indexed = () => {
+    indexing ??= (async () => {
+      if (await read(IDENTITIES_INDEXED)) return
+      await locked(`${IDENTITIES_INDEXED}-lock`, async () => {
+        if (await read(IDENTITIES_INDEXED)) return
+        for await (const { key, value } of kv.scan('identity/')) {
+          const identity = dec<LinkedIdentity>(value)
+          if (identity) await kv.upsert({ key: identityIndex(identity), value: key })
+        }
+        await kv.upsert({ key: IDENTITIES_INDEXED, value: '1' })
+      })
+    })().catch(error => {
+      indexing = undefined
+      throw error
+    })
+    return indexing
+  }
   const identities: LinkedIdentityStore = {
     async find(upstream, subject) {
       return dec<LinkedIdentity>(await read(identityKey(upstream, subject)))
     },
     async listForAccount(accountId) {
-      const all = await collect<LinkedIdentity>(kv, 'identity/')
-      return all.filter(identity => identity.accountId === accountId)
+      await indexed()
+      const keys: string[] = []
+      for await (const { value } of kv.scan(accountIdentities(accountId))) keys.push(value)
+      const found = await Promise.all(keys.map(async key => dec<LinkedIdentity>(await read(key))))
+      return present(found).filter(identity => identity.accountId === accountId)
     },
-    async upsert(identity) {
-      await kv.upsert({ key: identityKey(identity.upstream, identity.subject), value: enc(identity) })
-    },
-    async destroy(upstream, subject) {
-      await kv.destroy(identityKey(upstream, subject))
-    }
+    // Under the pair's lock, so a relink to another account moves its index entry rather than leaving one behind.
+    upsert: identity =>
+      locked(identityLock(identity.upstream, identity.subject), async () => {
+        const key = identityKey(identity.upstream, identity.subject)
+        const existing = dec<LinkedIdentity>(await read(key))
+        if (existing && existing.accountId !== identity.accountId) await kv.destroy(identityIndex(existing))
+        await kv.upsert({ key, value: enc(identity) })
+        await kv.upsert({ key: identityIndex(identity), value: key })
+      }),
+    destroy: (upstream, subject) =>
+      locked(identityLock(upstream, subject), async () => {
+        const key = identityKey(upstream, subject)
+        const existing = dec<LinkedIdentity>(await read(key))
+        await kv.destroy(key)
+        if (existing) await kv.destroy(identityIndex(existing))
+      })
   }
 
   const credentialKey = (accountId: string) => `credential/${accountId}`

@@ -88,9 +88,11 @@ marks a finding reproduced by a throwaway test. Paths are under `packages/provid
 ### 1. Requirements
 
 - [x] FR-C4: a client assertion's `aud` is the issuer, sole value (RFC 10070, Nov 2026). Code: S-2.
-- [ ] FR-C21: FAPI 2.0 §5.3.2.1 bounds `iat`/`nbf` in the _future_ (accept ≤ 10 s, reject > 60 s); the text and
+- [x] FR-C21: FAPI 2.0 §5.3.2.1 bounds `iat`/`nbf` in the _future_ (accept ≤ 10 s, reject > 60 s); the text and
       `clients/assertion.ts:57` read it as "`nbf` at most 60 s old". Add `redirect_uri` required in PAR (§5.3.2.2)
-      and RSA ≥ 2048 / EC ≥ 224 (§5.4.1).
+      and RSA ≥ 2048 / EC ≥ 224 (§5.4.1). The bound landed with S-2; `redirect_uri` is required of every request, and
+      jose refuses an RSA key under 2048 bits for any RS or PS algorithm, ES256 being P-256 alone. `fapi.test.ts` pins
+      all three.
 - [ ] NFR-S1: OAuth 2.1 is at -17 (§7.5.1.1 unchanged).
 - [x] FR-I7, G-9: NIST SP 800-63B rev 4 (§3.2.2 rate limiting); FR-I7 has no password policy (length, blocklist).
 - [ ] FR-L4: RFC 10017 / BCP 212 on `localStorage` and BFF.
@@ -309,6 +311,8 @@ Each step ends green on `bun run verify` and is committed on `main`; a release i
    secret at every sign-in and the `sid` kept (NFR-S11, FR-I10), where a cookie from before still opens its session
    until then; the device flow's wrong-code limits are `userCodeAttempts`, the global one documented as spendable.
    Kept: `http://localhost` alone does not make a registration native (S-15, RFC 8252 §8.3).
+9. **`fromKv` lists an account's linked identities by an index** (NFR-P1), as every sign-up does through
+   `linkedElsewhere`; it scanned every identity. Ones written before it are indexed once, by the first listing.
 
 ### Future features
 

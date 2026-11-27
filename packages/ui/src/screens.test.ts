@@ -240,3 +240,21 @@ describe('email sign-in (FR-I9)', () => {
     expect(await (await moved.emailSignIn('t', 'a@b')).text()).toContain('action="/acme/email-sign-in"')
   })
 })
+
+// D-7, RFC 9700 §4.16: a framed sign-in screen is a clickjacking target.
+describe('every screen is served unframeable, with a policy its own markup passes', () => {
+  test('no site may frame it, and nothing but its own assets and its theme style runs', async () => {
+    const themed = createScreens({ brand: { name: 'Acme', host: 'id.acme.test' }, theme: { accent: '#123456' } })
+    const response = await themed.login(view)
+    const policy = response.headers.get('content-security-policy') ?? ''
+    expect(policy).toContain("frame-ancestors 'none'")
+    expect(policy).toContain("default-src 'none'")
+    expect(policy).not.toContain('unsafe-inline')
+    expect(policy).not.toContain('form-action')
+    expect(response.headers.get('x-frame-options')).toBe('DENY')
+    expect(response.headers.get('referrer-policy')).toBe('same-origin')
+    const css = (await response.text()).match(/<style>([^<]*)<\/style>/)?.[1] as string
+    const hash = Buffer.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(css)))).toString('base64')
+    expect(policy).toContain(`'sha256-${hash}'`)
+  })
+})

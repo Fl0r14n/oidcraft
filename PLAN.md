@@ -189,7 +189,7 @@ Reference deployment (`apps/demo-server/src`):
 - [x] D-4 TOTP enrolment needs only the bearer token (`account/api.ts:130`).
 - [x] D-5 realm private keys written 0644 (`op/realms.ts:41`).
 - [x] D-6 MCP metadata resolver: SSRF, unbounded body (`mcp/server.ts:46`).
-- [ ] D-7 no CSP / `frame-ancestors` on the screens (`packages/ui/src/render.ts:38`).
+- [x] D-7 no CSP / `frame-ancestors` on the screens (`packages/ui/src/render.ts:38`).
 - [x] D-8 resource checks accept DPoP-bound tokens as bearer (`op/first-party.ts:284`, `mcp/server.ts:71`).
 - [ ] D-9 `/authorize` error page echoes the client id (`index.ts:75`).
 - [ ] D-10 FAPI demo state unbounded and unbound (`fapi/demo.ts:68`).

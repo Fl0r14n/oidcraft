@@ -1,7 +1,7 @@
 /// <reference types="bun" />
 import type { Provider, Realms } from '@oidcraft/provider'
 import { sendRecoveryLink } from '../op/accounts'
-import { ADMIN_CLIENT_ID, administrators, callerOf, FIRST_PARTY, json } from '../op/first-party'
+import { ADMIN_CLIENT_ID, administratorName, callerOf, FIRST_PARTY, json } from '../op/first-party'
 import { control } from '../op/provider'
 import { realmAccounts } from '../op/realms'
 
@@ -37,9 +37,12 @@ export const adminApi = async (
 
   const caller = await callerOf(provider, request, ADMIN_CLIENT_ID)
   if (!caller) return json({ error: 'invalid_token', error_description: 'Your sign-in has ended. Sign in again.' }, 401)
-  // The decision FR-M1 leaves to the host, made here: an allowlist of account ids.
-  if (!administrators().has(caller)) {
-    return json({ error: 'forbidden', error_description: `${caller} is not an administrator here. Add it to OIDCRAFT_ADMINS.` }, 403)
+  // The decision FR-M1 leaves to the host, made here: an allowlist of usernames.
+  if (!(await administratorName(provider, caller))) {
+    return json(
+      { error: 'forbidden', error_description: 'This account is not an administrator here. Add its username to OIDCRAFT_ADMINS.' },
+      403
+    )
   }
 
   const segments = path.split('/').filter(Boolean)

@@ -1,5 +1,5 @@
 /// <reference types="bun" />
-import { type Adapter, hashClientSecret, type Provider } from '@oidcraft/provider'
+import { type Adapter, type CredentialsAdapter, hashClientSecret, type Provider } from '@oidcraft/provider'
 import { optional } from './env'
 
 export const ADMIN_CLIENT_ID = 'oidcraft-admin'
@@ -11,8 +11,8 @@ export const FIRST_PARTY = [ADMIN_CLIENT_ID, ACCOUNT_CLIENT_ID, API_CLIENT_ID]
 /** Only this process introspects with it, so it is minted per boot and never written down. */
 const apiSecret = crypto.randomUUID()
 
-/** The library never decides who administers (FR-M1): OIDCRAFT_ADMINS does, and empty means nobody, never everybody. */
-export const administrators = () =>
+/** The library never decides who administers (FR-M1): OIDCRAFT_ADMINS names usernames, and empty means nobody, never everybody. */
+const administrators = () =>
   new Set(
     (optional('OIDCRAFT_ADMINS') ?? '')
       .split(',')
@@ -57,6 +57,12 @@ export const seedFirstPartyClients = async (adapter: Adapter, issuer: string) =>
     createdAt: now,
     updatedAt: now
   })
+}
+
+/** By username, so OIDCRAFT_ADMINS names people; an account with no local credential, a brokered one, administers nothing. */
+export const administratorName = async (provider: Provider, accountId: string) => {
+  const credential = await (provider.config.adapter as Partial<CredentialsAdapter>).credentials?.find(accountId)
+  return credential && administrators().has(credential.username) ? credential.username : undefined
 }
 
 /** Only a live token issued to `clientId` counts, not one the same person holds for another client (RFC 7662). */

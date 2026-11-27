@@ -675,8 +675,8 @@ the dev cycle shows only in a browser.
 
 **The admin and account apps are clients of this OP.** Each signs in with `@oidcraft/vue` as its own
 public client (`oidcraft-admin`, `oidcraft-account`), and each API introspects the bearer token
-in-process as the resource server `oidcraft-api`. The admin API also requires an account in
-`OIDCRAFT_ADMINS`, the decision FR-M1 leaves to the host; the account API acts only on the token's
+in-process as the resource server `oidcraft-api`. The admin API also requires a local account whose
+username is in `OIDCRAFT_ADMINS`, the decision FR-M1 leaves to the host; the account API acts only on the token's
 own subject. The interaction routes answer consent for these first-party clients themselves. Each
 app tries `prompt=none` before it mounts, so a person with a provider session is signed in without a
 click, and shows its Sign in button only on `login_required`; a live session that must still be

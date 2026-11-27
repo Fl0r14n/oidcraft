@@ -3,7 +3,7 @@ import type { AccountStore, Adapter, CredentialsAdapter } from '@oidcraft/provid
 import { type Accounts, createAccounts, type EmailSignInIssue, generateSecretKey } from '@oidcraft/provider/accounts'
 import { bunPasswordHasher } from '@oidcraft/provider/runtimes/bun'
 import { devSecret } from './dev-secrets'
-import { optional, withDefault } from './env'
+import { optional, required } from './env'
 
 const PROFILE = ['name', 'given_name', 'family_name', 'preferred_username', 'picture', 'locale']
 
@@ -23,9 +23,7 @@ export const createDemoAccounts = (adapter: CredentialsAdapter, issuerName: stri
     hasher: bunPasswordHasher,
     secretKey: totpKey,
     issuer: issuerName,
-    origin: issuerUrl,
-    // The demo's subjects are its usernames, so OIDCRAFT_ADMINS can name people rather than random ids.
-    newAccountId: username => username
+    origin: issuerUrl
   })
 
 /** Local accounts first; a brokered account has no password and reports the mapped claims linking recorded (FR-F7). */
@@ -52,13 +50,24 @@ export const accountStore = (adapter: Adapter, accounts: Accounts): AccountStore
   }
 })
 
-/** Demo only; the conformance suite's user exists only when the suite is configured. */
+/**
+ * Demo accounts only when OIDCRAFT_DEMO_ACCOUNTS=on, with the password OIDCRAFT_DEMO_PASSWORD names and no default: a
+ * deployment started from this code must not open with accounts whose password is in the repository. The conformance
+ * suite's user exists only when the suite is configured.
+ */
 export const seedDemoAccounts = async (accounts: Accounts, adapter: Adapter) => {
   // Looked up first: signing up hashes the password, and argon2id is deliberately not cheap.
   const signUp = async (person: Parameters<Accounts['signUp']>[0]) => {
     if (!(await adapter.credentials?.findByUsername(person.username))) await accounts.signUp(person)
   }
-  const password = withDefault('OIDCRAFT_DEMO_PASSWORD', 'correct horse battery staple')
+  if (optional('OIDCRAFT_DEMO_ACCOUNTS') === 'on') await seedPeople(signUp)
+  if (optional('OIDCRAFT_CONFORMANCE_SUITE')) await seedConformanceUser(signUp)
+}
+
+type SignUp = (person: Parameters<Accounts['signUp']>[0]) => Promise<void>
+
+const seedPeople = async (signUp: SignUp) => {
+  const password = required('OIDCRAFT_DEMO_PASSWORD')
   const people = [
     { username: 'admin', claims: { name: 'Administrator', email: 'admin@example.invalid', email_verified: true } },
     {
@@ -71,33 +80,33 @@ export const seedDemoAccounts = async (accounts: Accounts, adapter: Adapter) => 
     }
   ]
   for (const person of people) await signUp({ ...person, password })
-  if (optional('OIDCRAFT_CONFORMANCE_SUITE')) {
-    await signUp({
-      username: 'conformance-user',
-      password: 'conformance-password',
-      // oidcc-scope-profile warns unless every profile claim (OIDC Core §5.4) comes back.
-      claims: {
-        name: 'Conformance User',
-        given_name: 'Conformance',
-        middle_name: 'Q',
-        family_name: 'User',
-        nickname: 'conformance',
-        preferred_username: 'conformance-user',
-        profile: 'https://example.invalid/conformance-user',
-        picture: 'https://example.invalid/conformance-user.png',
-        website: 'https://example.invalid',
-        gender: 'unspecified',
-        birthdate: '0000-01-01',
-        zoneinfo: 'Europe/London',
-        locale: 'en',
-        updated_at: 1767225600,
-        email: 'conformance@example.invalid',
-        email_verified: true
-      }
-    })
-  }
   console.log(`[oidcraft] demo accounts: ${people.map(person => person.username).join(', ')} — password from OIDCRAFT_DEMO_PASSWORD`)
 }
+
+const seedConformanceUser = (signUp: SignUp) =>
+  signUp({
+    username: 'conformance-user',
+    password: 'conformance-password',
+    // oidcc-scope-profile warns unless every profile claim (OIDC Core §5.4) comes back.
+    claims: {
+      name: 'Conformance User',
+      given_name: 'Conformance',
+      middle_name: 'Q',
+      family_name: 'User',
+      nickname: 'conformance',
+      preferred_username: 'conformance-user',
+      profile: 'https://example.invalid/conformance-user',
+      picture: 'https://example.invalid/conformance-user.png',
+      website: 'https://example.invalid',
+      gender: 'unspecified',
+      birthdate: '0000-01-01',
+      zoneinfo: 'Europe/London',
+      locale: 'en',
+      updated_at: 1767225600,
+      email: 'conformance@example.invalid',
+      email_verified: true
+    }
+  })
 
 /** The demo's mail for an email sign-in (FR-I9): a link, a pointer to the way this account signs in, or nothing at all. */
 export const sendEmailSignIn = (issued: EmailSignInIssue, issuer: string) => {

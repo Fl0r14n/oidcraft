@@ -50,10 +50,10 @@ bun install
 bun run dev     # the reference provider on :3001, a Vue application signing in against it on :3000
 ```
 
-Open http://localhost:3000 and sign in as `ada`, `grace` or `admin`; the password is
-`OIDCRAFT_DEMO_PASSWORD` in `.env.example`. The provider's own pages are worth a look too:
+Open http://localhost:3000 and sign in as `ada`, `grace` or `admin`, which `OIDCRAFT_DEMO_ACCOUNTS=on` seeds; the
+password is `OIDCRAFT_DEMO_PASSWORD` in `.env.example`. The provider's own pages are worth a look too:
 
-- http://localhost:3001/admin: clients, sessions, grants and keys (sign in as an account in `OIDCRAFT_ADMINS`)
+- http://localhost:3001/admin: clients, sessions, grants and keys (sign in as a username in `OIDCRAFT_ADMINS`)
 - http://localhost:3001/account: an account's own password, passkeys, authenticator app and recovery codes
 - http://localhost:3001/device: the screen a TV or CLI sends you to
 

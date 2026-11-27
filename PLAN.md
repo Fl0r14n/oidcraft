@@ -183,8 +183,8 @@ without `client_id`; MySQL PAD SPACE collations (done, in `0001_init`); email ca
 
 Reference deployment (`apps/demo-server/src`):
 
-- [ ] D-1 high `[test]` username as account id collides with `google:<sub>` (`op/accounts.ts:28`, `interaction/broker.ts:38`).
-- [ ] D-2 high demo accounts and admin seeded in production (`op/provider.ts:29`, `.env.example`).
+- [x] D-1 high `[test]` username as account id collides with `google:<sub>` (`op/accounts.ts:28`, `interaction/broker.ts:38`).
+- [x] D-2 high demo accounts and admin seeded in production (`op/provider.ts:29`, `.env.example`).
 - [ ] D-3 reset and email links printed to stdout in production (`op/accounts.ts:103`).
 - [ ] D-4 TOTP enrolment needs only the bearer token (`account/api.ts:130`).
 - [ ] D-5 realm private keys written 0644 (`op/realms.ts:41`).

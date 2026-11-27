@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { memoryAdapter } from '@oidcraft/adapter/memory'
 import { addressBucket, createAccounts, generateSecretKey, hotp, type PasswordHasher } from './index'
-import { open } from './sealed'
+import { createSealer } from './sealed'
 import { counterAt, fromBase32 } from './totp'
 
 /** Fast and transparent: the hashing itself is the runtime entries' job, tested there. */
@@ -323,9 +323,38 @@ describe('second factor', () => {
     const { adapter, secret, secretKey } = await enrolled()
     const stored = (await adapter.credentials?.find('id-ada'))?.totp?.secret as string
     expect(stored).not.toContain(secret)
-    const key = await crypto.subtle.importKey('raw', Buffer.from(secretKey, 'base64url'), 'AES-GCM', false, ['decrypt'])
-    expect(await open(key, 'id-ada', stored)).toEqual(fromBase32(secret))
-    await expect(open(key, 'id-grace', stored)).rejects.toThrow()
+    const sealer = await createSealer(secretKey)
+    expect(await sealer.open('id-ada', stored)).toEqual(fromBase32(secret))
+    await expect(sealer.open('id-grace', stored)).rejects.toThrow()
+  })
+
+  // A key derived for sealing alone, named in what it sealed: a secret sealed under another key says so.
+  test('a secret is sealed under a derived key it names, and one under another key is refused as such', async () => {
+    const { adapter, secretKey } = await enrolled()
+    const stored = (await adapter.credentials?.find('id-ada'))?.totp?.secret as string
+    const sealer = await createSealer(secretKey)
+    expect(stored.split('.').slice(0, 2)).toEqual(['v2', sealer.kid])
+    const raw = await crypto.subtle.importKey('raw', Buffer.from(secretKey, 'base64url'), 'AES-GCM', false, ['decrypt'])
+    const [, , iv, ciphertext] = stored.split('.') as string[]
+    const additionalData = new TextEncoder().encode('id-ada')
+    await expect(
+      crypto.subtle.decrypt(
+        { name: 'AES-GCM', iv: Buffer.from(iv as string, 'base64url'), additionalData },
+        raw,
+        Buffer.from(ciphertext as string, 'base64url')
+      )
+    ).rejects.toThrow()
+    await expect((await createSealer(generateSecretKey())).open('id-ada', stored)).rejects.toThrow(/sealed under key/)
+  })
+
+  test('a secret sealed in the old format, under the secret itself, is still read', async () => {
+    const secretKey = generateSecretKey()
+    const raw = await crypto.subtle.importKey('raw', Buffer.from(secretKey, 'base64url'), 'AES-GCM', false, ['encrypt'])
+    const iv = crypto.getRandomValues(new Uint8Array(12))
+    const additionalData = new TextEncoder().encode('id-ada')
+    const sealed = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv, additionalData }, raw, new Uint8Array([1, 2, 3])))
+    const v1 = `v1.${Buffer.from(iv).toString('base64url')}.${Buffer.from(sealed).toString('base64url')}`
+    expect(await (await createSealer(secretKey)).open('id-ada', v1)).toEqual(new Uint8Array([1, 2, 3]))
   })
 
   test('enrolment cannot be restarted over a confirmed secret, only removed', async () => {

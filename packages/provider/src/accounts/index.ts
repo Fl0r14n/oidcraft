@@ -5,7 +5,7 @@ import { createTotpEnrolment } from './enrolment'
 import { createPasskeys, displayNameOf, nameProblem, type PasskeyNameProblem, type RegistrationResponseJSON } from './passkeys'
 import { createRecovery } from './recovery'
 import { createReset } from './reset'
-import { importHashingKey, importSecretKey, open } from './sealed'
+import { createSealer, importHashingKey } from './sealed'
 import {
   type AccountsOptions,
   createShared,
@@ -102,7 +102,7 @@ export const createAccounts = (options: AccountsOptions) => {
   const shared = createShared(options)
   const { adapter, credentials, hasher, policy, spendDecoy } = shared
   const scopes = options.claims ?? STANDARD_CLAIMS
-  const key = importSecretKey(options.secretKey)
+  const sealer = createSealer(options.secretKey)
   const hashingKey = importHashingKey(options.secretKey)
   const throttle = createThrottle(shared)
   const recovery = createRecovery(shared, hashingKey)
@@ -224,7 +224,7 @@ export const createAccounts = (options: AccountsOptions) => {
       const admitted = await throttle.admit(accountId, lockedUntil(credential), bucket)
       if (admitted.refused) return admitted.refused
 
-      const counter = await matchingCounter(await open(await key, accountId, credential.totp.secret), code.replace(/\s/g, ''))
+      const counter = await matchingCounter(await (await sealer).open(accountId, credential.totp.secret), code.replace(/\s/g, ''))
       if (counter !== undefined && (await adapter.replay.claim('totp', `${accountId}:${counter}`, 3 * TOTP_PERIOD))) {
         await throttle.succeed(bucket, admitted.slot)
         return { ok: true, method: 'otp' }
@@ -271,7 +271,7 @@ export const createAccounts = (options: AccountsOptions) => {
     /** WebAuthn: a sign-in of its own, by autofill, or a second factor beside TOTP; and an account's only credential (FR-I8). */
     passkeys: { ...passkeys, ...passkeySignUp },
 
-    totp: createTotpEnrolment(shared, key, recovery),
+    totp: createTotpEnrolment(shared, sealer, recovery),
 
     emailSignIn: createEmailSignIn(shared, generationOf),
 

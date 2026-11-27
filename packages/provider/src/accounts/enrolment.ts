@@ -1,10 +1,10 @@
 import type { Recovery } from './recovery'
-import { open, seal } from './sealed'
+import type { Sealer } from './sealed'
 import type { Shared } from './shared'
 import { base32, matchingCounter, otpauthUri, TOTP_PERIOD } from './totp'
 
 /** TOTP as a second factor after a password (FR-I7): begin, confirm with a first code, remove. */
-export const createTotpEnrolment = ({ adapter, credentials, options }: Shared, key: Promise<CryptoKey>, recovery: Recovery) => ({
+export const createTotpEnrolment = ({ adapter, credentials, options }: Shared, sealer: Promise<Sealer>, recovery: Recovery) => ({
   /** Starts enrolment. The secret only takes effect once `confirm` sees a code generated from it. */
   async begin(accountId: string) {
     const credential = await credentials.find(accountId)
@@ -13,7 +13,7 @@ export const createTotpEnrolment = ({ adapter, credentials, options }: Shared, k
     // A second factor follows a password; an account without one signs in with a passkey, already two (FR-I8).
     if (!credential.passwordHash) return { ok: false, reason: 'passwordless' } as const
     const secret = crypto.getRandomValues(new Uint8Array(20))
-    await credentials.update(accountId, { totp: { secret: await seal(await key, accountId, secret) }, updatedAt: new Date() })
+    await credentials.update(accountId, { totp: { secret: await (await sealer).seal(accountId, secret) }, updatedAt: new Date() })
     const encoded = base32(secret)
     return { ok: true, secret: encoded, uri: otpauthUri(encoded, options.issuer, credential.username) } as const
   },
@@ -22,7 +22,7 @@ export const createTotpEnrolment = ({ adapter, credentials, options }: Shared, k
   async confirm(accountId: string, code: string) {
     const credential = await credentials.find(accountId)
     if (!credential?.totp || credential.totp.confirmedAt) return undefined
-    const counter = await matchingCounter(await open(await key, accountId, credential.totp.secret), code.replace(/\s/g, ''))
+    const counter = await matchingCounter(await (await sealer).open(accountId, credential.totp.secret), code.replace(/\s/g, ''))
     if (counter === undefined || !(await adapter.replay.claim('totp', `${accountId}:${counter}`, 3 * TOTP_PERIOD))) return undefined
     const { codes, hashes } = await recovery.issueRecoveryCodes(accountId)
     await credentials.update(accountId, {

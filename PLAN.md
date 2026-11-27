@@ -6,14 +6,14 @@ was done.
 
 ## Status
 
-**Implemented, as of 2026-11-25**, with 1566 passing tests (551 more skip without Postgres, MySQL,
-MariaDB and Redis), `bun run verify` as the gate and `bun run smoke` clicking through the demo in CI:
-every functional requirement in `REQUIREMENTS.md`.
+**Implemented, as of 2026-11-27**, with 2301 passing tests against Postgres, MySQL, MariaDB and Redis,
+`bun run verify` as the gate, and `bun run smoke` and six OpenID Foundation plans in CI: every
+functional requirement in `REQUIREMENTS.md`.
 `metadata.test.ts` exercises every advertised discovery value rather than reading it. Published as
-`@oidcraft/*` on 2026-11-14, each from a GitHub release with provenance — `core` 0.5.0, `client`
-0.4.0, the four storage adapters 0.3.0, `vue` 10.0.0, `react` 5.0.0, `angular` 12.0.0, and on
-2026-11-25 `adapter` 0.3.1 and the provider 0.9.0 — with the docs site at https://fl0r14n.github.io/oidcraft/. Each release's
-notes, the renames to ARCHITECTURE.md §9.3 included, are on its GitHub release.
+`@oidcraft/*`, each from a GitHub release with provenance; on 2026-11-27, after the 2026-11-26 review,
+`core` 0.6.0, `client` 0.5.0, `adapter` 0.4.0, the provider 0.10.0, the four storage adapters 0.4.0,
+`vue` 11.0.0, `react` 6.0.0 and `angular` 13.0.0 — with the docs site at https://fl0r14n.github.io/oidcraft/.
+Each release's notes, what to change when upgrading included, are on its GitHub release.
 
 **Provider 0.3.0 and earlier are not to be put in front of real identities**: they ship a session
 takeover through `sid` and the other security faults fixed in 0.4.0.

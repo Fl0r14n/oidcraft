@@ -22,6 +22,10 @@
       "types": "./dist/rows.d.mts",
       "import": "./dist/rows.mjs"
     },
+    "./store": {
+      "types": "./dist/store.d.mts",
+      "import": "./dist/store.mjs"
+    },
     "./testing": "./testing/postgres.ts",
     "./testing/mysql": "./testing/mysql.ts",
     "./package.json": "./package.json"

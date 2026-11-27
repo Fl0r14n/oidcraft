@@ -165,8 +165,13 @@ all naming the method `tokenEndpointAuthMethod`. Scope is the exception: core ke
 string the bindings' users pass, the provider keeps `scopes` as the list it stores and compares.
 
 The SQL schema is not contract — only the three SQL adapters read it — so it is `@oidcraft/sql`,
-private, and each compiles in its own copy, as it does the row mapping Kysely and TypeORM share
-(`@oidcraft/sql/rows`: JSON as text, times as epoch milliseconds). It has a build of its own so they
+private, and each compiles in its own copy, as it does the row mapping (`@oidcraft/sql/rows`: JSON as
+text, times as epoch milliseconds) and the stores themselves (`@oidcraft/sql/store`). Every store is
+written once there, as statements per dialect whose slots are a value or a table; an ORM adapter
+supplies `execute`, which binds the values its own way, names each table as its own table definitions
+do (schema or database included), and normalises what the driver returns. So Drizzle, Kysely and
+TypeORM hold their table definitions and that one function, and differ in nothing a conformance
+check could see. It has a build of its own so they
 bundle its `dist`, not its sources, whose declaration build would write stray `.d.ts` files beside
 them; importing it by name fails `verify-entries.ts`, since it is only a `devDependency`. One package
 rather than one per dialect, because both lists must keep the same ids (§4.2).

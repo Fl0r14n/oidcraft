@@ -138,7 +138,7 @@ Medium:
 - [x] S-4 `[test]` cert-bound client without a certificate gets bearer tokens; `dpopBoundAccessTokens` ignored with DPoP off (`token/endpoint.ts:22,59`).
 - [x] A-1 `[test]` account-wide lockout renews the generation, freeing every slot (`accounts/index.ts:264,302`).
 - [x] A-2 `allowedUpstreams` not enforced at `interactions.complete` (`authorize/interactions.ts:292`).
-- [ ] R-1 `fromKv` `destroyByClientId` scans, reachable from RFC 7592 DELETE (`packages/adapter/src/kv.ts:156,303`).
+- [x] R-1 `fromKv` `destroyByClientId` scans, reachable from RFC 7592 DELETE (`packages/adapter/src/kv.ts:156,303`).
 - [x] R-2 ID token `iss` unchecked without a configured issuer (`packages/core/src/jwt.ts:170`).
 - [x] R-3 `@oidcraft/client` uses a server-side process-wide `localStorage` (`packages/client/src/storage.ts:5`).
 
@@ -172,7 +172,7 @@ Low:
 - [x] R-5 refresh lock released mid-request (`packages/client/src/token.ts:192`).
 - [x] R-6 ID token without `exp`/`iat` accepted; no `algorithms` (`packages/core/src/jwt.ts:176`).
 - [x] R-7 whitespace-prefixed `http` passes `assertSecure` (`packages/core/src/secure.ts:90`).
-- [ ] R-8 `grants.upsert` unions in `fromKv`, overwrites in SQL.
+- [x] R-8 `grants.upsert` unions in `fromKv`, overwrites in SQL.
 - [x] R-9 state-less error callback consumes the pending sign-in (`packages/client/src/flows.ts:174`).
 
 Hardening: security headers on HTML; device user-code limits (global cap, /64, modulo bias); password and body

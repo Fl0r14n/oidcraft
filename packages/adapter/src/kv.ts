@@ -85,6 +85,7 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
   }
   const present = <T>(values: (T | undefined)[]) => values.filter((value): value is T => value !== undefined)
   const artifactKey = (kind: string, id: string) => `artifact/${kind}/${id}`
+  const clientArtifacts = (clientId: string) => `client-artifact/${part(clientId)}/`
   // Kept apart from the artifact so an upsert cannot overwrite it (FR-T3, NFR-S4).
   const consumedKey = (kind: string, id: string) => `consumed/${kind}/${id}`
   const withConsumption = async (artifact: Artifact) => {
@@ -100,6 +101,7 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
       await kv.upsert({ key: artifactKey(artifact.kind, artifact.id), value: enc(stored), ttl })
       if (artifact.grantId) await kv.upsert({ key: `grant-index/${artifact.grantId}/${artifact.kind}/${artifact.id}`, value: '', ttl })
       if (artifact.familyId) await kv.upsert({ key: `family-index/${artifact.familyId}/${artifact.kind}/${artifact.id}`, value: '', ttl })
+      await kv.upsert({ key: `${clientArtifacts(artifact.clientId)}${artifact.kind}/${artifact.id}`, value: '', ttl })
       if (typeof artifact.payload.userCode === 'string') {
         await kv.upsert({ key: `user-code/${artifact.payload.userCode}`, value: artifactKey(artifact.kind, artifact.id), ttl })
       }
@@ -152,10 +154,12 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
       }
     },
 
-    // Deliberately unindexed: deleting a client is rare and an operator's, not worth an index key per write.
+    // R-1: RFC 7592 lets any registered client delete itself, so this reads its own index, never every artifact (NFR-P1).
     async destroyByClientId(clientId) {
-      for await (const { key, value } of kv.scan('artifact/')) {
-        if (dec<Artifact>(value)?.clientId === clientId) await kv.destroy(key)
+      for await (const { key } of kv.scan(clientArtifacts(clientId))) {
+        const [kind, id] = key.slice(clientArtifacts(clientId).length).split('/')
+        if (kind && id) await kv.destroy(artifactKey(kind, id))
+        await kv.destroy(key)
       }
     }
   }
@@ -231,6 +235,7 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
   // The pair is its own key, so the grant lookup every authorization makes reads one key (NFR-P1).
   const accountGrants = (accountId: string) => `grant-by/${part(accountId)}/`
   const grantIndex = (grant: Pick<Grant, 'accountId' | 'clientId'>) => `${accountGrants(grant.accountId)}${part(grant.clientId)}`
+  const clientGrants = (clientId: string) => `grant-by-client/${part(clientId)}/`
   const readGrant = async (id: string) => {
     const grant = dec<Grant>(await read(`grant/${id}`))
     const live = grant && revive(grant, ['createdAt', 'expiresAt'])
@@ -254,19 +259,11 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
       const claimed = await kv.create({ key: grantIndex(grant), value: grant.id, ...ttl })
       const id = claimed ? grant.id : ((await read(grantIndex(grant))) ?? grant.id)
       const held = id === grant.id ? undefined : await readGrant(id)
-      // A lost claim is a first consent that raced another: it adds to that grant, never replaces it (FR-I4).
-      const stored = held
-        ? {
-            ...grant,
-            id,
-            createdAt: held.createdAt,
-            scopes: [...new Set([...held.scopes, ...grant.scopes])],
-            claims: [...new Set([...held.claims, ...grant.claims])],
-            resources: { ...held.resources, ...grant.resources }
-          }
-        : { ...grant, id }
+      // R-8: the pair's grant takes what is written, as SQL's upsert does; adding to it is `merge`'s, under its lock (FR-I4).
+      const stored = held ? { ...grant, id, createdAt: held.createdAt } : { ...grant, id }
       await kv.upsert({ key: `grant/${id}`, value: enc(stored), ...ttl })
       await kv.upsert({ key: grantIndex(grant), value: id, ...ttl })
+      await kv.upsert({ key: `${clientGrants(grant.clientId)}${part(id)}`, value: id, ...ttl })
     },
     // FR-I4: a store with no compare-and-swap serializes consents to one pair by an atomic create, released when done.
     async merge(grant) {
@@ -298,12 +295,13 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
       await kv.destroy(`grant/${id}`)
       // Only its own pointer: a later grant for the same pair may have taken the key over.
       if (grant) await kv.destroyIf(grantIndex(grant), id)
+      if (grant) await kv.destroy(`${clientGrants(grant.clientId)}${part(id)}`)
     },
-    // Deliberately unindexed: deleting a client is rare and an operator's.
+    // R-1: by the client's own index, as its artifacts are, never by reading every grant.
     async destroyByClientId(clientId) {
-      for await (const { value } of kv.scan('grant/')) {
-        const grant = dec<Grant>(value)
-        if (grant?.clientId === clientId) await grants.destroy(grant.id)
+      for await (const { key, value } of kv.scan(clientGrants(clientId))) {
+        await grants.destroy(value)
+        await kv.destroy(key)
       }
     }
   }

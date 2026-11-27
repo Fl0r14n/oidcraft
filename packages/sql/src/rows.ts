@@ -272,3 +272,67 @@ export const toRealm = (row: Read<RealmRow>): Realm => ({
   createdAt: at(row.created_at),
   updatedAt: at(row.updated_at)
 })
+
+/** The columns `fields` set, encoded by the full row's own mapper; a field the map leaves out is a key and never written. */
+const changed = <T extends object, R>(
+  toRow: (value: T) => R,
+  blank: T,
+  columns: Partial<Record<keyof T, (keyof R)[]>>,
+  fields: Partial<T>
+) => {
+  const row = toRow({ ...blank, ...fields })
+  const set: Partial<R> = {}
+  for (const field of Object.keys(fields) as (keyof T)[]) for (const column of columns[field] ?? []) set[column] = row[column]
+  return set
+}
+
+const EPOCH = new Date(0)
+
+export const sessionFields = (fields: Partial<Session>) =>
+  changed(
+    sessionRow,
+    { id: '', accountId: '', authTime: EPOCH, clients: [], expiresAt: EPOCH },
+    {
+      accountId: ['account_id'],
+      authTime: ['auth_time'],
+      acr: ['acr'],
+      amr: ['amr'],
+      idp: ['idp'],
+      upstreamSessionId: ['upstream_session_id'],
+      expiresAt: ['expires_at']
+    },
+    fields
+  )
+
+export const credentialFields = (fields: Partial<Credential>) =>
+  changed(
+    credentialRow,
+    { accountId: '', username: '', claims: {}, failedAttempts: 0, createdAt: EPOCH, updatedAt: EPOCH },
+    {
+      passwordHash: ['password_hash'],
+      claims: ['claims'],
+      totp: ['totp_secret', 'totp_confirmed_at'],
+      recoveryCodes: ['recovery_codes'],
+      failedAttempts: ['failed_attempts'],
+      lockedUntil: ['locked_until'],
+      createdAt: ['created_at'],
+      updatedAt: ['updated_at']
+    },
+    fields
+  )
+
+export const passkeyFields = (fields: Partial<Passkey>) =>
+  changed(
+    passkeyRow,
+    { credentialId: '', accountId: '', publicKey: '', algorithm: 0, counter: 0, transports: [], name: '', createdAt: EPOCH },
+    {
+      publicKey: ['public_key'],
+      algorithm: ['algorithm'],
+      counter: ['counter'],
+      transports: ['transports'],
+      name: ['name'],
+      createdAt: ['created_at'],
+      lastUsedAt: ['last_used_at']
+    },
+    fields
+  )

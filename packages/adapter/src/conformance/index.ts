@@ -636,6 +636,65 @@ export const adapterConformance = (create: () => Adapter | Promise<Adapter>, opt
       }
     },
     {
+      // A7, FR-I10: an update writes the fields it names into a live session and nothing else, its clients least of all.
+      name: 'a session updates in place, keeps its clients, and an update never creates one',
+      run: async () => {
+        const adapter = await full()
+        await adapter.sessions.upsert(session())
+        await adapter.sessions.addClient('s1', 'c2')
+        same(await adapter.sessions.update('s1', { acr: 'mfa', authTime: new Date(5_000) }), true, 'an update of a live session')
+        const found = await adapter.sessions.find('s1')
+        same(found?.acr, 'mfa', 'the updated acr')
+        same(found?.authTime.getTime(), 5_000, 'the updated authTime')
+        same([...(found?.clients ?? [])].sort(), ['c1', 'c2'], 'the clients addClient added')
+        same(await adapter.sessions.update('nope', { acr: 'mfa' }), false, 'an update of an unknown session')
+        same(await adapter.sessions.find('nope'), undefined, 'a session an update would have made')
+        await adapter.sessions.upsert(session({ id: 's2', expiresAt: past() }))
+        same(await adapter.sessions.update('s2', { acr: 'mfa' }), false, 'an update of an expired session')
+      }
+    },
+    {
+      // A7: two writers changing different fields of one credential both land, as two upserts of what each read would not.
+      name: 'credential updates write only their fields, concurrently, and never create one',
+      needs: 'credentials',
+      run: async () => {
+        const adapter = await full()
+        await adapter.credentials.create(credential('a1', 'ada'))
+        const lockedUntil = new Date(9_000_000_000_000)
+        const answers = await Promise.all([
+          adapter.credentials.update('a1', { lockedUntil }),
+          adapter.credentials.update('a1', { claims: { name: 'Ada Lovelace' } }),
+          adapter.credentials.update('a1', { recoveryCodes: ['h1'] })
+        ])
+        same(answers, [true, true, true], 'the updates')
+        const found = await adapter.credentials.find('a1')
+        same(found?.lockedUntil?.getTime(), lockedUntil.getTime(), 'lockedUntil')
+        same(found?.claims, { name: 'Ada Lovelace' }, 'claims')
+        same(found?.recoveryCodes, ['h1'], 'recoveryCodes')
+        same(found?.passwordHash, '$argon2id$stub', 'the password hash no update named')
+        same(found?.username, 'ada', 'the username')
+        same(await adapter.credentials.update('a2', { failedAttempts: 1 }), false, 'an update of an unknown account')
+        same(await adapter.credentials.find('a2'), undefined, 'a credential an update would have made')
+      }
+    },
+    {
+      name: 'a passkey updates in place and stays its account’s',
+      needs: 'passkeys',
+      run: async () => {
+        const adapter = await full()
+        await adapter.passkeys.create(passkey('k1', 'a1'))
+        const lastUsedAt = new Date(7_000)
+        same(await adapter.passkeys.update('k1', { counter: 5, lastUsedAt }), true, 'an update of a passkey')
+        const found = await adapter.passkeys.find('k1')
+        same(found?.counter, 5, 'counter')
+        same(found?.lastUsedAt?.getTime(), 7_000, 'lastUsedAt')
+        same(found?.name, 'Laptop', 'the name no update named')
+        same((await adapter.passkeys.listForAccount('a1')).length, 1, "a1's passkeys")
+        same(await adapter.passkeys.update('k2', { counter: 1 }), false, 'an update of an unknown passkey')
+        same(await adapter.passkeys.find('k2'), undefined, 'a passkey an update would have made')
+      }
+    },
+    {
       // FR-I7: a username belongs to one account, even when two sign-ups race for it.
       name: 'a credential is created once per account and per username, atomically',
       needs: 'credentials',

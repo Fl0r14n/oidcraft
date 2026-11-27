@@ -16,7 +16,8 @@ export type {
   RealmStore,
   RealmsAdapter,
   ReplayGuard,
-  SessionStore
+  SessionStore,
+  UpdatableStore
 } from './adapter'
 export { hashClientSecret } from './client-secret'
 export { ConfigurationError } from './errors'

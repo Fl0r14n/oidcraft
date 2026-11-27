@@ -40,6 +40,15 @@ export type EntityStore<T, Id extends unknown[] = [id: string]> = {
   destroy(...id: Id): Promise<void>
 }
 
+/**
+ * A record whose fields change one at a time: `update` writes only the fields given, to a record that exists, and resolves
+ * whether there was one; it never creates one. `Key` names what identifies a record, which never changes: two writers changing
+ * different fields of one record both land, as two `upsert`s of what each read would not.
+ */
+export type UpdatableStore<T, Key extends keyof T> = EntityStore<T> & {
+  update(id: string, fields: Partial<Omit<T, Key>>): Promise<boolean>
+}
+
 /** Writes are optional so a deployment can serve a fixed set of clients; registration then refuses (FR-C9). */
 export type ClientStore = Pick<EntityStore<Client>, 'find'> &
   Partial<Omit<EntityStore<Client>, 'find'>> & {
@@ -61,7 +70,8 @@ export type ArtifactStore = EntityStore<Artifact, [kind: ArtifactKind, id: strin
   prune?(before: Date, limit: number): Promise<number>
 }
 
-export type SessionStore = EntityStore<Session> & {
+/** `update` writes a live session only, and never its clients, which `addClient` alone adds to (FR-I10, FR-C11). */
+export type SessionStore = UpdatableStore<Session, 'id' | 'clients'> & {
   listForAccount(accountId: string): Promise<Session[]>
   /** Atomically adds a client: concurrent sign-ins must all reach the logout list (FR-C11); a session that is gone stays gone. */
   addClient(id: string, clientId: string): Promise<void>
@@ -116,14 +126,15 @@ export type LinkedIdentityStore = EntityStore<LinkedIdentity, [upstream: string,
   listForAccount(accountId: string): Promise<LinkedIdentity[]>
 }
 
-export type CredentialStore = EntityStore<Credential> & {
+/** A username is unique, so it changes through `upsert`, which refuses one another account holds, never through `update`. */
+export type CredentialStore = UpdatableStore<Credential, 'accountId' | 'username'> & {
   findByUsername(username: string): Promise<Credential | undefined>
   /** Writes only when neither the account nor the username exists, atomically: two sign-ups racing for one name must not both win. */
   create(credential: Credential): Promise<boolean>
 }
 
 /** Keyed by credential id, which the authenticator chooses: an assertion names its credential, not its account. */
-export type PasskeyStore = EntityStore<Passkey> & {
+export type PasskeyStore = UpdatableStore<Passkey, 'accountId' | 'credentialId'> & {
   listForAccount(accountId: string): Promise<Passkey[]>
   /** Writes only when the credential id is free, atomically: a credential registered to one account is never moved to another (FR-I8). */
   create(passkey: Passkey): Promise<boolean>

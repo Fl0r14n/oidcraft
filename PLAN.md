@@ -118,7 +118,7 @@ marks a finding reproduced by a throwaway test. Paths are under `packages/provid
       `outstandingConsent`/`assertConsentCovers`, `assertAccessToken` and its `refused`, `StoredId`.
 - [x] A5 `authorize ↔ token ↔ clients` import cycle; authorization endpoint inside `provider.ts`.
 - [x] A6 throttling on `ReplayGuard` slots → an atomic counter on the adapter.
-- [ ] A7 whole-row credential writes → field merge or CAS.
+- [x] A7 whole-row credential writes → field merge or CAS. The contract has `update`; the provider moves onto it in step 4 (A-6, S-1).
 - [ ] A8 Redis single `~keys` set; no injectable clock.
 
 ### 3. Structure

@@ -305,20 +305,24 @@ the one place rotation is skipped (FR-T3).
 `packages/adapter/src/adapter.ts` is the contract, published as `@oidcraft/adapter` (§2.1). Storage
 is **a set of narrow capability stores**, not one table keyed by a model-name string:
 
-| Store                 | Holds                                                                                                         |
-| --------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `ClientStore`         | Registered clients. `create`/`update`/`destroy` are optional — omitting them disables DCR at runtime (FR-C9). |
-| `ArtifactStore`       | Codes, access and refresh tokens, device codes, PAR and CIBA requests. Revoked by grant, family and client.   |
-| `SessionStore`        | The end-user's authenticated session at the OP, including its upstream provenance (FR-F6).                    |
-| `GrantStore`          | Durable consent to scopes and named claims. Survives token revocation (FR-I4), not its client (FR-T7).        |
-| `AccountStore`        | The host's users. Claims are resolved per request, never cached at login (FR-C5).                             |
-| `KeyStore`            | Signing keys, newest first (FR-C10).                                                                          |
-| `ReplayGuard`         | One-shot values (NFR-S5).                                                                                     |
-| `LinkedIdentityStore` | `(upstream, subject) → account` links. Optional; only brokering deployments need it.                          |
+| Store                 | Holds                                                                                                            |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `ClientStore`         | Registered clients. `upsert`, `destroy` and `list` are optional — omitting them disables DCR at runtime (FR-C9). |
+| `ArtifactStore`       | Codes, access and refresh tokens, device codes, PAR and CIBA requests. Revoked by grant, family and client.      |
+| `SessionStore`        | The end-user's authenticated session at the OP, including its upstream provenance (FR-F6).                       |
+| `GrantStore`          | Durable consent to scopes and named claims. Survives token revocation (FR-I4), not its client (FR-T7).           |
+| `AccountStore`        | The host's users. Claims are resolved per request, never cached at login (FR-C5).                                |
+| `KeyStore`            | Signing keys, newest first (FR-C10).                                                                             |
+| `ReplayGuard`         | One-shot values (NFR-S5).                                                                                        |
+| `LinkedIdentityStore` | `(upstream, subject) → account` links. Optional; only brokering deployments need it.                             |
 
 The record-holding stores — clients, artifacts, sessions, grants, identities — share one shape,
 `EntityStore<T, Id>`: `find`, `upsert` and `destroy`, with a composite key passed as arguments
-(`artifacts.find(kind, id)`). Each adds only the lookups the protocol needs indexed. `AccountStore`,
+(`artifacts.find(kind, id)`). Each adds only the lookups the protocol needs indexed. Sessions,
+credentials and passkeys are `UpdatableStore<T, Key>` besides: `update(id, fields)` writes only the
+fields given, to a record that exists, and never the `Key` fields that identify it, so two writers
+changing different fields of one record both land — a session updated in place by a sign-in and
+`addClient`, a lockout and a recovery code spent. `AccountStore`,
 `KeyStore` and `ReplayGuard` keep their own shapes: the host's users read-only, signing keys newest
 first, and one atomic claim.
 
@@ -822,14 +826,15 @@ One word per meaning across every package, so a name says what a call does befor
 **Storage** (`@oidcraft/adapter`, and every store a host or adapter implements) uses storage verbs
 only; a protocol verb such as _revoke_ is the provider's, which decides what a deletion means.
 
-| Verb                                             | Does                                   | Resolves            |
-| ------------------------------------------------ | -------------------------------------- | ------------------- |
-| `find(id)`, `findBy<Key>(…)`                     | one record                             | it, or `undefined`  |
-| `list()`, `listBy<Key>(…)`, `listForAccount(id)` | every match (`list` may page)          | an array, or a page |
-| `upsert(record)`                                 | writes, unconditionally                | nothing             |
-| `create(record)`                                 | writes only what is absent, atomically | whether it wrote    |
-| `destroy(id)`, `destroyBy<Key>(…)`               | deletes, unconditionally               | nothing             |
-| `destroyIf(key, value)`                          | deletes only that value, atomically    | whether it deleted  |
+| Verb                                             | Does                                    | Resolves            |
+| ------------------------------------------------ | --------------------------------------- | ------------------- |
+| `find(id)`, `findBy<Key>(…)`                     | one record                              | it, or `undefined`  |
+| `list()`, `listBy<Key>(…)`, `listForAccount(id)` | every match (`list` may page)           | an array, or a page |
+| `upsert(record)`                                 | writes, unconditionally                 | nothing             |
+| `create(record)`                                 | writes only what is absent, atomically  | whether it wrote    |
+| `update(id, fields)`                             | writes only those fields, never creates | whether it existed  |
+| `destroy(id)`, `destroyBy<Key>(…)`               | deletes, unconditionally                | nothing             |
+| `destroyIf(key, value)`                          | deletes only that value, atomically     | whether it deleted  |
 
 The atomic operations one store's job needs keep their own verb — `consume`, `claim`, `merge`,
 `addClient` — and `prune(before, limit)` is every bounded sweep. A conditional operation is its own

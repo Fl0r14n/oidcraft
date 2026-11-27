@@ -6,6 +6,7 @@ import {
   type ClientRow,
   type CredentialRow,
   clientRow,
+  credentialFields,
   credentialRow,
   type GrantRow,
   grantRow,
@@ -13,6 +14,7 @@ import {
   identityRow,
   json,
   type PasskeyRow,
+  passkeyFields,
   passkeyRow,
   type Read,
   type RealmRow,
@@ -20,6 +22,7 @@ import {
   realmRow,
   replayDigest,
   type SessionRow,
+  sessionFields,
   sessionRow,
   toArtifact,
   toClient,
@@ -208,6 +211,12 @@ export const sqlAdapter = ({ dialect, execute, keys, accounts }: SqlAdapterOptio
   const update = <T extends Table>(table: T, where: Where<T>, set: Partial<Tables[T]>, key: Column<T>) =>
     counted(statement().text('update ').table(table).text(' set ').assignments(set).where(where), key)
 
+  /** Whether the record exists, the given columns written: on MySQL an update that changes nothing may count no row. */
+  const updated = async <T extends Table>(table: T, where: Where<T>, set: Partial<Tables[T]>, key: Column<T>) => {
+    if (Object.keys(set).length && (await update(table, where, set, key))) return true
+    return (mysql || !Object.keys(set).length) && Boolean(await one(table, where))
+  }
+
   const destroy = async <T extends Table>(table: T, where: Where<T>) => {
     await execute(statement().text('delete from ').table(table).where(where).build())
   }
@@ -335,6 +344,8 @@ export const sqlAdapter = ({ dialect, execute, keys, accounts }: SqlAdapterOptio
       async destroy(id) {
         await destroy('oidc_sessions', { id })
       },
+      // FR-I10: a live session's columns, never its clients, which addClient alone writes (FR-C11).
+      update: (id, fields) => updated('oidc_sessions', { id, expires_at: live() }, sessionFields(fields), 'id'),
       prune: (before, limit) => prune('oidc_sessions', ['id'], before, limit)
     },
 
@@ -418,7 +429,8 @@ export const sqlAdapter = ({ dialect, execute, keys, accounts }: SqlAdapterOptio
       },
       async destroy(accountId) {
         await destroy('oidc_credentials', { account_id: accountId })
-      }
+      },
+      update: (accountId, fields) => updated('oidc_credentials', { account_id: accountId }, credentialFields(fields), 'account_id')
     },
 
     passkeys: {
@@ -439,7 +451,8 @@ export const sqlAdapter = ({ dialect, execute, keys, accounts }: SqlAdapterOptio
       },
       async destroy(credentialId) {
         await destroy('oidc_passkeys', { credential_id: credentialId })
-      }
+      },
+      update: (credentialId, fields) => updated('oidc_passkeys', { credential_id: credentialId }, passkeyFields(fields), 'credential_id')
     },
 
     realms: {

@@ -84,6 +84,23 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
     return ids
   }
   const present = <T>(values: (T | undefined)[]) => values.filter((value): value is T => value !== undefined)
+
+  /** A store with no compare-and-swap serializes writers to one record by an atomic create, released when done. */
+  const locked = async <T>(lock: string, run: () => Promise<T>) => {
+    const owner = crypto.randomUUID()
+    for (let wait = 0; wait < LOCK_WAITS; wait++) {
+      if (await kv.create({ key: lock, value: owner, ttl: LOCK_TTL })) {
+        try {
+          return await run()
+        } finally {
+          // Past LOCK_TTL the lock may be the next writer's, so only this one's own is released.
+          await kv.destroyIf(lock, owner)
+        }
+      }
+      await new Promise(resolve => setTimeout(resolve, LOCK_RETRY_MS))
+    }
+    throw new Error(`${lock} stayed locked`)
+  }
   const artifactKey = (kind: string, id: string) => `artifact/${kind}/${id}`
   const clientArtifacts = (clientId: string) => `client-artifact/${part(clientId)}/`
   // Kept apart from the artifact so an upsert cannot overwrite it (FR-T3, NFR-S4).
@@ -198,6 +215,12 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
     `${accountSessions(session.accountId)}${part(session.id)}`,
     ...(session.idp && session.upstreamSessionId ? [`${upstreamSessions(session.idp, session.upstreamSessionId)}${part(session.id)}`] : [])
   ]
+  const sessionLock = (id: string) => `session-lock/${part(id)}`
+  const writeSession = async (session: Session) => {
+    const ttl = secondsUntil(session.expiresAt)
+    await kv.upsert({ key: `session/${session.id}`, value: enc(session), ttl })
+    for (const key of sessionIndexes(session)) await kv.upsert({ key, value: '', ttl })
+  }
   const readSession = async (id: string) => {
     const session = dec<Session>(await read(`session/${id}`))
     return session && revive(session, ['authTime', 'expiresAt'])
@@ -219,17 +242,25 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
       if (!session) return
       await kv.upsert({ key: `${sessionClientPrefix(id)}${clientId}`, value: '', ttl: secondsUntil(session.expiresAt) })
     },
-    async upsert(session) {
-      const ttl = secondsUntil(session.expiresAt)
-      await kv.upsert({ key: `session/${session.id}`, value: enc(session), ttl })
-      for (const key of sessionIndexes(session)) await kv.upsert({ key, value: '', ttl })
-    },
-    async destroy(id) {
-      const session = await readSession(id)
-      await kv.destroy(`session/${id}`)
-      for (const key of session ? sessionIndexes(session) : []) await kv.destroy(key)
-      for await (const { key } of kv.scan(sessionClientPrefix(id))) await kv.destroy(key)
-    }
+    upsert: session => locked(sessionLock(session.id), () => writeSession(session)),
+    // Under the record's lock, so an update racing it cannot write an ended session back.
+    destroy: id =>
+      locked(sessionLock(id), async () => {
+        const session = await readSession(id)
+        await kv.destroy(`session/${id}`)
+        for (const key of session ? sessionIndexes(session) : []) await kv.destroy(key)
+        for await (const { key } of kv.scan(sessionClientPrefix(id))) await kv.destroy(key)
+      }),
+    update: (id, fields) =>
+      locked(sessionLock(id), async () => {
+        const session = await readSession(id)
+        if (!session || session.expiresAt.getTime() <= Date.now()) return false
+        const { id: _, clients: __, ...changed } = fields as Partial<Session>
+        const next = { ...session, ...changed }
+        for (const key of sessionIndexes(session)) if (!sessionIndexes(next).includes(key)) await kv.destroy(key)
+        await writeSession(next)
+        return true
+      })
   }
 
   // The pair is its own key, so the grant lookup every authorization makes reads one key (NFR-P1).
@@ -266,30 +297,18 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
       await kv.upsert({ key: `${clientGrants(grant.clientId)}${part(id)}`, value: id, ...ttl })
     },
     // FR-I4: a store with no compare-and-swap serializes consents to one pair by an atomic create, released when done.
-    async merge(grant) {
-      const lock = `grant-lock/${part(grant.accountId)}/${part(grant.clientId)}`
-      const owner = crypto.randomUUID()
-      for (let wait = 0; wait < LOCK_WAITS; wait++) {
-        if (await kv.create({ key: lock, value: owner, ttl: LOCK_TTL })) {
-          try {
-            const id = await read(grantIndex(grant))
-            const held = id === undefined ? undefined : await readGrant(id)
-            if (id !== undefined && !held) {
-              await kv.destroy(`grant/${id}`)
-              await kv.destroy(grantIndex(grant))
-            }
-            const stored = held ? mergedGrant(held, grant) : grant
-            await grants.upsert(stored)
-            return stored
-          } finally {
-            // FR-I4: past LOCK_TTL the lock may be the next merge's, so only this one's own is released.
-            await kv.destroyIf(lock, owner)
-          }
+    merge: grant =>
+      locked(`grant-lock/${part(grant.accountId)}/${part(grant.clientId)}`, async () => {
+        const id = await read(grantIndex(grant))
+        const held = id === undefined ? undefined : await readGrant(id)
+        if (id !== undefined && !held) {
+          await kv.destroy(`grant/${id}`)
+          await kv.destroy(grantIndex(grant))
         }
-        await new Promise(resolve => setTimeout(resolve, LOCK_RETRY_MS))
-      }
-      throw new Error(`the grant for ${grant.accountId} and ${grant.clientId} stayed locked`)
-    },
+        const stored = held ? mergedGrant(held, grant) : grant
+        await grants.upsert(stored)
+        return stored
+      }),
     async destroy(id) {
       const grant = await readGrant(id)
       await kv.destroy(`grant/${id}`)
@@ -332,6 +351,7 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
 
   const credentialKey = (accountId: string) => `credential/${accountId}`
   const usernameKey = (username: string) => `username/${username}`
+  const credentialLock = (accountId: string) => `credential-lock/${part(accountId)}`
   const reviveCredential = (credential: Credential) => {
     revive(credential, ['createdAt', 'updatedAt', 'lockedUntil'])
     if (credential.totp) revive(credential.totp, ['confirmedAt'])
@@ -355,26 +375,37 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
       await kv.destroy(usernameKey(credential.username))
       return false
     },
-    async upsert(credential) {
-      const existing = await readCredential(credential.accountId)
-      if (existing && existing.username !== credential.username) {
-        if (!(await kv.create({ key: usernameKey(credential.username), value: credential.accountId }))) {
-          throw new Error(`the username ${credential.username} is taken`)
+    upsert: credential =>
+      locked(credentialLock(credential.accountId), async () => {
+        const existing = await readCredential(credential.accountId)
+        if (existing && existing.username !== credential.username) {
+          if (!(await kv.create({ key: usernameKey(credential.username), value: credential.accountId }))) {
+            throw new Error(`the username ${credential.username} is taken`)
+          }
+          await kv.destroy(usernameKey(existing.username))
         }
-        await kv.destroy(usernameKey(existing.username))
-      }
-      await kv.upsert({ key: credentialKey(credential.accountId), value: enc(credential) })
-    },
-    async destroy(accountId) {
-      const existing = await readCredential(accountId)
-      if (existing) await kv.destroy(usernameKey(existing.username))
-      await kv.destroy(credentialKey(accountId))
-    }
+        await kv.upsert({ key: credentialKey(credential.accountId), value: enc(credential) })
+      }),
+    destroy: accountId =>
+      locked(credentialLock(accountId), async () => {
+        const existing = await readCredential(accountId)
+        if (existing) await kv.destroy(usernameKey(existing.username))
+        await kv.destroy(credentialKey(accountId))
+      }),
+    update: (accountId, fields) =>
+      locked(credentialLock(accountId), async () => {
+        const existing = await readCredential(accountId)
+        if (!existing) return false
+        const { accountId: _, username: __, ...changed } = fields as Partial<Credential>
+        await kv.upsert({ key: credentialKey(accountId), value: enc({ ...existing, ...changed }) })
+        return true
+      })
   }
 
   // The credential id is the authenticator's choice, so it is escaped like any other id that is not ours.
   const passkeyKey = (credentialId: string) => `passkey/${part(credentialId)}`
   const accountPasskeys = (accountId: string) => `account-passkey/${part(accountId)}/`
+  const passkeyLock = (credentialId: string) => `passkey-lock/${part(credentialId)}`
   const readPasskey = async (credentialId: string) => {
     const passkey = dec<Passkey>(await read(passkeyKey(credentialId)))
     return passkey ? revive(passkey, ['createdAt', 'lastUsedAt']) : undefined
@@ -392,15 +423,25 @@ export const fromKv = (kv: KvStore, options: FromKvOptions): FullAdapter => {
       await kv.upsert({ key: `${accountPasskeys(passkey.accountId)}${part(passkey.credentialId)}`, value: '' })
       return true
     },
-    async upsert(passkey) {
-      await kv.upsert({ key: passkeyKey(passkey.credentialId), value: enc(passkey) })
-      await kv.upsert({ key: `${accountPasskeys(passkey.accountId)}${part(passkey.credentialId)}`, value: '' })
-    },
-    async destroy(credentialId) {
-      const passkey = await readPasskey(credentialId)
-      await kv.destroy(passkeyKey(credentialId))
-      if (passkey) await kv.destroy(`${accountPasskeys(passkey.accountId)}${part(credentialId)}`)
-    }
+    upsert: passkey =>
+      locked(passkeyLock(passkey.credentialId), async () => {
+        await kv.upsert({ key: passkeyKey(passkey.credentialId), value: enc(passkey) })
+        await kv.upsert({ key: `${accountPasskeys(passkey.accountId)}${part(passkey.credentialId)}`, value: '' })
+      }),
+    destroy: credentialId =>
+      locked(passkeyLock(credentialId), async () => {
+        const passkey = await readPasskey(credentialId)
+        await kv.destroy(passkeyKey(credentialId))
+        if (passkey) await kv.destroy(`${accountPasskeys(passkey.accountId)}${part(credentialId)}`)
+      }),
+    update: (credentialId, fields) =>
+      locked(passkeyLock(credentialId), async () => {
+        const passkey = await readPasskey(credentialId)
+        if (!passkey) return false
+        const { accountId: _, credentialId: __, ...changed } = fields as Partial<Passkey>
+        await kv.upsert({ key: passkeyKey(credentialId), value: enc({ ...passkey, ...changed }) })
+        return true
+      })
   }
 
   const realmKey = (id: string) => `realm/${id}`

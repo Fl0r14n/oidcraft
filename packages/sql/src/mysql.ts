@@ -1,7 +1,8 @@
 import type { Migration } from './migration'
 
-// Every id here is a case-sensitive hash or random string, and MySQL's default collations compare case-insensitively.
-const TABLE = 'engine=InnoDB default charset=utf8mb4 collate=utf8mb4_bin'
+// Every id here compares case-sensitively and exactly: MySQL's default collations ignore case, and utf8mb4_bin pads with
+// spaces, so `rp ` found the client `rp`. utf8mb4_0900_bin is NO PAD, on MySQL 8 and on MariaDB from 11.4.5.
+const TABLE = 'engine=InnoDB default charset=utf8mb4 collate=utf8mb4_0900_bin'
 
 /**
  * The same tables as `SQLITE_MIGRATIONS`, with the same ids, for MySQL 8.4 and MariaDB 11 alike (FR-A4): one
@@ -60,27 +61,12 @@ export const MYSQL_MIGRATIONS: Migration[] = [
     ]
   },
   {
-    // FR-I8: a credential id is up to 1023 bytes, 1364 in base64url, which fits a key only as ascii.
+    // FR-I8: a credential id is up to 1023 bytes, 1364 in base64url, which fits a key only as ascii. ascii_bin, the one ascii
+    // collation both servers share, pads; a credential id is looked up only to check a signature.
     id: '0006_passkeys',
     statements: [
       `create table oidc_passkeys (credential_id varchar(1400) character set ascii collate ascii_bin primary key, account_id varchar(255) not null, public_key text not null, algorithm integer not null, counter bigint not null, transports text not null, name varchar(255) not null, created_at bigint not null, last_used_at bigint) ${TABLE}`,
       'create index oidc_passkeys_account_idx on oidc_passkeys (account_id)'
-    ]
-  },
-  {
-    // utf8mb4_bin pads with spaces, so `rp ` found the client `rp`; utf8mb4_0900_bin compares exactly (MySQL 8, MariaDB 11.4.5).
-    // A credential id stays ascii_bin, the only ascii collation both servers share: it is looked up only to check a signature.
-    id: '0007_exact_keys',
-    statements: [
-      'alter table oidc_clients convert to character set utf8mb4 collate utf8mb4_0900_bin',
-      'alter table oidc_artifacts convert to character set utf8mb4 collate utf8mb4_0900_bin',
-      'alter table oidc_sessions convert to character set utf8mb4 collate utf8mb4_0900_bin',
-      'alter table oidc_grants convert to character set utf8mb4 collate utf8mb4_0900_bin',
-      'alter table oidc_identities convert to character set utf8mb4 collate utf8mb4_0900_bin',
-      'alter table oidc_replay convert to character set utf8mb4 collate utf8mb4_0900_bin',
-      'alter table oidc_credentials convert to character set utf8mb4 collate utf8mb4_0900_bin',
-      'alter table oidc_realms convert to character set utf8mb4 collate utf8mb4_0900_bin',
-      'alter table oidc_passkeys modify account_id varchar(255) character set utf8mb4 collate utf8mb4_0900_bin not null, modify name varchar(255) character set utf8mb4 collate utf8mb4_0900_bin not null'
     ]
   }
 ]

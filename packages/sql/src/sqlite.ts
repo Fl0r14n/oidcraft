@@ -63,11 +63,6 @@ export const SQLITE_MIGRATIONS: Migration[] = [
       'create table oidc_passkeys (credential_id text primary key not null, account_id text not null, public_key text not null, algorithm integer not null, counter integer not null, transports text not null, name text not null, created_at integer not null, last_used_at integer)',
       'create index oidc_passkeys_account_idx on oidc_passkeys (account_id)'
     ]
-  },
-  {
-    // MySQL's alone: text here already compares exactly, trailing spaces included.
-    id: '0007_exact_keys',
-    statements: []
   }
 ]
 export type { Migration } from './migration'

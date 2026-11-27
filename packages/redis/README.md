@@ -26,7 +26,12 @@ Redis cannot list the keys under a prefix without reading every key, so the adap
 sets beside the data, `<prefix>~keys` and `<prefix>~expiry`, and each write is one `EVAL` that
 updates them with the entry. Your command function must pass `EVAL` through. The script touches the
 entry and both sets, so they must be on one node: a single Redis, or a cluster where `prefix`
-carries a hash tag, such as `{oidcraft}:`.
+carries a hash tag, such as `{oidcraft}:`. A hash tag puts every key in one slot, so a cluster gives
+this adapter its availability, not its capacity: one node holds all of it. Splitting the sets per
+record family would spread it; that waits for someone running a cluster to need it.
+
+Redis expires an entry by its own clock, and the adapter also refuses one whose `expiresAt` has
+passed by this process's, so keep the clocks of the hosts and the Redis server in sync.
 
 It returns a `FullAdapter`, so it satisfies every `@oidcraft/provider` entry point, and passes the
 shared suite in `@oidcraft/adapter/conformance`.

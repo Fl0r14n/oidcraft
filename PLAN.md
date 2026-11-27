@@ -119,7 +119,7 @@ marks a finding reproduced by a throwaway test. Paths are under `packages/provid
 - [x] A5 `authorize ↔ token ↔ clients` import cycle; authorization endpoint inside `provider.ts`.
 - [x] A6 throttling on `ReplayGuard` slots → an atomic counter on the adapter.
 - [x] A7 whole-row credential writes → field merge or CAS. The contract has `update`; the provider moves onto it in step 4 (A-6, S-1).
-- [ ] A8 Redis single `~keys` set; no injectable clock.
+- [x] A8 Redis single `~keys` set; no injectable clock. The README says so.
 
 ### 3. Structure
 

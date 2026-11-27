@@ -128,9 +128,14 @@ marks a finding reproduced by a throwaway test. Paths are under `packages/provid
 ### 3. Structure
 
 - [x] One SQL kernel in `@oidcraft/sql` for drizzle/kysely/typeorm.
-- [ ] Split `authorize/authorization.ts`, `clients/registration.ts`, refresh paths in
-      `token/code.ts`. `accounts/index.ts` and the demo's `interaction/routes.ts` are split.
-- [ ] `broker.complete` verifies twice; `sealed.ts` has no key id (done: HKDF and a key id, `v1` still read).
+- [x] Split `authorize/authorization.ts`, `clients/registration.ts`, refresh paths in
+      `token/code.ts`. `accounts/index.ts` and the demo's `interaction/routes.ts` are split. Done 2026-11-27, no
+      behaviour change: `authorize/request.ts` parses and validates, `authorize/response.ts` delivers every response,
+      `authorization.ts` decides; `redirectMatches` is in `clients/uris.ts` and `detailsConsentId` in `consent.ts`;
+      `clients/metadata.ts` reads a client's metadata in and out for registration and metadata documents alike;
+      `token/refresh.ts` and `token/replay.ts` beside `token/code.ts`.
+- [x] `broker.complete` verifies twice; `sealed.ts` has no key id (done: HKDF and a key id, `v1` still read).
+      `completeAuthorization` answers the claims it verified, and the broker takes them.
 
 ### 4. Security
 

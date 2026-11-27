@@ -6,7 +6,7 @@ import type { ClientCertificate } from '../context'
 import { OAuthError } from '../errors'
 import { readForm } from '../form'
 import { readArtifact, writeArtifact } from '../payloads'
-import { parseAuthorizationRequest, validateAuthorizationRequest } from './authorization'
+import { parseAuthorizationRequest, validateAuthorizationRequest } from './request'
 import { applyRequestObject } from './request-object'
 
 export const REQUEST_URI_PREFIX = 'urn:ietf:params:oauth:request_uri:'

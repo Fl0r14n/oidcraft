@@ -3,7 +3,7 @@ import { randomString } from '@oidcraft/core'
 import { audit } from '../audit'
 import type { ResolvedConfig } from '../config'
 import { deleteClient } from './delete'
-import { clientResponse } from './registration'
+import { clientResponse } from './metadata'
 import { assertSuppliedSecret, rotatedSecret, storableSecret } from './secret'
 import { clientProblems } from './validate'
 

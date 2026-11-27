@@ -1,12 +1,5 @@
 import { DEFAULT_MAX_LENGTH, oauthFieldError, randomString } from '@oidcraft/core'
-import {
-  type BrokeringAdapter,
-  type Credential,
-  type CredentialsAdapter,
-  type Expiring,
-  type Seconds,
-  toPlainAdapter
-} from '@oidcraft/provider'
+import { type BrokeringAdapter, type CredentialsAdapter, type Expiring, type Seconds, toPlainAdapter } from '@oidcraft/provider'
 import { base64url } from 'jose'
 
 /** argon2id by default in the hashers the runtime entries ship; any PHC-string hasher fits. */

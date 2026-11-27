@@ -5,16 +5,11 @@ import { readArtifact } from '../payloads'
 import { assertFapiClient, underFapi } from '../profile/fapi'
 import { bindBrowser } from '../session/browser'
 import { readSession } from '../session/session'
-import {
-  authorizationResponse,
-  authorize,
-  parseAuthorizationRequest,
-  RESPONSE_MODES,
-  type ResponseTarget,
-  validateAuthorizationRequest
-} from './authorization'
+import { authorize } from './authorization'
 import { resolvePushedRequest } from './par'
+import { parseAuthorizationRequest, validateAuthorizationRequest } from './request'
 import { applyRequestObject } from './request-object'
+import { authorizationResponse, RESPONSE_MODES, type ResponseTarget } from './response'
 
 const seeOther = (url: string, setCookie?: string) =>
   new Response(null, {

@@ -18,7 +18,7 @@ import {
   useFlow,
   verifier
 } from '../test-flow'
-import { detailsConsentId } from './authorization'
+import { detailsConsentId } from './consent'
 
 useFlow()
 

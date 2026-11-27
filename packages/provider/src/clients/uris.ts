@@ -9,6 +9,23 @@ export const invalidMetadata: Refuse = description =>
 // RFC 8252 §8.3: loopback means the IP literal. `localhost` can be resolved elsewhere.
 const isLoopbackIp = (url: URL) => url.hostname === '127.0.0.1' || url.hostname === '[::1]'
 
+const withoutPort = (url: URL) => {
+  const copy = new URL(url)
+  copy.port = ''
+  return copy.href
+}
+
+// NFR-S2: exact match, save the port of a loopback IP literal, and of `localhost` for a native client only.
+export const redirectMatches = (registered: string, presented: string, native = false) => {
+  if (registered === presented) return true
+  if (!URL.canParse(registered) || !URL.canParse(presented)) return false
+  const a = new URL(registered)
+  const b = new URL(presented)
+  if (a.protocol !== 'http:') return false
+  if (!isLoopbackIp(a) && !(native && a.hostname === 'localhost')) return false
+  return withoutPort(a) === withoutPort(b)
+}
+
 // Each would run script, or read a file, wherever the browser is sent or a form is posted.
 const FORBIDDEN_SCHEMES = ['javascript:', 'data:', 'vbscript:', 'file:']
 

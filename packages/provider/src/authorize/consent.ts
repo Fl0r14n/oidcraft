@@ -1,9 +1,10 @@
 import type { Grant } from '@oidcraft/adapter'
-import { randomString } from '@oidcraft/core'
+import { randomString, sha256 } from '@oidcraft/core'
+import { base64url } from 'jose'
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
-import type { AuthorizationRequest } from './authorization'
 import { heldClaims, individuallyRequested } from './claims'
+import type { AuthorizationDetail, AuthorizationRequest } from './request'
 
 /** FR-I4: one grant per account and client, which every consent adds to; the store merges atomically, so none is lost to another. */
 export const recordConsent = (config: ResolvedConfig, accountId: string, clientId: string, scopes: string[], claims: string[] = []) =>
@@ -52,3 +53,7 @@ export const assertConsentCovers = (
     )
   }
 }
+
+// Never remembered past one authorization: a payment approved once must not cover a repeat of it (RFC 9396 §7, FR-C15).
+export const detailsConsentId = async (accountId: string, clientId: string, details: AuthorizationDetail[]) =>
+  base64url.encode(await sha256(JSON.stringify([accountId, clientId, details])))

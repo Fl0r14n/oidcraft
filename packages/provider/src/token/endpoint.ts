@@ -11,9 +11,10 @@ import { OAuthError } from '../errors'
 import { readForm } from '../form'
 import { underFapi } from '../profile/fapi'
 import { redeemClientCredentials } from './client-credentials'
-import { redeemAuthorizationCode, redeemRefreshToken } from './code'
+import { redeemAuthorizationCode } from './code'
 import { redeemSubjectToken, TOKEN_EXCHANGE_GRANT_TYPE } from './exchange'
 import { JWT_BEARER_GRANT_TYPE, redeemIdentityAssertion } from './identity-assertion'
+import { redeemRefreshToken } from './refresh'
 
 const NO_STORE = { 'cache-control': 'no-store', pragma: 'no-cache' }
 

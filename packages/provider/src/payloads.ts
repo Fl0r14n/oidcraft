@@ -1,9 +1,10 @@
 import type { Artifact, ArtifactKind, ArtifactStore, EpochMillis, Expiring } from '@oidcraft/adapter'
-import type { AuthorizationRequest, ResponseTarget } from './authorize/authorization'
 import type { CibaPayload } from './authorize/ciba'
 import type { RequestedClaims } from './authorize/claims'
 import type { Answer } from './authorize/decoupled'
 import type { DevicePayload } from './authorize/device'
+import type { AuthorizationRequest } from './authorize/request'
+import type { ResponseTarget } from './authorize/response'
 import type { Handoff } from './broker/types'
 
 export type Confirmation = { jkt?: string; 'x5t#S256'?: string }

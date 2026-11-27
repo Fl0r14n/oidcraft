@@ -6,17 +6,12 @@ import type { InteractionCompletion, InteractionRequest, InteractionResult } fro
 import { type DeviceLogin, type InteractionPayload, readArtifact, type Stored, writeArtifact } from '../payloads'
 import { assertSameBrowser, isSameBrowser } from '../session/browser'
 import { establishSession } from '../session/session'
-import {
-  type AuthorizationRequest,
-  detailsConsentId,
-  essentialAcrUnmet,
-  type ResponseTarget,
-  requestedAcrValues,
-  subjectMismatch
-} from './authorization'
+import { essentialAcrUnmet, requestedAcrValues, subjectMismatch } from './authorization'
 import { individuallyRequested } from './claims'
-import { assertConsentCovers, recordConsent } from './consent'
+import { assertConsentCovers, detailsConsentId, recordConsent } from './consent'
 import { pushParameters } from './par'
+import type { AuthorizationRequest } from './request'
+import type { ResponseTarget } from './response'
 
 const load = async (config: ResolvedConfig, id: string) => {
   const artifact = await readArtifact(config.adapter.artifacts, 'interaction', id)

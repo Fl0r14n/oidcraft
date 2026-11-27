@@ -2,7 +2,7 @@ import type { Adapter, Client, ClientAuthMethod } from '@oidcraft/adapter'
 import type { ResolvedConfig } from '../config'
 import { OAuthError } from '../errors'
 import { JWT_BEARER_GRANT_TYPE } from '../token/identity-assertion'
-import { keysFrom, objectFrom, stringFrom, stringsFrom } from './registration'
+import { keysFrom, objectFrom, stringFrom, stringsFrom } from './metadata'
 import { browserUri, serverUri } from './uris'
 
 const SPEC = 'draft-ietf-oauth-client-id-metadata-document §4.1'

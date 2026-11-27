@@ -106,7 +106,7 @@ export const seedFapiConformanceClients = async (adapter: Adapter) => {
       redirectUris: redirects[index] as string[],
       grantTypes: ['authorization_code', 'refresh_token'],
       responseTypes: ['code'],
-      // Its claims module names every advertised claim, email's among them, and a client gets only what its scopes allow (FR-C22).
+      // Its claims module names every advertised claim, email's among them, and a client gets only what its scopes allow (FR-C22.3).
       scopes: [...new Set([...entry.scope.split(' '), 'email'])],
       tokenEndpointAuthMethod: 'private_key_jwt',
       jwks: { keys },

@@ -31,7 +31,7 @@ export const parsed = (text: string | null) => {
 /** Sign-up is on unless OIDCRAFT_SIGNUP=off: a deployment that provisions accounts itself leaves it unmounted. */
 export const signUp = () => optional('OIDCRAFT_SIGNUP') !== 'off'
 
-/** FR-I9: only an authorization sign-in can finish in the browser a link is opened in; a device one has no redirect URI. */
+/** FR-I9.4: only an authorization sign-in can finish in the browser a link is opened in; a device one has no redirect URI. */
 export const movesBrowsers = (view: InteractionRequest) => view.redirectUri !== undefined
 
 export const lockedNotice = (lock: Expiring) =>
@@ -86,7 +86,7 @@ export const createKit = (site: Site) => {
   const secondStep = async (view: ScreenView, accountId: string, options: Parameters<typeof screens.otp>[1] = {}) =>
     screens.otp(view, { passkeys: (await accounts.passkeys.list(accountId)).length > 0, ...options })
 
-  /** The acr says what happened (FR-F9, FR-C16); only a sign-in proven by email may finish in another browser (FR-I9, FR-I2). */
+  /** The acr says what happened (FR-F9, FR-C16); only a sign-in proven by email may finish in another browser (FR-I9.4, FR-I2). */
   const finish = async (request: Request, id: string, accountId: string, amr: string[], acr = amr.includes('mfa') ? 'mfa' : 'pwd') => {
     const login = { accountId, acr, amr }
     const cookie = request.headers.get('cookie')

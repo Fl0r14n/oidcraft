@@ -32,7 +32,7 @@ export type AccountsPolicy = {
   recoveryCodes: number
   /** How long a passkey ceremony may take, a phone scanned for one included: WebAuthn L3 §15.1's upper bound (FR-I8). @default 600 */
   passkeyTimeout: Seconds
-  /** How long an email sign-in token lives, never past its interaction (FR-I9). @default 900 */
+  /** How long an email sign-in token lives, never past its interaction (FR-I9.1). @default 900 */
   emailSignInTtl: Seconds
   /** Email sign-in tokens issued to one address within `emailSignInWindow` (NFR-S12). @default 5 */
   emailSignInsPerAddress: number

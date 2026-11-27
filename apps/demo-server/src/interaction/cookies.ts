@@ -47,7 +47,7 @@ const pendingOf = async (request: Request, interactionId: string) => {
 
 type Pending = Expiring & { interactionId: string; accountId: string; byEmail?: true }
 
-/** A right first factor awaiting its second, bound to the interaction; `byEmail` may finish in another browser (FR-I9). */
+/** A right first factor awaiting its second, bound to the interaction; `byEmail` may finish in another browser (FR-I9.4). */
 export const pendingSecondFactor = {
   set: async (interactionId: string, accountId: string, byEmail = false) =>
     serialize(

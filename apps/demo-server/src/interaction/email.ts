@@ -11,7 +11,7 @@ const ADDRESS_MESSAGES = {
 
 /** Email sign-in (FR-I9): asked for at the sign-in, and the link it sends, which lands outside any interaction. */
 export const emailFlow = ({ provider, accounts, screens, finish }: Kit) => {
-  // FR-I9: every address gets the same page; what is sent, if anything, is the host's, and sign-up only where it is mounted.
+  // FR-I9.2: every address gets the same page; what is sent, if anything, is the host's, and sign-up only where it is mounted.
   const interaction: Flow = async ({ request, action, view }) => {
     if (action !== 'email' || !movesBrowsers(view)) return undefined
     if (request.method === 'GET') return screens.email(view)
@@ -24,7 +24,7 @@ export const emailFlow = ({ provider, accounts, screens, finish }: Kit) => {
     return screens.message('Check your email', 'If that address can sign in here by email, a link is on its way. It works once.')
   }
 
-  /** Where an email sign-in link lands, in whichever browser it is opened, so outside any interaction (FR-I9). */
+  /** Where an email sign-in link lands, in whichever browser it is opened, so outside any interaction (FR-I9.4). */
   const emailSignInRoutes = async (request: Request, url: URL) => {
     const expired = () =>
       screens.message('This link no longer works', 'It expired or was already used. Start again from the application.', 400)
@@ -40,7 +40,7 @@ export const emailFlow = ({ provider, accounts, screens, finish }: Kit) => {
       return found ? screens.emailSignIn(token, found.address) : expired()
     }
     if (request.method !== 'POST') return new Response('Method not allowed', { status: 405 })
-    // FR-I9: the token alone signs in any browser, so a page elsewhere posting one would sign its visitor in as whoever asked.
+    // FR-I9.5: the token alone signs in any browser, so a page elsewhere posting one would sign its visitor in as whoever asked.
     if (request.headers.get('origin') !== new URL(provider.config.issuer).origin) {
       return screens.message('This sign-in cannot continue', 'Open the link from your email again.', 403)
     }

@@ -80,7 +80,7 @@ export const interactions = (config: ResolvedConfig) => ({
   },
 
   /**
-   * Elsewhere than the interaction's browser, ends it and starts its request again here, signed in (FR-I9); a login is
+   * Elsewhere than the interaction's browser, ends it and starts its request again here, signed in (FR-I9.4); a login is
    * required, as moving an interaction to whoever names it is the attack FR-I2 closes.
    */
   async completeHere(id: string, login: NonNullable<InteractionResult['login']>, cookie: string | null): Promise<InteractionCompletion> {
@@ -258,7 +258,7 @@ const confirmLogout = async (
   return { redirectTo: url.toString(), setCookie: undefined }
 }
 
-/** FR-C22: a login that misses an essential acr failed (§5.5.1.1), and one as someone other than the requested sub is no answer (§5.5.1). */
+/** FR-C22.4: a login that misses an essential acr failed (§5.5.1.1), and one as someone other than the requested sub is no answer (§5.5.1). */
 const refusedLogin = async (
   config: ResolvedConfig,
   request: AuthorizationRequest,

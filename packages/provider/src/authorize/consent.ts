@@ -24,7 +24,7 @@ export const outstandingConsent = (config: ResolvedConfig, request: Asked, ...gi
 
 const refuse = (description: string, spec: string) => new OAuthError('invalid_request', { description, spec })
 
-/** All or nothing, and nothing unasked: a partial consent would be stored, then asked for again in full (FR-I4, FR-C22). */
+/** All or nothing, and nothing unasked: a partial consent would be stored, then asked for again in full (FR-I4, FR-C22.2). */
 export const assertConsentCovers = (
   config: ResolvedConfig,
   request: Asked,
@@ -36,7 +36,7 @@ export const assertConsentCovers = (
   const asked = individuallyRequested(config, request.scopes, request.claims)
   const unaskedClaims = (consent.claims ?? []).filter(name => !asked.includes(name))
   if (unaskedClaims.length) {
-    throw refuse(`consent grants the claims ${unaskedClaims.join(', ')}, which this request did not ask for`, 'FR-C22')
+    throw refuse(`consent grants the claims ${unaskedClaims.join(', ')}, which this request did not ask for`, 'FR-C22.2')
   }
   const outstanding = outstandingConsent(config, request, held, { scopes: consent.scopes, claims: consent.claims ?? [] })
   if (outstanding.scopes.length) {
@@ -48,7 +48,7 @@ export const assertConsentCovers = (
   if (outstanding.claims.length) {
     throw refuse(
       `consent must approve every requested claim, or answer access_denied; it leaves out ${outstanding.claims.join(', ')}`,
-      'FR-C22'
+      'FR-C22.2'
     )
   }
 }

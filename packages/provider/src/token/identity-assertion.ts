@@ -16,7 +16,7 @@ const SKEW = 60
 const MAX_LIFETIME = 300
 const DEFAULT_ALGORITHMS = ['RS256', 'ES256']
 
-/** The issuer the host trusts an assertion from, and where its subjects are linked (FR-C24). */
+/** The issuer the host trusts an assertion from, and where its subjects are linked (FR-C24.1). */
 export type TrustedIssuer = {
   /** Must equal the assertion's `iss` exactly, trailing slash and all. */
   issuer: string
@@ -30,7 +30,7 @@ export type TrustedIssuer = {
 }
 
 /**
- * Maps an assertion's unverified `iss`, `tenant` and `aud_tenant` to at most one trusted issuer (FR-C24).
+ * Maps an assertion's unverified `iss`, `tenant` and `aud_tenant` to at most one trusted issuer (FR-C24.1).
  * Fetching its metadata and keys is yours (FR-A1). No default: any well-formed JWT would be sign-in as anyone.
  */
 export type AssertionTrust = (input: {
@@ -77,7 +77,7 @@ const resourcesFrom = (config: ResolvedConfig, payload: JWTPayload) => {
 }
 
 const scopesFor = (client: Client, payload: JWTPayload, form: URLSearchParams) => {
-  // FR-C24: a scope claim read as absent would lift the IdP's limit, so one of the wrong shape is refused.
+  // FR-C24.5: a scope claim read as absent would lift the IdP's limit, so one of the wrong shape is refused.
   if (payload.scope !== undefined && typeof payload.scope !== 'string') throw refuse('scope must be a space-separated string')
   const asserted = payload.scope?.split(' ').filter(Boolean)
   const requested = (form.get('scope') ?? '').split(' ').filter(Boolean)
@@ -110,10 +110,10 @@ const verifyAssertion = async (config: ResolvedConfig, client: Client, assertion
     aud_tenant: optionalString(unverified, 'aud_tenant')
   })
   if (!trusted) throw refuse(`issuer ${iss} is not trusted here`)
-  // FR-C24: the host's answer is checked too, so a trust keyed loosely cannot admit a neighbouring issuer.
+  // FR-C24.1: the host's answer is checked too, so a trust keyed loosely cannot admit a neighbouring issuer.
   if (trusted.issuer !== iss) throw refuse(`issuer ${iss} is not the trusted ${trusted.issuer}`)
 
-  // FR-C24: never HMAC, whatever the trust lists; a symmetric key in a published key set is a key anyone can sign with.
+  // FR-C24.2: never HMAC, whatever the trust lists; a symmetric key in a published key set is a key anyone can sign with.
   const algorithms = (trusted.algorithms ?? DEFAULT_ALGORITHMS).filter(algorithm => CLIENT_SIGNING_ALGS.includes(algorithm))
   const { payload } = await jwtVerify(assertion, keysFrom(trusted), {
     issuer: iss,
@@ -152,7 +152,7 @@ const spend = async (config: ResolvedConfig, client: Client, payload: JWTPayload
   }
 }
 
-// FR-C24: (upstream, sub) and nothing else; email and aud_sub are only the issuing tenant's word (§9.8, NFR-S8).
+// FR-C24.4: (upstream, sub) and nothing else; email and aud_sub are only the issuing tenant's word (§9.8, NFR-S8).
 const accountFor = async (config: ResolvedConfig, upstream: string, subject: string) => {
   const linked = await config.adapter.identities?.find(upstream, subject)
   const account = linked && (await config.adapter.accounts.find(linked.accountId))
@@ -160,7 +160,7 @@ const accountFor = async (config: ResolvedConfig, upstream: string, subject: str
   return account.accountId
 }
 
-// FR-C24: an access token only. No refresh token (§4.4.4) and no Grant, so no consent is remembered for a later sign-in.
+// FR-C24.5: an access token only. No refresh token (§4.4.4) and no Grant, so no consent is remembered for a later sign-in.
 export const redeemIdentityAssertion = async (config: ResolvedConfig, client: Client, form: URLSearchParams, binding: Binding) => {
   if (client.tokenEndpointAuthMethod === 'none') {
     throw new OAuthError('invalid_client', { description: 'an identity assertion is redeemed by a client that authenticates', spec: SPEC })

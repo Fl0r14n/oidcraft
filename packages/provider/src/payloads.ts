@@ -34,7 +34,7 @@ export type AccessTokenPayload = {
   aud?: string
   cnf?: Confirmation
   format?: 'jwt'
-  /** Released at UserInfo beyond the scopes, as consented (FR-C22). */
+  /** Released at UserInfo beyond the scopes, as consented (FR-C22.1). */
   claims?: string[]
 }
 

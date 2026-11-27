@@ -43,7 +43,7 @@ const securityHeaders = async (options: RenderOptions, css: string) => ({
   'x-frame-options': 'DENY',
   'x-content-type-options': 'nosniff',
   // A reset or email sign-in screen carries its token in the URL, which no request elsewhere repeats. Not no-referrer: a
-  // post would then carry `Origin: null`, and the email sign-in accepts its post only from this origin (FR-I9).
+  // post would then carry `Origin: null`, and the email sign-in accepts its post only from this origin (FR-I9.5).
   'referrer-policy': 'same-origin'
 })
 

@@ -27,7 +27,7 @@ export type ScreenUrls = {
   deviceDecide: string
   /** Where a reset link lands. It outlives the interaction that asked for it. */
   reset: string
-  /** Where an email sign-in link lands (FR-I9): in whichever browser it is opened, so outside any interaction. */
+  /** Where an email sign-in link lands (FR-I9.4): in whichever browser it is opened, so outside any interaction. */
   emailSignIn: string
   /** Where `assets` answers for `ui.css`; its fonts are fetched beside it. */
   stylesheet: string
@@ -255,7 +255,7 @@ export const createScreens = ({ brand, theme, urls: overrides, minPasswordLength
         maxLength: DEFAULT_MAX_LENGTH
       }),
 
-    /** The address an email sign-in link goes to (FR-I9); `error` is the address's own problem, never whether it has an account. */
+    /** The address an email sign-in link goes to (FR-I9.2); `error` is the address's own problem, never whether it has an account. */
     email: (view: ScreenView, { address = '', error, status }: { address?: string; error?: string | undefined; status?: number } = {}) =>
       page(
         'Sign in with email',
@@ -271,7 +271,7 @@ export const createScreens = ({ brand, theme, urls: overrides, minPasswordLength
         status
       ),
 
-    /** Where the link lands: it names the address and only its button spends the token, since mail scanners open links too (FR-I9). */
+    /** Where the link lands: it names the address and only its button spends the token, since mail scanners open links too (FR-I9.5). */
     emailSignIn: (token: string, address: string) => page('Sign in', EmailSignInScreen, { action: urls.emailSignIn, token, address }),
 
     /** With `passkeys`, the token may add a passkey instead; its options are a POST to `reset` with `step=passkey-options`. */

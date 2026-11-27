@@ -53,7 +53,7 @@ export const parseClaimsRequest = (config: ResolvedConfig, client: Client, raw: 
 
   const userinfo = membersFrom(parsed, 'userinfo')
   const idToken = membersFrom(parsed, 'id_token')
-  // FR-C22: only what a scope this client may request releases; anything else is ignored, as §5.5 lets an OP ignore it.
+  // FR-C22.3: only what a scope this client may request releases; anything else is ignored, as §5.5 lets an OP ignore it.
   const known = releasedBy(config, client.scopes)
   const names = (claims: Record<string, Individual>) => Object.keys(claims).filter(name => known.has(name))
 

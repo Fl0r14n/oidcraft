@@ -213,19 +213,26 @@ MCP server (MCP 2026-07-28).
 
 **FR-C20 — Client ID Metadata Documents** (draft-ietf-oauth-client-id-metadata-document), the way
 MCP 2026-07-28 prefers a client be known: its `client_id` is an `https` URL serving its own metadata,
-with no registration step. The core does not fetch it (FR-A1): the host's `resolveClientMetadata` does,
-with its own size limit, caching and trust policy and never from a special-use address (RFC 6890;
-draft-ietf-oauth-client-id-metadata-document-03 §10.7, NFR-S14), and the core checks the result —
-a canonical `https` URL with a path and nothing else, refused before any fetch otherwise; a document
-whose `client_id` is that URL exactly; no shared secret, so `none` or `private_key_jwt` only; redirect
-URIs that are the client's registration, `http://localhost` among them unless it says it is `web`.
-Its grants are the code and refresh grants it lists, and the JWT bearer grant when it lists it and
-the provider supports identity assertion grants (FR-C24); it must list the code grant. Any other
-grant it lists is dropped, not refused: one document serves every server the client talks to, and
-`grant_types` bounds what the client will use, not what a server must offer (RFC 7591 §2). Its code grant always requires PKCE, `private_key_jwt`
-included: FR-C3's exemption is the host vouching for a client, and a document is the client vouching
-for itself. A stored client with the same id wins. The consent screen shows the
-client's host and the host the person returns to, and warns when that is this computer.
+with no registration step. A stored client with the same id wins.
+
+**FR-C20.1 — The host fetches it.** The core does not (FR-A1): the host's `resolveClientMetadata`
+does, with its own size limit, caching and trust policy and never from a special-use address (RFC
+6890; draft-ietf-oauth-client-id-metadata-document-03 §10.7, NFR-S14).
+
+**FR-C20.2 — The core checks the result:** a canonical `https` URL with a path and nothing else,
+refused before any fetch otherwise; a document whose `client_id` is that URL exactly; no shared
+secret, so `none` or `private_key_jwt` only; redirect URIs that are the client's registration,
+`http://localhost` among them unless it says it is `web`.
+
+**FR-C20.3 — Its grants** are the code and refresh grants it lists, and the JWT bearer grant when it
+lists it and the provider supports identity assertion grants (FR-C24); it must list the code grant.
+Any other grant it lists is dropped, not refused: one document serves every server the client talks
+to, and `grant_types` bounds what the client will use, not what a server must offer (RFC 7591 §2).
+Its code grant always requires PKCE, `private_key_jwt` included: FR-C3's exemption is the host
+vouching for a client, and a document is the client vouching for itself.
+
+**FR-C20.4 — The consent screen says where it is from:** the client's host and the host the person
+returns to, with a warning when that is this computer.
 
 **FR-C21 — FAPI 2.0 Security Profile**, opt-in per provider or per client, never a change of the
 defaults. Under it the provider refuses what it otherwise only supports: a public client; client
@@ -244,17 +251,26 @@ discovery advertises only what it allows. Its conformance plan gates CI (NFR-C1)
 is a separate profile and not part of this.
 
 **FR-C22 — The `claims` request parameter** (OIDC Core §5.5), by value, in a request object and
-pushed. A claim named for `userinfo` is released at UserInfo and one named for `id_token` in the
-ID token, beyond what the scopes release — at a token for a resource, which UserInfo refuses, both in
-the ID token (FR-C5) — and only once the person consented to it: individually
-requested claims are consented as scopes are, all or nothing, and remembered in the grant (FR-I4),
-so `prompt=none` without that consent is `consent_required`. A claim that no scope the client may
-request releases is ignored — naming a claim never gets around the client's scopes — as is a protocol claim except these two. An essential `acr` with
-`value` or `values` is a requirement on the login, as `acr_values` is (FR-C16), and a login that
-does not meet it is a failed authentication, answered `access_denied` (§5.5.1.1). An `id_token`
-`sub` with a `value` is answered only for that subject: another session is asked to sign in again,
-and a login as anyone else is refused. A requested claim the account does not have is left out,
-essential or not, as §5.5 requires.
+pushed.
+
+**FR-C22.1 — Where each is released.** A claim named for `userinfo` is released at UserInfo and one
+named for `id_token` in the ID token, beyond what the scopes release — at a token for a resource,
+which UserInfo refuses, both in the ID token (FR-C5).
+
+**FR-C22.2 — Only with consent.** Individually requested claims are consented as scopes are, all or
+nothing, and remembered in the grant (FR-I4), so `prompt=none` without that consent is
+`consent_required`.
+
+**FR-C22.3 — Never past the scopes.** A claim that no scope the client may request releases is
+ignored — naming a claim never gets around the client's scopes — as is a protocol claim but the two
+FR-C22.4 names. A requested claim the account does not have is left out, essential or not, as §5.5
+requires.
+
+**FR-C22.4 — `acr` and `sub` are requirements on the login.** An essential `acr` with `value` or
+`values` is one, as `acr_values` is (FR-C16), and a login that does not meet it is a failed
+authentication, answered `access_denied` (§5.5.1.1). An `id_token` `sub` with a `value` is answered
+only for that subject: another session is asked to sign in again, and a login as anyone else is
+refused.
 
 **FR-C23 — Authentication context classes.** The configuration may list the `acr` values its logins
 report, advertised as `acr_values_supported` (OIDC Discovery 1.0 §3) beside the
@@ -274,37 +290,41 @@ supplies `assertionTrust`, and only then supported and advertised: the bearer gr
 `grant_types_supported`, and `authorization_grant_profiles_supported` naming the ID-JAG profile
 (§7.2), which never lists the trusted issuers (§9.7).
 
-- **Trust is the host's, per issuer.** Accepting any well-formed JWT would be sign-in as anyone.
-  `assertionTrust` maps the assertion's unverified `iss`, `tenant` and `aud_tenant` to at most one
-  trusted issuer — its identifier, its key set, the upstream its subjects are linked under (FR-F5),
-  and for a multi-tenant issuer the tenant — or refuses it. The identifier must equal `iss` exactly
-  before a key is used. Fetching an issuer's metadata and keys is the host's (FR-A1).
-- **Each check fails `invalid_grant`:** the signature, by a key from that set and never one the
-  header names or carries; an asymmetric algorithm, `RS256` or `ES256` unless the trust says
-  otherwise, never `none` or HMAC; `typ` `oauth-id-jag+jwt`; `aud` this issuer, a string or a
-  one-element array; the `client_id` claim the authenticated client (§4.4.1); `sub`, `jti`, `iat` and
-  `exp` present; `exp` not passed, `iat` and `nbf` not in the future, within 60 s of skew, and a
-  lifetime of at most 300 s; the trusted tenant's `tenant` claim, for a multi-tenant issuer (§6.1);
-  no `cnf`, which this provider does not yet bind an assertion to (§9.11). The `jti` is single-use
-  per issuer until `exp` plus the skew (NFR-S5), stricter than the draft's "can" (§4.4.4).
-- **The client authenticates** (§4.4). A public client is `invalid_client`, whatever the
-  assertion: a leaked assertion is otherwise redeemable by anyone within its lifetime.
-- **The account is `(upstream, sub)` and nothing else** — the same link brokering makes, so a person
-  who signed in through that IdP as an upstream is the same account here, as §5.2 requires the IdP's
-  `sub` to be (FR-F5). Never `email` or `aud_sub`, which only the issuing tenant's administrators
-  vouch for (§9.8, NFR-S8). A valid assertion for a subject no account is linked to is
-  `access_denied` (§4.4.3); provisioning is the host's, by linking ahead of time. It needs the
-  `identities` store, refused at construction without it (NFR-D2).
-- **An access token, nothing else.** No refresh token (§4.4.4: the IdP decides each time) and no ID
-  token. Its scopes are the request's `scope`, else the assertion's, else the client's defaults,
-  within the client's scopes and, when the assertion names some, within those, `offline_access`
-  never; the granted ones are in the response. Its resource is the request's `resource`, which must
-  be among the assertion's when it names any, else the assertion's one; each is a configured
-  resource (FR-C19), and an assertion naming one that is not is `invalid_grant`. No `Grant` is
-  recorded (FR-I4): the organization authorized it, not the person on a screen here, and a remembered
-  consent would let a later browser sign-in skip its own. So the token is revoked with its client
-  (FR-T7) or by itself (FR-C8), not with the account's grants, and lives at most the access-token
-  lifetime. `authorization_details` in the assertion is not granted.
+**FR-C24.1 — Trust is the host's, per issuer.** Accepting any well-formed JWT would be sign-in as
+anyone. `assertionTrust` maps the assertion's unverified `iss`, `tenant` and `aud_tenant` to at most
+one trusted issuer — its identifier, its key set, the upstream its subjects are linked under (FR-F5),
+and for a multi-tenant issuer the tenant — or refuses it. The identifier must equal `iss` exactly
+before a key is used. Fetching an issuer's metadata and keys is the host's (FR-A1).
+
+**FR-C24.2 — Each check fails `invalid_grant`:** the signature, by a key from that set and never one
+the header names or carries; an asymmetric algorithm, `RS256` or `ES256` unless the trust says
+otherwise, never `none` or HMAC; `typ` `oauth-id-jag+jwt`; `aud` this issuer, a string or a
+one-element array; the `client_id` claim the authenticated client (§4.4.1); `sub`, `jti`, `iat` and
+`exp` present; `exp` not passed, `iat` and `nbf` not in the future, within 60 s of skew, and a
+lifetime of at most 300 s; the trusted tenant's `tenant` claim, for a multi-tenant issuer (§6.1); no
+`cnf`, which this provider does not yet bind an assertion to (§9.11). The `jti` is single-use per
+issuer until `exp` plus the skew (NFR-S5), stricter than the draft's "can" (§4.4.4).
+
+**FR-C24.3 — The client authenticates** (§4.4). A public client is `invalid_client`, whatever the
+assertion: a leaked assertion is otherwise redeemable by anyone within its lifetime.
+
+**FR-C24.4 — The account is `(upstream, sub)` and nothing else** — the same link brokering makes, so
+a person who signed in through that IdP as an upstream is the same account here, as §5.2 requires the
+IdP's `sub` to be (FR-F5). Never `email` or `aud_sub`, which only the issuing tenant's administrators
+vouch for (§9.8, NFR-S8). A valid assertion for a subject no account is linked to is `access_denied`
+(§4.4.3); provisioning is the host's, by linking ahead of time. It needs the `identities` store,
+refused at construction without it (NFR-D2).
+
+**FR-C24.5 — An access token, nothing else.** No refresh token (§4.4.4: the IdP decides each time)
+and no ID token. Its scopes are the request's `scope`, else the assertion's, else the client's
+defaults, within the client's scopes and, when the assertion names some, within those,
+`offline_access` never; the granted ones are in the response. Its resource is the request's
+`resource`, which must be among the assertion's when it names any, else the assertion's one; each is
+a configured resource (FR-C19), and an assertion naming one that is not is `invalid_grant`. No
+`Grant` is recorded (FR-I4): the organization authorized it, not the person on a screen here, and a
+remembered consent would let a later browser sign-in skip its own. So the token is revoked with its
+client (FR-T7) or by itself (FR-C8), not with the account's grants, and lives at most the
+access-token lifetime. `authorization_details` in the assertion is not granted.
 
 **FR-C25 — Token exchange** (RFC 8693). Off unless the host supplies `exchangePolicy`, which decides
 who may act for whom: a library cannot know which impersonation or delegation a deployment considers
@@ -556,31 +576,37 @@ recovery path: until then, whoever names it first would.
 
 **FR-I9 — Email sign-in**, in the same entry as FR-I7: a person gives an email address and signs in
 by following a URL sent to it. The address is the account's username, and following the URL proves
-it, so the account's `email` is that address with `email_verified` true. The token is single-use,
-short-lived, stored hashed (NFR-S11) and bound to the interaction that asked for it, and outlives it
-by nothing; delivering it is I/O, so the host sends it (FR-A1). Every address gets the same answer —
-one with no account, one that cannot sign in this way, one already sent too many — and the library
-caps the tokens issued per address (NFR-S12). It is a first factor: an account with TOTP is still
-asked for a code. **An account with a passkey never signs in by email**, and that is not
-configuration: the inbox would be a silent way around the phishing resistance its owner chose, where
-a reset at least ends every session (FR-I8, FR-T7). An account with a password signs in by email
-only once its `email` claim is that address and verified, or whoever signed up with someone else's
-address would keep their password beside the owner's inbox. The host is told which case it is, so it
-can send a message saying so in place of a URL. An address with no account makes one only where the
-host mounts sign-up (FR-I7).
+it, so the account's `email` is that address with `email_verified` true. An email sign-in reports
+`amr` `email`, which RFC 8176 does not register, and the single-factor `acr` `pwd`.
 
-Opening the URL shows a page naming the address, and only its button spends the token: mail scanners
-open URLs, and must not spend them. In the browser the sign-in started in, it completes that
-interaction. In any other — a mail app's own browser, another device — it ends that interaction and
-starts its authorization request again in this browser, signed in, so the response reaches the
-client's redirect URI from there and the original interaction is never answered from elsewhere
-(FR-I2): whoever started it gains nothing from the person following the URL. The page names the
-address because the reverse holds too — a URL someone else asked for signs this browser in as them —
-and the button is accepted only from the issuer's own pages: the token alone signs in any browser, so
-a page elsewhere posting it would sign its visitor in as whoever asked, page unseen. A device sign-in
-is not offered one, as it cannot move browsers. No code to type is sent (NFR-S3); a host that wants
-one builds it. An email sign-in reports `amr` `email`, which RFC 8176 does not register, and the
-single-factor `acr` `pwd`.
+**FR-I9.1 — The token** is single-use, short-lived, stored hashed (NFR-S11) and bound to the
+interaction that asked for it, and outlives it by nothing; delivering it is I/O, so the host sends it
+(FR-A1). No code to type is sent (NFR-S3); a host that wants one builds it.
+
+**FR-I9.2 — Every address gets the same answer** — one with no account, one that cannot sign in this
+way, one already sent too many — and the library caps the tokens issued per address (NFR-S12).
+
+**FR-I9.3 — Who may sign in this way.** It is a first factor: an account with TOTP is still asked for
+a code. **An account with a passkey never signs in by email**, and that is not configuration: the
+inbox would be a silent way around the phishing resistance its owner chose, where a reset at least
+ends every session (FR-I8, FR-T7). An account with a password signs in by email only once its
+`email` claim is that address and verified, or whoever signed up with someone else's address would
+keep their password beside the owner's inbox. The host is told which case it is, so it can send a
+message saying so in place of a URL. An address with no account makes one only where the host mounts
+sign-up (FR-I7).
+
+**FR-I9.4 — It finishes in the browser that opens it.** In the browser the sign-in started in, it
+completes that interaction. In any other — a mail app's own browser, another device — it ends that
+interaction and starts its authorization request again in this browser, signed in, so the response
+reaches the client's redirect URI from there and the original interaction is never answered from
+elsewhere (FR-I2): whoever started it gains nothing from the person following the URL. A device
+sign-in is not offered one, as it cannot move browsers.
+
+**FR-I9.5 — Only a person's click spends it.** Opening the URL shows a page naming the address, and
+only its button spends the token: mail scanners open URLs, and must not spend them. The page names
+the address because FR-I9.4's reverse holds too — a URL someone else asked for signs this browser in
+as them — and the button is accepted only from the issuer's own pages: the token alone signs in any
+browser, so a page elsewhere posting it would sign its visitor in as whoever asked, page unseen.
 
 **FR-I10 — The provider's session.** A browser holds at most one session per issuer, through the
 session cookie, `__Host-` prefixed on an https issuer. It lives the configured absolute lifetime and,

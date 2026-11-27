@@ -184,7 +184,7 @@ export type ProviderHooks = {
    */
   exchangePolicy?: ExchangePolicy
   /**
-   * The issuers whose identity assertions this provider redeems (FR-C24): from an assertion's unverified `iss`,
+   * The issuers whose identity assertions this provider redeems (FR-C24.1): from an assertion's unverified `iss`,
    * `tenant` and `aud_tenant`, at most one trusted issuer, its keys and the upstream its subjects are linked under.
    * Without it the JWT bearer grant type is neither supported nor advertised.
    */
@@ -223,7 +223,7 @@ export type ProviderHooks = {
    */
   resolveSectorIdentifier?: (uri: string) => Promise<unknown>
   /**
-   * Fetches the metadata document behind an `https` client_id (FR-C20), or undefined to refuse it.
+   * Fetches the metadata document behind an `https` client_id (FR-C20.1), or undefined to refuse it.
    * Yours because it is outbound I/O to a URL a stranger chose (FR-A1): block private addresses,
    * cap the body at a few kilobytes, honour HTTP caching, apply any trust policy. oidcraft checks
    * what comes back. Without it, such client ids are unknown.
@@ -452,7 +452,7 @@ export const resolveConfig = (config: ProviderConfig): ResolvedConfig => {
     problems.push('features.ciba needs a resolveCibaUser; the provider will not guess which hint means which account (FR-C17)')
   }
   if (config.assertionTrust && !adapter?.identities) {
-    problems.push("assertionTrust needs an adapter with an identities store: an assertion's subject is found through its link (FR-C24)")
+    problems.push("assertionTrust needs an adapter with an identities store: an assertion's subject is found through its link (FR-C24.4)")
   }
   if (config.upstreams?.length && (!adapter?.identities || !adapter.sessions.listByUpstreamSession)) {
     problems.push(

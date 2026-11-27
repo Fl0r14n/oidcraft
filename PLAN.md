@@ -93,20 +93,21 @@ marks a finding reproduced by a throwaway test. Paths are under `packages/provid
       and RSA ≥ 2048 / EC ≥ 224 (§5.4.1). The bound landed with S-2; `redirect_uri` is required of every request, and
       jose refuses an RSA key under 2048 bits for any RS or PS algorithm, ES256 being P-256 alone. `fapi.test.ts` pins
       all three.
-- [ ] NFR-S1: OAuth 2.1 is at -17 (§7.5.1.1 unchanged).
+- [x] NFR-S1: OAuth 2.1 is at -17 (§7.5.1.1 unchanged).
 - [x] FR-I7, G-9: NIST SP 800-63B rev 4 (§3.2.2 rate limiting); FR-I7 has no password policy (length, blocklist).
-- [ ] FR-L4: RFC 10017 / BCP 212 on `localStorage` and BFF.
-- [ ] FR-C20: CIMD -03 §10.7 (no fetch of special-use addresses) normative.
-- [ ] §1 "batteries included" vs `@oidcraft/ui` private; FR-C19 vs code on the owning client introspecting; ID token
+- [x] FR-L4: RFC 10017 / BCP 212 on `localStorage` and BFF.
+- [x] FR-C20: CIMD -03 §10.7 (no fetch of special-use addresses) normative.
+- [x] §1 "batteries included" vs `@oidcraft/ui` private; FR-C19 vs code on the owning client introspecting; ID token
       encryption unstated; FR-C19 multi-resource authorization unstated; G-\* titled open but decided; FR-L\* and the
       password grant in `oauthForm()`.
-- [ ] Missing: OP session lifecycle (re-login, idle, cookie prefix); clickjacking (RFC 9700 §4.16); SSRF on
+- [x] Missing: OP session lifecycle (re-login, idle, cookie prefix); clickjacking (RFC 9700 §4.16); SSRF on
       client-chosen URLs; host delivers back-channel logout and CIBA pings; token exchange policy;
       client_credentials; sender-constraint fails closed; DCR (initial access token, https for web, RFC 7592 update
       keeping operator fields); local vs brokered account-id namespace; what a reset voids; account suspension;
       payload evolution across upgrades; request object `exp`; `prompt=create`.
 - [x] NFR-C1: RP-Initiated Logout, Back-/Front-Channel Logout and Form Post OP plans are not run.
-- [ ] Sub-ids for FR-C20, FR-C22, FR-C24, FR-I9.
+- [x] Sub-ids for FR-C20, FR-C22, FR-C24, FR-I9. `FR-C24.1` names one rule of a long requirement; the docs site
+      anchors each and counts a citation of it for its parent too. Code citing one rule cites its sub-id.
 
 ### 2. Architecture
 
@@ -208,13 +209,14 @@ Reference deployment (`apps/demo-server/src`):
 - Q6 token exchange FR: refresh tokens only from their own client; bound tokens need their proof; scopes ⊆ subject ∩
   client ∩ policy; `act`, revoked with the subject's family; `exchangePolicy` stays the gate.
 - Q7 FR-C12: request objects need `exp`, live ≤ 60 min; future `iat`/`nbf` refused; no `jti` tracking; `typ` checked if present.
-- Q8 session lifecycle: same account signing in again updates the session in place (no cookie rotation, written down
-  as the trade-off); another account ends the old session fully first; optional `ttl.sessionIdle`, off.
+- Q8 session lifecycle: same account signing in again updates the session in place; another account ends the old
+  session fully first; optional `ttl.sessionIdle`, off. Its "no cookie rotation" was reversed on 2026-11-27: the
+  cookie is `<id>.<secret>` and every sign-in replaces the secret (step 8 below).
 - Q9 account ids: one id names one account; sign-up refuses an id with linked identities, `linkIdentity` one with a
   credential or passkey; JSDoc on `newAccountId`; the demo uses random ids.
 - Q10 resets: a completed reset voids every other reset and email sign-in token (per-account counter); a reset
-  finished with a passkey removes the password. `lockedUntil` is the host's suspension: honoured, never cleared,
-  not lifted by a reset (throttling locks still are).
+  finished with a passkey removes the password. The host's suspension (`lockedUntil`, now `lock`) is honoured,
+  never cleared, not lifted by a reset (throttling locks still are).
 - Q11 NFR-C1: fix S-20, the demo delivers both logouts, then Form Post and the three logout OP plans run as parallel
   CI jobs; REVIEW modules are acceptable while nothing fails.
 - Q12 sub-ids for FR-C20, FR-C22, FR-C24, FR-I9: later, on their own.

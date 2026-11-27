@@ -14,7 +14,7 @@ const mcpUri = () => `${issuer()}${MCP_PATH}`
 export const mcpResources = (): ResourceDescriptor[] => (mcpEnabled ? [{ uri: mcpUri(), scopes: ['openid', 'profile'] }] : [])
 
 /**
- * Fetched as FR-C20 leaves to the host, through safeFetch (D-6): a client_id is any URL its client chose, so no address
+ * Fetched as FR-C20.1 leaves to the host, through safeFetch (D-6): a client_id is any URL its client chose, so no address
  * inside this network, no redirect, a short deadline and a small body; the core already refused a non-canonical URL.
  */
 export const resolveClientMetadata = async (clientId: string) => {

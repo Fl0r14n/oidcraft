@@ -5,8 +5,11 @@ import type { MarkdownRenderer } from 'vitepress'
 
 export const REPO = fileURLToPath(new URL('../../..', import.meta.url))
 
-const ID = /\b((?:FR|NFR)-[A-Z]+\d+|G-\d+)\b/g
-const LEAD = /^\*\*((?:FR|NFR)-[A-Z]+\d+|G-\d+)\b/
+// A sub-id, `FR-C24.1`, names one rule of a long requirement; a citation of it counts for its parent too.
+const ID = /\b((?:FR|NFR)-[A-Z]+\d+(?:\.\d+)?|G-\d+)\b/g
+const LEAD = /^\*\*((?:FR|NFR)-[A-Z]+\d+(?:\.\d+)?|G-\d+)\b/
+
+const parentOf = (id: string) => id.replace(/\.\d+$/, '')
 
 export const slug = (id: string) => id.toLowerCase()
 
@@ -50,8 +53,10 @@ export const requirements = (): Requirement[] => {
   for (const file of ['packages', 'apps'].flatMap(dir => walk(join(REPO, dir)))) {
     const path = relative(REPO, file)
     for (const [id] of readFileSync(file, 'utf8').matchAll(ID)) {
-      if (!cited.has(id)) cited.set(id, new Set())
-      cited.get(id)?.add(path)
+      for (const each of new Set([id, parentOf(id)])) {
+        if (!cited.has(each)) cited.set(each, new Set())
+        cited.get(each)?.add(path)
+      }
     }
   }
   return defined().map(({ id, title }) => {

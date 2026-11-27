@@ -46,7 +46,7 @@ const clientFrom = (config: ResolvedConfig, clientId: string, document: unknown)
   )
 
   const listed = stringsFrom(body.grant_types, 'grant_types', refuse) ?? ['authorization_code']
-  // FR-C20: one document serves every server the client talks to, so a grant type this provider does not support is dropped, not refused.
+  // FR-C20.3: one document serves every server the client talks to, so a grant type this provider does not support is dropped, not refused.
   const supported = config.assertionTrust ? [...DOCUMENT_GRANT_TYPES, JWT_BEARER_GRANT_TYPE] : DOCUMENT_GRANT_TYPES
   const grantTypes = listed.filter(grantType => supported.includes(grantType))
   if (!grantTypes.includes('authorization_code')) {
@@ -77,7 +77,7 @@ const clientFrom = (config: ResolvedConfig, clientId: string, document: unknown)
   }
 }
 
-// FR-C20: the host fetches and trusts (FR-A1); everything the document says is checked here, so every grant sees an ordinary client.
+// FR-C20.2: the host fetches and trusts (FR-A1); everything the document says is checked here, so every grant sees an ordinary client.
 export const withClientMetadata = (config: ResolvedConfig, resolve: (clientId: string) => Promise<unknown>): Adapter => ({
   ...config.adapter,
   clients: {

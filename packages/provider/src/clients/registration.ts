@@ -115,7 +115,7 @@ const grantTypesFrom = (config: ResolvedConfig, body: Record<string, unknown>, m
     throw invalid('a public client cannot use client_credentials (RFC 6749 §4.4)')
   }
   if (method === 'none' && grantTypes.includes(JWT_BEARER_GRANT_TYPE)) {
-    throw invalid('a public client cannot redeem an identity assertion (FR-C24)')
+    throw invalid('a public client cannot redeem an identity assertion (FR-C24.3)')
   }
 
   const code = grantTypes.includes('authorization_code')

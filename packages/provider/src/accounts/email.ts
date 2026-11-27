@@ -4,7 +4,7 @@ import { digest, invalid, liveLock, locked, normalizeUsername, type Shared, user
 
 export type AddressProblem = 'required' | 'tooLong' | 'invalid'
 
-/** FR-I9: every refusal but `address` is answered as a success is; `passkey` and `unverified` say what to send instead. */
+/** FR-I9.2: every refusal but `address` is answered as a success is; `passkey` and `unverified` say what to send instead. */
 export type EmailSignInIssue =
   | { ok: true; token: string; address: string; accountId: string | undefined }
   | { ok: false; reason: 'address'; problem: AddressProblem }
@@ -43,7 +43,7 @@ export const createEmailSignIn = (shared: Shared, generationOf: (accountId: stri
     return false
   }
 
-  /** FR-I9: a password beside an address never proven on it may be whoever signed up with someone else's address. */
+  /** FR-I9.3: a password beside an address never proven on it may be whoever signed up with someone else's address. */
   const checkEmailSignIn = async (credential: Credential, address: string) => {
     if ((await adapter.passkeys.listForAccount(credential.accountId)).length) return { ok: false, reason: 'passkey' } as const
     const { email, email_verified } = credential.claims
@@ -59,7 +59,7 @@ export const createEmailSignIn = (shared: Shared, generationOf: (accountId: stri
   }
 
   return {
-    /** A single-use token for the host to send (FR-A1); an address with no account gets one only with `signUp` (FR-I9). */
+    /** A single-use token for the host to send (FR-A1); an address with no account gets one only with `signUp` (FR-I9.3). */
     async issue(
       address: string,
       interaction: EmailSignInInteraction,
@@ -92,7 +92,7 @@ export const createEmailSignIn = (shared: Shared, generationOf: (accountId: stri
       return { ok: true, token, address: normalized, accountId: credential?.accountId }
     },
 
-    /** A live token's address and interaction, spending nothing: mail scanners open links too (FR-I9). */
+    /** A live token's address and interaction, spending nothing: mail scanners open links too (FR-I9.5). */
     async find(token: string) {
       const artifact = await liveEmailSignIn(await digest(token))
       if (!artifact) return undefined

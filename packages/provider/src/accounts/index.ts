@@ -1,5 +1,5 @@
 import { DEFAULT_MAX_LENGTH, oauthFieldError, randomString } from '@oidcraft/core'
-import type { AccountStore, Credential, CredentialsAdapter, Seconds } from '@oidcraft/provider'
+import type { AccountStore, BrokeringAdapter, Credential, CredentialsAdapter, Seconds } from '@oidcraft/provider'
 import { base64url } from 'jose'
 import { createPasskeys, displayNameOf, nameProblem, type PasskeyNameProblem, type RegistrationResponseJSON } from './passkeys'
 import { importHashingKey, importSecretKey, open, seal } from './sealed'
@@ -24,7 +24,7 @@ export type PasswordHasher = {
 }
 
 export type AccountsPolicy = {
-  /** NIST SP 800-63B §5.1.1.2. @default 8 */
+  /** NIST SP 800-63B-4 §3.1.1.2, for a password used alone (FR-I7). @default 15 */
   minPasswordLength: number
   /** Failures from one address before it is locked out of the account; without an address, before the account locks. @default 5 */
   maxFailedAttempts: number
@@ -60,8 +60,13 @@ export type AccountsOptions = {
   policy?: Partial<AccountsPolicy>
   /** scope → the stored claims it releases. @default OIDC Core §5.4's standard scopes */
   claims?: Record<string, string[]>
-  /** @default a random id, so a username can change without changing the subject */
+  /**
+   * @default a random id, so a username can change without changing the subject. One id names one account: sign-up refuses
+   * an id that already has linked identities, so a username chosen to read `google:<sub>` takes no one's account (FR-I7, FR-F5).
+   */
   newAccountId?: (username: string) => string
+  /** A blocklist, which no dependency-free library can ship (NFR-D4): true refuses the password as `rejected` (FR-I7). */
+  rejectPassword?: (password: string, account: { username: string }) => boolean | Promise<boolean>
 }
 
 const STANDARD_CLAIMS: Record<string, string[]> = {
@@ -91,7 +96,7 @@ export type SignInContext = { clientIp?: string | undefined }
 
 type Attempts = { generation: string; lockedUntil?: number }
 
-type Bucket = { scope: string; limit: number; ttl: Seconds }
+type Bucket = { scope: string; limit: number; ttl: Seconds; accountId: string | undefined }
 
 /** IPv6 counts by its /64: one subscriber is routinely given a whole one, so by address a guesser has 2^64 of them (G-9). */
 export const addressBucket = (ip: string) => {
@@ -129,7 +134,7 @@ export type SecondFactorResult =
   | { ok: false; reason: 'invalid' }
   | { ok: false; reason: 'locked'; until: Date }
 
-export type PasswordProblem = 'required' | 'tooShort' | 'tooLong'
+export type PasswordProblem = 'required' | 'tooShort' | 'tooLong' | 'rejected'
 
 export type PasskeySignUpOptionsResult<Options> =
   | { ok: true; options: Options }
@@ -147,7 +152,7 @@ export type RecoveryResult =
   | { ok: false; reason: 'locked'; until: Date }
 
 export type PasskeyResetResult =
-  | { ok: true; accountId: string }
+  | { ok: true; accountId: string; recoveryCodes: string[] }
   | { ok: false; reason: 'invalid' | 'taken' }
   | { ok: false; reason: 'name'; problem: PasskeyNameProblem }
 
@@ -175,7 +180,12 @@ export type EmailSignInResult =
 /** What an email sign-in token is issued for: `provider.interactions.find`'s answer is one. */
 export type EmailSignInInteraction = { id: string; clientId: string; expiresAt: Date }
 
-type EmailSignInPayload = { address: string; interactionId: string; signUp?: { claims: Record<string, unknown> } }
+type EmailSignInPayload = {
+  address: string
+  interactionId: string
+  generation?: string
+  signUp?: { claims: Record<string, unknown> }
+}
 
 /** Usernames compare the way people read them: compatibility-normalized, trimmed, case-folded. */
 export const normalizeUsername = (username: string) => username.normalize('NFKC').trim().toLowerCase()
@@ -201,12 +211,15 @@ const normalizeRecoveryCode = (code: string) => code.trim().toLowerCase().replac
 /** Long enough that a used recovery code cannot come back while it could still be on someone's paper. */
 const RECOVERY_TOMBSTONE: Seconds = 10 * 365 * 24 * 3600
 
+/** Never a token's digest, which has no colon, so it shares the reset tokens' kind without being one. */
+const generationId = (accountId: string) => `generation:${accountId}`
+
 /** Local accounts over the adapter's `credentials` store (FR-I7); a host without sign-up never calls `register`. */
 export const createAccounts = (options: AccountsOptions) => {
   const { credentials } = options.adapter
   const { adapter, hasher } = options
   const policy: AccountsPolicy = {
-    minPasswordLength: 8,
+    minPasswordLength: 15,
     maxFailedAttempts: 5,
     maxFailedAttemptsPerAccount: 50,
     failureWindow: 86_400,
@@ -228,12 +241,17 @@ export const createAccounts = (options: AccountsOptions) => {
     return decoy.then(hash => hasher.verify(password, hash))
   }
 
-  const passwordProblem = (password: string | undefined): PasswordProblem | undefined => {
+  const passwordProblem = async (password: string | undefined, username: string): Promise<PasswordProblem | undefined> => {
     if (!password) return 'required'
     if (password.length < policy.minPasswordLength) return 'tooShort'
     if (password.length > DEFAULT_MAX_LENGTH) return 'tooLong'
+    if (await options.rejectPassword?.(password, { username })) return 'rejected'
     return undefined
   }
+
+  /** FR-I7, FR-F5: one id names one account, so an id an upstream's identities already name is taken. */
+  const linkedElsewhere = async (accountId: string) =>
+    Boolean((await (adapter as Partial<BrokeringAdapter>).identities?.listForAccount(accountId))?.length)
 
   const lockedUntil = (credential: Credential) =>
     credential.lockedUntil && credential.lockedUntil.getTime() > Date.now() ? credential.lockedUntil : undefined
@@ -245,29 +263,34 @@ export const createAccounts = (options: AccountsOptions) => {
   }
 
   /** Every address together, never reset by a good sign-in: otherwise the owner signing in would restart a spread-out guess (G-9). */
-  const accountWide = (accountId: string): Bucket => ({
+  const accountWide = (accountId: string, owned = true): Bucket => ({
     scope: `${accountId}:*`,
     limit: policy.maxFailedAttemptsPerAccount,
-    ttl: policy.failureWindow
+    ttl: policy.failureWindow,
+    accountId: owned ? accountId : undefined
   })
   /** This address, or the account when there is none (G-9); a second factor's apart, so a known password does not reset it. */
-  const ownBucket = (accountId: string, factor: 'password' | 'code', context: SignInContext): Bucket => ({
+  const ownBucket = (accountId: string, factor: 'password' | 'code', context: SignInContext, owned = true): Bucket => ({
     scope: `${accountId}:${factor === 'code' ? 'code:' : ''}${context.clientIp ? addressBucket(context.clientIp) : '-'}`,
     limit: policy.maxFailedAttempts,
-    ttl: policy.lockout
+    ttl: policy.lockout,
+    accountId: owned ? accountId : undefined
   })
 
-  const lockFor = async (credential: Credential, bucket: Bucket) =>
-    lockedUntil(credential) ?? (await lockedAt(accountWide(credential.accountId).scope)) ?? (await lockedAt(bucket.scope))
+  /** A username no password signs in to, counted as an account's is, so locking out names no account either (G-9). */
+  const nobody = async (username: string) => `?${await digest(username)}`
 
-  /** Kept as long as a slot of the new generation can live. */
-  const renew = async (bucket: Bucket, accountId: string, lockUntil?: Date) =>
+  const lockFor = async (accountId: string, hostLock: Date | undefined, bucket: Bucket) =>
+    hostLock ?? (await lockedAt(accountWide(accountId).scope)) ?? (await lockedAt(bucket.scope))
+
+  /** Kept as long as a slot of the generation can live; a new one frees every slot, so the account-wide lock keeps its own (G-9). */
+  const renew = async (bucket: Bucket, lockUntil?: Date, generation = randomString(8)) =>
     adapter.artifacts.upsert({
       id: bucket.scope,
       kind: 'sign_in_attempts',
       clientId: '',
-      accountId,
-      payload: { generation: randomString(8), ...(lockUntil && { lockedUntil: lockUntil.getTime() }) } satisfies Attempts,
+      ...(bucket.accountId && { accountId: bucket.accountId }),
+      payload: { generation, ...(lockUntil && { lockedUntil: lockUntil.getTime() }) } satisfies Attempts,
       expiresAt: new Date((lockUntil?.getTime() ?? Date.now()) + bucket.ttl * 1000)
     })
 
@@ -285,8 +308,8 @@ export const createAccounts = (options: AccountsOptions) => {
   const lockoutFromNow = () => new Date(Date.now() + policy.lockout * 1000)
 
   /** Before the slow verify, so at most `limit` guesses run at once; a locked account still pays one hash, or names leak (FR-I7). */
-  const admit = async (credential: Credential, bucket: Bucket, password?: string) => {
-    const lockedFor = await lockFor(credential, bucket)
+  const admit = async (accountId: string, hostLock: Date | undefined, bucket: Bucket, password?: string) => {
+    const lockedFor = await lockFor(accountId, hostLock, bucket)
     const slot = lockedFor ? undefined : await claimSlot(bucket)
     if (slot === undefined) {
       if (password !== undefined) await spendDecoy(password)
@@ -298,21 +321,31 @@ export const createAccounts = (options: AccountsOptions) => {
   const fail = async (accountId: string, bucket: Bucket, slot: number, context: SignInContext) => {
     const until = lockoutFromNow()
     if (context.clientIp) {
-      const wide = accountWide(accountId)
+      const wide = accountWide(accountId, bucket.accountId !== undefined)
       const counted = await claimSlot(wide)
       if (counted === undefined || counted === wide.limit - 1) {
-        await renew(wide, accountId, until)
+        await renew(wide, until, (await attemptsAt(wide.scope))?.generation ?? '0')
         return locked(until)
       }
     }
     if (slot < bucket.limit - 1) return invalid
-    await renew(bucket, accountId, until)
+    await renew(bucket, until)
     return locked(until)
   }
 
   /** Only a bucket someone failed in this generation is renewed, so a clean sign-in writes nothing. */
-  const succeed = async (accountId: string, bucket: Bucket, slot: number) => {
-    if (slot > 0) await renew(bucket, accountId)
+  const succeed = async (bucket: Bucket, slot: number) => {
+    if (slot > 0) await renew(bucket)
+  }
+
+  /** Every way in to an account nothing signs in to by this secret pays what one that does would, lockout included (G-9). */
+  const guessAtNobody = async (username: string, secret: string, factor: 'password' | 'code', context: SignInContext) => {
+    const id = await nobody(username)
+    const bucket = ownBucket(id, factor, context, false)
+    const admitted = await admit(id, undefined, bucket, secret)
+    if (admitted.refused) return admitted.refused
+    await spendDecoy(secret)
+    return fail(id, bucket, admitted.slot, context)
   }
 
   const hashingKey = importHashingKey(options.secretKey)
@@ -359,6 +392,10 @@ export const createAccounts = (options: AccountsOptions) => {
     return true
   }
 
+  const generationOf = async (accountId: string) =>
+    ((await adapter.artifacts.find('password_reset', generationId(accountId)))?.payload as { generation?: string } | undefined)
+      ?.generation ?? '0'
+
   const issueResetToken = async (accountId: string) => {
     const token = randomString(43)
     await adapter.artifacts.upsert({
@@ -366,18 +403,34 @@ export const createAccounts = (options: AccountsOptions) => {
       kind: 'password_reset',
       clientId: '',
       accountId,
-      payload: {},
+      payload: { generation: await generationOf(accountId) },
       expiresAt: new Date(Date.now() + policy.resetTtl * 1000)
     })
     return token
   }
 
+  /** FR-I7: a completed reset spends every other reset and email sign-in token of the account, issued under an older generation. */
+  const liveReset = async (id: string) => {
+    const artifact = await adapter.artifacts.find('password_reset', id)
+    if (!artifact?.accountId || artifact.consumedAt) return undefined
+    const { generation } = artifact.payload as { generation?: string }
+    return generation === (await generationOf(artifact.accountId)) ? { ...artifact, accountId: artifact.accountId } : undefined
+  }
+
   /** What a reset finishes with, whichever credential it set: the old ones' sessions end and their tokens are revoked (FR-T7). */
   const afterReset = async (accountId: string, context: SignInContext) => {
+    await adapter.artifacts.upsert({
+      id: generationId(accountId),
+      kind: 'password_reset',
+      clientId: '',
+      accountId,
+      payload: { generation: randomString(8) },
+      expiresAt: new Date(Date.now() + RECOVERY_TOMBSTONE * 1000)
+    })
     // G-9: guesses at a password that is gone lock nothing; a fresh generation, so no slot of the old one counts.
     const buckets = [accountWide(accountId), ownBucket(accountId, 'password', {}), ownBucket(accountId, 'code', {})]
     if (context.clientIp) buckets.push(ownBucket(accountId, 'password', context), ownBucket(accountId, 'code', context))
-    for (const bucket of buckets) await renew(bucket, accountId)
+    for (const bucket of buckets) await renew(bucket)
     for (const session of await adapter.sessions.listForAccount(accountId)) await adapter.sessions.destroy(session.id)
     // FR-T7: an offline refresh token carries its own sign-in and would outlive the sessions. The consent stays, under a
     // new id, so a token a racing refresh writes after the sweep names a grant that is gone (FR-T3).
@@ -406,7 +459,9 @@ export const createAccounts = (options: AccountsOptions) => {
 
   const liveEmailSignIn = async (id: string) => {
     const artifact = await adapter.artifacts.find('email_sign_in', id)
-    return artifact && !artifact.consumedAt ? artifact : undefined
+    if (!artifact || artifact.consumedAt) return undefined
+    const { generation } = artifact.payload as EmailSignInPayload
+    return !artifact.accountId || generation === (await generationOf(artifact.accountId)) ? artifact : undefined
   }
 
   const signUpBinding = (interactionId: string) => `sign-up:${interactionId}`
@@ -424,6 +479,7 @@ export const createAccounts = (options: AccountsOptions) => {
       if (await credentials.findByUsername(username)) return { ok: false, reason: 'taken' } as const
       const claims = input.claims ?? {}
       const accountId = options.newAccountId?.(username) ?? randomString(24)
+      if (await linkedElsewhere(accountId)) return { ok: false, reason: 'taken' } as const
       const created = await creationOptions(
         { accountId, username, displayName: displayNameOf(username, claims) },
         { ceremony: 'create', binding: signUpBinding(interactionId), signUp: { username, claims } }
@@ -442,7 +498,7 @@ export const createAccounts = (options: AccountsOptions) => {
       const { codes, hashes } = await issueRecoveryCodes(accountId)
       const now = new Date()
       const account = { accountId, ...signUp, recoveryCodes: hashes, failedAttempts: 0, createdAt: now, updatedAt: now }
-      if (!(await credentials.create(account))) return { ok: false, reason: 'taken' }
+      if ((await linkedElsewhere(accountId)) || !(await credentials.create(account))) return { ok: false, reason: 'taken' }
       // FR-I8: an account with neither a password nor a passkey has no way in, so it does not stay.
       if (!(await keep(created.passkey(passkeyName))).ok) {
         await credentials.destroy(accountId)
@@ -466,13 +522,13 @@ export const createAccounts = (options: AccountsOptions) => {
     }
   }
 
+  /** `lockedUntil` is the host's suspension: kept, so a new password does not lift it (FR-I7). */
   const setPassword = async (accountId: string, password: string) => {
-    const problem = passwordProblem(password)
-    if (problem) return { ok: false, reason: 'password', problem } as const
     const credential = await credentials.find(accountId)
+    const problem = await passwordProblem(password, credential?.username ?? '')
+    if (problem) return { ok: false, reason: 'password', problem } as const
     if (!credential) return { ok: false, reason: 'unknown' } as const
-    const { lockedUntil: _, ...rest } = credential
-    await credentials.upsert({ ...rest, passwordHash: await hasher.hash(password), failedAttempts: 0, updatedAt: new Date() })
+    await credentials.upsert({ ...credential, passwordHash: await hasher.hash(password), failedAttempts: 0, updatedAt: new Date() })
     return { ok: true } as const
   }
 
@@ -480,14 +536,18 @@ export const createAccounts = (options: AccountsOptions) => {
     /** Pass as the adapter's `accounts`: `createProvider({ adapter: { ...adapter, accounts: accounts.store } })`. */
     store,
 
+    /** The policy in force, defaults filled in, for screens that state it. */
+    policy,
+
     async signUp(input: { username: string; password: string; claims?: Record<string, unknown> }): Promise<SignUpResult> {
       const username = normalizeUsername(input.username)
       const usernameProblem = oauthFieldError(username)
       if (usernameProblem) return { ok: false, reason: 'username', problem: usernameProblem }
-      const problem = passwordProblem(input.password)
+      const problem = await passwordProblem(input.password, username)
       if (problem) return { ok: false, reason: 'password', problem }
       const now = new Date()
       const accountId = options.newAccountId?.(username) ?? randomString(24)
+      if (await linkedElsewhere(accountId)) return { ok: false, reason: 'taken' }
       const created = await credentials.create({
         accountId,
         username,
@@ -501,17 +561,20 @@ export const createAccounts = (options: AccountsOptions) => {
     },
 
     async authenticate(username: string, password: string, context: SignInContext = {}): Promise<AuthenticationResult> {
-      const credential = await credentials.findByUsername(normalizeUsername(username))
-      if (!credential?.passwordHash) {
-        await spendDecoy(password)
+      // FR-I7: past the maximum nothing can match, and it costs what an unknown username does, never a hash of its own length.
+      if (password.length > DEFAULT_MAX_LENGTH) {
+        await spendDecoy(password.slice(0, DEFAULT_MAX_LENGTH))
         return invalid
       }
+      const normalized = normalizeUsername(username)
+      const credential = await credentials.findByUsername(normalized)
+      if (!credential?.passwordHash) return guessAtNobody(normalized, password, 'password', context)
       const { passwordHash } = credential
       const bucket = ownBucket(credential.accountId, 'password', context)
-      const admitted = await admit(credential, bucket, password)
+      const admitted = await admit(credential.accountId, lockedUntil(credential), bucket, password)
       if (admitted.refused) return admitted.refused
       if (!(await hasher.verify(password, passwordHash))) return fail(credential.accountId, bucket, admitted.slot, context)
-      await succeed(credential.accountId, bucket, admitted.slot)
+      await succeed(bucket, admitted.slot)
       return { ok: true, accountId: credential.accountId, secondFactor: Boolean(credential.totp?.confirmedAt) }
     },
 
@@ -520,17 +583,17 @@ export const createAccounts = (options: AccountsOptions) => {
       const credential = await credentials.find(accountId)
       if (!credential?.totp?.confirmedAt) return invalid
       const bucket = ownBucket(accountId, 'code', context)
-      const admitted = await admit(credential, bucket)
+      const admitted = await admit(accountId, lockedUntil(credential), bucket)
       if (admitted.refused) return admitted.refused
 
       const counter = await matchingCounter(await open(await key, accountId, credential.totp.secret), code.replace(/\s/g, ''))
       if (counter !== undefined && (await adapter.replay.claim('totp', `${accountId}:${counter}`, 3 * TOTP_PERIOD))) {
-        await succeed(accountId, bucket, admitted.slot)
+        await succeed(bucket, admitted.slot)
         return { ok: true, method: 'otp' }
       }
 
       if (await redeemRecoveryCode(credential, code)) {
-        await succeed(accountId, bucket, admitted.slot)
+        await succeed(bucket, admitted.slot)
         return { ok: true, method: 'recovery' }
       }
 
@@ -542,19 +605,17 @@ export const createAccounts = (options: AccountsOptions) => {
      * reset token, for `reset.completeWithPasskey` or `reset.complete`; it signs no one in.
      */
     async recover(username: string, code: string, context: SignInContext = {}): Promise<RecoveryResult> {
-      const credential = await credentials.findByUsername(normalizeUsername(username))
+      const normalized = normalizeUsername(username)
+      const credential = await credentials.findByUsername(normalized)
       // G-9: every answer pays one hash, as a password's does, so how long it takes names no account.
-      if (!credential || credential.passwordHash) {
-        await spendDecoy(code)
-        return invalid
-      }
+      if (!credential || credential.passwordHash) return guessAtNobody(normalized, code, 'code', context)
       const { accountId } = credential
       const bucket = ownBucket(accountId, 'code', context)
-      const admitted = await admit(credential, bucket, code)
+      const admitted = await admit(accountId, lockedUntil(credential), bucket, code)
       if (admitted.refused) return admitted.refused
       const [redeemed] = await Promise.all([redeemRecoveryCode(credential, code), spendDecoy(code)])
       if (!redeemed) return fail(accountId, bucket, admitted.slot, context)
-      await succeed(accountId, bucket, admitted.slot)
+      await succeed(bucket, admitted.slot)
       return { ok: true, accountId, token: await issueResetToken(accountId) }
     },
 
@@ -639,7 +700,7 @@ export const createAccounts = (options: AccountsOptions) => {
         const payload: EmailSignInPayload = {
           address: normalized,
           interactionId: interaction.id,
-          ...(!credential && { signUp: { claims: options.signUp?.claims ?? {} } })
+          ...(credential ? { generation: await generationOf(credential.accountId) } : { signUp: { claims: options.signUp?.claims ?? {} } })
         }
         await adapter.artifacts.upsert({
           id: await digest(token),
@@ -669,8 +730,10 @@ export const createAccounts = (options: AccountsOptions) => {
         let signedUp = false
         if (!artifact.accountId && signUp) {
           const now = new Date()
+          const accountId = options.newAccountId?.(address) ?? randomString(24)
+          if (await linkedElsewhere(accountId)) return invalid
           const account: Credential = {
-            accountId: options.newAccountId?.(address) ?? randomString(24),
+            accountId,
             username: address,
             claims: { ...signUp.claims, email: address, email_verified: true },
             failedAttempts: 0,
@@ -707,8 +770,8 @@ export const createAccounts = (options: AccountsOptions) => {
       /** Creation options for a new passkey in place of the password, or of a lost passkey; undefined for a token that is not live. */
       async passkeyOptions(token: string) {
         const id = await digest(token)
-        const artifact = await adapter.artifacts.find('password_reset', id)
-        const credential = artifact?.accountId && !artifact.consumedAt ? await credentials.find(artifact.accountId) : undefined
+        const artifact = await liveReset(id)
+        const credential = artifact && (await credentials.find(artifact.accountId))
         if (!credential) return undefined
         const { accountId, username, claims } = credential
         return creationOptions(
@@ -717,7 +780,10 @@ export const createAccounts = (options: AccountsOptions) => {
         )
       },
 
-      /** Adds the passkey made from `passkeyOptions`, spends the token and, as `complete` does, ends what the old credentials opened. */
+      /**
+       * Adds the passkey made from `passkeyOptions` in place of the password and TOTP, with new recovery codes to show once, and, as
+       * `complete` does, ends what the old credentials opened: after a compromise, the password left beside it is the intruder's (FR-I7).
+       */
       async completeWithPasskey(
         token: string,
         response: RegistrationResponseJSON,
@@ -730,22 +796,28 @@ export const createAccounts = (options: AccountsOptions) => {
         const id = await digest(token)
         const created = await verifyCreation(response, { ceremony: 'create', binding: resetBinding(id) })
         if (!created) return invalid
-        const artifact = await adapter.artifacts.find('password_reset', id)
-        if (artifact?.accountId !== created.accountId || !(await adapter.artifacts.consume('password_reset', id))) return invalid
+        const { accountId } = created
+        const artifact = await liveReset(id)
+        if (artifact?.accountId !== accountId || !(await adapter.artifacts.consume('password_reset', id))) return invalid
         const kept = await keep(created.passkey(passkeyName))
         if (!kept.ok) return { ok: false, reason: 'taken' }
-        await afterReset(created.accountId, context)
-        return { ok: true, accountId: created.accountId }
+        const { codes, hashes } = await issueRecoveryCodes(accountId)
+        const credential = await credentials.find(accountId)
+        if (credential) {
+          const { passwordHash: _, totp: __, ...rest } = credential
+          await credentials.upsert({ ...rest, recoveryCodes: hashes, updatedAt: new Date() })
+        }
+        await afterReset(accountId, context)
+        return { ok: true, accountId, recoveryCodes: codes }
       },
 
       /** Sets the new password, ends every session the old one opened and revokes the tokens issued to the account (FR-T7). */
       async complete(token: string, password: string, context: SignInContext = {}) {
-        const problem = passwordProblem(password)
-        if (problem) return { ok: false, reason: 'password', problem } as const
         const id = await digest(token)
-        const artifact = await adapter.artifacts.find('password_reset', id)
-        if (!artifact?.accountId || !(await adapter.artifacts.consume('password_reset', id)))
-          return { ok: false, reason: 'invalid' } as const
+        const artifact = await liveReset(id)
+        const problem = await passwordProblem(password, artifact ? ((await credentials.find(artifact.accountId))?.username ?? '') : '')
+        if (problem) return { ok: false, reason: 'password', problem } as const
+        if (!artifact || !(await adapter.artifacts.consume('password_reset', id))) return { ok: false, reason: 'invalid' } as const
         const set = await setPassword(artifact.accountId, password)
         if (!set.ok) return { ok: false, reason: 'invalid' } as const
         await afterReset(artifact.accountId, context)

@@ -92,7 +92,7 @@ marks a finding reproduced by a throwaway test. Paths are under `packages/provid
       `clients/assertion.ts:57` read it as "`nbf` at most 60 s old". Add `redirect_uri` required in PAR (§5.3.2.2)
       and RSA ≥ 2048 / EC ≥ 224 (§5.4.1).
 - [ ] NFR-S1: OAuth 2.1 is at -17 (§7.5.1.1 unchanged).
-- [ ] FR-I7, G-9: NIST SP 800-63B rev 4 (§3.2.2 rate limiting); FR-I7 has no password policy (length, blocklist).
+- [x] FR-I7, G-9: NIST SP 800-63B rev 4 (§3.2.2 rate limiting); FR-I7 has no password policy (length, blocklist).
 - [ ] FR-L4: RFC 10017 / BCP 212 on `localStorage` and BFF.
 - [ ] FR-C20: CIMD -03 §10.7 (no fetch of special-use addresses) normative.
 - [ ] §1 "batteries included" vs `@oidcraft/ui` private; FR-C19 vs code on the owning client introspecting; ID token
@@ -117,7 +117,7 @@ marks a finding reproduced by a throwaway test. Paths are under `packages/provid
       matching ×3, token visibility ×4, cookies ×3, error factories. All but the cookies, which land with S-10 (step 4):
       `outstandingConsent`/`assertConsentCovers`, `assertAccessToken` and its `refused`, `StoredId`.
 - [x] A5 `authorize ↔ token ↔ clients` import cycle; authorization endpoint inside `provider.ts`.
-- [ ] A6 throttling on `ReplayGuard` slots → an atomic counter on the adapter.
+- [x] A6 throttling on `ReplayGuard` slots → an atomic counter on the adapter.
 - [ ] A7 whole-row credential writes → field merge or CAS.
 - [ ] A8 Redis single `~keys` set; no injectable clock.
 
@@ -136,7 +136,7 @@ Medium:
 - [x] S-2 `[test]` assertion `aud` accepts the token endpoint and arrays (`clients/assertion.ts:23`).
 - [x] S-3 `[test]` introspection accepts a `none` client; RFC 7592 update keeps operator fields (`resource/introspection.ts:45`, `clients/registration.ts:401`).
 - [x] S-4 `[test]` cert-bound client without a certificate gets bearer tokens; `dpopBoundAccessTokens` ignored with DPoP off (`token/endpoint.ts:22,59`).
-- [ ] A-1 `[test]` account-wide lockout renews the generation, freeing every slot (`accounts/index.ts:264,302`).
+- [x] A-1 `[test]` account-wide lockout renews the generation, freeing every slot (`accounts/index.ts:264,302`).
 - [x] A-2 `allowedUpstreams` not enforced at `interactions.complete` (`authorize/interactions.ts:292`).
 - [ ] R-1 `fromKv` `destroyByClientId` scans, reachable from RFC 7592 DELETE (`packages/adapter/src/kv.ts:156,303`).
 - [ ] R-2 ID token `iss` unchecked without a configured issuer (`packages/core/src/jwt.ts:170`).
@@ -161,12 +161,12 @@ Low:
 - [x] S-20 discovery advertises front- and back-channel logout unconditionally (`discovery.ts:85-96`), with no
       `onLogout`/`onFrontChannelLogout` to deliver them (FR-C6); the demo sets neither.
 - [x] A-3 `UpstreamProvider.linkPolicy` never read (`broker/types.ts:207`).
-- [ ] A-4 reset by passkey keeps the password (`accounts/index.ts:721`).
-- [ ] A-5 reset leaves other reset/email tokens live (`accounts/index.ts:376`).
+- [x] A-4 reset by passkey keeps the password (`accounts/index.ts:721`).
+- [x] A-5 reset leaves other reset/email tokens live (`accounts/index.ts:376`).
 - [ ] A-6 credential writes undo each other (`accounts/index.ts:475,562-609`).
 - [ ] A-7 brokered login without upstream `auth_time` stamped now (`session/session.ts:43`).
-- [ ] A-8 known/unknown username timing via slot probing (`accounts/index.ts:275`).
-- [ ] A-9 `setPassword` clears a host-set `lockedUntil` (`accounts/index.ts:474`).
+- [x] A-8 known/unknown username timing via slot probing (`accounts/index.ts:275`).
+- [x] A-9 `setPassword` clears a host-set `lockedUntil` (`accounts/index.ts:474`).
 - [x] A-10 claim-mapping doc vs default mapper (`broker/types.ts:201`).
 - [ ] R-4 `oauthFetch(Request)` drops its headers (`packages/client/src/fetch.ts:20`).
 - [ ] R-5 refresh lock released mid-request (`packages/client/src/token.ts:192`).

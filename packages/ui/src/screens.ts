@@ -68,7 +68,13 @@ const destinationOf = (view: ScreenView) => {
   }
 }
 
-export type ScreensOptions = { brand: Brand; theme?: Theme | undefined; urls?: Partial<ScreenUrls> }
+export type ScreensOptions = {
+  brand: Brand
+  theme?: Theme | undefined
+  urls?: Partial<ScreenUrls>
+  /** The accounts' `policy.minPasswordLength`, which the forms state. @default 15 */
+  minPasswordLength?: number | undefined
+}
 
 /** Codes come from `@oidcraft/provider/interaction`; the wording is this screen's, and its locale's (FR-I6). */
 const MESSAGES: Record<'username' | 'password', Record<'required' | 'tooLong', string>> = {
@@ -95,11 +101,16 @@ export type LoginOptions = {
   status?: number
 }
 
-export const PASSWORD_MESSAGES = {
-  required: 'Enter a password',
-  tooShort: 'Use at least 8 characters',
-  tooLong: `Use at most ${DEFAULT_MAX_LENGTH} characters`
-} as const
+/** `@oidcraft/provider/accounts`' own default (FR-I7); a host that lowers it passes its `policy.minPasswordLength`. */
+export const DEFAULT_MIN_PASSWORD_LENGTH = 15
+
+export const passwordMessages = (minLength = DEFAULT_MIN_PASSWORD_LENGTH) =>
+  ({
+    required: 'Enter a password',
+    tooShort: `Use at least ${minLength} characters`,
+    tooLong: `Use at most ${DEFAULT_MAX_LENGTH} characters`,
+    rejected: 'That password is too easy to guess; choose another'
+  }) as const
 
 const DESCRIPTIONS: Record<string, string> = {
   openid: 'Confirm who you are',
@@ -111,7 +122,7 @@ const DESCRIPTIONS: Record<string, string> = {
 const describe = (scope: string) => DESCRIPTIONS[scope] ?? scope
 
 /** The screens for one brand. Build once per issuer; every call renders a complete response. */
-export const createScreens = ({ brand, theme, urls: overrides }: ScreensOptions) => {
+export const createScreens = ({ brand, theme, urls: overrides, minPasswordLength = DEFAULT_MIN_PASSWORD_LENGTH }: ScreensOptions) => {
   const urls: ScreenUrls = {
     interaction: (id, action) => `/interaction/${encodeURIComponent(id)}/${action}`,
     device: '/device',
@@ -226,7 +237,7 @@ export const createScreens = ({ brand, theme, urls: overrides }: ScreensOptions)
           action: urls.interaction(view.id, 'register'),
           loginUrl: urls.interaction(view.id, 'login'),
           clientName: nameOf(view),
-          minLength: 8,
+          minLength: minPasswordLength,
           maxLength: DEFAULT_MAX_LENGTH,
           values,
           errors,
@@ -271,7 +282,7 @@ export const createScreens = ({ brand, theme, urls: overrides }: ScreensOptions)
         {
           action: urls.reset,
           token,
-          minLength: 8,
+          minLength: minPasswordLength,
           maxLength: DEFAULT_MAX_LENGTH,
           error,
           passkey: passkeys ? { options: `${urls.reset}${urls.reset.includes('?') ? '&' : '?'}step=passkey-options` } : undefined

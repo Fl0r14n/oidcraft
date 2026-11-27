@@ -18,7 +18,7 @@
         label="Current password"
         autocomplete="current-password"
         required />
-      <UiField id="next" v-model="next" type="password" label="New password" autocomplete="new-password" minlength="8" required />
+      <UiField id="next" v-model="next" type="password" label="New password" autocomplete="new-password" minlength="15" required />
       <UiButton type="submit">{{ passwordless ? 'Add a password' : 'Change password' }}</UiButton>
     </form>
   </UiSection>

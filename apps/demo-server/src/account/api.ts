@@ -1,6 +1,6 @@
 /// <reference types="bun" />
 import type { AuthenticationResponseJSON, RegistrationResponseJSON } from '@oidcraft/provider/accounts'
-import { PASSWORD_MESSAGES } from '@oidcraft/ui'
+import { passwordMessages } from '@oidcraft/ui'
 import { renderSVG } from 'uqr'
 import { ACCOUNT_CLIENT_ID, callerOf, json } from '../op/first-party'
 import { accounts, provider } from '../op/provider'
@@ -181,7 +181,7 @@ export const accountApi = async (request: Request, url: URL): Promise<Response |
     const set = await accounts.setPassword(accountId, next ?? '')
     if (!set.ok)
       return json(
-        { error: 'weak_password', error_description: set.reason === 'unknown' ? 'No such account.' : PASSWORD_MESSAGES[set.problem] },
+        { error: 'weak_password', error_description: set.reason === 'unknown' ? 'No such account.' : passwordMessages()[set.problem] },
         400
       )
     return json({ ok: true })

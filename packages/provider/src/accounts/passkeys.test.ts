@@ -24,7 +24,9 @@ const setup = async (origin: string | null = ORIGIN) => {
     secretKey: generateSecretKey(),
     issuer: 'Example',
     ...(origin && { origin }),
-    newAccountId: username => username
+    newAccountId: username => username,
+    // The fixtures' passwords predate the 15-character default, which its own test covers.
+    policy: { minPasswordLength: 8 }
   })
   await accounts.signUp({ username: 'ada', password: 'correct horse', claims: { name: 'Ada Lovelace' } })
   await accounts.signUp({ username: 'grace', password: 'correct horse' })
@@ -539,7 +541,12 @@ describe('recovering an account with passkeys alone', () => {
     if (!options) throw new Error('no options')
     expect(options.user.name).toBe('linus')
     const response = await replacement.create(options)
-    expect(await accounts.reset.completeWithPasskey(recovered.token, response, 'New phone')).toEqual({ ok: true, accountId: 'linus' })
+    const completed = await accounts.reset.completeWithPasskey(recovered.token, response, 'New phone')
+    if (!completed.ok) throw new Error(completed.reason)
+    expect(completed.accountId).toBe('linus')
+    // FR-I7: a reset follows a compromise, so the codes printed before it are spent and new ones shown once.
+    expect(completed.recoveryCodes).toHaveLength(10)
+    expect((await adapter.credentials.find('linus'))?.recoveryCodes).toHaveLength(10)
     expect(await accounts.reset.completeWithPasskey(recovered.token, response, 'New phone')).toEqual({ ok: false, reason: 'invalid' })
     expect(await accounts.reset.passkeyOptions(recovered.token)).toBeUndefined()
     expect((await accounts.passkeys.list('linus')).map(passkey => passkey.name)).toEqual(['Phone', 'New phone'])
@@ -583,6 +590,23 @@ describe('recovering an account with passkeys alone', () => {
     })
     expect(await accounts.reset.complete(issued.token, 'a new password')).toEqual({ ok: true, accountId: 'linus' })
     expect(await accounts.authenticate('linus', 'a new password')).toMatchObject({ ok: true })
+  })
+
+  // A-4, FR-I7: after a compromise, a password left beside the new passkey is the one the intruder knows.
+  test('a reset finished with a passkey replaces the password and TOTP, leaving recovery codes', async () => {
+    const { accounts, adapter } = await signedUp()
+    const issued = await accounts.reset.issue('ada')
+    if (!issued) throw new Error('no token')
+    const options = await accounts.reset.passkeyOptions(issued.token)
+    if (!options) throw new Error('no options')
+    const completed = await accounts.reset.completeWithPasskey(issued.token, await (await authenticator()).create(options), 'Phone')
+    if (!completed.ok) throw new Error(completed.reason)
+    const credential = await adapter.credentials.find('ada')
+    expect(credential?.passwordHash).toBeUndefined()
+    expect(credential?.totp).toBeUndefined()
+    expect(credential?.recoveryCodes).toHaveLength(10)
+    expect(await accounts.authenticate('ada', 'correct horse')).toEqual({ ok: false, reason: 'invalid' })
+    expect((await accounts.recover('ada', completed.recoveryCodes[0] as string)).ok).toBe(true)
   })
 
   test('new recovery codes replace the old for an account with no password, and not for one with a password and no TOTP', async () => {

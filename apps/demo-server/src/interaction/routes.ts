@@ -1,6 +1,6 @@
 import { OAuthError } from '@oidcraft/provider'
 import { type InteractionRequest, oauthFieldError } from '@oidcraft/provider/interaction'
-import { PASSWORD_MESSAGES, type ScreenView } from '@oidcraft/ui'
+import { passwordMessages, type ScreenView } from '@oidcraft/ui'
 import { sendEmailSignIn, sendRecoveryLink } from '../op/accounts'
 import { issuer, optional } from '../op/env'
 import { FIRST_PARTY } from '../op/first-party'
@@ -234,7 +234,7 @@ const build = (site: Site) => {
         if (result.ok) return await finish(request, id, result.accountId, ['pwd'])
         const errors =
           result.reason === 'password'
-            ? { password: PASSWORD_MESSAGES[result.problem] }
+            ? { password: passwordMessages()[result.problem] }
             : { username: usernameMessage(result.reason === 'taken' ? 'taken' : result.problem) }
         return screens.register(view, { values, errors, passkeys: true, status: 400 })
       }
@@ -357,7 +357,7 @@ const build = (site: Site) => {
     if (result.ok)
       return resumed(request, 'password', 'Password changed', 'Sign in again with your new password, from the application you were using.')
     if (result.reason === 'password') {
-      return screens.reset(token, { error: PASSWORD_MESSAGES[result.problem], passkeys: true, status: 400 })
+      return screens.reset(token, { error: passwordMessages()[result.problem], passkeys: true, status: 400 })
     }
     return expired()
   }

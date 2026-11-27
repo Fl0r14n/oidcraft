@@ -121,6 +121,15 @@ describe('account linking', () => {
     expect((await adapter.identities.find('entra', 'up-1'))?.accountId).toBe('new-1')
   })
 
+  // Q9, FR-F5: an id that is a local account's is that account, not a new one for whoever signed in upstream.
+  test('a created account whose id a local account holds is refused', async () => {
+    const adapter = await fresh()
+    const now = new Date()
+    await adapter.credentials.upsert({ accountId: 'ada', username: 'ada', claims: {}, failedAttempts: 0, createdAt: now, updatedAt: now })
+    expect(linkIdentity(adapter, identity(), { createAccount: async () => 'ada' })).rejects.toThrow(/already holds/)
+    expect(await adapter.identities.find('entra', 'up-1')).toBeUndefined()
+  })
+
   test('an unknown identity with no createAccount is refused rather than silently made', async () => {
     const adapter = await fresh()
     expect(linkIdentity(adapter, identity())).rejects.toThrow(/no local account matches/)

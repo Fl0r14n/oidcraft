@@ -24,7 +24,9 @@ const setup = async (calls: string[] = [], delay = 0) => {
     hasher: hasher(calls, delay),
     secretKey,
     issuer: 'oidcraft test',
-    newAccountId: username => `id-${username}`
+    newAccountId: username => `id-${username}`,
+    // The fixtures' passwords predate the 15-character default, which its own test covers.
+    policy: { minPasswordLength: 8 }
   })
   return { adapter, accounts, secretKey }
 }
@@ -157,6 +159,72 @@ describe('passwords', () => {
         expect(await accounts.authenticate('ada', 'nope nope', at('203.0.113.6'))).toEqual({ ok: false, reason: 'invalid' })
       expect(await accounts.authenticate('ada', 'nope nope', at('203.0.113.6'))).toMatchObject({ ok: false, reason: 'locked' })
     })
+  })
+
+  // A-1, G-9: a fresh generation on the lock freed all fifty slots, so a spread-out guess got fifty more every lockout.
+  test('the account-wide count outlives its lock: past it, one more spread-out guess locks again', async () => {
+    const { adapter, accounts } = await setup()
+    await accounts.signUp({ username: 'ada', password: 'correct horse' })
+    for (let address = 0; address < 50; address++) await accounts.authenticate('ada', 'nope nope', { clientIp: `192.0.2.${address}` })
+    const wide = await adapter.artifacts.find('sign_in_attempts', 'id-ada:*')
+    if (!wide) throw new Error('no account-wide count')
+    await adapter.artifacts.upsert({ ...wide, payload: { ...wide.payload, lockedUntil: Date.now() - 1 } })
+    expect(await accounts.authenticate('ada', 'nope nope', { clientIp: '192.0.2.100' })).toMatchObject({ ok: false, reason: 'locked' })
+  })
+
+  // A-8, G-9: an unknown username that never locked told a guesser which names exist.
+  test('an unknown username, or one no password signs in to, locks as a known one does', async () => {
+    const { accounts } = await setup()
+    await accounts.signUp({ username: 'ada', password: 'correct horse' })
+    for (const username of ['ada', 'nobody']) {
+      for (let i = 0; i < 4; i++) expect(await accounts.authenticate(username, 'nope nope')).toEqual({ ok: false, reason: 'invalid' })
+      expect(await accounts.authenticate(username, 'nope nope')).toMatchObject({ ok: false, reason: 'locked' })
+    }
+    for (let i = 0; i < 4; i++) expect(await accounts.recover('ada', 'aaaaa-bbbbb')).toEqual({ ok: false, reason: 'invalid' })
+    expect(await accounts.recover('ada', 'aaaaa-bbbbb')).toMatchObject({ ok: false, reason: 'locked' })
+  })
+
+  // FR-I7: NIST SP 800-63B-4 §3.1.1.2 asks fifteen of a password used alone; the blocklist is the host's.
+  test('the default minimum is fifteen, the maximum holds at sign-in, and the host may reject a password', async () => {
+    const calls: string[] = []
+    const accounts = createAccounts({
+      adapter: await memoryAdapter(),
+      hasher: hasher(calls),
+      secretKey: generateSecretKey(),
+      issuer: 'oidcraft test',
+      rejectPassword: (password, { username }) => password.includes(username) || password === 'password password'
+    })
+    expect(accounts.policy.minPasswordLength).toBe(15)
+    expect(await accounts.signUp({ username: 'ada', password: 'fourteen chars' })).toMatchObject({ problem: 'tooShort' })
+    expect(await accounts.signUp({ username: 'ada', password: 'password password' })).toMatchObject({ problem: 'rejected' })
+    expect(await accounts.signUp({ username: 'ada', password: 'ada is my password' })).toMatchObject({ problem: 'rejected' })
+    expect(await accounts.signUp({ username: 'ada', password: 'fifteen chars!!' })).toMatchObject({ ok: true })
+    calls.length = 0
+    expect(await accounts.authenticate('ada', 'x'.repeat(129))).toEqual({ ok: false, reason: 'invalid' })
+    expect(calls).toHaveLength(1)
+    expect(calls[0]).not.toContain('x'.repeat(129))
+  })
+
+  // A-9, FR-I7: `lockedUntil` is the host's suspension, which nothing in the library lifts.
+  test('a new password, or a reset, leaves the host’s suspension in place', async () => {
+    const { adapter, accounts } = await setup()
+    await accounts.signUp({ username: 'ada', password: 'correct horse' })
+    const credential = await adapter.credentials.find('id-ada')
+    const suspended = new Date(Date.now() + 3_600_000)
+    await adapter.credentials.upsert({ ...(credential as NonNullable<typeof credential>), lockedUntil: suspended })
+    await accounts.setPassword('id-ada', 'battery staple')
+    const issued = await accounts.reset.issue('ada')
+    await accounts.reset.complete(issued?.token as string, 'another staple')
+    expect((await adapter.credentials.find('id-ada'))?.lockedUntil).toEqual(suspended)
+    expect(await accounts.authenticate('ada', 'another staple')).toMatchObject({ ok: false, reason: 'locked' })
+  })
+
+  // Q9, FR-I7: a username chosen to read as `google:<sub>` must not become that person's account.
+  test('sign-up refuses an id that linked identities already name', async () => {
+    const { adapter, accounts } = await setup()
+    await adapter.identities.upsert({ upstream: 'google', subject: '1', accountId: 'id-google:1', claims: {}, createdAt: new Date() })
+    expect(await accounts.signUp({ username: 'google:1', password: 'correct horse' })).toEqual({ ok: false, reason: 'taken' })
+    expect(await adapter.credentials.find('id-google:1')).toBeUndefined()
   })
 
   test('released claims follow the scopes, and preferred_username is the username', async () => {
@@ -298,6 +366,32 @@ describe('password reset', () => {
     expect(await accounts.authenticate('ada', 'battery staple', { clientIp: '198.51.100.1' })).toMatchObject({ ok: true })
     expect(await accounts.authenticate('ada', 'battery staple', { clientIp: '203.0.113.9' })).toMatchObject({ ok: true })
     expect(await accounts.authenticate('ada', 'battery staple')).toMatchObject({ ok: true })
+  })
+
+  // A-5, FR-I7: a second link sent to a mailbox someone else read is spent by the reset too.
+  test('completing a reset spends every other reset and email sign-in token of the account', async () => {
+    const { accounts } = await setup()
+    await accounts.signUp({
+      username: 'ada@example.test',
+      password: 'correct horse',
+      claims: { email: 'ada@example.test', email_verified: true }
+    })
+    const first = await accounts.reset.issue('ada@example.test')
+    const second = await accounts.reset.issue('ada@example.test')
+    const email = await accounts.emailSignIn.issue('ada@example.test', {
+      id: 'i-1',
+      clientId: 'rp',
+      expiresAt: new Date(Date.now() + 600_000)
+    })
+    if (!first || !second) throw new Error('no token')
+    if (!email.ok) throw new Error(email.reason)
+    expect(await accounts.reset.complete(first.token, 'battery staple')).toMatchObject({ ok: true })
+    expect(await accounts.emailSignIn.find(email.token)).toBeUndefined()
+    expect(await accounts.emailSignIn.redeem(email.token)).toEqual({ ok: false, reason: 'invalid' })
+    expect(await accounts.reset.complete(second.token, 'another staple')).toEqual({ ok: false, reason: 'invalid' })
+    expect(await accounts.reset.passkeyOptions(second.token)).toBeUndefined()
+    const after = await accounts.reset.issue('ada@example.test')
+    expect(await accounts.reset.complete(after?.token as string, 'another staple')).toMatchObject({ ok: true })
   })
 
   test('the token itself is not what is stored', async () => {

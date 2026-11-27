@@ -136,7 +136,8 @@ What this has to get right:
   `'tooLong'` (over 128 characters by default) or `undefined`; the wording, and its language, are
   yours (FR-I6).
 - **An unknown username and a wrong password look the same.** `authenticate` answers `invalid` for
-  both and spends the same hash on each (FR-I7); keep the screen from telling them apart too.
+  both, spends the same hash on each and locks both after the same number of guesses (FR-I7, `G-9`);
+  keep the screen from telling them apart too.
 
 ### A second factor
 
@@ -188,7 +189,10 @@ loses every passkey gets back in one of two ways, both ending in a reset token:
 
 The token's page offers a new passkey — `reset.passkeyOptions(token)`, then
 `reset.completeWithPasskey(token, response, name)` — or a password, through `reset.complete`. Either
-ends the account's sessions and revokes its tokens, as a stolen device may be why it was needed.
+ends the account's sessions and revokes its tokens, as a stolen device may be why it was needed, and
+spends every other reset and email sign-in link the account was sent. A new passkey replaces the
+password and TOTP, which after a compromise are the intruder's, and answers fresh `recoveryCodes` to
+show once.
 
 ### Email sign-in
 
@@ -389,7 +393,8 @@ invalidates all three. `origin` is the issuer's URL; passkeys need it, as their 
 host.
 
 - `store` — the `AccountStore` to pass as the adapter's `accounts`
-- `register`, `authenticate`, `verifySecondFactor`, `setPassword`, `recover`,
+- `policy` — the policy in force, defaults filled in, for screens that state the password rules
+- `signUp`, `authenticate`, `verifySecondFactor`, `setPassword`, `recover`,
   `regenerateRecoveryCodes`
 - `totp.begin` (refused for an account with no password), `totp.confirm` (which returns the
   recovery codes, once), `totp.remove`, `totp.status`
@@ -401,8 +406,10 @@ host.
 - `reset.issue`, `reset.issueForAccount`, `reset.complete`, and `reset.passkeyOptions` with
   `reset.completeWithPasskey` — single-use reset tokens. Delivering one is I/O, so you send it
   (FR-A1); `issue` returns nothing for an unknown username, and your page must answer both cases
-  the same way. Completing a reset, with a password or a passkey, ends the account's sessions and
-  lifts its locks: the account's own and, given `{ clientIp }`, that address's.
+  the same way. Completing a reset, with a password or a passkey, ends the account's sessions,
+  spends the account's other reset and email sign-in tokens, and lifts the locks wrong guesses
+  caused: the account's own and, given `{ clientIp }`, that address's. A credential's `lockedUntil`
+  is your suspension, which nothing here lifts.
 - `emailSignIn.issue`, `emailSignIn.find` and `emailSignIn.redeem` — sign-in, and sign-up where
   you offer it, by a single-use link to an address, finished with `provider.interactions.completeHere`
   ([Email sign-in](#email-sign-in), FR-I9)
@@ -415,7 +422,14 @@ context to `authenticate` and `verifySecondFactor`, and five failures lock that 
 account for 900 seconds, while fifty from all addresses together within a day lock the account for
 everyone; the owner signing in does not reset those. An IPv6 address counts by its /64, except an IPv4 peer reached through
 a NAT64 translator (`64:ff9b::/96`), which counts by its IPv4 address. Without an
-address, five lock the account. All of it is set by `policy` (FR-I7, `G-9`). Answer a locked account
+address, five lock the account. A spread-out guess that locked the account keeps its count past
+the lock, so after it one more failure locks it again. All of it is set by `policy` (FR-I7, `G-9`).
+
+A password is at least 15 characters by default (`policy.minPasswordLength`, NIST SP 800-63B-4
+§3.1.1.2) and at most 128, which `authenticate` also enforces, at the cost of an unknown username.
+A blocklist is yours: `rejectPassword(password, { username })` returning `true` refuses it as
+`rejected`. `newAccountId` must never return an id a linked identity already names; sign-up refuses
+one that does, and `linkIdentity` refuses a created account a local one already holds (FR-F5). Answer a locked account
 on the password screen as you answer a wrong password, or the difference confirms the username exists. The provider guide's
 [Local accounts](/guide/provider#local-accounts) has the setup.
 

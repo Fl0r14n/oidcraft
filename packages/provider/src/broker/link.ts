@@ -1,4 +1,4 @@
-import type { BrokeringAdapter, LinkedIdentity } from '@oidcraft/provider'
+import type { BrokeringAdapter, CredentialsAdapter, LinkedIdentity } from '@oidcraft/provider'
 import type { BrokeredIdentity, LinkPolicy } from './types'
 
 export type LinkResult = { accountId: string; created: boolean } | { needsInteraction: 'link'; candidate: string }
@@ -49,6 +49,11 @@ export const linkIdentity = async (
   }
 
   const accountId = await options.createAccount(identity)
+  // FR-F5: one id names one account. A created one a local credential holds would hand that account to the upstream's user.
+  const local = adapter as Partial<CredentialsAdapter>
+  if ((await local.credentials?.find(accountId)) || (await local.passkeys?.listForAccount(accountId))?.length) {
+    throw new Error(`createAccount returned ${accountId}, which a local account already holds; a created account needs an id of its own`)
+  }
   await link(adapter, identity, accountId)
   return { accountId, created: true }
 }
